@@ -983,6 +983,26 @@ export const NON_TECHNICAL: NonTechnicalCatalog = {
         { id: "21.10.1", why: "Track claims processing cycle times — slow processing frustrates policyholders." },
         { id: "21.10.6", why: "Detect fraud rings — patterns of coordinated fraudulent claims." },
         { id: "21.10.3", why: "Balance adjuster workloads so no one is overwhelmed and claims are handled fairly." }
+      ]},
+      { name: "Financial services & banking", description: "Core banking, payment rails, card fraud, and trading operations.", ucs: [
+        { id: "21.11.1", why: "Monitor credit card transaction patterns — unusual spikes can signal fraud or outages." },
+        { id: "21.11.2", why: "Track wire transfer failures — failed payments frustrate customers and regulators." },
+        { id: "21.11.3", why: "Watch ATM cash-dispense errors — empty ATMs damage customer trust." }
+      ]},
+      { name: "Public sector & government", description: "Agency audit logs, citizen services, and smart-city operations.", ucs: [
+        { id: "21.12.1", why: "Track law-enforcement case-system access — unauthorized lookups are a compliance risk." },
+        { id: "21.12.2", why: "Monitor citizen portal login failures — spikes may indicate attacks or outages." },
+        { id: "21.12.3", why: "Watch CAD dispatch queue depth — delayed responses put public safety at risk." }
+      ]},
+      { name: "Education & academic medical", description: "LMS, student information systems, campus networks, and research HPC.", ucs: [
+        { id: "21.13.1", why: "Detect unauthorized access to student records — FERPA violations carry serious penalties." },
+        { id: "21.13.2", why: "Monitor LMS assignment submission failures — students miss deadlines when uploads fail." },
+        { id: "21.13.3", why: "Track campus Wi-Fi authentication errors — connectivity problems disrupt learning." }
+      ]},
+      { name: "Contact center & CX", description: "ACD queues, IVR/chatbot flows, workforce management, and CSAT.", ucs: [
+        { id: "21.14.1", why: "Monitor Genesys Cloud integration health — broken APIs stop agents from taking calls." },
+        { id: "21.14.2", why: "Track average handle time by queue — long waits frustrate customers." },
+        { id: "21.14.3", why: "Watch IVR abandonment rates — callers hanging up means lost revenue or support." }
       ]}
     ]
   },

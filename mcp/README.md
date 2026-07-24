@@ -108,10 +108,10 @@ npx @modelcontextprotocol/inspector splunk-uc-mcp \
 |------|---------|
 | `search_use_cases` | Keyword + category / regulation / equipment / MITRE filter |
 | `get_use_case` | Full SPL, implementation notes, compliance array for one UC |
-| `list_categories` | The 23 categories with per-subcategory UC counts |
+| `list_categories` | The 25 categories with per-subcategory UC counts |
 | `list_regulations` | All 60 regulations with tier, jurisdiction, tags |
 | `get_regulation` | Regulation detail (optionally version-specific) |
-| `list_equipment` | All 105 equipment slugs with UC + regulation counts |
+| `list_equipment` | All 108 equipment slugs with UC + regulation counts |
 | `get_equipment` | UCs grouped by category + regulation mappings for one slug |
 | `find_compliance_gap` | Uncovered clauses per regulation; optional equipment overlay |
 

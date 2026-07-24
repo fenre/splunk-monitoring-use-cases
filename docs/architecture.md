@@ -165,7 +165,7 @@ Budgets are enforced in CI by `tools/audits/budgets.py` reading
   ergonomic features (copy-SPL buttons, dark-mode toggle, search-on-this-page).
 * **Catalog index for `/browse/`.** The interactive browser bootstraps from
   `/api/catalog-index.json` (UC stub: `{i, n, c, d, cat, sub, mtype, regs,
-  search_blob}`), on the order of **~750 KB gzipped** at the current **7,364** UC scale and ~4 MB at 60 K UCs.
+  search_blob}`), on the order of **~1.6 MB gzipped** at the current **16,644** UC scale and ~4 MB at 60 K UCs.
 * **Per-category lazy load.** Opening a category fetches `/api/cat-N.json` (cached in
   memory and Service Worker).
 * **Sharded search.** Full-text search uses MiniSearch shards
@@ -218,7 +218,7 @@ CI wall-clock target: ≤4 min for a full release build.
 
 | Dimension | Current (v7) | Target (10× growth) |
 |---|---|---|
-| UC count | 7,364 | 60,000 |
+| UC count | 16,644 | 60,000 |
 | Build wall-clock | ≤90 s in CI (budget) | ≤90 s at 60 K UCs |
 | `catalog-index.json` gzipped | ~750 KB – ~1 MB | ≤4 MB at 60 K UCs |
 | Search | 16–32 MiniSearch shards (~100 KB each) | same pattern, larger shard count if needed |

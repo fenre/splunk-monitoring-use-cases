@@ -1,6 +1,6 @@
 # Splunk Infrastructure Monitoring Use Cases
 
-A curated collection of **7,929 IT infrastructure monitoring use cases** for Splunk, organized across 23 technology domains. Each use case includes criticality rating, example SPL queries, implementation guidance, CIM data model mappings, equipment tagging, and visualization recommendations.
+A curated collection of **16,644 IT infrastructure monitoring use cases** for Splunk, organized across 25 technology domains. Each use case includes criticality rating, example SPL queries, implementation guidance, CIM data model mappings, equipment tagging, and visualization recommendations.
 
 Browse them in the **interactive dashboard** or use the **machine-readable API** (`dist/api/catalog-index.json`) for automation and integrations.
 
@@ -63,7 +63,7 @@ Use-case searches prefer **CIM-aligned names** (`src`, `dest`, `user`, …) over
 
 ### Splunk Dashboard Studio (optional)
 
-The **`dashboards/`** folder includes **Dashboard Studio** JSON exports with **synthetic** `makeresults` data — for example **`catalog-quick-start-top2.json`**, which has **one labeled chart per** Quick-Start use case (**46** panels = top 2 × 23 categories from `content/INDEX.md`). See **`dashboards/README.md`** for UI import and **`scripts/deploy_dashboard_studio_rest.py`** to push the dashboard to a Splunk server via the **REST** API (`data/ui/views`). Regenerate the JSON with **`scripts/generate_catalog_dashboard.py`** after changing Quick Start lists.
+The **`dashboards/`** folder includes **Dashboard Studio** JSON exports with **synthetic** `makeresults` data — for example **`catalog-quick-start-top2.json`**, which has **one labeled chart per** Quick-Start use case (**50** panels = top 2 × 25 categories from `content/INDEX.md`). See **`dashboards/README.md`** for UI import and **`scripts/deploy_dashboard_studio_rest.py`** to push the dashboard to a Splunk server via the **REST** API (`data/ui/views`). Regenerate the JSON with **`scripts/generate_catalog_dashboard.py`** after changing Quick Start lists.
 
 ### Data Sizing Assessment Tool
 
@@ -122,7 +122,7 @@ Open **`tools/data-sizing/`** (or click "Data Sizing Tool" in the dashboard foot
 
 ---
 
-## Technology Domains (23 Categories)
+## Technology Domains (25 Categories)
 
 | # | Category | Examples |
 |---|----------|----------|
@@ -149,6 +149,8 @@ Open **`tools/data-sizing/`** (or click "Data Sizing Tool" in the dashboard foot
 | 21 | Industry Verticals | Energy, manufacturing, healthcare, telecom, transportation, retail, aviation, insurance |
 | 22 | Regulatory & Compliance Frameworks | GDPR<sup class="ref">[<a href="#ref-2">2</a>]</sup>, NIS2<sup class="ref">[<a href="#ref-1">1</a>]</sup>, DORA<sup class="ref">[<a href="#ref-3">3</a>]</sup>, CCPA, MiFID II, ISO 27001, NIST CSF, SOC 2 |
 | 23 | Business Analytics | Executive dashboards, KPI tracking, data quality |
+| 24 | BI Platforms | Tableau, Power BI, Looker, Qlik, Metabase |
+| 25 | Personal & Hobbyist Monitoring | Smart home, fitness, finance, creative hobbies, Life-OS |
 
 ---
 
@@ -181,7 +183,7 @@ Additional fields are available for security use cases (MITRE ATT&CK<sup class="
 - **Search** across all use cases by keyword, UC-ID, or SPL content (Cmd/Ctrl+K shortcut)
 - **Filter by equipment** you have (e.g. "Cisco", "AWS", "VMware") with optional model-level drill-down
 - **Sort** by criticality, difficulty, name, or category
-- **Virtual scrolling** for large lists (7,364 use cases rendered on demand)
+- **Virtual scrolling** for large lists (16,644 use cases rendered on demand)
 - **Non-technical view** with plain-language outcomes per category, backed by a per-UC `grandmaExplanation` (one-to-three-sentence "explain it to my grandma" summary) rendered on every card, panel, search result, and recently-added list when the toggle is on — see [docs/grandma-explanations.md](docs/grandma-explanations.md)
 - **Quick-win starters** highlighted per category for fast implementation
 - **Print-friendly** layout with dedicated print stylesheet
