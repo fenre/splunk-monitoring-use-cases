@@ -12,7 +12,29 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
-## [8.19.0] - 2026-07-23
+## [8.20.0] - 2026-07-24
+
+### New Use Cases
+
+- **Compliance gap closure — +46 cat-22 use cases closing all remaining
+  `commonClauses[]` gaps.** Tier-1 clause coverage rises from 90.9% to
+  **100%**; tier-2 from 97.6% to **100%** (656/656 common clauses covered).
+  New subcategory batches: TSA Surface (+18, `22.56.29`–`22.56.46`), SG Cyber
+  Act (+9, `22.57.16`–`22.57.24`), SOCI (+7, `22.52.29`–`22.52.35`), CLC/TS
+  50701 (+5), IEC 61511 (+2), plus singletons for AWIA, CERT-In, CN CSL, France
+  LPM, and IMO.
+
+### Changed
+
+- **`data/regulations.json`:** AWIA `clauseGrammar` extended to allow digits in
+  `EPA-*` clause IDs (fixes validation for `AWIA-EPA-vsat-j100`).
+- **Golden compliance tuples:** five gap-closure mappings locked in
+  `tests/golden/compliance-mappings.yaml`.
+- **Generator:** `scripts/generate_compliance_gap_closure.py` — reproducible
+  Wave-1 sidecar authoring from the gap manifest.
+- **Coverage metrics:** global assurance-adjusted rises to **76.0%** (from
+  72.6%); NIS2 / tier-2 assurance depth remains follow-up work.
+
 
 ### New Use Cases
 
