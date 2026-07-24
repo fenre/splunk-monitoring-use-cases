@@ -1,0 +1,105 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.56.32",
+  "title": "TSA-SD Freight Rail annual CIP attestation and corrective-action submission evidence",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Pipeline + Rail",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes assets explicitly out of regulatory scope. Excludes documented exception windows in the UC-specific suppression lookup.",
+  "evidence": "Saved search `UC-22.56.32` archived to `audit_evidence` with `tsa_sd_clause=\"TSA-SD-1580-82-2022-01-s6\"`.",
+  "compliance": [
+    {
+      "regulation": "tsa-surface",
+      "version": "2024-consolidated-pipeline-rail",
+      "clause": "TSA-SD-1580-82-2022-01-s6",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Operationalises observable elements of TSA-SD-1580-82-2022-01-s6. Marked partial where legal attestation or manual TSA filing remains outside Splunk.",
+      "controlObjective": "Demonstrates ongoing compliance with TSA-SD-1580-82-2022-01-s6 via measurable operational evidence.",
+      "evidenceArtifact": "Saved search UC-22.56.32, dashboard panel, and quarterly export filed in the TSA CSAS package.",
+      "obligationRef": "tsa-surface@2024-consolidated-pipeline-rail#TSA-SD-1580-82-2022-01-s6",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Set a synthetic non-compliant state in the governing lookup for TSA-SD-1580-82-2022-01-s6. The saved search UC-22.56.32 MUST surface an actionable row within one schedule interval.",
+    "negativeScenario": "Restore compliant values in the lookup. UC-22.56.32 MUST NOT produce actionable rows."
+  },
+  "dataSources": "KV Store `tsa_freight_cip_attestation_lookup`; ServiceNow GRC tasks (`index=itsm sourcetype=snow:task`); Splunk audit archive (`index=audit_evidence`).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Add-on for ServiceNow (Splunkbase 1928).",
+  "spl": "| inputlookup tsa_freight_cip_attestation_lookup\n| eval status = case(isnull(attestation_status) OR attestation_status!=\"current\", \"action_required\", 1=1, \"current\")\n| where status=\"action_required\"\n| table * status",
+  "description": "Surfaces non-compliant rows in `tsa_freight_cip_attestation_lookup` for TSA Surface clause TSA-SD-1580-82-2022-01-s6.",
+  "value": "TSA Surface enforcement for TSA-SD-1580-82-2022-01-s6 requires demonstrable, current evidence—not static policy PDFs.",
+  "implementation": "(1) Populate lookups referenced in dataSources. (2) Schedule UC-22.56.32 per the control cadence. (3) Route actionable rows to ES notables and archive to audit_evidence. (4) Build the compliance dashboard panel for TSA-SD-1580-82-2022-01-s6.",
+  "visualization": "(Panel 1) Compliance status summary for TSA-SD-1580-82-2022-01-s6. (Panel 2) Open exceptions / overdue items. (Panel 3) 90-day trend. (Panel 4) Evidence export readiness.",
+  "cimModels": [
+    "Change",
+    "Inventory"
+  ],
+  "references": [
+    {
+      "title": "Authoritative source — tsa-surface TSA-SD-1580-82-2022-01-s6",
+      "url": "https://www.tsa.gov/news/press/releases/2024/06/07/tsa-reissues-cybersecurity-requirements-pipeline-industry"
+    },
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Splunk Common Information Model Add-on",
+      "url": "https://splunkbase.splunk.com/app/1621"
+    },
+    {
+      "title": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    }
+  ],
+  "knownFalsePositives": "1. **Planned maintenance window** — documented change windows in the exception lookup suppress benign activity during approved work.\n\n2. **Pen-test / red-team activity** — engagements carrying an agreed rules-of-engagement marker must be excluded via `pentest_window_lookup`.\n\n3. **Vendor remote-access sessions** — authorised vendor PAM sessions cross-reference `vendor_session_lookup` before alerting.\n\n4. **Commissioning / factory acceptance** — temporary engineering states are pinned in the exception register with a 30-day maximum grant.\n\n**Suppression mechanism**: KV Store `<uc_id>_exceptions` with documented control-owner approval and time-bound expiry.",
+  "mitreAttack": [
+    "T1078"
+  ],
+  "requiredFields": [
+    "status",
+    "last_reviewed_at"
+  ],
+  "equipment": [
+    "servicenow",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-07-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Compliance SME Panel",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise 9.2+ or Splunk Cloud with Enterprise Security (Splunkbase 263).\n- Splunk Common Information Model Add-on (Splunkbase 1621).\n- Splunk Add-on for ServiceNow (Splunkbase 1928) when ITSM or CMDB evidence is referenced.\n- Dedicated `index=audit_evidence` with at least a seven-year retention policy for regulatory artefacts.\n- RBAC: compliance-analyst role with read on source indexes and write on `audit_evidence`.\n\n## Step 1 — Configure data collection\n\nPopulate the KV Store / lookup named in `dataSources` from the authoritative GRC or operational source of record. Validate ingest with a 24-hour `timechart count` on each sourcetype before enabling the scheduled search.\n\n## Step 2 — Create the search and alert\n\nSchedule the saved search on the cadence documented in `implementation`. Route `action_required` or equivalent status values to an ES notable with severity mapped to business impact. Archive every result row to `audit_evidence` using a summary-index action with markers `uc=22.56.32` and `clause=TSA-SD-1580-82-2022-01-s6`.\n\n## Step 3 — Validate deployment\n\n**(a)** Inject a synthetic non-compliant row into the lookup and confirm the search surfaces it within one schedule interval.\n\n**(b)** Restore compliant values and confirm the search returns zero actionable rows.\n\n**(c)** Export a CSV from the dashboard and verify column names match the `evidence` field contract.\n\n## Step 4 — Operationalize\n\nBuild the dashboard referenced in `visualization`. Integrate the runbook with the control owner named in `owner`. Review false-positive suppressions monthly.\n\n## Step 5 — Troubleshooting\n\n**Lookup drift** — reconcile weekly against the source system.\n\n**Silent search** — confirm modular inputs are enabled and license volume has headroom.\n\n**False-positive storm** — tune suppressions in the documented KV Store exception collection with time-bound grants.\n\n**Audit export gaps** — verify summary-index routing and retention on `audit_evidence`.\n\n**Cross-timezone timestamps** — normalise all `_time` fields to UTC before SLA math.\n\n**SOAR / ticket desync** — ensure bidirectional sync populates disposition fields used in the SPL filter.",
+  "grandmaExplanation": "We keep an eye on TSA-SD Freight Rail annual CIP attestation and corrective-action submission evidence so auditors can see we are meeting the rule TSA-SD-1580-82-2022-01-s6 and we get warned before we fall out of compliance.",
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk",
+  "prerequisiteUseCases": [
+    "UC-22.56.1"
+  ]
+}
