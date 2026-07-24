@@ -170,13 +170,13 @@ _PERF_BUDGETS: list[PerfBudget] = [
     },
     {
         "file": "dist/llms-full.txt",
-        "budget_bytes": 1_126_400,  # 1100 KiB
+        "budget_bytes": 1_200_000,  # ~1172 KiB
         "tier": "generated-data",
         "note": (
             "Long-form AI-agent manifest (per llms.txt spec). Budget raised "
-            "to 1100 KiB in v8.19.0 when cat-25 variable-depth expansion "
-            "pushed the manifest past 896 KiB (~14,800 UCs). Previously "
-            "896 KiB in v8.17.0 (~11,600 UCs)."
+            "to ~1172 KiB in v8.24.0 after cat-04 cloud expansion and cat-22 "
+            "compliance gap closure pushed the manifest past 1100 KiB "
+            "(~15,930 UCs). Previously 1100 KiB in v8.19.0 (~14,800 UCs)."
         ),
     },
 ]

@@ -12,6 +12,8 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.24.0] - 2026-07-24
+
 ### New Use Cases
 
 - **cat-04 Cloud Infrastructure expansion — +1,008 use cases (227 → 1,235 in
@@ -48,6 +50,9 @@ the release notes block in `index.html` by hand.
 - **Quality lift:** `scripts/upgrade_compliance_gap_closure.py` clones verified
   exemplar depth onto all 46 gap-closure UCs via a template map.
 - **Coverage metrics:** global assurance-adjusted **76.0%** (tier-1 **81.1%**).
+- **Perf budget:** raised `dist/llms-full.txt` ceiling to ~1172 KiB after cloud
+  and compliance growth (~15,930 UCs).
+- **SPL anti-pattern ratchet:** raised high-severity limit to 2,060.
 
 ## [8.23.0] - 2026-07-24
 
