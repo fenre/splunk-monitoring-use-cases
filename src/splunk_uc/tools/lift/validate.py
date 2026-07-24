@@ -65,6 +65,7 @@ from splunk_uc.tools.lift._common import (
     resolve_sidecar_path,
     score_uc,
 )
+from splunk_uc.tools.lift._handcraft import validate_handcraft
 
 SRC_DIR = REPO_ROOT / "src"
 SCHEMA_PATH = REPO_ROOT / "schemas" / "uc.schema.json"
@@ -279,6 +280,72 @@ def _check_identity_preserved(original: dict[str, Any], lifted: dict[str, Any]) 
             )
 
 
+def _run_per_file_audits(sidecar_path: Path, *, target_tier: TargetTier) -> None:
+    """Run scoped audits on one lifted sidecar (hand-craft mode)."""
+    try:
+        sidecar_path.relative_to(REPO_ROOT)
+    except ValueError:
+        # Hermetic pytest tmp trees are outside the repo; in-memory hand-craft
+        # gates already ran — skip catalog audits that assume PROJECT_ROOT paths.
+        return
+
+    env = {**os.environ, "PYTHONPATH": str(SRC_DIR)}
+    rel = sidecar_path
+    try:
+        rel = sidecar_path.relative_to(REPO_ROOT)
+    except ValueError:
+        pass
+    rel_str = str(rel)
+    audits: list[list[str]] = [
+        [
+            sys.executable,
+            "-m",
+            "splunk_uc",
+            "audit-content-quality",
+            "--files",
+            rel_str,
+            "--severity",
+            "fail",
+        ],
+        [
+            sys.executable,
+            "-m",
+            "splunk_uc",
+            "audit-template-provenance",
+            "--files",
+            rel_str,
+            "--check",
+            "--max-any",
+            "0",
+        ],
+    ]
+    if target_tier == TargetTier.GOLD_V2:
+        audits.append(
+            [
+                sys.executable,
+                "-m",
+                "splunk_uc",
+                "audit-gold-profile-v2",
+                "--files",
+                rel_str,
+            ]
+        )
+    for cmd in audits:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=str(REPO_ROOT),
+            check=False,
+        )
+        if result.returncode != 0:
+            raise _ValidationError(
+                f"per-file audit {' '.join(cmd[3:6])} failed (exit {result.returncode}):\n"
+                f"{result.stdout}\n{result.stderr}"
+            )
+
+
 def _run_strict_audits() -> None:
     """Run the opt-in catalog-wide audit chain.
 
@@ -370,6 +437,25 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Emit a machine-readable success payload to stdout.",
     )
+    parser.add_argument(
+        "--require-handcraft",
+        action="store_true",
+        help=(
+            "Refuse diffs that retain bulk-enricher fingerprints, fail domain-token "
+            "binding, or exceed cross-UC similarity caps (hand-craft burndown mode)."
+        ),
+    )
+    parser.add_argument(
+        "--anchor-uc",
+        default=None,
+        help="Anchor UC for cross-UC similarity check when --require-handcraft is set.",
+    )
+    parser.add_argument(
+        "--batch-manifest",
+        type=Path,
+        default=None,
+        help="Batch manifest JSON (ucs list) for sibling similarity checks.",
+    )
     return parser
 
 
@@ -393,6 +479,17 @@ def main(argv: list[str] | None = None) -> int:
         _check_lifted_mitre_techniques(diff)
         lifted = _apply_diff(original, diff)
         _check_identity_preserved(original, lifted)
+        if args.require_handcraft:
+            handcraft_reasons = validate_handcraft(
+                original=original,
+                lifted=lifted,
+                lifted_field_names=set(diff["lifted_fields"].keys()),
+                anchor_uc=args.anchor_uc,
+                batch_manifest=args.batch_manifest,
+                content_root=args.content_root,
+            )
+            if handcraft_reasons:
+                raise _ValidationError("; ".join(handcraft_reasons))
     except _ValidationError as exc:
         print(f"lift-validate: REFUSE: {exc}", file=sys.stderr)
         return 1
@@ -417,6 +514,13 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 1
+        if args.require_handcraft:
+            try:
+                _run_per_file_audits(sidecar_path, target_tier=target_tier)
+            except _ValidationError as exc:
+                sidecar_path.write_bytes(original_bytes)
+                print(f"lift-validate: REFUSE: {exc}", file=sys.stderr)
+                return 1
         if args.strict:
             try:
                 _run_strict_audits()
