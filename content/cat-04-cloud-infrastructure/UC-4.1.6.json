@@ -10,14 +10,14 @@
   ],
   "splunkPillar": "Security",
   "controlTest": {
-    "positiveScenario": "Inject sample events matching UC-4.1.6 SPL; confirm the search returns rows and alert fires.",
-    "negativeScenario": "Replay benign traffic without matching markers; confirm UC-4.1.6 search returns zero rows."
+    "positiveScenario": "Replay sample `aws:cloudtrail` events with `(eventName=\"RunInstances\" OR eventName=\"TerminateInstances\" OR eventName=\"StopInstances\" OR eventName=\"StartInstances\")` into `index=aws`. Confirm UC-4.1.6 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `aws:cloudtrail` traffic without `(eventName=\"RunInstances\" OR eventName=\"TerminateInstances\" OR eventName=\"StopInstances\" OR eventName=\"StartInstances\")`. Confirm UC-4.1.6 returns zero rows and the alert does not fire."
   },
   "dataSources": "`index=aws` sourcetype=`aws:cloudtrail` collected via `Splunk_TA_aws`; validate ingest with `| stats count by sourcetype`.",
   "app": "`Splunk_TA_aws`",
   "spl": "index=aws sourcetype=\"aws:cloudtrail\" (eventName=\"RunInstances\" OR eventName=\"TerminateInstances\" OR eventName=\"StopInstances\" OR eventName=\"StartInstances\")\n| table _time userIdentity.arn eventName sourceIPAddress awsRegion\n| eval uc_marker=\"UC-4.1.6_ec2_instance_state_chang_6\"\n| sort -_time",
-  "description": "Tracks instance lifecycle for audit and change management. Unexpected terminations indicate accidents, auto-scaling issues, or attacks.",
-  "value": "Detecting ec2 instance state changes early reduces mean time to contain cloud incidents, supports audit logging controls, and prevents silent misconfiguration drift across accounts.",
+  "description": "UC-4.1.6 — EC2 Instance State Changes: queries AWS `aws:cloudtrail` for `RunInstances` (+3 related API operations) and returns actor, resource, and region context for security review and change validation.",
+  "value": "On AWS, `RunInstances` activity for 'EC2 Instance State Changes' is a high-signal control-plane change that should match approved change records and privileged-access monitoring. UC-4.1.6 drives medium-priority security alerting before customer-impacting drift.",
   "implementation": "Ingest CloudTrail via the Splunk Add-on for AWS (`Splunk_TA_aws`) using the S3/SQS input from the organization trail. Alert on `TerminateInstances` where `requestParameters.instancesSet.items{}.instanceId` matches production-tagged instances from a `prod_instances` lookup. Suppress alerts during Auto Scaling scale-in events by checking `userIdentity.invokedBy=autoscaling.amazonaws.com`.",
   "visualization": "Table (timeline), Bar chart (events by type per day), Line chart (instance count trending).",
   "cimModels": [

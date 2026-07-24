@@ -9,14 +9,14 @@
   ],
   "splunkPillar": "Observability",
   "controlTest": {
-    "positiveScenario": "Inject sample events matching UC-4.1.57 SPL; confirm the search returns rows and alert fires.",
-    "negativeScenario": "Replay benign traffic without matching markers; confirm UC-4.1.57 search returns zero rows."
+    "positiveScenario": "Replay sample `aws:cloudtrail` events with `eventSource=\"ecs.amazonaws.com\" (eventName=\"RunTask\" OR eventName=\"CreateService\")` into `index=aws`. Confirm UC-4.1.57 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `aws:cloudtrail` traffic without `eventSource=\"ecs.amazonaws.com\" (eventName=\"RunTask\" OR eventName=\"CreateService\")`. Confirm UC-4.1.57 returns zero rows and the alert does not fire."
   },
   "dataSources": "`index=aws` sourcetype=`aws:cloudtrail` collected via `Splunk_TA_aws`; validate ingest with `| stats count by sourcetype`.",
   "app": "`Splunk_TA_aws`",
   "spl": "index=aws sourcetype=\"aws:cloudtrail\" eventSource=\"ecs.amazonaws.com\" (eventName=\"RunTask\" OR eventName=\"CreateService\")\n| table _time userIdentity.arn eventName sourceIPAddress awsRegion\n| eval uc_marker=\"UC-4.1.57_aws_ecs_task_placement_f_57\"\n| sort -_time",
-  "description": "Tasks failing to place due to resource constraints (CPU, memory, ports, attributes) cause service scaling failures and deployment blockages.",
-  "value": "Detecting aws ecs task placement failures early reduces mean time to contain cloud incidents, supports audit logging controls, and prevents silent misconfiguration drift across accounts.",
+  "description": "UC-4.1.57 — AWS ECS Task Placement Failures: queries AWS `aws:cloudtrail` for `RunTask`, `CreateService` and returns actor, resource, and region context for availability review and change validation.",
+  "value": "On AWS, `RunTask` activity for 'AWS ECS Task Placement Failures' is a high-signal control-plane change that should match approved change records and privileged-access monitoring. UC-4.1.57 drives high-priority availability alerting before customer-impacting drift.",
   "implementation": "CloudTrail logs ECS API calls; RunTask and CreateService responses include a `failures` array when placement fails. Ingest ECS events from EventBridge for container instance state changes. Parse failure reasons (RESOURCE:MEMORY, RESOURCE:CPU, RESOURCE:PORT, attribute constraints). Alert on any placement failure. Dashboard by cluster, reason, and task definition. Remediate by adding capacity, relaxing constraints, or adjusting task definitions.",
   "visualization": "Table (reason, cluster, count), Bar chart (failures by reason), Timeline (placement failure events).",
   "cimModels": [

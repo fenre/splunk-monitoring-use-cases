@@ -10,14 +10,14 @@
   ],
   "splunkPillar": "Security",
   "controlTest": {
-    "positiveScenario": "Inject sample events matching UC-4.4.32 SPL; confirm the search returns rows and alert fires.",
-    "negativeScenario": "Replay benign traffic without matching markers; confirm UC-4.4.32 search returns zero rows."
+    "positiveScenario": "Replay sample `aws:cloudtrail` events with `sourcetype IN (\"aws:cloudtrail\",\"azure:monitor:activity\",\"google:gcp:pubsub:message\")` into `index=cloud`. Confirm UC-4.4.32 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `aws:cloudtrail` traffic without `sourcetype IN (\"aws:cloudtrail\",\"azure:monitor:activity\",\"google:gcp:pubsub:message\")`. Confirm UC-4.4.32 returns zero rows and the alert does not fire."
   },
   "dataSources": "`index=cloud` sourcetype=`aws:cloudtrail` collected via Splunk Machine Learning Toolkit (MLTK), Splunk Add-on for AWS / Azure / GCP; validate ingest with `| stats count by sourcetype`.",
   "app": "Splunk Machine Learning Toolkit (MLTK), Splunk Add-on for AWS / Azure / GCP",
   "spl": "index=cloud sourcetype=\"aws:cloudtrail\" sourcetype IN (\"aws:cloudtrail\",\"azure:monitor:activity\",\"google:gcp:pubsub:message\")\n| table _time userIdentity.arn eventName sourceIPAddress awsRegion\n| eval uc_marker=\"UC-4.4.32_cloud_control_plane_api_32\"\n| sort -_time",
-  "description": "Cloud control plane API calls (EC2 RunInstances, IAM CreateUser, S3 PutBucketPolicy) follow predictable patterns tied to deployment schedules and automation cadence. Anomalous spikes in API call volume may indicate compromised credentials, runaway automation, or an attacker enumerating resources — all of which are invisible to static rate limits but detectable through ML-based baselining.",
-  "value": "Detecting cloud control plane api call volume anomaly (mltk) early reduces mean time to contain cloud incidents, supports audit logging controls, and prevents silent misconfiguration drift across accounts.",
+  "description": "UC-4.4.32 — Cloud Control Plane API Call Volume Anomaly (MLTK): queries multi-cloud (AWS/Azure/GCP) `aws:cloudtrail` for search criteria `sourcetype IN (\"aws:cloudtrail\",\"azure:monitor:activity\",\"google:gcp:pubsub:message\")` and returns actor, resource, and region context for security review and change validation.",
+  "value": "On multi-cloud (AWS/Azure/GCP), detecting 'Cloud Control Plane API Call Volume Anomaly (MLTK)' early shortens cloud incident response and produces defensible audit evidence for identity and change-management controls. UC-4.4.32 drives critical-priority security alerting before customer-impacting drift.",
   "implementation": "Aggregate CloudTrail / Activity Log / Admin Activity events hourly by API action and principal. Train DensityFunction models per API action on 30 days of data to capture automation schedules and deployment patterns. Flag calls that exceed 3 standard deviations from the learned baseline. Prioritize high-risk APIs: IAM mutations, security group changes, KMS key operations, and resource creation. Enrich with source IP geolocation and threat intelligence. Correlate with CI/CD deployment events (cat-12) to suppress planned automation bursts. Generate risk events for Splunk ES with MITRE T1078/T1580 annotations. Retrain models weekly.",
   "visualization": "Line chart (API call volume vs baseline), Table (anomalous API calls with z-scores), Bar chart (top anomalous APIs by principal).",
   "cimModels": [

@@ -277,6 +277,241 @@ def _extract_event_filter(filt: str) -> str:
     return ""
 
 
+def _extract_all_events(filt: str) -> list[str]:
+    events = re.findall(r'eventName="([^"]+)"', filt)
+    if not events:
+        events = re.findall(r'operationName="([^"]+)"', filt)
+    if not events:
+        events = re.findall(r'methodName="([^"]+)"', filt)
+    return events
+
+
+def _provider_name(equipment: list[str], index: str, title: str, sourcetype: str) -> str:
+    if equipment:
+        label = {
+            "aws": "AWS",
+            "azure": "Microsoft Azure",
+            "gcp": "Google Cloud",
+            "oci": "Oracle Cloud Infrastructure",
+            "alibaba": "Alibaba Cloud",
+            "kubernetes": "Kubernetes",
+        }.get(equipment[0], equipment[0].upper())
+        if len(equipment) > 1 and "aws" in equipment and "azure" in equipment:
+            return "multi-cloud (AWS/Azure/GCP)"
+        return label
+    if title.startswith("AWS ") or "aws:" in sourcetype:
+        return "AWS"
+    if title.startswith("Azure ") or "azure" in sourcetype:
+        return "Microsoft Azure"
+    if title.startswith("GCP ") or "google" in sourcetype:
+        return "Google Cloud"
+    if title.startswith("OCI ") or sourcetype.startswith("oci:"):
+        return "Oracle Cloud Infrastructure"
+    if title.startswith("Alibaba ") or sourcetype.startswith("alibaba:"):
+        return "Alibaba Cloud"
+    return index.replace("_", " ").upper()
+
+
+def _is_boilerplate_text(text: str) -> bool:
+    markers = (
+        "Detecting ",
+        " early reduces mean time to contain cloud incidents",
+        "This UC monitors",
+        "Surfaces actor identity, source context, and affected resources for SOC triage",
+        "Identifies anomalous or high-risk activity for security and operations review",
+        "requires security review for Alibaba workloads",
+        "Monitors `",
+        " events matching ",
+        "Alerting at ",
+        " priority under ",
+        "before they affect production SLAs",
+    )
+    return any(m in text for m in markers)
+
+
+def _impact_from_title(title: str, events: list[str], provider: str) -> str:
+    lower = title.lower()
+    event = events[0] if events else ""
+    # Word-boundary checks — avoid matching "flow" inside "workflow"
+    has_flow = bool(re.search(r"\bflow\b", lower)) or "flow log" in lower
+    has_network = bool(re.search(r"\bnetwork\b", lower)) or "nsg" in lower or "vpc" in lower
+    if "delete" in lower or event.startswith("Delete"):
+        if "efs" in lower:
+            return (
+                f"On {provider}, deleting Amazon EFS file systems via '{title}' removes shared POSIX/NFS storage "
+                f"and can break multiple applications simultaneously if change control is bypassed."
+            )
+        if "fsx" in lower:
+            return (
+                f"On {provider}, deleting Amazon FSx file systems via '{title}' destroys Windows or Lustre shares "
+                f"and may indicate ransomware cleanup or destructive insider activity."
+            )
+        return (
+            f"On {provider}, unauthorized deletion detected by '{title}' can cause immediate outage, "
+            f"data loss, or ransomware impact before backups are validated."
+        )
+    if event.startswith("Create") or re.search(r"\bcreate\b", lower):
+        return (
+            f"On {provider}, unapproved creation tied to '{title}' expands credential and network attack surface "
+            f"and often precedes persistence or crypto-mining activity."
+        )
+    if "attach" in lower and "policy" in lower:
+        return (
+            f"On {provider}, attaching broad managed policies via '{title}' violates least privilege "
+            f"and enables lateral movement if those credentials are phished or leaked."
+        )
+    if "mfa" in lower:
+        return (
+            f"On {provider}, weakening MFA on privileged identities in '{title}' is a leading indicator of account takeover "
+            f"and is explicitly flagged by CIS and NIST identity controls."
+        )
+    if re.search(r"\btag", lower) or "untagged" in lower:
+        return (
+            f"On {provider}, missing governance tags for '{title}' break cost allocation, environment scoping, and incident "
+            f"routing—delaying containment when resources cannot be classified quickly."
+        )
+    if has_flow or has_network:
+        return (
+            f"On {provider}, '{title}' highlights abnormal network flow patterns—reconnaissance, lateral movement, "
+            f"or blocked exfiltration that perimeter tools may not correlate across cloud segments."
+        )
+    if re.search(r"\b(finops|cost|spend|cur|billing|budget)\b", lower):
+        return (
+            f"On {provider}, cost anomalies and waste patterns for '{title}' erode FinOps guardrails and often reveal "
+            f"compromised accounts mining resources or forgotten idle infrastructure."
+        )
+    if "cdn" in lower or "waf" in lower or "cloudfront" in lower:
+        return (
+            f"At the {provider} edge, request anomalies may indicate scraping, credential stuffing, or WAF bypass "
+            f"attempts before origin servers are overwhelmed."
+        )
+    if event:
+        return (
+            f"On {provider}, `{event}` activity for '{title}' is a high-signal control-plane change that "
+            f"should match approved change records and privileged-access monitoring."
+        )
+    return (
+        f"On {provider}, detecting '{title}' early shortens cloud incident response and produces "
+        f"defensible audit evidence for identity and change-management controls."
+    )
+
+
+def _scenario_value_for_title(title: str) -> str | None:
+    for scenarios in (FLOW_ANOMALY_SCENARIOS, GEO_ACCESS_SCENARIOS, CDN_ANOMALY_SCENARIOS):
+        for name, _filt, val in scenarios:
+            if name.lower() in title.lower():
+                return val
+    return None
+
+
+def _craft_description(
+    *,
+    uc_id: str,
+    title: str,
+    sourcetype: str,
+    filt: str,
+    provider: str,
+    monitoring_type: list[str],
+    existing: str,
+    preserve: bool,
+) -> str:
+    if preserve and existing and not _is_boilerplate_text(existing) and len(existing) >= 80:
+        return existing
+    scenario_val = _scenario_value_for_title(title)
+    events = _extract_all_events(filt)
+    if events:
+        if len(events) == 1:
+            event_text = f"`{events[0]}`"
+        elif len(events) <= 3:
+            event_text = ", ".join(f"`{e}`" for e in events)
+        else:
+            event_text = f"`{events[0]}` (+{len(events) - 1} related API operations)"
+    else:
+        filt_summary = re.sub(r"\s+", " ", filt.split("|", 1)[0].strip()) if filt and filt not in ("*", "") else ""
+        if scenario_val:
+            event_text = f"scenario '{title}' ({filt_summary[:60]}...)" if filt_summary else f"scenario '{title}'"
+        elif filt_summary:
+            event_text = f"search criteria `{filt_summary[:90]}`"
+        else:
+            event_text = "configured audit predicates"
+    mt = monitoring_type[0] if monitoring_type else "Security"
+    return (
+        f"UC-{uc_id} — {title}: queries {provider} `{sourcetype}` for {event_text} and returns "
+        f"actor, resource, and region context for {mt.lower()} review and change validation."
+    )[:600]
+
+
+def _normalize_quotes(text: str) -> str:
+    return text.replace("«", "'").replace("»", "'").replace("\u201c", '"').replace("\u201d", '"')
+
+
+def _craft_value(
+    *,
+    uc_id: str,
+    title: str,
+    provider: str,
+    filt: str,
+    monitoring_type: list[str],
+    criticality: str,
+    existing: str,
+    preserve: bool,
+) -> str:
+    existing = _normalize_quotes(existing or "")
+    stale_finops = (
+        "cost anomalies and waste patterns erode FinOps" in existing
+        and " for '" not in existing
+    )
+    stale_create = (
+        "unapproved resource creation expands credential" in existing
+        and " tied to '" not in existing
+    )
+    stale_tag = (
+        "missing governance tags break cost allocation" in existing
+        and " for '" not in existing
+    )
+    if stale_finops or stale_create or stale_tag:
+        existing = ""
+    if preserve and existing and not _is_boilerplate_text(existing) and len(existing) >= 80:
+        return existing[:600]
+    scenario_val = _scenario_value_for_title(title)
+    mt = monitoring_type[0] if monitoring_type else "Security"
+    if scenario_val:
+        return (
+            f"{scenario_val} UC-{uc_id} operationalizes this as a {criticality}-priority "
+            f"{mt.lower()} alert on {provider} audit and edge telemetry."
+        )[:600]
+    if existing and not _is_boilerplate_text(existing) and len(existing) >= 40 and len(existing) < 200:
+        return (
+            f"{existing} UC-{uc_id} operationalizes this as a {criticality}-priority {mt.lower()} "
+            f"alert on {provider} audit telemetry."
+        )[:600]
+    events = _extract_all_events(filt)
+    core = _impact_from_title(title, events, provider)
+    return (
+        f"{core} UC-{uc_id} drives {criticality}-priority {mt.lower()} alerting before customer-impacting drift."
+    )[:600]
+
+
+def _update_control_test(data: dict[str, Any], spl: str, sourcetype: str, index: str) -> None:
+    first = spl.strip().split("\n", 1)[0]
+    filt = first.split(f'sourcetype="{sourcetype}"', 1)[-1].strip() if sourcetype in first else ""
+    if not filt or filt == "*":
+        filt = "matching activity"
+    else:
+        filt = filt.split("|", 1)[0].strip()
+    uid = data["id"]
+    data["controlTest"] = {
+        "positiveScenario": (
+            f"Replay sample `{sourcetype}` events with `{filt}` into `index={index}`. "
+            f"Confirm UC-{uid} returns >=1 row and the alert fires."
+        ),
+        "negativeScenario": (
+            f"Replay benign `{sourcetype}` traffic without `{filt}`. "
+            f"Confirm UC-{uid} returns zero rows and the alert does not fire."
+        ),
+    }
+
+
 def _expand_description(title: str, desc: str, sourcetype: str, filt: str = "") -> str:
     event = _extract_event_filter(filt)
     base = desc.strip()
@@ -451,15 +686,12 @@ def enhance_uc(data: dict[str, Any]) -> dict[str, Any]:
     table_fields = TABLE_FIELDS.get(sourcetype, "_time userIdentity.arn eventName sourceIPAddress")
 
     pattern = _pattern_override(uc_id, title)
+    pattern_val = ""
     if pattern:
-        suffix, filt, val = pattern
+        suffix, filt, pattern_val = pattern
         new_title = re.sub(r"(Pattern|Unexpected Geo|Signature) \d+$", suffix, title)
         data["title"] = new_title
         title = new_title
-        data["value"] = val
-        data["description"] = (
-            f"Detects {suffix.lower()} using `{sourcetype}` telemetry with provider-specific field extractions."
-        )
     else:
         filt = existing_filt
         scenario = _scenario_filter_for_title(title)
@@ -473,14 +705,6 @@ def enhance_uc(data: dict[str, Any]) -> dict[str, Any]:
     spl = _rebuild_spl(index, sourcetype, filt, table_fields, uc_id, title)
     data["spl"] = spl
 
-    data["description"] = _expand_description(title, data.get("description", ""), sourcetype, filt)
-    desc = data["description"]
-    raw_val = data.get("value", "")
-    if raw_val.strip() == desc.strip() or desc.strip() in raw_val.strip()[: len(desc) + 5]:
-        raw_val = ""
-    data["value"] = _expand_value(title, raw_val, desc)
-    data["dataSources"] = _expand_data_sources(index, sourcetype, data.get("app", "cloud TA"))
-
     eq = [e for e in (data.get("equipment") or []) if e in EQUIPMENT_MODEL or e in ("aws", "azure", "gcp", "oci", "alibaba", "kubernetes")]
     if not eq:
         eq = [e for e in (data.get("equipment") or []) if not e.startswith("hardware")]
@@ -490,6 +714,47 @@ def enhance_uc(data: dict[str, Any]) -> dict[str, Any]:
         eq = ["azure"]
     elif not eq and ("google" in sourcetype or sourcetype.startswith("gcp")):
         eq = ["gcp"]
+    provider = _provider_name(eq or data.get("equipment") or [], index, title, sourcetype)
+    monitoring_type = list(data.get("monitoringType") or ["Security"])
+
+    preserve_legacy = bool(data.get("detectionType"))
+    existing_desc = _normalize_quotes(data.get("description", ""))
+    existing_val = _normalize_quotes(pattern_val or _scenario_value_for_title(title) or data.get("value", ""))
+
+    if preserve_legacy and not _is_boilerplate_text(existing_desc):
+        desc = existing_desc
+    else:
+        desc = _craft_description(
+            uc_id=uc_id,
+            title=title,
+            sourcetype=sourcetype,
+            filt=filt,
+            provider=provider,
+            monitoring_type=monitoring_type,
+            existing=existing_desc,
+            preserve=preserve_legacy,
+        )
+    data["description"] = desc
+
+    if preserve_legacy and not _is_boilerplate_text(existing_val):
+        val = existing_val
+    else:
+        val = _craft_value(
+            uc_id=uc_id,
+            title=title,
+            provider=provider,
+            filt=filt,
+            monitoring_type=monitoring_type,
+            criticality=str(data.get("criticality", "medium")),
+            existing=existing_val,
+            preserve=preserve_legacy,
+        )
+    data["value"] = _normalize_quotes(val)
+    data["description"] = _normalize_quotes(desc)
+
+    _update_control_test(data, spl, sourcetype, index)
+    data["dataSources"] = _expand_data_sources(index, sourcetype, data.get("app", "cloud TA"))
+
     data["equipment"] = sorted(set(eq)) or data.get("equipment") or []
     data["equipmentModels"] = _infer_equipment_models(data["equipment"], sourcetype)
 
