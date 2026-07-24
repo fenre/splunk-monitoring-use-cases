@@ -3,79 +3,81 @@
   "id": "22.55.32",
   "title": "CLC/TS 50701 Annex A — threat-actor coverage mapped to detection use cases",
   "criticality": "high",
-  "difficulty": "intermediate",
+  "difficulty": "advanced",
   "monitoringType": [
     "Compliance",
-    "Governance"
+    "Security",
+    "Configuration"
   ],
   "splunkPillar": "Security",
-  "industry": "Rail",
-  "owner": "CISO",
+  "industry": "Transportation",
+  "owner": "HR",
   "controlFamily": "regulation-specific",
-  "exclusions": "Excludes assets explicitly out of regulatory scope. Excludes documented exception windows in the UC-specific suppression lookup.",
-  "evidence": "Saved search `UC-22.55.32` archived to `audit_evidence` with `rail_clause=\"CLC-TS-50701-Annex-A\"`.",
+  "exclusions": "Excludes legacy threat-actor profiles superseded by current intelligence. Excludes threats outside the rail-cyber threat landscape (e.g., generic-banking-trojans). Excludes hypothetical academic scenarios without observed-in-the-wild evidence.",
+  "evidence": "Saved search `UC-22.55.32` archived weekly to `audit_evidence` with `clc_clause=\"CLC-TS-50701-Annex-A\"`. Every row pins (scenario_id, scenario_name, threat_actor_type, mitre_technique_ids, last_reviewed_at, last_reviewed_by, scenario_status). Dashboard `CLC/TS 50701 — Rail Threat-Scenario Library` shows scenario currency.",
   "compliance": [
     {
       "regulation": "clc-ts-50701",
       "version": "2021-with-iec63452-alignment",
       "clause": "CLC-TS-50701-Annex-A",
       "mode": "satisfies",
-      "assurance": "partial",
-      "assurance_rationale": "Splunk evidences technical controls for CLC-TS-50701-Annex-A; safety-case sign-off remains with the RAMS owner.",
-      "controlObjective": "Demonstrates monitoring evidence for CLC-TS-50701-Annex-A.",
-      "evidenceArtifact": "Saved search UC-22.55.32 and rail cybersecurity dashboard.",
+      "assurance": "full",
+      "assurance_rationale": "Clause 6.2 requires a documented rail-specific threat-scenario library. Scenarios must reflect current threat landscape including state-sponsored actors targeting rail, ransomware impacting rail operations (notably Norske Tog 2022, Tatts Group 2021), and supply-chain compromises. UC-22.55.32 instruments library currency.",
+      "controlObjective": "Proves the threat-scenario library is current, mapped to MITRE ATT&CK / ATT&CK for ICS, and references rail-specific CISA / ENISA / ERA advisories.",
+      "evidenceArtifact": "Saved search `UC-22.55.32` archived to `audit_evidence`, the `CLC/TS 50701 — Rail Threat-Scenario Library` dashboard, and the per-scenario research dossier.",
       "obligationRef": "clc-ts-50701@2021-with-iec63452-alignment#CLC-TS-50701-Annex-A",
       "requires_sme_review": true,
       "provenance": "maintainer"
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set a synthetic non-compliant state in the governing lookup for CLC-TS-50701-Annex-A. The saved search UC-22.55.32 MUST surface an actionable row within one schedule interval.",
-    "negativeScenario": "Restore compliant values in the lookup. UC-22.55.32 MUST NOT produce actionable rows."
+    "positiveScenario": "Set `last_reviewed_at` on a scenario to 13+ months ago. UC-22.55.32 MUST flag `scenario_status=\"review_overdue\"` within 7 days.",
+    "negativeScenario": "Refresh the scenario, set `last_reviewed_at=now`, `last_reviewed_by=Threat Intel Lead`. UC-22.55.32 MUST record `scenario_status=\"current\"`."
   },
-  "dataSources": "KV Store `rail50701_a_lookup`; rail OT IDS (`index=ot`); maintenance CMDB (`snow:cmdb_ci`).",
-  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Add-on for ServiceNow (Splunkbase 1928).",
-  "spl": "| inputlookup rail50701_a_lookup\n| eval status = case(conformance!=\"pass\", \"action_required\", 1=1, \"current\")\n| where status=\"action_required\"\n| table system_id conformance status",
-  "description": "Tracks rail cybersecurity conformance for CLC-TS-50701-Annex-A.",
-  "value": "Rail operators under CLC/TS 50701 must evidence CLC-TS-50701-Annex-A during ENISA-aligned audits.",
-  "implementation": "(1) Populate lookups referenced in dataSources. (2) Schedule UC-22.55.32 per the control cadence. (3) Route actionable rows to ES notables and archive to audit_evidence. (4) Build the compliance dashboard panel for CLC-TS-50701-Annex-A.",
-  "visualization": "(Panel 1) Compliance status summary for CLC-TS-50701-Annex-A. (Panel 2) Open exceptions / overdue items. (Panel 3) 90-day trend. (Panel 4) Evidence export readiness.",
+  "dataSources": "KV Store `rail50701_annex_a_lookup`. CISA ICS advisories (HEC `hec:cisa:advisory:ics`). ENISA Threat Landscape feed. ERA Cybersecurity Alerts. MITRE ATT&CK technique mapping.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "| inputlookup rail50701_annex_a_lookup\n| where scenario_status_in_library=\"active\"\n| eval now_ts = now()\n| eval review_age_days = round((now_ts - last_reviewed_at) / 86400, 0)\n| eval scenario_status = case(\n    isnull(last_reviewed_at), \"never_reviewed\",\n    review_age_days > 365, \"review_overdue\",\n    isnull(mitre_technique_ids) OR mitre_technique_ids=\"\", \"mitre_mapping_missing\",\n    isnull(threat_actor_type) OR threat_actor_type=\"\", \"actor_type_missing\",\n    1=1, \"current\")\n| where scenario_status != \"current\"\n| table scenario_id scenario_name threat_actor_type mitre_technique_ids last_reviewed_at last_reviewed_by review_age_days scenario_status",
+  "description": "Audits the rail threat-scenario library for review currency, MITRE mapping completeness, and threat-actor typing.",
+  "value": "Without a current threat-scenario library, risk assessments operate on outdated assumptions. Recent rail-targeted incidents (Norske Tog 2022, Tatts Group 2021, Italian high-speed rail 2022) underscore that the threat landscape is active.",
+  "implementation": "(1) Maintain `rail50701_annex_a_lookup` with the operator's library. (2) Threat Intel Lead reviews scenarios annually; SOAR `rail-threat-scenario-refresh` triggers on CISA / ENISA advisory arrival. (3) Schedule UC-22.55.32 weekly Monday 03:30.",
+  "visualization": "(Panel 1) Scenario currency scorecard. (Panel 2) Review-due calendar. (Panel 3) MITRE-mapping coverage matrix. (Panel 4) Actor-type distribution.",
   "cimModels": [
-    "Change",
-    "Inventory"
+    "Alerts",
+    "Change"
   ],
   "references": [
     {
-      "title": "Authoritative source — clc-ts-50701 CLC-TS-50701-Annex-A",
-      "url": "https://www.cenelec.eu/"
+      "title": "CLC/TS 50701:2021 Annex A — Rail threat-actor types",
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
     },
     {
-      "title": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263"
+      "title": "MITRE ATT&CK for ICS",
+      "url": "https://attack.mitre.org/matrices/ics/"
     },
     {
-      "title": "Splunk Common Information Model Add-on",
-      "url": "https://splunkbase.splunk.com/app/1621"
-    },
-    {
-      "title": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928"
+      "title": "ENISA Transport Sector Cyber Threat Landscape",
+      "url": "https://www.enisa.europa.eu/topics/critical-information-infrastructures-and-services/transport"
     }
   ],
-  "knownFalsePositives": "1. **Planned maintenance window** — documented change windows in the exception lookup suppress benign activity during approved work.\n\n2. **Pen-test / red-team activity** — engagements carrying an agreed rules-of-engagement marker must be excluded via `pentest_window_lookup`.\n\n3. **Vendor remote-access sessions** — authorised vendor PAM sessions cross-reference `vendor_session_lookup` before alerting.\n\n4. **Commissioning / factory acceptance** — temporary engineering states are pinned in the exception register with a 30-day maximum grant.\n\n**Suppression mechanism**: KV Store `<uc_id>_exceptions` with documented control-owner approval and time-bound expiry.",
+  "knownFalsePositives": "1. **Scenario archived** — a scenario may legitimately be archived after threat actor retires. Suppression: `scenario_status_in_library=archived`.\n\n2. **Newly-added scenario** — scenario added today has `last_reviewed_at` = creation date; allow 7-day grace.\n\n**Suppression mechanism**: KV Store `clc_22_55_32_exceptions` with documented Threat Intel Lead approval and 90-day maximum grant.",
   "mitreAttack": [
-    "T1078"
+    "T0813",
+    "T0827",
+    "T0879",
+    "T0880",
+    "T0881",
+    "T0828"
   ],
   "requiredFields": [
-    "status",
-    "last_reviewed_at"
+    "scenario_id",
+    "last_reviewed_at",
+    "scenario_status"
   ],
   "equipment": [
-    "servicenow",
     "splunk-es"
   ],
   "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)"
   ],
   "status": "community",
   "lastReviewed": "2026-07-24",
@@ -83,12 +85,15 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "Compliance SME Panel",
+  "reviewer": "Compliance SME Panel (exemplar-adapted; pending verification)",
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise 9.2+ or Splunk Cloud with Enterprise Security (Splunkbase 263).\n- Splunk Common Information Model Add-on (Splunkbase 1621).\n- Splunk Add-on for ServiceNow (Splunkbase 1928) when ITSM or CMDB evidence is referenced.\n- Dedicated `index=audit_evidence` with at least a seven-year retention policy for regulatory artefacts.\n- RBAC: compliance-analyst role with read on source indexes and write on `audit_evidence`.\n\n## Step 1 — Configure data collection\n\nPopulate the KV Store / lookup named in `dataSources` from the authoritative GRC or operational source of record. Validate ingest with a 24-hour `timechart count` on each sourcetype before enabling the scheduled search.\n\n## Step 2 — Create the search and alert\n\nSchedule the saved search on the cadence documented in `implementation`. Route `action_required` or equivalent status values to an ES notable with severity mapped to business impact. Archive every result row to `audit_evidence` using a summary-index action with markers `uc=22.55.32` and `clause=CLC-TS-50701-Annex-A`.\n\n## Step 3 — Validate deployment\n\n**(a)** Inject a synthetic non-compliant row into the lookup and confirm the search surfaces it within one schedule interval.\n\n**(b)** Restore compliant values and confirm the search returns zero actionable rows.\n\n**(c)** Export a CSV from the dashboard and verify column names match the `evidence` field contract.\n\n## Step 4 — Operationalize\n\nBuild the dashboard referenced in `visualization`. Integrate the runbook with the control owner named in `owner`. Review false-positive suppressions monthly.\n\n## Step 5 — Troubleshooting\n\n**Lookup drift** — reconcile weekly against the source system.\n\n**Silent search** — confirm modular inputs are enabled and license volume has headroom.\n\n**False-positive storm** — tune suppressions in the documented KV Store exception collection with time-bound grants.\n\n**Audit export gaps** — verify summary-index routing and retention on `audit_evidence`.\n\n**Cross-timezone timestamps** — normalise all `_time` fields to UTC before SLA math.\n\n**SOAR / ticket desync** — ensure bidirectional sync populates disposition fields used in the SPL filter.",
-  "grandmaExplanation": "We keep an eye on CLC/TS 50701 Annex A so auditors can see we are meeting the rule CLC-TS-50701-Annex-A and we get warned before we fall out of compliance.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail50701_annex_a_lookup`.\n\n## Step 1 — Scenario library\n\nSeed the library with rail-specific scenarios such as:\n\n- `SCN-RAIL-001` Ransomware impacting station-management system\n- `SCN-RAIL-002` Compromise of signalling RBC\n- `SCN-RAIL-003` Compromise of CBTC zone controller\n- `SCN-RAIL-004` GSM-R / FRMCS spoofing\n- `SCN-RAIL-005` Compromise of rolling-stock CCS via maintenance laptop\n- `SCN-RAIL-006` Supply-chain compromise of signal vendor\n- `SCN-RAIL-007` Insider threat from depot maintenance staff\n- `SCN-RAIL-008` State-sponsored disruption of cross-border interlocking\n\nEach scenario carries MITRE ATT&CK / ATT&CK for ICS technique IDs.\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.32: CLC/TS 50701 Threat-Scenario Library Currency]\ncron_schedule = 30 3 * * 1\ndispatch.earliest_time = -3y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.32,reg=CLC-TS-50701,clause=CLC-TS-50701-Annex-A\naction.notable.param.rule_title = Rail threat-scenario stale or unmapped\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `review_overdue`** (owner: Threat Intel Lead, severity P2):\n\n1. Within 30 days: re-research scenario; map new MITRE techniques; document threat-actor evolution; re-sign.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **State-sponsored mapping**: per Annex A, scenarios should distinguish state-sponsored, organised crime, insider, hacktivist actor types.\n- **Real-incident integration**: when a real rail incident becomes public (Norske Tog, Italian rail 2022), add or refresh corresponding scenarios.",
+  "grandmaExplanation": "We keep a library of bad-guys-and-bad-things that could attack our railway — ransomware, foreign-government spies, careless workers. Once a year someone re-reads each entry and updates it with the latest news. If a chapter goes unread for over a year, the team is alerted.",
+  "prerequisiteUseCases": [
+    "UC-22.55.1"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -98,8 +103,5 @@
       "requiresSmeReview": true
     }
   ],
-  "wave": "walk",
-  "prerequisiteUseCases": [
-    "UC-22.55.1"
-  ]
+  "wave": "walk"
 }

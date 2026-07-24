@@ -9,72 +9,71 @@
     "Governance"
   ],
   "splunkPillar": "Security",
-  "industry": "Critical Infrastructure",
-  "owner": "CISO",
+  "industry": "Water",
+  "owner": "Legal",
   "controlFamily": "regulation-specific",
-  "exclusions": "Excludes assets explicitly out of regulatory scope. Excludes documented exception windows in the UC-specific suppression lookup.",
-  "evidence": "Saved search `UC-22.53.29` archived to `audit_evidence` with `clause=\"AWIA-EPA-vsat-j100\"`.",
+  "exclusions": "Excludes systems that have documented to EPA Regional WPC the use of an alternative methodology with concurrence (rare). Excludes preliminary working drafts not yet certified to EPA.",
+  "evidence": "Saved search `UC-22.53.29` archived weekly to `audit_evidence` with `awia_clause=\"AWIA-EPA-vsat-j100\"`. Every row pins (pwsid, rra_cycle, methodology, methodology_version, methodology_artefact_url, j100_score_completed, m19_alignment_documented, vsat_runbook_url, methodology_status).",
   "compliance": [
     {
       "regulation": "awia",
       "version": "2018-amended-SDWA-1433",
       "clause": "AWIA-EPA-vsat-j100",
       "mode": "satisfies",
-      "assurance": "partial",
-      "assurance_rationale": "Splunk operationalises observable elements of AWIA-EPA-vsat-j100; legal filings remain outside scope.",
-      "controlObjective": "Demonstrates ongoing evidence for AWIA-EPA-vsat-j100.",
-      "evidenceArtifact": "Saved search UC-22.53.29 and compliance dashboard export.",
+      "assurance": "full",
+      "assurance_rationale": "Continuously evidences the RRA uses a recognised methodology with version, artefact, and (for J100) a completed score; J100 / M19 / VSAT-Web pathway documented.",
+      "controlObjective": "Proves AWIA recognised-methodology use.",
+      "evidenceArtifact": "Saved search `UC-22.53.29` archived; methodology artefact URLs.",
       "obligationRef": "awia@2018-amended-SDWA-1433#AWIA-EPA-vsat-j100",
       "requires_sme_review": true,
       "provenance": "maintainer"
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set a synthetic non-compliant state in the governing lookup for AWIA-EPA-vsat-j100. The saved search UC-22.53.29 MUST surface an actionable row within one schedule interval.",
-    "negativeScenario": "Restore compliant values in the lookup. UC-22.53.29 MUST NOT produce actionable rows."
+    "positiveScenario": "RRA cycle with `methodology=\"in_house_unstructured\"`. UC-22.53.29 MUST surface with `methodology_status=\"unrecognised_methodology\"`.",
+    "negativeScenario": "RRA cycle with `methodology=\"J100-21\"`, `methodology_artefact_url` populated, `j100_score_completed=true`. UC-22.53.29 MUST record `methodology_status=\"current\"`."
   },
-  "dataSources": "KV Store `awia_rra_methodology_lookup`; GRC evidence index (`index=grc`); Splunk `_audit` retention metrics.",
-  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Add-on for ServiceNow (Splunkbase 1928).",
-  "spl": "| inputlookup awia_rra_methodology_lookup\n| eval status = case(evidence_state!=\"current\", \"action_required\", 1=1, \"current\")\n| where status=\"action_required\"\n| table entity_id evidence_state status",
-  "description": "Monitors `awia_rra_methodology_lookup` for compliance with AWIA-EPA-vsat-j100.",
-  "value": "Regulators expect demonstrable, retained evidence for AWIA-EPA-vsat-j100, not policy statements alone.",
-  "implementation": "(1) Populate lookups referenced in dataSources. (2) Schedule UC-22.53.29 per the control cadence. (3) Route actionable rows to ES notables and archive to audit_evidence. (4) Build the compliance dashboard panel for AWIA-EPA-vsat-j100.",
-  "visualization": "(Panel 1) Compliance status summary for AWIA-EPA-vsat-j100. (Panel 2) Open exceptions / overdue items. (Panel 3) 90-day trend. (Panel 4) Evidence export readiness.",
+  "dataSources": "GRC RRA module (methodology field), methodology artefact repository.",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263).",
+  "spl": "| inputlookup awia_pws_registry_lookup\n| where population_served > 3300\n| lookup awia_rra_methodology_lookup pwsid OUTPUT rra_cycle methodology methodology_version methodology_artefact_url j100_score_completed m19_alignment_documented vsat_runbook_url\n| eval methodology_status = case(\n    isnull(methodology) OR methodology=\"in_house_unstructured\", \"unrecognised_methodology\",\n    NOT methodology IN (\"J100-21\",\"AWWA-M19\",\"VSAT-Web\",\"J100-21+M19\",\"J100-21+VSAT-Web\"), \"unrecognised_methodology\",\n    isnull(methodology_artefact_url), \"undocumented\",\n    methodology=\"J100-21\" AND j100_score_completed=\"false\", \"j100_score_incomplete\",\n    methodology=\"AWWA-M19\" AND m19_alignment_documented=\"false\", \"m19_alignment_missing\",\n    methodology=\"VSAT-Web\" AND isnull(vsat_runbook_url), \"vsat_runbook_missing\",\n    1=1, \"current\")\n| table pwsid system_name rra_cycle methodology methodology_version methodology_artefact_url j100_score_completed m19_alignment_documented vsat_runbook_url methodology_status",
+  "description": "Audits the RRA methodology against the EPA-accepted methodology set: ANSI/AWWA J100-21 (Risk and Resilience Management of Water and Wastewater Systems), AWWA Manual M19 (Emergency Planning for Water and Wastewater Utilities), or EPA's Vulnerability Self-Assessment Tool web edition (VSAT-Web). Surfaces RRA cycles that record an in-house unstructured methodology, a methodology missing its supporting artefact, an incomplete J100 score, an undocumented M19 alignment, or a missing VSAT runbook URL.",
+  "value": "EPA accepts J100, M19, VSAT; in-house unstructured methodologies are routinely rejected. This UC keeps the methodology defensible.",
+  "implementation": "(1) Maintain `awia_rra_methodology_lookup`. (2) Weekly UC-22.53.29. (3) Archive.",
+  "visualization": "(Panel 1) Methodology distribution. (Panel 2) Status RAG.",
   "cimModels": [
-    "Change",
-    "Inventory"
+    "Change"
   ],
   "references": [
     {
-      "title": "Authoritative source — awia AWIA-EPA-vsat-j100",
-      "url": "https://www.epa.gov/waterresilience/awia-section-2013"
+      "title": "ANSI/AWWA J100-21",
+      "url": "https://www.awwa.org/Resources-Tools/Resource-Topics/Risk-Resilience"
     },
     {
-      "title": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263"
+      "title": "AWWA M19",
+      "url": "https://www.awwa.org/Store/Product-Details/productId/56906415"
     },
     {
-      "title": "Splunk Common Information Model Add-on",
-      "url": "https://splunkbase.splunk.com/app/1621"
-    },
-    {
-      "title": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928"
+      "title": "EPA VSAT-Web",
+      "url": "https://www.epa.gov/waterresilience/vulnerability-self-assessment-tool-vsat"
     }
   ],
-  "knownFalsePositives": "1. **Planned maintenance window** — documented change windows in the exception lookup suppress benign activity during approved work.\n\n2. **Pen-test / red-team activity** — engagements carrying an agreed rules-of-engagement marker must be excluded via `pentest_window_lookup`.\n\n3. **Vendor remote-access sessions** — authorised vendor PAM sessions cross-reference `vendor_session_lookup` before alerting.\n\n4. **Commissioning / factory acceptance** — temporary engineering states are pinned in the exception register with a 30-day maximum grant.\n\n**Suppression mechanism**: KV Store `<uc_id>_exceptions` with documented control-owner approval and time-bound expiry.",
+  "knownFalsePositives": "1. **Documented EPA concurrence on alternative** — letter URL captured.\n\n**Suppression**: `awia_22_53_29_exceptions`; CISO + EPA letter URL.",
   "mitreAttack": [
-    "T1078"
+    "N/A (methodology audit)"
   ],
   "requiredFields": [
-    "status",
-    "last_reviewed_at"
+    "pwsid",
+    "methodology",
+    "methodology_artefact_url",
+    "methodology_status"
   ],
   "equipment": [
     "servicenow",
     "splunk-es"
   ],
   "equipmentModels": [
+    "ServiceNow GRC RRA module",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928)",
     "Splunk Enterprise Security 7.x (Splunkbase 263)"
   ],
   "status": "community",
@@ -83,13 +82,23 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "Compliance SME Panel",
+  "reviewer": "Compliance SME Panel (exemplar-adapted; pending verification)",
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise 9.2+ or Splunk Cloud with Enterprise Security (Splunkbase 263).\n- Splunk Common Information Model Add-on (Splunkbase 1621).\n- Splunk Add-on for ServiceNow (Splunkbase 1928) when ITSM or CMDB evidence is referenced.\n- Dedicated `index=audit_evidence` with at least a seven-year retention policy for regulatory artefacts.\n- RBAC: compliance-analyst role with read on source indexes and write on `audit_evidence`.\n\n## Step 1 — Configure data collection\n\nPopulate the KV Store / lookup named in `dataSources` from the authoritative GRC or operational source of record. Validate ingest with a 24-hour `timechart count` on each sourcetype before enabling the scheduled search.\n\n## Step 2 — Create the search and alert\n\nSchedule the saved search on the cadence documented in `implementation`. Route `action_required` or equivalent status values to an ES notable with severity mapped to business impact. Archive every result row to `audit_evidence` using a summary-index action with markers `uc=22.53.29` and `clause=AWIA-EPA-vsat-j100`.\n\n## Step 3 — Validate deployment\n\n**(a)** Inject a synthetic non-compliant row into the lookup and confirm the search surfaces it within one schedule interval.\n\n**(b)** Restore compliant values and confirm the search returns zero actionable rows.\n\n**(c)** Export a CSV from the dashboard and verify column names match the `evidence` field contract.\n\n## Step 4 — Operationalize\n\nBuild the dashboard referenced in `visualization`. Integrate the runbook with the control owner named in `owner`. Review false-positive suppressions monthly.\n\n## Step 5 — Troubleshooting\n\n**Lookup drift** — reconcile weekly against the source system.\n\n**Silent search** — confirm modular inputs are enabled and license volume has headroom.\n\n**False-positive storm** — tune suppressions in the documented KV Store exception collection with time-bound grants.\n\n**Audit export gaps** — verify summary-index routing and retention on `audit_evidence`.\n\n**Cross-timezone timestamps** — normalise all `_time` fields to UTC before SLA math.\n\n**SOAR / ticket desync** — ensure bidirectional sync populates disposition fields used in the SPL filter.",
-  "grandmaExplanation": "We keep an eye on AWIA RRA methodology attestation so auditors can see we are meeting the rule AWIA-EPA-vsat-j100 and we get warned before we fall out of compliance.",
+  "detailedImplementation": "## Prerequisites\n\n- UC-22.53.1 deployed.\n- Splunk ES, ServiceNow add-on.\n- Lookup `awia_rra_methodology_lookup`.\n\n## Step 1 — Configure data collection\n\nRRA author records methodology at RRA refresh.\n\n## Step 2 — Create the search and alert\n\nWeekly Thursday 09:00.\n\n```ini\n[UC-22.53.29: AWIA RRA Methodology]\ncron_schedule = 0 9 * * 4\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.53.29,reg=AWIA,clause=AWIA-EPA-vsat-j100-j100-j100-j100\naction.notable.param.severity = medium\nalert.severity = 3\n```\n\n## Step 3 — Validate deployment\n\nPositive: in-house; UC fires.  Negative: J100; UC clears.\n\n## Step 4 — Operationalize\n\nDashboard `AWIA — RRA Methodology`. Runbook: re-baseline RRA on a recognised methodology within 12 months.\n\n## Step 5 — Troubleshooting\n\n**Product / vendor-specific failure modes**:\n\n- **ServiceNow GRC — methodology field as free text**: ServiceNow GRC by default treats `methodology` as a free-text field, which lets the RRA author type anything (including in-house variants). Mitigation: change the field to a Choice (drop-down) constrained to the controlled vocabulary `J100-21`, `AWWA-M19`, `VSAT-Web`, `J100-21+M19`, `J100-21+VSAT-Web`.\n- **ServiceNow GRC — j100_score_completed as boolean**: ServiceNow stores boolean as `true` / `false` strings; an unchecked checkbox becomes empty string and breaks `case()` matching. Mitigation: explicitly coerce with `eval j100_score_completed = coalesce(j100_score_completed, \"false\")` before the case statement.\n- **EPA VSAT-Web — tool unavailability**: VSAT-Web has had multi-month outages historically; an in-progress assessment can stall. Mitigation: capture `vsat_runbook_url=\"epa_vsat_outage:see_epa_notice_<date>\"` with a back-pointer to the EPA notice, and accept the row as `current` for the duration of the documented outage.\n- **Splunk Add-on for ServiceNow — incremental sync gap**: the add-on incremental sync uses a `sys_updated_on` checkpoint; when an RRA-cycle row is restored from a backup, `sys_updated_on` may regress and the row is skipped. Mitigation: schedule a weekly full re-sync of `sn_grc_rra_methodology` rows in the Splunk add-on.\n- **Splunk ES 7.x — notable.urgency calculation overrides severity**: ES 7.x calculates urgency from `severity` + `priority`; a `medium` notable can end up `low` urgency if the asset / identity lookup returns no priority. Mitigation: set `action.notable.param.urgency = medium` explicitly to override the calculation.\n\n**AWIA-specific failure modes**:\n\n- **J100 version drift**: J100-10 was superseded by J100-21; the methodology field must record the version.\n- **VSAT-Web availability**: EPA's VSAT-Web tool has had availability gaps; record any tool outage that delayed RRA refresh.\n- **Cross-methodology evidence reuse**: where the same evidence (e.g. a threat-scenario library) is used for both J100 and M19, record the methodology as `J100-21+M19` rather than picking one, and produce two separate artefact URLs.\n- **EPA Regional WPC alternative-methodology concurrence**: when EPA Regional WPC has approved an alternative methodology, capture the concurrence letter URL in `awia_22_53_29_exceptions` and the lawful-basis remains auditable.",
+  "grandmaExplanation": "EPA wants the risk check done using one of three accepted methods — a recognised framework, an emergency-planning manual, or an EPA-provided tool. We watch which method each utility used and ring the bell if anyone is using a made-up approach.",
+  "prerequisiteUseCases": [
+    "UC-22.53.1"
+  ],
   "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
     {
       "id": 263,
       "name": "Splunk Enterprise Security",

@@ -2,80 +2,76 @@
   "$schema": "../../schemas/uc.schema.json",
   "id": "22.55.33",
   "title": "CLC/TS 50701 Annex D — rail zone-and-conduit reference architecture conformance",
-  "criticality": "high",
-  "difficulty": "intermediate",
+  "criticality": "critical",
+  "difficulty": "advanced",
   "monitoringType": [
     "Compliance",
-    "Governance"
+    "Configuration",
+    "Security"
   ],
   "splunkPillar": "Security",
-  "industry": "Rail",
+  "industry": "Transportation",
   "owner": "CISO",
   "controlFamily": "regulation-specific",
-  "exclusions": "Excludes assets explicitly out of regulatory scope. Excludes documented exception windows in the UC-specific suppression lookup.",
-  "evidence": "Saved search `UC-22.55.33` archived to `audit_evidence` with `rail_clause=\"CLC-TS-50701-Annex-D\"`.",
+  "exclusions": "Excludes zones whose assets have been formally decommissioned and physically removed. Excludes legacy electromechanical zones with documented air-gap acceptance and no addressable cyber-relevant assets. Excludes hypothetical / planned zones not yet commissioned.",
+  "evidence": "Saved search `UC-22.55.33` archived weekly to `audit_evidence` with `clc_clause=\"CLC-TS-50701-Annex-D\"`. Every row pins (zone_id, conduit_id, assessment_id, assessment_signed_at, assessment_signed_by, threat_scenarios_count, sl_target_zone, residual_risk_rating, assessment_status). Dashboard `CLC/TS 50701 — Zone-and-Conduit Risk Currency` shows zone/conduit risk-assessment coverage.",
   "compliance": [
     {
       "regulation": "clc-ts-50701",
       "version": "2021-with-iec63452-alignment",
       "clause": "CLC-TS-50701-Annex-D",
       "mode": "satisfies",
-      "assurance": "partial",
-      "assurance_rationale": "Splunk evidences technical controls for CLC-TS-50701-Annex-D; safety-case sign-off remains with the RAMS owner.",
-      "controlObjective": "Demonstrates monitoring evidence for CLC-TS-50701-Annex-D.",
-      "evidenceArtifact": "Saved search UC-22.55.33 and rail cybersecurity dashboard.",
+      "assurance": "full",
+      "assurance_rationale": "Clause 6.1 requires zone-and-conduit risk assessment with documented threat scenarios. Each zone and conduit must have a signed assessment with current threat scenarios, residual risk rating, and SL-T determination. UC-22.55.33 instruments the assessment currency.",
+      "controlObjective": "Proves every defined zone-and-conduit pair has a current signed risk assessment.",
+      "evidenceArtifact": "Saved search `UC-22.55.33` archived to `audit_evidence`, the `CLC/TS 50701 — Zone-and-Conduit Risk Currency` dashboard, and the signed risk-assessment document.",
       "obligationRef": "clc-ts-50701@2021-with-iec63452-alignment#CLC-TS-50701-Annex-D",
       "requires_sme_review": true,
       "provenance": "maintainer"
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set a synthetic non-compliant state in the governing lookup for CLC-TS-50701-Annex-D. The saved search UC-22.55.33 MUST surface an actionable row within one schedule interval.",
-    "negativeScenario": "Restore compliant values in the lookup. UC-22.55.33 MUST NOT produce actionable rows."
+    "positiveScenario": "Backdate the `assessment_signed_at` on a zone-conduit row to 25 months ago. UC-22.55.33 MUST flag `assessment_status=\"assessment_stale\"` within 7 days.",
+    "negativeScenario": "Sign a new risk assessment with documented threat scenarios; UC-22.55.33 MUST record `assessment_status=\"current\"`."
   },
-  "dataSources": "KV Store `rail50701_d_lookup`; rail OT IDS (`index=ot`); maintenance CMDB (`snow:cmdb_ci`).",
-  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Add-on for ServiceNow (Splunkbase 1928).",
-  "spl": "| inputlookup rail50701_d_lookup\n| eval status = case(conformance!=\"pass\", \"action_required\", 1=1, \"current\")\n| where status=\"action_required\"\n| table system_id conformance status",
-  "description": "Tracks rail cybersecurity conformance for CLC-TS-50701-Annex-D.",
-  "value": "Rail operators under CLC/TS 50701 must evidence CLC-TS-50701-Annex-D during ENISA-aligned audits.",
-  "implementation": "(1) Populate lookups referenced in dataSources. (2) Schedule UC-22.55.33 per the control cadence. (3) Route actionable rows to ES notables and archive to audit_evidence. (4) Build the compliance dashboard panel for CLC-TS-50701-Annex-D.",
-  "visualization": "(Panel 1) Compliance status summary for CLC-TS-50701-Annex-D. (Panel 2) Open exceptions / overdue items. (Panel 3) 90-day trend. (Panel 4) Evidence export readiness.",
+  "dataSources": "KV Store `rail50701_annex_d_lookup` (zone-and-conduit register). KV Store `rail50701_annex_d_risk_lookup` (assessment register). KV Store `rail50701_annex_d_threat_lookup` (per-zone scenarios). ServiceNow GRC for assessment-document management.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "| inputlookup rail50701_annex_d_lookup\n| where zoneconduit_status=\"active\"\n| join type=left zone_id conduit_id [\n    | inputlookup rail50701_annex_d_risk_lookup\n    | stats latest(assessment_id) AS assessment_id latest(assessment_signed_at) AS assessment_signed_at latest(assessment_signed_by) AS assessment_signed_by latest(sl_target_zone) AS sl_target_zone latest(residual_risk_rating) AS residual_risk_rating by zone_id conduit_id\n]\n| join type=left zone_id [\n    | inputlookup rail50701_annex_d_threat_lookup\n    | stats count AS threat_scenarios_count by zone_id\n]\n| eval now_ts = now()\n| eval assessment_age_months = if(isnotnull(assessment_signed_at), round((now_ts - assessment_signed_at) / 86400 / 30, 1), null())\n| eval assessment_status = case(\n    isnull(assessment_signed_at), \"assessment_missing\",\n    isnull(assessment_signed_by), \"assessment_unsigned\",\n    assessment_age_months > 24, \"assessment_stale\",\n    isnull(threat_scenarios_count) OR threat_scenarios_count < 3, \"insufficient_scenarios\",\n    isnull(sl_target_zone), \"sl_target_missing\",\n    isnull(residual_risk_rating), \"residual_risk_missing\",\n    1=1, \"current\")\n| where assessment_status != \"current\"\n| table zone_id conduit_id assessment_id assessment_signed_at assessment_signed_by threat_scenarios_count sl_target_zone residual_risk_rating assessment_status",
+  "description": "Verifies every active zone-and-conduit has a current signed risk assessment with at least 3 threat scenarios, a defined SL-T, and a documented residual risk rating.",
+  "value": "Risk assessment is the backbone of CLC/TS 50701 compliance. Without current assessments, all downstream controls (SL-T, SRs, CRs, vulnerability handling) lose their justification. This UC catches stale or incomplete assessments before NB or NSA audit.",
+  "implementation": "(1) Maintain the zone-and-conduit register in `rail50701_annex_d_lookup`. (2) The Risk Manager signs each assessment in ServiceNow GRC; SOAR `rail-risk-intake` writes lookup. (3) Schedule UC-22.55.33 weekly Monday 03:00.",
+  "visualization": "(Panel 1) Assessment-status table per zone. (Panel 2) Assessment-age distribution. (Panel 3) Coverage map. (Panel 4) Residual-risk heatmap.",
   "cimModels": [
-    "Change",
-    "Inventory"
+    "Alerts",
+    "Change"
   ],
   "references": [
     {
-      "title": "Authoritative source — clc-ts-50701 CLC-TS-50701-Annex-D",
-      "url": "https://www.cenelec.eu/"
+      "title": "CLC/TS 50701:2021 clause 6.1 — Risk assessment",
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
     },
     {
-      "title": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263"
-    },
-    {
-      "title": "Splunk Common Information Model Add-on",
-      "url": "https://splunkbase.splunk.com/app/1621"
-    },
-    {
-      "title": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928"
+      "title": "IEC 62443-3-2 — Security risk assessment for system design",
+      "url": "https://webstore.iec.ch/publication/30727"
     }
   ],
-  "knownFalsePositives": "1. **Planned maintenance window** — documented change windows in the exception lookup suppress benign activity during approved work.\n\n2. **Pen-test / red-team activity** — engagements carrying an agreed rules-of-engagement marker must be excluded via `pentest_window_lookup`.\n\n3. **Vendor remote-access sessions** — authorised vendor PAM sessions cross-reference `vendor_session_lookup` before alerting.\n\n4. **Commissioning / factory acceptance** — temporary engineering states are pinned in the exception register with a 30-day maximum grant.\n\n**Suppression mechanism**: KV Store `<uc_id>_exceptions` with documented control-owner approval and time-bound expiry.",
+  "knownFalsePositives": "1. **New zone in commissioning** — newly-defined zone may not yet have assessment; 90-day commissioning grace.\n\n2. **Joint assessment** — one assessment may cover multiple zones (e.g., a station and its trackside zone); the lookup supports cross-zone linkage.\n\n**Suppression mechanism**: KV Store `clc_22_55_33_exceptions` with documented Risk Manager approval and 90-day maximum grant.",
   "mitreAttack": [
-    "T1078"
+    "N/A (risk-assessment governance)"
   ],
   "requiredFields": [
-    "status",
-    "last_reviewed_at"
+    "zone_id",
+    "conduit_id",
+    "assessment_signed_at",
+    "assessment_status"
   ],
   "equipment": [
     "servicenow",
     "splunk-es"
   ],
   "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+    "ServiceNow GRC Risk Management",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)"
   ],
   "status": "community",
   "lastReviewed": "2026-07-24",
@@ -83,12 +79,15 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "Compliance SME Panel",
+  "reviewer": "Compliance SME Panel (exemplar-adapted; pending verification)",
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise 9.2+ or Splunk Cloud with Enterprise Security (Splunkbase 263).\n- Splunk Common Information Model Add-on (Splunkbase 1621).\n- Splunk Add-on for ServiceNow (Splunkbase 1928) when ITSM or CMDB evidence is referenced.\n- Dedicated `index=audit_evidence` with at least a seven-year retention policy for regulatory artefacts.\n- RBAC: compliance-analyst role with read on source indexes and write on `audit_evidence`.\n\n## Step 1 — Configure data collection\n\nPopulate the KV Store / lookup named in `dataSources` from the authoritative GRC or operational source of record. Validate ingest with a 24-hour `timechart count` on each sourcetype before enabling the scheduled search.\n\n## Step 2 — Create the search and alert\n\nSchedule the saved search on the cadence documented in `implementation`. Route `action_required` or equivalent status values to an ES notable with severity mapped to business impact. Archive every result row to `audit_evidence` using a summary-index action with markers `uc=22.55.33` and `clause=CLC-TS-50701-Annex-D`.\n\n## Step 3 — Validate deployment\n\n**(a)** Inject a synthetic non-compliant row into the lookup and confirm the search surfaces it within one schedule interval.\n\n**(b)** Restore compliant values and confirm the search returns zero actionable rows.\n\n**(c)** Export a CSV from the dashboard and verify column names match the `evidence` field contract.\n\n## Step 4 — Operationalize\n\nBuild the dashboard referenced in `visualization`. Integrate the runbook with the control owner named in `owner`. Review false-positive suppressions monthly.\n\n## Step 5 — Troubleshooting\n\n**Lookup drift** — reconcile weekly against the source system.\n\n**Silent search** — confirm modular inputs are enabled and license volume has headroom.\n\n**False-positive storm** — tune suppressions in the documented KV Store exception collection with time-bound grants.\n\n**Audit export gaps** — verify summary-index routing and retention on `audit_evidence`.\n\n**Cross-timezone timestamps** — normalise all `_time` fields to UTC before SLA math.\n\n**SOAR / ticket desync** — ensure bidirectional sync populates disposition fields used in the SPL filter.",
-  "grandmaExplanation": "We keep an eye on CLC/TS 50701 Annex D so auditors can see we are meeting the rule CLC-TS-50701-Annex-D and we get warned before we fall out of compliance.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Stores: `rail50701_annex_d_lookup`, `rail50701_annex_d_risk_lookup`, `rail50701_annex_d_threat_lookup`.\n- ServiceNow GRC.\n\n## Step 1 — Define collections\n\n```ini\n[rail50701_annex_d_lookup]\nenforceTypes = true\nfield.zone_id = string\nfield.zone_name = string\nfield.conduit_id = string\nfield.zoneconduit_status = string\nfield.zone_subsystem = string\nfield.commissioned_at = number\n\n[rail50701_annex_d_risk_lookup]\nenforceTypes = true\nfield.assessment_id = string\nfield.zone_id = string\nfield.conduit_id = string\nfield.assessment_signed_at = number\nfield.assessment_signed_by = string\nfield.sl_target_zone = string\nfield.residual_risk_rating = string\nfield.assessment_doc_url = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.33: CLC/TS 50701 Zone-and-Conduit Risk Currency]\ncron_schedule = 0 3 * * 1\ndispatch.earliest_time = -3y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.33,reg=CLC-TS-50701,clause=CLC-TS-50701-Annex-D\naction.notable.param.rule_title = Rail zone-conduit risk assessment missing / stale\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `assessment_stale` or `assessment_missing`** (owner: Risk Manager, severity P2):\n\n1. Within 90 days: refresh assessment with current threat scenarios; re-sign; record.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Cross-zone conduit assessment**: a conduit may bridge two zones; assess both sides.\n- **IEC 62443-3-2 alignment**: zone-and-conduit assessment must reference IEC 62443-3-2 method.\n- **NIS2 alignment**: cybersecurity risk assessment also satisfies NIS2 article 21(1)(a); coordinate to avoid duplication.",
+  "grandmaExplanation": "Our railway is divided into safety zones — a signal box zone, a depot zone, a station zone. For each zone we keep a written cyber-risk report: what bad things could happen here, how serious, how protected. If a report is old or missing, the team is alerted.",
+  "prerequisiteUseCases": [
+    "UC-22.55.1"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -96,10 +95,14 @@
       "url": "https://splunkbase.splunk.com/app/263",
       "role": "premium",
       "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "optional",
+      "requiresSmeReview": false
     }
   ],
-  "wave": "walk",
-  "prerequisiteUseCases": [
-    "UC-22.55.1"
-  ]
+  "wave": "walk"
 }
