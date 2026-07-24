@@ -25,6 +25,7 @@ the release notes block in `index.html` by hand.
   `recommender/uc-thin.json` (~15 MiB at 16,644 UCs) loads within the MCP
   server guard.
 
+## [8.24.0] - 2026-07-24
 
 ### New Use Cases
 
