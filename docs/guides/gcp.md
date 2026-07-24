@@ -1368,12 +1368,14 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 ### Cited by
 
 - [`docs/guides/ai-llm-observability.md`](ai-llm-observability.md)
+- [`docs/guides/cloud-security-posture.md`](cloud-security-posture.md)
 - [`docs/guides/datacenter-fabric-sdn.md`](datacenter-fabric-sdn.md)
 - [`docs/guides/dns-dhcp.md`](dns-dhcp.md)
 - [`docs/guides/edr.md`](edr.md)
 - [`docs/guides/finops-cost-capacity.md`](finops-cost-capacity.md)
 - [`docs/guides/industry-verticals.md`](industry-verticals.md)
 - [`docs/guides/message-queues.md`](message-queues.md)
+- [`docs/guides/oci.md`](oci.md)
 - [`docs/guides/relational-databases.md`](relational-databases.md)
 - [`docs/guides/storage-backup.md`](storage-backup.md)
 

@@ -1468,6 +1468,7 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 
 - [`docs/guides/active-directory-entra-id.md`](active-directory-entra-id.md)
 - [`docs/guides/ai-llm-observability.md`](ai-llm-observability.md)
+- [`docs/guides/cloud-security-posture.md`](cloud-security-posture.md)
 - [`docs/guides/datacenter-fabric-sdn.md`](datacenter-fabric-sdn.md)
 - [`docs/guides/dns-dhcp.md`](dns-dhcp.md)
 - [`docs/guides/edr.md`](edr.md)
@@ -1476,6 +1477,7 @@ Part of the [Splunk Monitoring Use Cases](https://github.com/fenre/splunk-monito
 - [`docs/guides/firewalls.md`](firewalls.md)
 - [`docs/guides/gcp.md`](gcp.md)
 - [`docs/guides/industry-verticals.md`](industry-verticals.md)
+- [`docs/guides/oci.md`](oci.md)
 - [`docs/guides/relational-databases.md`](relational-databases.md)
 - [`docs/guides/storage-backup.md`](storage-backup.md)
 

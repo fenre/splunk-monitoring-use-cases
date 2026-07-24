@@ -1,0 +1,74 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.4.83",
+  "title": "Cross-Cloud Network Peering Burst",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev.5",
+      "clause": "AU-2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Saved search evidence for AU-2 when alert outputs are archived."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Replay or inject sample `aws:cloudtrail` events matching `*` into `index=cloud_multi`. Confirm UC-4.4.83 search returns >=1 row and alert fires.",
+    "negativeScenario": "Replay benign `aws:cloudtrail` traffic without `*` markers. Confirm the search returns zero rows and alert does not fire."
+  },
+  "dataSources": "`index=cloud_multi` `sourcetype=aws:cloudtrail`",
+  "app": "Multi-index correlation across cloud TAs",
+  "spl": "index=cloud_multi sourcetype=\"aws:cloudtrail\"\n| table _time action user resource\n| sort -_time",
+  "description": "Correlates cross-cloud network peering burst signals across AWS, Azure, and GCP indexes.",
+  "value": "Cross-Cloud Network Peering Burst may indicate coordinated attack or change across cloud providers.",
+  "implementation": "Configure required cloud inputs per provider guide; index=cloud_multi sourcetype=aws:cloudtrail.",
+  "visualization": "Dashboard panel, alert, and weekly compliance report.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Vendor documentation",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Overview"
+    }
+  ],
+  "knownFalsePositives": "Approved change windows; documented automation service principals; sandbox accounts excluded via lookup.",
+  "mitreAttack": [
+    "T1078.004"
+  ],
+  "securityDomain": "cloud",
+  "equipment": [
+    "aws",
+    "azure",
+    "gcp"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "tstats_eligible": false
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=cloud_multi`.\n• Install and configure: Multi-index correlation across cloud TAs.\n• Ensure `aws:cloudtrail` events are flowing (prerequisite UC: 4.4.33 when applicable).\n• Map `cloud_multi` and field extractions per `docs/guides/aws.md`, `docs/guides/azure.md`, or `docs/guides/gcp.md` as appropriate.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=cloud_multi sourcetype=aws:cloudtrail.\nExpected sourcetype: `aws:cloudtrail`. Validate with:\n```spl\nindex=cloud_multi sourcetype=\"aws:cloudtrail\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=cloud_multi sourcetype=\"aws:cloudtrail\"\n| table _time action user resource\n| sort -_time\n```\n\nUnderstanding this SPL\nThe search scopes `aws:cloudtrail` in `index=cloud_multi` and applies `*` to surface `Cross-Cloud Network Peering Burst`. Tune time range and alert threshold to your change cadence; exclude break-glass principals via a lookup.\n\nStep 3 — Validate\nCompare result counts to the vendor console (CloudTrail Event history, Azure Activity Log, GCP Logs Explorer, or service-native UI). Spot-check `_time` and actor fields. Confirm CIM acceleration only after TA field mappings are verified.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_4_83_alert` with appropriate severity. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) empty results — verify TA input and index routing; (2) duplicate events — check S3/SQS duplication; (3) missing fields — upgrade `Multi-index correlation across cloud TAs` and review `props.conf` aliases; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch for cross-cloud network peering burst in your cloud audit logs so the team catches important changes early instead of finding out from auditors or customers.",
+  "prerequisiteUseCases": [
+    "UC-4.4.33"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 1876,
+      "name": "Splunk Add-on for AWS",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}

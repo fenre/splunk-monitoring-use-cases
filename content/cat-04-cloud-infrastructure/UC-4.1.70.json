@@ -8,11 +8,15 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "controlTest": {
+    "positiveScenario": "Inject sample events matching UC-4.1.70 SPL; confirm the search returns rows and alert fires.",
+    "negativeScenario": "Replay benign traffic without matching markers; confirm UC-4.1.70 search returns zero rows."
+  },
   "dataSources": "`sourcetype=aws:cloudwatch` (AWS/Route53 — HealthCheckStatus, ChildHealthCheckHealthyCount)",
   "app": "`Splunk_TA_aws`",
   "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/Route53\" metric_name=\"HealthCheckStatus\"\n| bin _time span=5m\n| stats latest(Minimum) as healthy by HealthCheckId, _time\n| where healthy < 1\n| sort HealthCheckId -_time",
   "description": "Failed health checks drive DNS failover; sustained failures mean user-facing outages or flapping routing policies.",
-  "value": "Failed health checks drive DNS failover; sustained failures mean user-facing outages or flapping routing policies.",
+  "value": "Failed health checks drive DNS failover; sustained failures mean user-facing outages or flapping routing policies. Detecting this early reduces breach impact, audit findings, and operational blind spots.",
   "implementation": "Map `HealthCheckId` to application names via lookup. Alert on unhealthy state for two consecutive periods. Correlate with target (ALB, IP) metrics. Include calculator health checks for complex routing.",
   "visualization": "Status grid (health check × time), Table (check id, target), Timeline (failures).",
   "cimModels": [
@@ -27,9 +31,29 @@
     }
   ],
   "knownFalsePositives": "Planned deploys, game-day tests, and vendor maintenance that you expect to move CPU, error, or lag metrics; compare with the change window.",
+  "securityDomain": "cloud",
   "equipment": [
     "aws"
   ],
+  "equipmentModels": [
+    "aws_cloudtrail"
+  ],
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate"
+  },
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: `sourcetype=aws:cloudwatch` (AWS/Route53 — HealthCheckStatus, ChildHealthCheckHealthyCount).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap `HealthCheckId` to application names via lookup. Alert on unhealthy state for two consecutive periods. Correlate with target (ALB, IP) metrics. Include calculator health checks for complex routing.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/Route53\" metric_name=\"HealthCheckStatus\"\n| stats latest(Minimum) as healthy by HealthCheckId, bin(_time, 5m)\n| where healthy < 1\n| sort HealthCheckId -_time\n```\n\nUnderstanding this SPL\n\n**Route 53 Health Check Failover Validation** — Failed health checks drive DNS failover; sustained failures mean user-facing outages or flapping routing policies.\n\nDocumented **Data sources**: `sourcetype=aws:cloudwatch` (AWS/Route53 — HealthCheckStatus, ChildHealthCheckHealthyCount). **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by HealthCheckId, bin(_time, 5m)** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where healthy < 1` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (health check × time), Table (check id, target), Timeline (failures).",
-  "grandmaExplanation": "We keep an eye on route 53 health check failover validation. The key performance numbers the cloud already exposes so the team can plan capacity and notice problems before user-visible outages. We want the right people to notice in time, not only when a customer or an auditor stumbles on it first."
+  "grandmaExplanation": "We keep an eye on route 53 health check failover validation. The key performance numbers the cloud already exposes so the team can plan capacity and notice problems before user-visible outages. We want the right people to notice in time, not only when a customer or an auditor stumbles on it first.",
+  "prerequisiteUseCases": [
+    "UC-4.1.78"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 1876,
+      "name": "Splunk Add-on for AWS",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

@@ -12,7 +12,29 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
-## [8.19.0] - 2026-07-23
+## [8.20.0] - 2026-07-24
+
+### New Use Cases
+
+- **cat-04 Cloud Infrastructure expansion — +1,008 use cases (227 → 1,235 in
+  cat-04; 14,876 → 15,884 catalogue-wide).** Research-driven taxonomy covering
+  AWS CloudTrail eventNames, Azure ARM operations, GCP audit methodNames, plus
+  nine new subcategories: OCI (4.7), Alibaba Cloud (4.8), Kubernetes-on-cloud
+  (4.9), CNAPP (4.10), FinOps (4.11), Cloud Databases (4.12), Cloud Networking
+  (4.13), Cloud Storage (4.14), and Edge/CDN/WAF (4.15). Generator pipeline in
+  `data/cloud_expansion/` and `tools/research/generate_cloud_ucs.py`.
+
+### Changed
+
+- **Legacy cat-04 uplift:** All 227 pre-expansion UCs enriched with gold-profile
+  fields (`controlTest`, `cost.tier`, `splunkbaseApps`, `wave`,
+  `prerequisiteUseCases`, `securityDomain`, `equipmentModels`).
+- **Equipment registry:** Added `oci` (with Cloud Guard and Functions models)
+  and `alibaba` slugs in `tools/build/enrichment.py`.
+- **SPL vocabulary:** +40 cloud sourcetypes (OCI, Alibaba, legacy AWS/Azure/GCP
+  TA feeds) in `_spl_well_known.py`.
+- **Guide stubs:** Eight new cloud topic guides under `docs/guides/`.
+
 
 ### New Use Cases
 

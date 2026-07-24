@@ -1,0 +1,79 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.1.106",
+  "title": "AWS S3 Bucket Creation",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security",
+    "Audit"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev.5",
+      "clause": "AU-2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Saved search evidence for AU-2 when alert outputs are archived."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Replay or inject sample `aws:cloudtrail` events matching `(eventName=\"CreateBucket\")` into `index=aws`. Confirm UC-4.1.106 search returns >=1 row and alert fires.",
+    "negativeScenario": "Replay benign `aws:cloudtrail` traffic without `(eventName=\"CreateBucket\")` markers. Confirm the search returns zero rows and alert does not fire."
+  },
+  "dataSources": "`index=aws` `sourcetype=aws:cloudtrail`",
+  "app": "Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876)",
+  "spl": "index=aws sourcetype=\"aws:cloudtrail\" (eventName=\"CreateBucket\")\n| table _time userIdentity.arn eventName sourceIPAddress errorCode\n| sort -_time",
+  "description": "Detects CreateBucket in unexpected regions.",
+  "value": "Buckets in unapproved regions may violate data residency or hide exfiltration staging.",
+  "implementation": "Enable organization-wide CloudTrail with management and data events for s3. Configure `Splunk_TA_aws` CloudTrail S3 or CloudWatch Logs input into `index=aws`. Save as a real-time alert on matching `CreateBucket` events; tune exclusions via saved lookup for break-glass roles.",
+  "visualization": "Events list (critical alert), Timeline by eventName, Table of actor and resource.",
+  "cimModels": [
+    "Change"
+  ],
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Change.All_Changes\n  where All_Changes.action=*\n  by All_Changes.user All_Changes.action All_Changes.object span=1h\n| sort -count",
+  "dataModelAcceleration": "Enable acceleration for Change after TA field mappings are verified.",
+  "references": [
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "AWS CloudTrail event reference",
+      "url": "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-event-reference.html"
+    }
+  ],
+  "knownFalsePositives": "Planned change windows registered in CMDB; automation roles used by CI/CD pipelines with documented service accounts; sandbox accounts excluded via `aws:accountId` lookup.",
+  "mitreAttack": [
+    "T1078.004"
+  ],
+  "securityDomain": "cloud",
+  "equipment": [
+    "aws"
+  ],
+  "equipmentModels": [
+    "aws_cloudtrail"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "tstats_eligible": true
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=aws`.\n• Install and configure: Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876).\n• Ensure `aws:cloudtrail` events are flowing (prerequisite UC: 4.1.78 when applicable).\n• Map `aws` and field extractions per `docs/guides/aws.md`, `docs/guides/azure.md`, or `docs/guides/gcp.md` as appropriate.\n\nStep 1 — Configure data collection\nEnable organization-wide CloudTrail with management and data events for s3. Configure `Splunk_TA_aws` CloudTrail S3 or CloudWatch Logs input into `index=aws`. Save as a real-time alert on matching `CreateBucket` events; tune exclusions via saved lookup for break-glass roles.\nExpected sourcetype: `aws:cloudtrail`. Validate with:\n```spl\nindex=aws sourcetype=\"aws:cloudtrail\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:cloudtrail\" (eventName=\"CreateBucket\")\n| table _time userIdentity.arn eventName sourceIPAddress errorCode\n| sort -_time\n```\n\nUnderstanding this SPL\nThe search scopes `aws:cloudtrail` in `index=aws` and applies `(eventName=\"CreateBucket\")` to surface `AWS S3 Bucket Creation`. Tune time range and alert threshold to your change cadence; exclude break-glass principals via a lookup.\n\nStep 3 — Validate\nCompare result counts to the vendor console (CloudTrail Event history, Azure Activity Log, GCP Logs Explorer, or service-native UI). Spot-check `_time` and actor fields. Confirm CIM acceleration only after TA field mappings are verified.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_1_106_alert` with appropriate severity. Dashboard: Events list (critical alert), Timeline by eventName, Table of actor and resource..\nFailure modes: (1) empty results — verify TA input and index routing; (2) duplicate events — check S3/SQS duplication; (3) missing fields — upgrade `Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876)` and review `props.conf` aliases; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch for aws s3 bucket creation in your cloud audit logs so the team catches important changes early instead of finding out from auditors or customers.",
+  "prerequisiteUseCases": [
+    "UC-4.1.78"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 1876,
+      "name": "Splunk Add-on for AWS",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}

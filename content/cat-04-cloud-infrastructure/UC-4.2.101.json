@@ -1,0 +1,67 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.2.101",
+  "title": "Azure AKS Node Not Ready",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "controlTest": {
+    "positiveScenario": "Replay or inject sample `azure:monitor:resource` events matching `*` into `index=azure`. Confirm UC-4.2.101 search returns >=1 row and alert fires.",
+    "negativeScenario": "Replay benign `azure:monitor:resource` traffic without `*` markers. Confirm the search returns zero rows and alert does not fire."
+  },
+  "dataSources": "`index=azure` `sourcetype=azure:monitor:resource`",
+  "app": "Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`, Splunkbase 3110)",
+  "spl": "index=azure sourcetype=\"azure:monitor:resource\"\n| table _time userIdentity.arn eventName sourceIPAddress errorCode\n| sort -_time",
+  "description": "Detects Kubernetes nodes reporting NotReady status.",
+  "value": "NotReady nodes reduce capacity and may indicate compromise.",
+  "implementation": "Enable Azure Monitor metrics/diagnostics export to Event Hub; map metrics in Microsoft Cloud Services add-on.",
+  "visualization": "Timechart, single-value SLA breach, top resources table.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Cloud Services",
+      "url": "https://splunkbase.splunk.com/app/3110"
+    },
+    {
+      "title": "Azure Monitor metrics",
+      "url": "https://learn.microsoft.com/en-us/azure/azure-monitor/essentials/metrics-charts"
+    }
+  ],
+  "knownFalsePositives": "Approved change windows; documented automation service principals; sandbox accounts excluded via lookup.",
+  "mitreAttack": [
+    "T1078.004"
+  ],
+  "securityDomain": "cloud",
+  "equipment": [
+    "azure",
+    "kubernetes",
+    "m365"
+  ],
+  "equipmentModels": [
+    "kubernetes_k8s"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "tstats_eligible": false
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=azure`.\n• Install and configure: Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`, Splunkbase 3110).\n• Ensure `azure:monitor:resource` events are flowing (prerequisite UC: 4.2.58 when applicable).\n• Map `azure` and field extractions per `docs/guides/aws.md`, `docs/guides/azure.md`, or `docs/guides/gcp.md` as appropriate.\n\nStep 1 — Configure data collection\nEnable Azure Monitor metrics/diagnostics export to Event Hub; map metrics in Microsoft Cloud Services add-on.\nExpected sourcetype: `azure:monitor:resource`. Validate with:\n```spl\nindex=azure sourcetype=\"azure:monitor:resource\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=azure sourcetype=\"azure:monitor:resource\"\n| table _time userIdentity.arn eventName sourceIPAddress errorCode\n| sort -_time\n```\n\nUnderstanding this SPL\nThe search scopes `azure:monitor:resource` in `index=azure` and applies `*` to surface `Azure AKS Node Not Ready`. Tune time range and alert threshold to your change cadence; exclude break-glass principals via a lookup.\n\nStep 3 — Validate\nCompare result counts to the vendor console (CloudTrail Event history, Azure Activity Log, GCP Logs Explorer, or service-native UI). Spot-check `_time` and actor fields. Confirm CIM acceleration only after TA field mappings are verified.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_2_101_alert` with appropriate severity. Dashboard: Timechart, single-value SLA breach, top resources table..\nFailure modes: (1) empty results — verify TA input and index routing; (2) duplicate events — check S3/SQS duplication; (3) missing fields — upgrade `Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`, Splunkbase 3110)` and review `props.conf` aliases; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch for azure aks node not ready in your cloud audit logs so the team catches important changes early instead of finding out from auditors or customers.",
+  "prerequisiteUseCases": [
+    "UC-4.2.58"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 3110,
+      "name": "Splunk Add-on for Microsoft Cloud Services",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}

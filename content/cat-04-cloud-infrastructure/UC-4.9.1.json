@@ -1,0 +1,63 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.9.1",
+  "title": "Kubernetes Audit Log Baseline",
+  "criticality": "critical",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Audit",
+    "Operations"
+  ],
+  "splunkPillar": "Platform",
+  "controlTest": {
+    "positiveScenario": "Replay or inject sample `kube:audit` events matching `*` into `index=kube`. Confirm UC-4.9.1 search returns >=1 row and alert fires.",
+    "negativeScenario": "Replay benign `kube:audit` traffic without `*` markers. Confirm the search returns zero rows and alert does not fire."
+  },
+  "dataSources": "`index=kube` `sourcetype=kube:audit`",
+  "app": "Splunk Connect for Kubernetes (Splunkbase 4467)",
+  "spl": "index=kube sourcetype=\"kube:audit\"\n| table _time userIdentity.arn eventName sourceIPAddress errorCode\n| sort -_time",
+  "description": "Verifies kubernetes audit log baseline data flows into Splunk continuously.",
+  "value": "Kubernetes Audit Log Baseline is the prerequisite feed for all 4.9 detections.",
+  "implementation": "Enable kube:audit ingestion via the appropriate Splunk TA into index=kube.",
+  "visualization": "Ingestion health single value and lag chart.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Connect for Kubernetes",
+      "url": "https://splunkbase.splunk.com/app/4467"
+    },
+    {
+      "title": "Vendor logging documentation",
+      "url": "https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/"
+    }
+  ],
+  "knownFalsePositives": "Approved change windows; documented automation service principals; sandbox accounts excluded via lookup.",
+  "mitreAttack": [
+    "T1078.004"
+  ],
+  "securityDomain": "cloud",
+  "equipment": [
+    "kubernetes"
+  ],
+  "equipmentModels": [
+    "kubernetes_k8s"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "tstats_eligible": false
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=kube`.\n• Install and configure: Splunk Connect for Kubernetes (Splunkbase 4467).\n• Ensure `kube:audit` events are flowing (prerequisite UC: none when applicable).\n• Map `kube` and field extractions per `docs/guides/aws.md`, `docs/guides/azure.md`, or `docs/guides/gcp.md` as appropriate.\n\nStep 1 — Configure data collection\nEnable kube:audit ingestion via the appropriate Splunk TA into index=kube.\nExpected sourcetype: `kube:audit`. Validate with:\n```spl\nindex=kube sourcetype=\"kube:audit\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=kube sourcetype=\"kube:audit\"\n| table _time userIdentity.arn eventName sourceIPAddress errorCode\n| sort -_time\n```\n\nUnderstanding this SPL\nThe search scopes `kube:audit` in `index=kube` and applies `*` to surface `Kubernetes Audit Log Baseline`. Tune time range and alert threshold to your change cadence; exclude break-glass principals via a lookup.\n\nStep 3 — Validate\nCompare result counts to the vendor console (CloudTrail Event history, Azure Activity Log, GCP Logs Explorer, or service-native UI). Spot-check `_time` and actor fields. Confirm CIM acceleration only after TA field mappings are verified.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_9_1_alert` with appropriate severity. Dashboard: Ingestion health single value and lag chart..\nFailure modes: (1) empty results — verify TA input and index routing; (2) duplicate events — check S3/SQS duplication; (3) missing fields — upgrade `Splunk Connect for Kubernetes (Splunkbase 4467)` and review `props.conf` aliases; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch for kubernetes audit log baseline in your cloud audit logs so the team catches important changes early instead of finding out from auditors or customers.",
+  "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 4467,
+      "name": "Splunk Connect for Kubernetes",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "crawl"
+}

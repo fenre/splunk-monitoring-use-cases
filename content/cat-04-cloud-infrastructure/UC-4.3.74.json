@@ -1,0 +1,62 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.3.74",
+  "title": "GCP Billing Export Cost Anomaly",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Cost",
+    "Anomaly"
+  ],
+  "splunkPillar": "Observability",
+  "controlTest": {
+    "positiveScenario": "Replay or inject sample `google:gcp:billing:report` events matching `*` into `index=gcp`. Confirm UC-4.3.74 search returns >=1 row and alert fires.",
+    "negativeScenario": "Replay benign `google:gcp:billing:report` traffic without `*` markers. Confirm the search returns zero rows and alert does not fire."
+  },
+  "dataSources": "`index=gcp` `sourcetype=google:gcp:billing:report`",
+  "app": "Splunk Add-on for Google Cloud Platform (`Splunk_TA_google-cloudplatform`, Splunkbase 3088)",
+  "spl": "index=gcp sourcetype=\"google:gcp:billing:report\"\n| table _time userIdentity.arn eventName sourceIPAddress errorCode\n| sort -_time",
+  "description": "Compares daily GCP billing export spend against seven-day baseline per project.",
+  "value": "Cost anomalies catch mis-provisioned resources and cryptomining before invoice close.",
+  "implementation": "Enable BigQuery billing export; ingest billing table via GCP add-on or HEC.",
+  "visualization": "Daily cost timechart, top services, anomaly single value.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Add-on for Google Cloud Platform",
+      "url": "https://splunkbase.splunk.com/app/3088"
+    },
+    {
+      "title": "Cloud Billing export",
+      "url": "https://cloud.google.com/billing/docs/how-to/export-data-bigquery"
+    }
+  ],
+  "knownFalsePositives": "Approved change windows; documented automation service principals; sandbox accounts excluded via lookup.",
+  "mitreAttack": [
+    "T1078.004"
+  ],
+  "securityDomain": "cloud",
+  "equipment": [
+    "gcp"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "low",
+    "search_load": "moderate",
+    "tstats_eligible": false
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=gcp`.\n• Install and configure: Splunk Add-on for Google Cloud Platform (`Splunk_TA_google-cloudplatform`, Splunkbase 3088).\n• Ensure `google:gcp:billing:report` events are flowing (prerequisite UC: 4.3.41 when applicable).\n• Map `gcp` and field extractions per `docs/guides/aws.md`, `docs/guides/azure.md`, or `docs/guides/gcp.md` as appropriate.\n\nStep 1 — Configure data collection\nEnable BigQuery billing export; ingest billing table via GCP add-on or HEC.\nExpected sourcetype: `google:gcp:billing:report`. Validate with:\n```spl\nindex=gcp sourcetype=\"google:gcp:billing:report\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=gcp sourcetype=\"google:gcp:billing:report\"\n| table _time userIdentity.arn eventName sourceIPAddress errorCode\n| sort -_time\n```\n\nUnderstanding this SPL\nThe search scopes `google:gcp:billing:report` in `index=gcp` and applies `*` to surface `GCP Billing Export Cost Anomaly`. Tune time range and alert threshold to your change cadence; exclude break-glass principals via a lookup.\n\nStep 3 — Validate\nCompare result counts to the vendor console (CloudTrail Event history, Azure Activity Log, GCP Logs Explorer, or service-native UI). Spot-check `_time` and actor fields. Confirm CIM acceleration only after TA field mappings are verified.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_3_74_alert` with appropriate severity. Dashboard: Daily cost timechart, top services, anomaly single value..\nFailure modes: (1) empty results — verify TA input and index routing; (2) duplicate events — check S3/SQS duplication; (3) missing fields — upgrade `Splunk Add-on for Google Cloud Platform (`Splunk_TA_google-cloudplatform`, Splunkbase 3088)` and review `props.conf` aliases; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch for gcp billing export cost anomaly in your cloud audit logs so the team catches important changes early instead of finding out from auditors or customers.",
+  "prerequisiteUseCases": [
+    "UC-4.3.41"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 3088,
+      "name": "Splunk Add-on for Google Cloud Platform",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}
