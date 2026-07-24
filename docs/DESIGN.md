@@ -2,7 +2,7 @@
 
 **Status:** Living document. Authoritative reference for implementation, CI, and replication.
 **Owner:** Repository maintainers. See [GOVERNANCE.md](../GOVERNANCE.md).
-**Last reviewed:** 2026-04-20
+**Last reviewed:** 2026-07-24
 
 This document describes the full product (v7 build and runtime), with the layered system contract detailed in [`docs/architecture.md`](architecture.md). It covers what the product is, how it is organised, how it is built, how it runs, how it is governed, and — critically — how to replicate it on a different platform, for a different vendor, or for a different content domain.
 
@@ -127,7 +127,8 @@ Categories are grouped for dashboard navigation by `CAT_GROUPS`, loaded into the
 | app | 7, 8, 11, 12, 13, 14, 16 |
 | industry | 21 |
 | compliance | 22 |
-| business | 23 |
+| business | 23, 24 |
+| personal | 25 |
 
 Groups are a UI-only convenience; they are not reflected in UC IDs. Renumbering a category is a breaking change for downstream consumers and requires a major version bump.
 
@@ -286,7 +287,7 @@ All generated site files are written under `dist/` (see [docs/architecture.md](a
 
 | Path | Consumer | Content |
 |---|---|---|
-| `dist/api/catalog-index.json` | `/browse/` SPA | Stub index for bootstrap + globals (`catMeta`, `catGroups`, `equipment`, stubs for 7,364+ UCs) |
+| `dist/api/catalog-index.json` | `/browse/` SPA | Stub index for bootstrap + globals (`catMeta`, `catGroups`, `equipment`, stubs for 16,644+ UCs) |
 | `dist/api/cat-N.json` | SPA + integrations | Full category slice (lazy-loaded) |
 | `dist/api/v1/*.json` | HTTP clients + MCP | Versioned catalog, compliance, manifest, recommender, JSON-LD |
 | `dist/browse/`, `dist/uc/`, `dist/category/` | Browsers | Static HTML + paired JSON |
@@ -367,7 +368,7 @@ The interactive catalog browser (`dist/browse/`) ships as static HTML plus finge
 Renders also include:
 
 - A filter strip (pillar / criticality / difficulty / monitoring type / regulation / sort).
-- A virtualised list — required because the catalog is **7,364** use cases.
+- A virtualised list — required because the catalog is **16,644** use cases.
 - A deep-link router: `#uc-10.1.5`, `#c-10`, `#s-10.1`, `#q=ransomware`.
 - Release-notes and non-technical / executive views driven by the same static bundle + injected scripts (`custom-text.js`, `non-technical-view.js` where applicable).
 
@@ -602,7 +603,7 @@ Non-trivial architectural changes are captured as ADRs under [`docs/adr/`](adr/)
 ### 12.2 Performance
 
 - Cold loads fetch `catalog-index.json` (~hundreds of KB gzipped) plus sharded search JSON — not a single 30+ MB script.
-- **Virtualised list** keeps interactive browsing responsive across **7,364** UCs.
+- **Virtualised list** keeps interactive browsing responsive across **16,644** UCs.
 - Full-text search uses MiniSearch shards loaded from `/assets/search-shard-*.json`; merge cost scales with shard count, not a monolithic dump.
 - `api/cat-N.json` shards limit payload size for programmatic consumers who only need one category.
 
@@ -698,7 +699,7 @@ When you fork this project:
 3. Update `window.SITE_CUSTOM.siteRepoUrl` (or equivalent in `custom-text.js` / bundled site config).
 4. Replace category metadata in `content/cat-*/_category.json` + [`content/INDEX.md`](../content/INDEX.md) as needed.
 5. Replace vendor/equipment metadata loaded by the parser (see `_load_equipment` in [`tools/build/parse_content.py`](../tools/build/parse_content.py)).
-6. Maintain your catalog under `content/cat-*/UC-*.json`; keep the ID scheme gap-free within subcategories (this repository ships **7,364** UCs).
+6. Maintain your catalog under `content/cat-*/UC-*.json`; keep the ID scheme gap-free within subcategories (this repository ships **16,644** UCs).
 7. Keep `VERSION`, `CHANGELOG.md`, and release notes HTML in sync.
 
 ---

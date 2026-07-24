@@ -6,6 +6,35 @@
 
 ## Current release
 
+**v8.25.0 — Industry expansion + Fun Stuff consolidation (16,644 use cases)** *(shipped 2026-07-24)*
+
+Theme: **scale industry vertical coverage and consolidate the Personal &
+Hobbyist taxonomy without losing UC count.** cat-21 gains four new subcategories
+(+714 UCs); cat-25 merges 115 subcategories down to 69 while preserving all
+6,431 use cases; documentation, metrics, and MCP payload limits catch up to
+catalogue scale.
+
+### Shipped outcomes
+
+- **16,644** use cases across **25** categories (cat-21 now **860** UCs; cat-25 **69** subcategories).
+- **Plain-language view** — four new Industry Verticals areas (21.11–21.14); cat-25 areas consolidated **108 → 72**.
+- **MCP payload cap** raised to **16 MiB** for `recommender/uc-thin.json`.
+- **Link-check (#75) and regulatory change-watch (#80)** resolved.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.25.0 release entry.
+
+---
+
+## Previous releases
+
+**v8.24.0 — Cloud expansion + compliance gap closure (15,930 use cases)** *(shipped 2026-07-24)*
+
+Theme: **close every remaining common-clause compliance gap and expand cloud
+infrastructure coverage.** +1,008 cat-04 UCs and +46 cat-22 gap-closure UCs;
+tier-1 and tier-2 `commonClauses[]` coverage both reach **100%**.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.24.0 release entry.
+
 **v8.23.0 — Hand-craft tooling and full template burndown (14,876 / 14,876 clean template provenance)** *(shipped 2026-07-24)*
 
 Theme: **every UC reads like it was written for its SPL, not stamped from a
@@ -14,19 +43,7 @@ lift tooling replace bulk-enricher prose across descriptions, values,
 knownFalsePositives, and controlTest blocks while keeping zero template-provenance
 flags at fail severity.
 
-### Shipped outcomes
-
-- **14,876 / 14,876** use cases pass `audit-template-provenance` with no flags.
-- **Hand-craft lift pipeline** — `scripts/handcraft_metadata_lift.py` with
-  `--quality-pass`, `scripts/_spl_narrative.py`, and `data/domain-packs/*.json`.
-- **Content-quality gate** — zero fail-severity findings from
-  `audit-content-quality` after SPL-unique narrative rewrite.
-
 See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.23.0 release entry.
-
----
-
-## Previous releases
 
 **v8.22.0 — Gold standard uplift (14,876 / 14,876 pass Gold v1 and Gold v2)** *(shipped 2026-07-23)*
 

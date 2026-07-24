@@ -89,8 +89,8 @@ SERVER_NAME = "splunk-uc"
 
 
 SERVER_INSTRUCTIONS = (
-    "Splunk Monitoring Use Cases catalogue (6,400+ UCs across 23 "
-    "categories, 60 regulations, 105 equipment slugs, signed provenance "
+    "Splunk Monitoring Use Cases catalogue (16,600+ UCs across 25 "
+    "categories, 60 regulations, 108 equipment slugs, signed provenance "
     "ledger). Read-only. Use `search_use_cases` for discovery, "
     "`get_use_case` for the full SPL + compliance detail on a single UC, "
     "`get_use_case_markdown` for the same content pre-rendered as plain "
@@ -279,7 +279,7 @@ def _tool_definitions() -> list[Tool]:
         Tool(
             name="list_equipment",
             description=(
-                "List the 105 equipment slugs with UC and regulation "
+                "List the 108 equipment slugs with UC and regulation "
                 "counts. Accepts a regulation_id filter to narrow to a "
                 "specific framework."
             ),
@@ -377,7 +377,7 @@ def _register_resources(server: Server, catalog: Catalog) -> None:
 
     @server.list_resources()
     async def _list_resources() -> list[Any]:
-        # The catalogue is 6,400+ UCs + 60 regulations + 105 equipment — too
+        # The catalogue is 16,600+ UCs + 60 regulations + 108 equipment — too
         # many to enumerate eagerly. We publish resource *templates* via
         # read_resource instead of individual entries; clients that want
         # a full list can call list_categories / list_regulations /

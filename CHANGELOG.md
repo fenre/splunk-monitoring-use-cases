@@ -12,6 +12,17 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.25.0] - 2026-07-24
+
+### New Use Cases
+
+- **cat-21 Industry Verticals expansion — +714 use cases (146 → 860 in cat-21;
+  15,930 → 16,644 catalogue-wide).** Four new subcategories: Financial Services
+  and Banking (21.11), Public Sector and Government (21.12), Education and
+  Academic Medical (21.13), and Contact Center and CX Operations (21.14).
+  Generator pipeline in `data/industry_expansion/` and
+  `tools/research/generate_industry_ucs.py`.
+
 ### Changed
 
 - **Link-check (#75):** Fixed broken PDPC advisory URL in UC-22.57.13 (404 →
@@ -30,6 +41,14 @@ the release notes block in `index.html` by hand.
 - **MCP payload cap:** Raised `MAX_PAYLOAD_BYTES` to 16 MiB so
   `recommender/uc-thin.json` (~15 MiB at 16,644 UCs) loads within the MCP
   server guard.
+- **Plain-language view:** Added four Industry Verticals areas for cat-21 subs
+  21.11–21.14 (Financial Services, Public Sector, Education, Contact Center).
+- **Documentation sync:** Refreshed README, AGENTS, ROADMAP, DESIGN,
+  architecture, catalog-schema, and MCP server docs to reflect **16,644** use
+  cases across **25** categories; added explicit source mappings for eight
+  v8.24 cloud topic guides.
+- **Dependencies:** Dependabot bumps for npm (root), pip/mcp lockfiles, MCP
+  1.28.0→1.28.1, and GitHub Actions workflow pins.
 
 ## [8.24.0] - 2026-07-24
 
