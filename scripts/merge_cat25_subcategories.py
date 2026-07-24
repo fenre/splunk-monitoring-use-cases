@@ -329,7 +329,7 @@ def update_non_technical_view(id_map: dict[str, str], merges: list[dict], *, dry
 
     final_order = list(order)
 
-    def dedupe_ucs(ucs_chunks: list[str]) -> str:
+    def dedupe_ucs(ucs_chunks: list[str], *, max_entries: int = 10) -> str:
         seen: set[str] = set()
         entries: list[str] = []
         for chunk in ucs_chunks:
@@ -343,6 +343,10 @@ def update_non_technical_view(id_map: dict[str, str], merges: list[dict], *, dry
                 stripped = ucs_line.strip().rstrip(",")
                 if stripped.startswith("{ id:"):
                     entries.append("        " + stripped.lstrip())
+                if len(entries) >= max_entries:
+                    break
+            if len(entries) >= max_entries:
+                break
         return ",\n        ".join(entries)
 
     rebuilt_areas: list[str] = []

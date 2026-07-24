@@ -1498,9 +1498,7 @@ window.NON_TECHNICAL = {
         { id: "25.28.153", why: "Trend scoring average by course, showing where you really gain or lose strokes." },
         { id: "25.28.156", why: "Compare UDisc round distances with prior visits, highlighting courses where your game improved." },
         { id: "25.28.195", why: "Add up ski days against your pass break-even point, showing whether the season ticket paid off." },
-        { id: "25.28.197", why: "Track vertical and run counts by resort, revealing where you actually spent the winter." },
-        { id: "25.28.243", why: "Protect your weekly yoga streak with a nudge before it breaks, keeping the habit alive." },
-        { id: "25.28.246", why: "Compare class types by total minutes, showing whether you gravitate toward flow or strength." }
+        { id: "25.28.197", why: "Track vertical and run counts by resort, revealing where you actually spent the winter." }
       ]},
       { name: "Games & tabletop", description: "We keep your gaming honest and fun — weekly hours, unfinished backlogs, and even who is really the lucky one at the dice table.", ucs: [
         { id: "25.29.1", why: "Add up your gaming hours each week against a limit you set, so a hobby does not quietly eat every evening." },

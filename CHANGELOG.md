@@ -12,7 +12,19 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
-## [8.24.0] - 2026-07-24
+### Changed
+
+- **cat-25 Personal & Hobbyist consolidation — 115 → 69 subcategories (6,431
+  use cases preserved).** Nineteen merge groups absorb thematic duplicates from
+  the wave expansion (smart home cluster, fitness/endurance, health/biohacking,
+  finance/tax, Life-OS/meta layer, and more). Migration tooling:
+  `data/cat25_merge_manifest.json`, `scripts/merge_cat25_subcategories.py`, and
+  `data/cat25_id_remap.json`. Plain-language view areas consolidated from 108 →
+  72.
+- **MCP payload cap:** Raised `MAX_PAYLOAD_BYTES` to 16 MiB so
+  `recommender/uc-thin.json` (~15 MiB at 16,644 UCs) loads within the MCP
+  server guard.
+
 
 ### New Use Cases
 
