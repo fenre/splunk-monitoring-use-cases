@@ -1,0 +1,71 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.14.25",
+  "title": "MQTT broker subscriber disconnect storm",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Contact Center and CX Operations",
+  "exclusions": "Exclude planned maintenance windows, DR exercises, vendor pack updates, and seasonal demand patterns via asset/schedule lookup.",
+  "evidence": "Saved search `21_14_25_evidence` archived to restricted audit index.",
+  "controlTest": {
+    "positiveScenario": "Replay sample `cc:event` events matching `*` into `index=contactcenter`. Confirm UC-21.14.25 search returns >=1 row and alert fires.",
+    "negativeScenario": "Replay benign `cc:event` traffic without `*` markers. Confirm the search returns zero rows and alert does not fire."
+  },
+  "dataSources": "`index=contactcenter` `sourcetype=cc:event`",
+  "app": "Genesys Cloud integration, Splunk ITSI contact center module",
+  "spl": "index=contactcenter sourcetype=\"cc:event\"\n| stats count as event_count dc(host) as distinct_assets by queue_id\n| where event_count > 0\n| table _time queue_id agent_id handle_time_sec disposition",
+  "description": "Monitors mqtt broker subscriber disconnect storm using `cc:event` telemetry in `index=contactcenter` to surface operational risk before it impacts contact center and cx operations service delivery.",
+  "value": "Operations and risk leaders in Contact Center and CX Operations use signals from MQTT broker subscriber disconnect storm to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
+  "implementation": "Ingest `cc:event` events via HEC or Edge Hub into `index=contactcenter`. Normalize field extractions in props/transforms for the Contact Center and CX Operations feed. Save as a scheduled search or real-time alert; tune thresholds using a 14-day baseline.",
+  "visualization": "Timechart by host/asset, single-value KPI, table of top offenders.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk OT Intelligence",
+      "url": "https://splunkbase.splunk.com/app/5180"
+    },
+    {
+      "title": "Splunk Lantern — Industry use cases",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Planned maintenance windows, vendor pack updates, DR exercises, and seasonal demand patterns excluded via asset/schedule lookup.",
+  "mitreAttack": [
+    "T1078"
+  ],
+  "securityDomain": "industry",
+  "equipment": [
+    "contact_center",
+    "cx",
+    "edge_hub",
+    "itsi",
+    "mqtt"
+  ],
+  "equipmentModels": [
+    "contact_center_event"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "tstats_eligible": false
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=contactcenter`.\n• Install and configure: Genesys Cloud integration, Splunk ITSI contact center module.\n• Ensure `cc:event` events are flowing (prerequisite UC: none when applicable).\n• Map `contactcenter` and field extractions per `docs/guides/industry-verticals.md`.\n\nStep 1 — Configure data collection\nIngest `cc:event` events via HEC or Edge Hub into `index=contactcenter`. Normalize field extractions in props/transforms for the Contact Center and CX Operations feed. Save as a scheduled search or real-time alert; tune thresholds using a 14-day baseline.\nExpected sourcetype: `cc:event`. Validate with:\n```spl\nindex=contactcenter sourcetype=\"cc:event\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=contactcenter sourcetype=\"cc:event\"\n| stats count as event_count dc(host) as distinct_hosts by _time span=1h\n| where event_count > 0\n| table _time event_count distinct_hosts\n```\n\nUnderstanding this SPL\nThe search scopes `cc:event` in `index=contactcenter` and applies `*` to surface `MQTT broker subscriber disconnect storm`. Tune time range and alert threshold to your operational baseline; exclude planned maintenance via asset/schedule lookup.\n\nStep 3 — Validate\nCompare result counts to the source system UI (SCADA HMI, EHR interface engine, POS gateway, OSS/BSS console, etc.) for the same time range. Spot-check `_time` and asset fields.\n\nStep 4 — Operationalize and troubleshoot\nSave as `21_14_25_alert` with appropriate severity. Dashboard: Timechart by host/asset, single-value KPI, table of top offenders..\nFailure modes: (1) empty results — verify HEC/Edge Hub input and index routing; (2) duplicate events — check forwarder acknowledgment; (3) missing fields — review props/transforms; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch contact center and cx operations systems for signs of mqtt broker subscriber disconnect storm so your team can act early instead of learning about problems from customers or regulators.",
+  "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 5180,
+      "name": "Splunk OT Intelligence",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}

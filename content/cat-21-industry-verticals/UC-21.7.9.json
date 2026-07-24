@@ -19,7 +19,7 @@
   "app": "Wi-Fi probe / Bluetooth / lidar analytics via HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=airport sourcetype=\"terminal:flow\"\n| bin _time span=5m\n| stats avg(occupancy_est) as occ, max(flow_rate_ppm) as peak_flow by terminal_id, zone_id, _time\n| eval date_hour=strftime(_time,\"%H\"), date_wday=strftime(_time,\"%w\")\n| eventstats median(occ) as med_occ by terminal_id, zone_id, date_hour, date_wday\n| eval occ_ratio=if(med_occ>0, round(occ/med_occ,2), null)\n| where occ > 5000 OR occ_ratio > 1.4 OR peak_flow > 120\n| table _time, terminal_id, zone_id, occ, med_occ, occ_ratio, peak_flow",
   "description": "Detects UC-21.7.9 — Passenger, Flow, and, Terminal, Capacity — using `index=airport` sourcetype `terminal:flow`, grouped by `terminal_id`, `zone_id`, `_time`, `date_hour`. Outputs `occ`, `peak_flow`, `med_occ` each `5m`; alert when `med_occ` > 0, `occ` > 5000, `occ_ratio` > 1.4, or `peak_flow` > 120. Primary focus: Terminal Capacity. Purpose-built for 'Passenger Flow and Terminal Capacity' in Operations workflows.",
-  "value": "Tracking `occ`, `peak_flow`, `med_occ` via UC-21.7.9 on `terminal:flow` feeds improves response to 'Passenger Flow and Terminal Capacity' and reduces operational risk and delayed incident response.",
+  "value": "Operations and risk leaders in Aviation use signals from Passenger Flow and Terminal Capacity to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Calibrate occupancy models against manual counts quarterly. Mask precise sensor locations in dashboards if required by security. Combine with `airport:security` wait times for holistic terminal health. **Domain context:** Fire/life safety codes cap occupancy; operational analytics should not be confused with legal occupancy limits. **Splunk:** `occ > 5000` is illustrative—scale thresholds per terminal design.",
   "visualization": "Heatmap (zone × time occupancy), Line chart (flow rate), Area chart (terminal totals).",
   "cimModels": [
@@ -49,6 +49,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `airport` (UC-21.7.9)** — Planned work for 'Passenger Flow and Terminal Capacity' shifts `occ`, `peak_flow`, `med_occ` over `span=5m` while `terminal_id`, `zone_id`, `_time`, `date_hour` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `terminal:flow`** — Scheduled automation elevates `zone_id` without crossing `med_occ` > 0 for UC-21.7.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `terminal_id`, `zone_id`, `_time`, `date_hour`** — Health checks in `airport` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `terminal:flow`** — First 48h baseline for UC-21.7.9 on `terminal_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `terminal_id`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T1078"
+  ],
   "equipment": [
     "checkpoint"
   ],

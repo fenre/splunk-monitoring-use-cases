@@ -20,7 +20,7 @@
   "app": "Sewer SCADA + weather feed via HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=water sourcetype=\"sewer:level\"\n| sort 0 structure_id, _time\n| streamstats window=2 global=f current=f last(level_ft) as prev_level last(_time) as prev_t by structure_id\n| eval dt_sec=_time-prev_t\n| eval rise_ft_hr=if(dt_sec>0 AND isnotnull(prev_level), (level_ft-prev_level)*3600/dt_sec, null)\n| eval risk=if(level_ft >= 0.9*high_alarm_ft OR (rainfall_in_hr > 0.5 AND rise_ft_hr > 0.5), 1, 0)\n| where risk=1\n| table _time, structure_id, level_ft, high_alarm_ft, rainfall_in_hr, rise_ft_hr",
   "description": "Monitors Early Warning activity in UC-21.9.4 ('Sewer Overflow Early Warning') from `index=water` sourcetype `sewer:level`. Rolls up `count` by `structure_id` across `the scheduled window` and pages when `dt_sec` > 0, `level_ft` >= 0.9, `rainfall_in_hr` > 0.5, or `rise_ft_hr` > 0.5. Covers Sewer, Overflow, Early, Warning. Operations operators treat UC-21.9.4 as the canonical signal.",
-  "value": "Operators running UC-21.9.4 on `sewer:level` feeds shorten triage for Early Warning tied to 'Sewer Overflow Early Warning', lowering operational risk and delayed incident response.",
+  "value": "Operations and risk leaders in Water and Wastewater use signals from Sewer Overflow Early Warning to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Align rain gauge timestamps to SCADA time zone. Tune `rise_ft_hr` using 1-minute samples if available. Integrate with CMMS for crew dispatch; document for NPDES reporting workflows. **Domain context:** SSO/CSO events often drive NPDES reporting and consent schedules—Splunk supports early warning, not regulatory submission. **Splunk:** `streamstats window=2` is sensitive to noise—use `trendline` or longer window for stable `rise_ft_hr`; verify `sort 0` order.",
   "visualization": "Combo chart (level vs rainfall), Timeline (risk flags), Map (structures at risk).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `water` (UC-21.9.4)** — Planned work for 'Sewer Overflow Early Warning' shifts `count` over `span=1h` while `structure_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `sewer:level`** — Scheduled automation elevates `dt_sec` without crossing `dt_sec` > 0 for UC-21.9.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `structure_id`** — Health checks in `water` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `sewer:level`** — First 48h baseline for UC-21.9.4 on `structure_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `structure_id`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T0809"
+  ],
   "equipment": [
     "splunk"
   ],

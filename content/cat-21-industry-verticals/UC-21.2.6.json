@@ -20,7 +20,7 @@
   "app": "Splunk Edge Hub (energy meters), MES HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=mfg (sourcetype=\"energy:meter\" OR sourcetype=\"mes:production\")\n| bin _time span=1h\n| stats sum(kwh) as kwh by line_id, _time\n| join type=inner max=1 line_id _time [\n    search index=mfg sourcetype=\"mes:production\"\n    | bin _time span=1h\n    | stats sum(units_good) as units by line_id, _time\n]\n| eval sec_kwh=if(units>0, kwh/units, null)\n| where sec_kwh>0\n| eventstats median(sec_kwh) as med_sec by line_id\n| where sec_kwh > med_sec*1.15\n| table _time, line_id, kwh, units, sec_kwh, med_sec",
   "description": "Alerts on UC-21.2.6 — Energy, Consumption, Per, Unit, Produced — using `index=mfg` sourcetype `energy:meter`, grouped by `line_id`, `_time`, `]`. Outputs `kwh`, `units`, `med_sec` each `1h`; alert when `units` > 0, or `sec_kwh` > 0. Primary focus: Unit Produced. Purpose-built for 'Energy Consumption Per Unit Produced' in Operations workflows.",
-  "value": "UC-21.2.6 accelerates insight into Unit Produced ('Energy Consumption Per Unit Produced') by tracking `kwh`, `units`, `med_sec` on `energy:meter` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
+  "value": "Operations and risk leaders in Manufacturing use signals from Energy Consumption Per Unit Produced to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Align meter rollups to MES production intervals using common `line_id` and time bucketing. Calibrate meters annually and store correction factors in lookup. Dashboard SEC for sustainability reporting and cost per unit. **Domain context:** ISO 50001 energy baselines and CDP/GHG reporting often use kWh per unit—allocate shared plant meters by line if multi-line feeds share one meter. **Splunk:** The sample `join` assumes `line_id` on MES can be renamed to align with meter scope; if meters are plant-level, aggregate MES `units` at plant grain before joining.",
   "visualization": "Line chart (SEC trend), Bar chart (SEC by line), Table (outliers), Single value (plant kWh per unit).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `mfg` (UC-21.2.6)** — Planned work for 'Energy Consumption Per Unit Produced' shifts `kwh`, `units`, `med_sec` over `span=1h` while `line_id`, `_time`, `]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `energy:meter`** — Scheduled automation elevates `_time` without crossing `units` > 0 for UC-21.2.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `line_id`, `_time`, `]`** — Health checks in `mfg` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `energy:meter`** — First 48h baseline for UC-21.2.6 on `line_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `line_id`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T0809"
+  ],
   "equipment": [
     "edge_hub"
   ],

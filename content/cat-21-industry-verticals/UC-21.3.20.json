@@ -20,7 +20,7 @@
   "app": "DIPS Federation Service logs via HEC or Universal Forwarder — Universal Forwarder (Splunkbase 617)",
   "spl": "index=healthcare sourcetype=\"dips:federation:auth\"\n| bin _time span=10m\n| stats sum(eval(if(result=\"success\", 1, 0))) as success,\n  sum(eval(if(result=\"failure\", 1, 0))) as failures,\n  dc(client_id) as unique_clients,\n  avg(response_time_ms) as avg_auth_ms by auth_flow, _time\n| eval fail_pct=round(failures/(success+failures)*100,1)\n| where fail_pct > 10 OR avg_auth_ms > 5000\n| table _time, auth_flow, success, failures, fail_pct, avg_auth_ms, unique_clients",
   "description": "Monitors SSO Monitoring anomalies for UC-21.3.20 with window `10m` on `index=healthcare` sourcetype `dips:federation:auth`. Combines `unique_clients`, `avg_auth_ms` by `auth_flow`, `_time` and compares against `fail_pct` > 10, or `avg_auth_ms` > 5000. Mapped to keywords DIPS, Arena, User, Authentication, and for dashboard routing.",
-  "value": "Alerting on DIPS, Arena, User, Authentication, and through UC-21.3.20 reduces operational risk and delayed incident response by surfacing `unique_clients`, `avg_auth_ms` early.",
+  "value": "Operations and risk leaders in Healthcare use signals from DIPS Arena User Authentication and SSO Monitoring to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Collect authentication event logs from the DIPS Federation Service. The service handles Authorization Code Flow (interactive clinician login), Client Credentials Flow (system integrations), and SMART on FHIR (embedded applications with SSO). Parse each event for authentication flow type, result (success/failure), error code, and response time. Alert on: authentication failure rate exceeding 10% within a 10-minute window, SSO response time exceeding 5 seconds (causes UI timeouts), repeated failures from a single client application (broken integration), or complete authentication service unavailability. Correlate with Microsoft Entra ID status if using federated identity.",
   "visualization": "Timechart (success vs failure by auth flow), Bar chart (failure reasons), Single value (current auth success rate).",
   "cimModels": [
@@ -51,6 +51,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `healthcare` (UC-21.3.20)** — Planned work for 'DIPS Arena User Authentication and SSO Monitoring' shifts `unique_clients`, `avg_auth_ms` over `span=10m` while `auth_flow`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `dips:federation:auth`** — Scheduled automation elevates `_time` without crossing `fail_pct` > 10 for UC-21.3.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `auth_flow`, `_time`** — Health checks in `healthcare` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dips:federation:auth`** — First 48h baseline for UC-21.3.20 on `auth_flow` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `auth_flow`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T1078"
+  ],
   "equipment": [
     "m365"
   ],

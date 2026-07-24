@@ -20,7 +20,7 @@
   "app": "Splunk Edge Hub, PI historian HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=scada sourcetype=\"pi:historian\"\n| eval avg_phase=(ia_amps+ib_amps+ic_amps)/3\n| eval max_i=max(ia_amps, ib_amps, ic_amps), min_i=min(ia_amps, ib_amps, ic_amps)\n| eval imbalance_pct=if(avg_phase>0, 100*(max_i-min_i)/avg_phase, null)\n| where imbalance_pct>10\n| bin _time span=15m\n| stats max(imbalance_pct) as peak_imbalance_pct, latest(ia_amps) as ia, latest(ib_amps) as ib, latest(ic_amps) as ic by feeder_id, _time\n| table _time, feeder_id, peak_imbalance_pct, ia, ib, ic",
   "description": "Alerts on UC-21.1.6 — Distribution, Feeder, Load, Imbalance — using `index=scada` sourcetype `pi:historian`, grouped by `feeder_id`, `_time`. Outputs `peak_imbalance_pct` each `15m`; alert when `avg_phase` > 0, or `imbalance_pct` > 10. Primary focus: Load Imbalance. Purpose-built for 'Distribution Feeder Load Imbalance' in Operations workflows.",
-  "value": "Operators running UC-21.1.6 on `pi:historian` feeds shorten triage for Load Imbalance tied to 'Distribution Feeder Load Imbalance', lowering operational risk and delayed incident response.",
+  "value": "Operations and risk leaders in Energy and Utilities use signals from Distribution Feeder Load Imbalance to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Ingest per-phase current from DMS or AMI aggregation via historian tags mapped to feeder IDs. Schedule near-real-time checks during peak load. Combine with OMS for customer complaints on the same feeder. Use lookups for feeder voltage class and limits. **Domain context:** Phase imbalance increases neutral current and transformer heating (NESC / utility design practice); thresholds (~10% imbalance) vary by utility—tune from engineering. **Splunk:** If `pi:historian` mixes multiple tag naming schemes, normalize `ia_amps`/`ib_amps`/`ic_amps` in CALC fields or transforms before `eval`.",
   "visualization": "Line chart (imbalance % over time), Bar chart (feeders over threshold), Gauge (worst feeder imbalance), Table (phase currents).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `scada` (UC-21.1.6)** — Planned work for 'Distribution Feeder Load Imbalance' shifts `peak_imbalance_pct` over `span=15m` while `feeder_id`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `pi:historian`** — Scheduled automation elevates `_time` without crossing `avg_phase` > 0 for UC-21.1.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `feeder_id`, `_time`** — Health checks in `scada` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `pi:historian`** — First 48h baseline for UC-21.1.6 on `feeder_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `feeder_id`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T0809"
+  ],
   "equipment": [
     "edge_hub",
     "redis"

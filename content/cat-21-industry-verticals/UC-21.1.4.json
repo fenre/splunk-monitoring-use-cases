@@ -20,7 +20,7 @@
   "app": "Splunk OT Intelligence, custom HEC (PQ analyzer) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=power sourcetype=\"power:quality\"\n| where event_type IN (\"sag\",\"swell\",\"harmonic_limit\")\n| bin _time span=1m\n| stats count as event_count, values(event_type) as types, max(thd_pct) as max_thd, min(v_rms) as min_v, max(v_rms) as max_v by site_id, _time\n| where event_count>=2 OR max_thd>8 OR min_v < 0.9*120 OR max_v > 1.1*120\n| eval severity=case(max_thd>10,\"high\", event_count>=5,\"high\", true(),\"medium\")\n| table _time, site_id, event_count, types, max_thd, min_v, max_v, severity",
   "description": "Surfaces 'Power Quality Event Correlation' (UC-21.1.4) using `index=power` sourcetype `power:quality` by aggregating `max_thd`, `min_v`, `max_v` grouped by `site_id`, `_time` over `1m` and alerting when `event_count` >= 2, `max_thd` > 8, `min_v` < 0.9, or `max_v` > 1.1. Keywords: Power, Quality, Event, Correlation. Focuses on Event Correlation behaviour so operations teams can triage UC-21.1.4 without ad-hoc log review.",
-  "value": "UC-21.1.4 accelerates insight into Event Correlation ('Power Quality Event Correlation') by tracking `max_thd`, `min_v`, `max_v` on `power:quality` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
+  "value": "Operations and risk leaders in Energy and Utilities use signals from Power Quality Event Correlation to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Stream PQ event records from fixed analyzers or smart relays through HEC; normalize nominal voltage per site via lookup. Use transactions or `stats` by feeder if `feeder_id` is present. Dashboard overlays with SCADA breaker operations for root-cause sessions. **Domain context:** IEEE 1159 / EN 50160 frame categories like sag, swell, and interruption; nominal voltage differs by region (e.g. 120/208 V vs 230/400 V)—the sample thresholds (0.9×/1.1× 120) are illustrative; replace with your nominal voltage lookup. **Splunk:** Index `site_id` and `event_type`; if combining multiple nominal voltages, use `eval nominal_v` from a lookup before comparing `v_rms`.",
   "visualization": "Timeline (PQ events), Line chart (THD and RMS by site), Heatmap (site × hour event count), Table (severe events).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `power` (UC-21.1.4)** — Planned work for 'Power Quality Event Correlation' shifts `max_thd`, `min_v`, `max_v` over `span=1m` while `site_id`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `power:quality`** — Scheduled automation elevates `_time` without crossing `event_count` >= 2 for UC-21.1.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `site_id`, `_time`** — Health checks in `power` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `power:quality`** — First 48h baseline for UC-21.1.4 on `site_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `site_id`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T1078"
+  ],
   "equipment": [
     "splunk"
   ],

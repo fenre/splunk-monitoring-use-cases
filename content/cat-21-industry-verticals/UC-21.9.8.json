@@ -20,7 +20,7 @@
   "app": "Vibration and motor VFD telemetry via Edge Hub — Universal Forwarder (Splunkbase 617)",
   "spl": "index=water sourcetype=\"liftstation:sensor\" running_flag=1\n| bin _time span=1h\n| stats avg(vibration_mm_s) as vib, avg(motor_amps) as amps, avg(wet_well_level_ft) as lvl by station_id, pump_id, _time\n| eventstats median(vib) as med_vib, median(amps) as med_amp by pump_id\n| eval vib_ratio=if(med_vib>0, round(vib/med_vib,2), null), amp_ratio=if(med_amp>0, round(amps/med_amp,2), null)\n| where vib_ratio > 1.5 OR amp_ratio > 1.25\n| table _time, station_id, pump_id, vib, amps, lvl, vib_ratio, amp_ratio",
   "description": "Monitors UC-21.9.8 for Lift, Station, Failure, Prediction over `index=water` sourcetype `liftstation:sensor` with thresholds `med_vib` > 0, `med_amp` > 0, `vib_ratio` > 1.5, or `amp_ratio` > 1.25. Groups `vib`, `amps`, `lvl` by `station_id`, `pump_id`, `_time` each `1h`. Centered on Failure Prediction indicators. Supports repeatable operations triage for 'Lift Station Failure Prediction'.",
-  "value": "For 'Lift Station Failure Prediction', UC-21.9.8 converts `vib`, `amps`, `lvl` on `liftstation:sensor` feeds into actionable rows and reduces operational risk and delayed incident response.",
+  "value": "Operations and risk leaders in Water and Wastewater use signals from Lift Station Failure Prediction to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Baseline per pump when healthy; exclude dry-run periods with `running_flag`. Optional: send features to ML Toolkit for supervised models. Maintain safety interlocks in PLC, not Splunk. **Domain context:** Vibration (ISO 10816) and motor current trends support predictive maintenance—confirm sensor mounting and RPM for comparable `vibration_mm_s`. **Splunk:** `eventstats median` by `pump_id` needs history in the search window—use a saved baseline lookup for new pumps.",
   "visualization": "Time chart (vibration and current), Scatter (vibration vs level), Table (pumps flagged).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `water` (UC-21.9.8)** — Planned work for 'Lift Station Failure Prediction' shifts `vib`, `amps`, `lvl` over `span=1h` while `station_id`, `pump_id`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `liftstation:sensor`** — Scheduled automation elevates `pump_id` without crossing `med_vib` > 0 for UC-21.9.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `station_id`, `pump_id`, `_time`** — Health checks in `water` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `liftstation:sensor`** — First 48h baseline for UC-21.9.8 on `station_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `station_id`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T0809"
+  ],
   "equipment": [
     "edge_hub"
   ],

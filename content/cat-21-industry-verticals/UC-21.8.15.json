@@ -16,11 +16,11 @@
     "positiveScenario": "UC-21.8.15 positive (Asterisk, CDR, Codec, and, Post): ingest synthetic events into `index=voip` sourcetype='asterisk:cdr' where `med_pdd`, `codec_mix` grouped by `_time`, `host` satisfies `billsec` > 0, `med_pdd` > 4, or `codec_mix` > 3 for 'Asterisk CDR Codec and Post-Dial Delay Anomalies'.  Run the saved search and confirm at least one alertable row.",
     "negativeScenario": "UC-21.8.15 negative (Delay Anomalies): ingest benign `voip` / `asterisk:cdr` events where `_time`, `host` stays below `billsec` > 0, `med_pdd` > 4, or `codec_mix` > 3, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Asterisk CDR Codec and Post-Dial Delay Anomalies'."
   },
-  "dataSources": "`index=voip` `sourcetype=asterisk:cdr` (Master.csv fields: `disposition`, `billsec`, `duration`, `dstchannel`, `lastapp`, `lastdata`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "dataSources": "`index=voip` `sourcetype=scada:alarm`",
   "app": "Asterisk CDR to CSV via `cdr-csv` + Universal Forwarder, or ODBC CDR mirror to DB + DB Connect — Universal Forwarder (Splunkbase 617)",
   "spl": "index=voip sourcetype=asterisk:cdr\n| eval billsec=tonumber(billsec), duration=tonumber(duration)\n| eval pdd=duration-billsec\n| eval codec=coalesce(lastdata, dstcodec)\n| where disposition=\"ANSWERED\" AND billsec>0\n| bin _time span=1h\n| stats median(pdd) as med_pdd, count as answered_calls, dc(codec) as codec_mix by _time, host\n| where med_pdd > 4 OR codec_mix > 3",
   "description": "Alerts on risk tied to Asterisk, CDR, Codec, and, Post through UC-21.8.15 on `index=voip` sourcetype `asterisk:cdr`. Summarises `med_pdd`, `codec_mix` grouped by `_time`, `host` across `1h` before applying `billsec` > 0, `med_pdd` > 4, or `codec_mix` > 3. Operators tune 'Asterisk CDR Codec and Post-Dial Delay Anomalies' using UC-21.8.15 runbook steps.",
-  "value": "Tracking `med_pdd`, `codec_mix` via UC-21.8.15 on `asterisk:cdr` feeds improves response to 'Asterisk CDR Codec and Post-Dial Delay Anomalies' and reduces operational risk and delayed incident response.",
+  "value": "Operations and risk leaders in Telecommunications use signals from Asterisk CDR Codec and Post-Dial Delay Anomalies to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Ensure `asterisk:cdr` field extraction matches your `Master.csv` column order—common positions documented in Asterisk samples. If using custom CDR fields for negotiated codec, map to `dstcodec`. Tune PDD threshold: mobile interconnection may legitimately be higher. Investigate codec_mix>3 as transcoding or misconfigured peering.",
   "visualization": "Line chart (med_pdd), Pie chart (codec share), Table (trunk groups).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `voip` (UC-21.8.15)** — Planned work for 'Asterisk CDR Codec and Post-Dial Delay Anomalies' shifts `med_pdd`, `codec_mix` over `span=1h` while `_time`, `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `median` on `asterisk:cdr`** — Scheduled automation elevates `host` without crossing `billsec` > 0 for UC-21.8.15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `host`** — Health checks in `voip` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `asterisk:cdr`** — First 48h baseline for UC-21.8.15 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T1078"
+  ],
   "equipment": [
     "asterisk",
     "db_connect"

@@ -20,7 +20,7 @@
   "app": "Custom HEC (lab LIMS / asset management) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=assets sourcetype=\"pi:historian\"\n| eval sample_epoch=if(isnotnull(sample_date), strptime(sample_date,\"%Y-%m-%d\"), _time)\n| sort 0 transformer_id, sample_epoch\n| streamstats current=f window=1 last(ch4_ppm) as prev_ch4 last(h2_ppm) as prev_h2 by transformer_id\n| eval ch4_rate=if(isnotnull(prev_ch4), ch4_ppm-prev_ch4, null)\n| where ch4_ppm>100 OR c2h2_ppm>1 OR h2_ppm>500 OR ch4_rate>50\n| stats latest(ch4_ppm) as ch4, latest(c2h2_ppm) as c2h2, latest(h2_ppm) as h2, latest(ch4_rate) as ch4_delta by transformer_id\n| sort - ch4\n| table transformer_id, ch4, c2h2, h2, ch4_delta",
   "description": "Identifies risk tied to Transformer, Dissolved, Gas, Analysis, (DGA) through UC-21.1.7 on `index=assets` sourcetype `pi:historian`. Summarises `count` grouped by `transformer_id` across `the scheduled window` before applying `ch4_ppm` > 100, `c2h2_ppm` > 1, `h2_ppm` > 500, or `ch4_rate` > 50. Operators tune 'Transformer Dissolved Gas Analysis (DGA) Trending' using UC-21.1.7 runbook steps.",
-  "value": "Tracking `activity` via UC-21.1.7 on `pi:historian` feeds improves response to 'Transformer Dissolved Gas Analysis (DGA) Trending' and reduces operational risk and delayed incident response.",
+  "value": "Operations and risk leaders in Energy and Utilities use signals from Transformer Dissolved Gas Analysis (DGA) Trending to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Load lab DGA results via HEC from LIMS or manual CSV ingestion; align `sample_date` with asset IDs. Maintain lookup tables for IEEE/IEC thresholds by oil type if required. Quarterly dashboards for reliability planning; alerts on sudden gas generation rates. **Domain context:** IEEE C57.104 and IEC 60599 guide DGA interpretation; acetylene (`c2h2_ppm`) often indicates arcing, methane/ethane ratios suggest thermal faults—rates of change matter as much as absolute PPM. **Splunk:** Use `streamstats` on sparse lab data; if samples are months apart, consider `delta` over `sample_epoch` rather than only latest values.",
   "visualization": "Line chart (gas PPM trends per transformer), Table (units exceeding limits), Scatter (CH₄ vs C₂H₂), Single value (transformers in alert).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `assets` (UC-21.1.7)** — Planned work for 'Transformer Dissolved Gas Analysis (DGA) Trending' shifts `count` over `span=1h` while `transformer_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `pi:historian`** — Scheduled automation elevates `sample_epoch` without crossing `ch4_ppm` > 100 for UC-21.1.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `transformer_id`** — Health checks in `assets` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `pi:historian`** — First 48h baseline for UC-21.1.7 on `transformer_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `transformer_id`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T1078"
+  ],
   "equipment": [
     "splunk"
   ],

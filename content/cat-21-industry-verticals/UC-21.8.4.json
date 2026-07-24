@@ -20,7 +20,7 @@
   "app": "RAN performance management feed via HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=telecom sourcetype=\"spectrum:utilization\"\n| eval peak_util=max(dl_prb_util_pct, ul_prb_util_pct)\n| bin _time span=1d\n| stats avg(peak_util) as avg_peak, perc95(peak_util) as p95_peak by site_id, cell_id, _time\n| eventstats median(avg_peak) as med_site by site_id\n| eval growth_ratio=if(med_site>0, round(avg_peak/med_site,2), null)\n| where p95_peak > 85 OR growth_ratio > 1.15\n| table _time, site_id, cell_id, avg_peak, p95_peak, growth_ratio",
   "description": "Identifies 'Network Capacity Planning (Spectrum Utilization Trending)' patterns (UC-21.8.4) sourced from `index=telecom` sourcetype `spectrum:utilization`. Threshold bundle: `med_site` > 0, `p95_peak` > 85, or `growth_ratio` > 1.15; aggregation grain: `site_id`, `cell_id`, `_time`; metrics: `avg_peak`, `med_site`. Watch terms: Network, Capacity, Planning, (Spectrum, Utilization.",
-  "value": "UC-21.8.4 gives Operations teams earlier visibility into Utilization Trending) through `spectrum:utilization` feeds, lowering operational risk and delayed incident response.",
+  "value": "Operations and risk leaders in Telecommunications use signals from Network Capacity Planning (Spectrum Utilization Trending) to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Aggregate busy-hour samples per operator policy; store `sample_period_sec` for weighting. Join sector metadata (band, azimuth) via lookup for planning reports. Use weekly baselines to smooth day-of-week noise. **Domain context:** LTE PRB utilization drives capacity; LTE vs NR reporting periods differ—align `bin` span with PM file granularity. **Splunk:** `eventstats median(avg_peak) as med_site by site_id` compares cells to site median—use `cell_id` if site-level median masks hot sectors.",
   "visualization": "Line chart (PRB util trend), Heatmap (cell × week), Bar chart (sectors over 85% p95).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `telecom` (UC-21.8.4)** — Planned work for 'Network Capacity Planning (Spectrum Utilization Trending)' shifts `avg_peak`, `med_site` over `span=1d` while `site_id`, `cell_id`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `spectrum:utilization`** — Scheduled automation elevates `cell_id` without crossing `med_site` > 0 for UC-21.8.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `site_id`, `cell_id`, `_time`** — Health checks in `telecom` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `spectrum:utilization`** — First 48h baseline for UC-21.8.4 on `site_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `site_id`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T1078"
+  ],
   "equipment": [
     "splunk"
   ],

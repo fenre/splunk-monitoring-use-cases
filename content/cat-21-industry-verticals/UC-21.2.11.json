@@ -20,7 +20,7 @@
   "app": "Splunk OT Intelligence, robot controller HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=mfg sourcetype=\"robot:cycle\"\n| eval delta_sec=cycle_sec-target_sec, delta_pct=if(target_sec>0, 100*delta_sec/target_sec, null)\n| bin _time span=15m\n| stats avg(cycle_sec) as avg_cycle, avg(target_sec) as avg_target, stdev(cycle_sec) as cycle_jitter by cell_id, program_id, _time\n| eval avg_delta_pct=if(avg_target>0, 100*(avg_cycle-avg_target)/avg_target, null)\n| where avg_delta_pct>10 OR cycle_jitter>3\n| table _time, cell_id, program_id, avg_cycle, avg_target, avg_delta_pct, cycle_jitter",
   "description": "Monitors UC-21.2.11 — Robotic, Cell, Cycle, Time, Deviation — using `index=mfg` sourcetype `robot:cycle`, grouped by `cell_id`, `program_id`, `_time`. Outputs `avg_cycle`, `avg_target`, `cycle_jitter` each `15m`; alert when `target_sec` > 0, `avg_target` > 0, `avg_delta_pct` > 10, or `cycle_jitter` > 3. Primary focus: Time Deviation. Purpose-built for 'Robotic Cell Cycle Time Deviation' in Operations workflows.",
-  "value": "UC-21.2.11 operationalises 'Robotic Cell Cycle Time Deviation' against `robot:cycle` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
+  "value": "Operations and risk leaders in Manufacturing use signals from Robotic Cell Cycle Time Deviation to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Ingest cycle completion messages from robot OEM or PLC via Edge Hub syslog. Baseline `target_sec` per program revision in lookup when recipes change. Alert maintenance when sustained positive delta exceeds policy. **Domain context:** Robot takt-time drift often tracks EOAT wear, TCP calibration, or upstream material variation—correlate with CMMS on the same `cell_id`. **Splunk:** OEM syslog formats vary; use `props.conf` to extract `cycle_sec`/`program_id` consistently across firmware versions.",
   "visualization": "Line chart (cycle time vs target), Control chart, Table (cells in deviation), Bar chart (delta by program).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `mfg` (UC-21.2.11)** — Planned work for 'Robotic Cell Cycle Time Deviation' shifts `avg_cycle`, `avg_target`, `cycle_jitter` over `span=15m` while `cell_id`, `program_id`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `robot:cycle`** — Scheduled automation elevates `program_id` without crossing `target_sec` > 0 for UC-21.2.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cell_id`, `program_id`, `_time`** — Health checks in `mfg` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `robot:cycle`** — First 48h baseline for UC-21.2.11 on `cell_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cell_id`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T0809"
+  ],
   "equipment": [
     "edge_hub",
     "syslog"

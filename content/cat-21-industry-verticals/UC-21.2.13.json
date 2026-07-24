@@ -20,7 +20,7 @@
   "app": "Splunk Edge Hub, energy analytics — Universal Forwarder (Splunkbase 617)",
   "spl": "index=mfg sourcetype=\"air:compressor\"\n| bin _time span=15m\n| stats avg(kw) as avg_kw, avg(cfm) as avg_cfm, max(run_state) as run_state by plant_id, _time\n| join type=left max=1 plant_id _time [\n    search index=mfg sourcetype=\"mes:production\"\n    | bin _time span=15m\n    | stats sum(units_good) as units by line_id, _time\n    | rename line_id as plant_id\n]\n| eval idle_compressor=if(lower(run_state)=\"on\" AND (isnull(units) OR units=0),1,0)\n| eval specific_kw=if(avg_cfm>20, avg_kw/(avg_cfm/100), null)\n| where idle_compressor=1 AND specific_kw>22\n| table _time, plant_id, avg_kw, avg_cfm, specific_kw, units",
   "description": "Identifies UC-21.2.13 — Compressed, Air, System, Leak, Detection — using `index=mfg` sourcetype `air:compressor`, grouped by `plant_id`, `_time`, `line_id`. Outputs `avg_kw`, `avg_cfm`, `run_state` each `15m`; alert when `avg_cfm` > 20, or `specific_kw` > 22. Primary focus: Leak Detection. Purpose-built for 'Compressed Air System Leak Detection' in Operations workflows.",
-  "value": "UC-21.2.13 gives Operations teams earlier visibility into Leak Detection through `air:compressor` feeds, lowering operational risk and delayed incident response.",
+  "value": "Operations and risk leaders in Manufacturing use signals from Compressed Air System Leak Detection to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Instrument compressors with power and flow meters; infer non-production from MES aggregate line state. Baseline specific power during known good weekends after leak surveys. Alert facilities when idle load exceeds threshold; track savings from repair campaigns. **Domain context:** Compressed air is often 20–30% of industrial electricity; leak detection programs pair ultrasonic surveys with kW/cfm baselines. **Splunk:** The sample renames `line_id` to `plant_id` for join—only valid if your data model maps lines to plants that way; otherwise join on a real `plant_id` field.",
   "visualization": "Line chart (specific power trend), Bar chart (plant comparison), Table (suspect compressors), Single value (estimated wasted kW).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `mfg` (UC-21.2.13)** — Planned work for 'Compressed Air System Leak Detection' shifts `avg_kw`, `avg_cfm`, `run_state` over `span=15m` while `plant_id`, `_time`, `line_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `air:compressor`** — Scheduled automation elevates `_time` without crossing `avg_cfm` > 20 for UC-21.2.13. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `plant_id`, `_time`, `line_id`** — Health checks in `mfg` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `air:compressor`** — First 48h baseline for UC-21.2.13 on `plant_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `plant_id`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T0809"
+  ],
   "equipment": [
     "edge_hub"
   ],

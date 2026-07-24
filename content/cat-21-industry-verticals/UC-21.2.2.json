@@ -20,7 +20,7 @@
   "app": "Splunk OT Intelligence, CMMS integration — Universal Forwarder (Splunkbase 617)",
   "spl": "(index=mfg sourcetype=\"mes:production\" state=\"down\") OR (index=mfg sourcetype=\"cmms:workorder\" priority=\"emergency\") OR (index=ot sourcetype=\"opc:tag\")\n| eval key=coalesce(line_id, asset_id)\n| where sourcetype!=\"opc:tag\" OR match(alarm_text, \"(?i)fault|alarm|trip\")\n| transaction key maxspan=30m maxevents=50\n| eval duration_sec=duration\n| where duration_sec>60\n| table _time, key, duration_sec, state, wo_id, alarm_text",
   "description": "Surfaces Cause Correlation activity in UC-21.2.2 ('Unplanned Downtime Root Cause Correlation') from `index=mfg` sourcetype `mes:production`. Rolls up `count` by `entity` across `30m` and pages when `duration_sec` > 60. Covers Unplanned, Downtime, Root, Cause, Correlation. Operations operators treat UC-21.2.2 as the canonical signal.",
-  "value": "Operators running UC-21.2.2 on `mes:production` feeds shorten triage for Cause Correlation tied to 'Unplanned Downtime Root Cause Correlation', lowering operational risk and delayed incident response.",
+  "value": "Operations and risk leaders in Manufacturing use signals from Unplanned Downtime Root Cause Correlation to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Normalize asset and line keys across MES, CMMS, and OPC-UA. Use `transaction` or `stats` with `maxspan` tuned to line stop characteristics. Ingest OPC alarms via Edge Hub. Store exemplar searches in OT Intelligence workbench for engineers. **Domain context:** ISA-95 and ISO 22400 frame downtime analytics; RCA typically sequences MES state → CMMS work order → OT alarm text—tune `maxspan` to your line’s stop/start cadence. **Splunk:** The base search must not put `match()` inside the initial boolean (invalid); filter `opc:tag` rows with `where` after the first line. If `transaction` is heavy, use `stats` + `maxspan` windowing instead.",
   "visualization": "Timeline (downtime episodes), Table (correlated WO and alarms), Sankey (cause categories), Bar chart (duration by line).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `mfg` (UC-21.2.2)** — Planned work for 'Unplanned Downtime Root Cause Correlation' shifts `count` over `span=30m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `mes:production`** — Scheduled automation elevates `key` without crossing `duration_sec` > 60 for UC-21.2.2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `mfg` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mes:production`** — First 48h baseline for UC-21.2.2 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T0809"
+  ],
   "equipment": [
     "edge_hub",
     "opcua"

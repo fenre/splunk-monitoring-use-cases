@@ -20,7 +20,7 @@
   "app": "Splunk OT Intelligence, OT Security Add-on — Universal Forwarder (Splunkbase 617)",
   "spl": "index=scada sourcetype=\"scada:alarm\" (match(_raw,\"(?i)trip|generator\"))\n| bin _time span=1m\n| stats values(relay_element) as relays by unit_id, _time\n| join type=left max=1 unit_id _time [\n    search index=scada sourcetype=\"scada:rtu\"\n    | bin _time span=1m\n    | stats avg(mw) as mw_at_event, avg(hz) as hz_at_event by unit_id, _time\n]\n| eval trip_time=strftime(_time,\"%Y-%m-%d %H:%M:%S\")\n| table unit_id, trip_time, relays, mw_at_event, hz_at_event",
   "description": "Monitors UC-21.1.8 — Generator, Trip, Event, Correlation — using `index=scada` sourcetype `scada:alarm`, grouped by `unit_id`, `_time`, `]`. Outputs `mw_at_event`, `hz_at_event` each `1m`; alert when configured threshold. Primary focus: Event Correlation. Purpose-built for 'Generator Trip Event Correlation' in Operations workflows.",
-  "value": "For 'Generator Trip Event Correlation', UC-21.1.8 converts `mw_at_event`, `hz_at_event` on `scada:alarm` feeds into actionable rows and reduces operational risk and delayed incident response.",
+  "value": "Operations and risk leaders in Energy and Utilities use signals from Generator Trip Event Correlation to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Normalize unit and breaker IDs across alarm and RTU streams. Prefer `transaction` or `stats` with `maxspan=120s` on `unit_id` if join cardinality is high. Store NERC reportable fields in summary indexing for audit. Edge Hub can timestamp-align IEC 61850 GOOSE if available. **Domain context:** NERC PRC-005 / regional reporting often requires auditable trip timelines; correlate generator trips with underfrequency, distance relay, or loss-of-field elements where present. **Splunk:** The sample uses `match(_raw,\"(?i)trip|generator\")`—prefer a structured `alarm_type` or `event_code` field from the EMS if available (faster, more accurate). For `join`, add `max=0` or a safe `max` and time-bin both sides to the same `_time` granularity to avoid cardinality blow-ups.",
   "visualization": "Timeline (trip and relay sequence), Table (correlated events), Line chart (MW and Hz around trip), Sankey (optional cause paths).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `scada` (UC-21.1.8)** — Planned work for 'Generator Trip Event Correlation' shifts `mw_at_event`, `hz_at_event` over `span=1m` while `unit_id`, `_time`, `]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `scada:alarm`** — Scheduled automation elevates `_time` without crossing configured threshold for UC-21.1.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `unit_id`, `_time`, `]`** — Health checks in `scada` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `scada:alarm`** — First 48h baseline for UC-21.1.8 on `unit_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `unit_id`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T0809"
+  ],
   "equipment": [
     "edge_hub"
   ],

@@ -20,7 +20,7 @@
   "app": "Splunk OT Intelligence, Splunk Edge Hub — Universal Forwarder (Splunkbase 617)",
   "spl": "index=mfg sourcetype=\"cip:cycle\"\n| eval flow_ok=if(flow_lpm>=30 AND flow_lpm<=80,1,0), temp_ok=if(temp_c>=70 AND temp_c<=85,1,0), chem_ok=if(conductivity_ms>=1.2,1,0)\n| eval step_pass=flow_ok*temp_ok*chem_ok\n| stats min(step_pass) as cycle_pass, sum(duration_sec) as total_duration by skid_id, recipe_id, _time\n| where cycle_pass=0 OR total_duration < 600 OR total_duration > 7200\n| table _time, skid_id, recipe_id, cycle_pass, total_duration",
   "description": "Monitors UC-21.2.14 — Clean, Place, (CIP), Cycle, Validation — using `index=mfg` sourcetype `cip:cycle`, grouped by `skid_id`, `recipe_id`, `_time`. Outputs `cycle_pass`, `total_duration` each `the scheduled window`; alert when `flow_lpm` >= 30, `flow_lpm` <= 80, `temp_c` >= 70, or `temp_c` <= 85. Primary focus: Cycle Validation. Purpose-built for 'Clean-in-Place (CIP) Cycle Validation' in Operations workflows.",
-  "value": "Operators running UC-21.2.14 on `cip:cycle` feeds shorten triage for Cycle Validation tied to 'Clean-in-Place (CIP) Cycle Validation', lowering operational risk and delayed incident response.",
+  "value": "Operations and risk leaders in Manufacturing use signals from Clean-in-Place (CIP) Cycle Validation to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Ingest skid PLC tags via Edge Hub with one event per step or minute rollups. Store recipe limits in lookup keyed by `recipe_id` and `step`. Electronic batch records can consume Splunk alerts for QA hold. Retain data for audit trail per 21 CFR Part 11 policy if applicable. **Domain context:** CIP validation is GMP-critical in pharma and food; recipe bands (flow/temp/conductivity) must match the validated master recipe—replace hardcoded `eval` limits with lookups per `recipe_id`/`step`. **Splunk:** Use `stats`/`eventstats` per step if one event spans multiple steps; ensure time ordering for step sequences.",
   "visualization": "Timeline (CIP steps), Table (failed cycles), Line chart (temperature and conductivity), Gauge (cycle compliance %).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `mfg` (UC-21.2.14)** — Planned work for 'Clean-in-Place (CIP) Cycle Validation' shifts `cycle_pass`, `total_duration` over `span=1h` while `skid_id`, `recipe_id`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `min` on `cip:cycle`** — Scheduled automation elevates `recipe_id` without crossing `flow_lpm` >= 30 for UC-21.2.14. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `skid_id`, `recipe_id`, `_time`** — Health checks in `mfg` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cip:cycle`** — First 48h baseline for UC-21.2.14 on `skid_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `skid_id`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T0809"
+  ],
   "equipment": [
     "edge_hub",
     "m365"

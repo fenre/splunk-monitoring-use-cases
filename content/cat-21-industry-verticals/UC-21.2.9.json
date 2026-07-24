@@ -20,7 +20,7 @@
   "app": "ERP HEC, MES integration — Universal Forwarder (Splunkbase 617)",
   "spl": "index=erp sourcetype=\"erp:event\" event_type=\"bom\"\n| rename qty_planned as qty_plan\n| join type=outer max=1 order_id material_id [\n    search index=mfg sourcetype=\"mes:production\"\n    | stats sum(qty_consumed) as qty_cons by order_id, material_id\n]\n| fillnull value=0 qty_cons\n| eval delta=qty_plan-qty_cons\n| where abs(delta)>0.5*qty_plan OR abs(delta)>5\n| table order_id, material_id, qty_plan, qty_cons, delta",
   "description": "Monitors UC-21.2.9 — Bill, Materials, (BOM), Discrepancy, Detection — using `index=erp` sourcetype `erp:event`, grouped by `order_id`, `material_id`, `]`. Outputs `qty_cons` each `the scheduled window`; alert when configured threshold. Primary focus: Discrepancy Detection. Purpose-built for 'Bill of Materials (BOM) Discrepancy Detection' in Operations workflows.",
-  "value": "UC-21.2.9 accelerates insight into Discrepancy Detection ('Bill of Materials (BOM) Discrepancy Detection') by tracking `qty_cons` on `erp:event` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
+  "value": "Operations and risk leaders in Manufacturing use signals from Bill of Materials (BOM) Discrepancy Detection to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Publish planned BOM lines from ERP and consumption from MES on shared keys. Schedule hourly reconciliation; handle unit of measure conversion via lookup. Route discrepancies to production control before period close. **Domain context:** BOM accuracy supports traceability (e.g. medical device UDI, automotive PPAP); backflush timing vs physical issue can create false deltas. **Splunk:** `join type=outer` can be expensive—consider `lookup` from a KV store populated by scheduled searches for large order volumes.",
   "visualization": "Table (BOM variances), Bar chart (variance by material), Line chart (discrepancy count over time), Heatmap (SKU × material).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `erp` (UC-21.2.9)** — Planned work for 'Bill of Materials (BOM) Discrepancy Detection' shifts `qty_cons` over `span=1h` while `order_id`, `material_id`, `]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `erp:event`** — Scheduled automation elevates `material_id` without crossing configured threshold for UC-21.2.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `order_id`, `material_id`, `]`** — Health checks in `erp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `erp:event`** — First 48h baseline for UC-21.2.9 on `order_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `order_id`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T1078"
+  ],
   "equipment": [
     "splunk"
   ],

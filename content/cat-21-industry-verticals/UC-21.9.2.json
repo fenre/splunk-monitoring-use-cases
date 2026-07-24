@@ -20,7 +20,7 @@
   "app": "Pump station PLC via Edge Hub — Universal Forwarder (Splunkbase 617)",
   "spl": "index=water sourcetype=\"pump:station\" run_state=1\n| eval kwh_per_m3=if(flow_m3h>0 AND power_kw>0, power_kw/flow_m3h, null)\n| bin _time span=1d\n| stats sum(runtime_hr_day) as run_hrs, avg(kwh_per_m3) as avg_intensity by station_id, pump_id, _time\n| eventstats median(avg_intensity) as med_int by station_id, pump_id\n| eval ratio=if(med_int>0, round(avg_intensity/med_int,2), null)\n| where run_hrs > 20 OR ratio > 1.2\n| table _time, station_id, pump_id, run_hrs, avg_intensity, ratio",
   "description": "Detects UC-21.9.2 for Pump, Station, Run, Time, and over `index=water` sourcetype `pump:station` with thresholds `flow_m3h` > 0, `power_kw` > 0, `med_int` > 0, or `run_hrs` > 20. Groups `run_hrs`, `avg_intensity`, `med_int` by `station_id`, `pump_id`, `_time` each `1d`. Centered on Efficiency Trending indicators. Supports repeatable operations triage for 'Pump Station Run Time and Efficiency Trending'.",
-  "value": "For 'Pump Station Run Time and Efficiency Trending', UC-21.9.2 converts `run_hrs`, `avg_intensity`, `med_int` on `pump:station` feeds into actionable rows and reduces operational risk and delayed incident response.",
+  "value": "Operations and risk leaders in Water and Wastewater use signals from Pump Station Run Time and Efficiency Trending to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Normalize `run_state` (1=on). Fill gaps in flow with null checks to avoid divide-by-zero. Baseline `kwh_per_m3` seasonally for irrigation-influenced stations. **Domain context:** Specific energy (kWh/m³) is a common efficiency metric for water/wastewater pumping—compare like pump curves and wet-well levels. **Splunk:** `eventstats median(avg_intensity) as med_int by station_id, pump_id` may be thin on single pump—use `streamstats` or weekly baseline lookup.",
   "visualization": "Line chart (run hours and intensity), Bar chart (stations over baseline), Table (worst pumps).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `water` (UC-21.9.2)** — Planned work for 'Pump Station Run Time and Efficiency Trending' shifts `run_hrs`, `avg_intensity`, `med_int` over `span=1d` while `station_id`, `pump_id`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `pump:station`** — Scheduled automation elevates `pump_id` without crossing `flow_m3h` > 0 for UC-21.9.2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `station_id`, `pump_id`, `_time`** — Health checks in `water` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `pump:station`** — First 48h baseline for UC-21.9.2 on `station_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `station_id`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T0809"
+  ],
   "equipment": [
     "edge_hub"
   ],

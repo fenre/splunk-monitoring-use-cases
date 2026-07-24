@@ -20,7 +20,7 @@
   "app": "Splunk OT Intelligence, Splunk Edge Hub — Universal Forwarder (Splunkbase 617)",
   "spl": "index=mfg sourcetype=\"mes:production\"\n| eval availability=if(planned_time_min>0, run_time_min/planned_time_min, null)\n| eval performance=if(run_time_min>0 AND ideal_cycle_sec>0 AND units_total>0, (units_total*ideal_cycle_sec/60)/run_time_min, null)\n| eval quality=if(units_total>0, units_good/units_total, null)\n| eval oee=availability*performance*quality\n| bin _time span=1h\n| stats avg(availability) as avg_a, avg(performance) as avg_p, avg(quality) as avg_q, avg(oee) as avg_oee by line_id, _time\n| where avg_oee < 0.65 OR avg_a < 0.9 OR avg_q < 0.95\n| table _time, line_id, avg_a, avg_p, avg_q, avg_oee",
   "description": "Detects UC-21.2.1 — Overall, Equipment, Effectiveness, (OEE), Calculation — using `index=mfg` sourcetype `mes:production`, grouped by `line_id`, `_time`. Outputs `avg_a`, `avg_p`, `avg_q` each `1h`; alert when `planned_time_min` > 0, `run_time_min` > 0, `ideal_cycle_sec` > 0, or `units_total` > 0. Primary focus: (OEE) Calculation. Purpose-built for 'Overall Equipment Effectiveness (OEE) Calculation' in Operations workflows.",
-  "value": "For 'Overall Equipment Effectiveness (OEE) Calculation', UC-21.2.1 converts `avg_a`, `avg_p`, `avg_q` on `mes:production` feeds into actionable rows and reduces operational risk and delayed incident response.",
+  "value": "Operations and risk leaders in Manufacturing use signals from Overall Equipment Effectiveness (OEE) Calculation to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Ingest MES counters from each line via HEC; validate ideal cycle time from routing master data lookup. Edge Hub can supply machine states if MES gaps exist. Schedule hourly OEE and daily rollups for plant reviews. **Domain context:** OEE = Availability × Performance × Quality (ISO 22400 / TPM); world-class plants often target ~85% OEE on bottlenecks—thresholds in the SPL are illustrative. **Splunk:** Ensure `planned_time_min` and `run_time_min` share the same accounting period; exclude changeover if your MES encodes it separately or OEE will be biased.",
   "visualization": "Line chart (OEE trend), Breakdown bar (A, P, Q), Table (line ranking), Single value (plant OEE).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `mfg` (UC-21.2.1)** — Planned work for 'Overall Equipment Effectiveness (OEE) Calculation' shifts `avg_a`, `avg_p`, `avg_q` over `span=1h` while `line_id`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `mes:production`** — Scheduled automation elevates `_time` without crossing `planned_time_min` > 0 for UC-21.2.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `line_id`, `_time`** — Health checks in `mfg` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mes:production`** — First 48h baseline for UC-21.2.1 on `line_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `line_id`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T0809"
+  ],
   "equipment": [
     "edge_hub"
   ],

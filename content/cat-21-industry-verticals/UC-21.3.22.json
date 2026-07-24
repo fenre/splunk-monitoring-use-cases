@@ -20,7 +20,7 @@
   "app": "DIPS Communicator application logs via Universal Forwarder or HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=healthcare sourcetype=\"dips:communicator\"\n| bin _time span=15m\n| stats sum(eval(if(status=\"delivered\", 1, 0))) as delivered,\n  sum(eval(if(status=\"failed\", 1, 0))) as failed,\n  sum(eval(if(status=\"queued\", 1, 0))) as queued,\n  avg(processing_time_ms) as avg_proc_ms by message_profile, direction, _time\n| eval fail_pct=if((delivered+failed)>0, round(failed/(delivered+failed)*100,1), 0)\n| where failed > 0 OR queued > 50 OR avg_proc_ms > 10000\n| table _time, message_profile, direction, delivered, failed, fail_pct, queued, avg_proc_ms",
   "description": "Identifies UC-21.3.22 — DIPS, Communicator, Message, Throughput, and — using `index=healthcare` sourcetype `dips:communicator`, grouped by `message_profile`, `direction`, `_time`. Outputs `avg_proc_ms` each `15m`; alert when `failed` > 0, `queued` > 50, or `avg_proc_ms` > 10000. Primary focus: and Failures. Purpose-built for 'DIPS Communicator Message Throughput and Failures' in Operations workflows.",
-  "value": "Tracking `avg_proc_ms` via UC-21.3.22 on `dips:communicator` feeds improves response to 'DIPS Communicator Message Throughput and Failures' and reduces operational risk and delayed incident response.",
+  "value": "Operations and risk leaders in Healthcare use signals from DIPS Communicator Message Throughput and Failures to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Collect DIPS Communicator application logs that record message lifecycle events: received, validated, transformed, queued, delivered, failed. Parse by message profile type (e.g., lab results, referrals, discharge summaries, radiology reports, prescriptions) and direction (inbound/outbound). Track queue depth as a leading indicator of throughput issues. Alert on: delivery failure rate exceeding 2% for any message profile, queue depth exceeding 50 messages (backlog), processing time exceeding 10 seconds (transformation bottleneck), or zero messages processed in a 30-minute window during business hours (service outage). Correlate failures with partner organization IDs to identify external connectivity issues vs internal processing failures.",
   "visualization": "Timechart (message throughput by profile), Bar chart (failures by message profile), Gauge (current queue depth), Table (failed messages with error details).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `healthcare` (UC-21.3.22)** — Planned work for 'DIPS Communicator Message Throughput and Failures' shifts `avg_proc_ms` over `span=15m` while `message_profile`, `direction`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `dips:communicator`** — Scheduled automation elevates `direction` without crossing `failed` > 0 for UC-21.3.22. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `message_profile`, `direction`, `_time`** — Health checks in `healthcare` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dips:communicator`** — First 48h baseline for UC-21.3.22 on `message_profile` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `message_profile`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T1078"
+  ],
   "equipment": [
     "splunk"
   ],

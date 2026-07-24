@@ -20,7 +20,7 @@
   "app": "Splunk OT Intelligence, PI historian HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=generation sourcetype=\"pi:historian\" fuel_type IN (\"solar\",\"wind\")\n| eval delta_mw=mw_actual-mw_forecast, abs_error_mw=abs(delta_mw), pct_error=if(mw_forecast!=0 AND abs(mw_forecast)>0.01, 100*delta_mw/mw_forecast, null)\n| bin _time span=1h\n| stats avg(mw_actual) as avg_actual, avg(mw_forecast) as avg_fcst, avg(abs_error_mw) as mae_mw, stdev(delta_mw) as delta_stdev by asset_id, fuel_type, _time\n| eval mape_pct=if(avg_fcst!=0, 100*mae_mw/abs(avg_fcst), null)\n| where mape_pct>15 OR mae_mw>5\n| table _time, asset_id, fuel_type, avg_actual, avg_fcst, mae_mw, mape_pct",
   "description": "Detects UC-21.1.5 — Renewable, Generation, Forecast, Actual, Deviation — using `index=generation` sourcetype `pi:historian`, grouped by `asset_id`, `fuel_type`, `_time`. Outputs `avg_actual`, `avg_fcst`, `mae_mw` each `1h`; alert when `mape_pct` > 15, or `mae_mw` > 5. Primary focus: Actual Deviation. Purpose-built for 'Renewable Generation Forecast vs Actual Deviation' in Operations workflows.",
-  "value": "Tracking `avg_actual`, `avg_fcst`, `mae_mw` via UC-21.1.5 on `pi:historian` feeds improves response to 'Renewable Generation Forecast vs Actual Deviation' and reduces operational risk and delayed incident response.",
+  "value": "Operations and risk leaders in Energy and Utilities use signals from Renewable Generation Forecast vs Actual Deviation to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Ingest both forecast (day-ahead or hour-ahead) and telemetered MW from PI or EMS via HEC with aligned timestamps. Tag fuel type for filtering. Alert when MAPE or absolute error exceeds trading/risk thresholds; feed back to forecasting vendor with Splunk export. **Domain context:** In markets with high renewable penetration, forecast error drives imbalance costs and reserve procurement; align on whether the forecast is system-wide, nodal, or plant-level. **Splunk:** Use `Splunk Add-on for OSIsoft PI` or HEC from PI integrators; if `pi:historian` is custom, ensure `mw_forecast` and `mw_actual` share the same `asset_id` and `_time` grain (e.g. hourly).",
   "visualization": "Line chart (forecast vs actual), Area chart (error envelope), Bar chart (MAPE by plant), Single value (portfolio forecast error).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `generation` (UC-21.1.5)** — Planned work for 'Renewable Generation Forecast vs Actual Deviation' shifts `avg_actual`, `avg_fcst`, `mae_mw` over `span=1h` while `asset_id`, `fuel_type`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `pi:historian`** — Scheduled automation elevates `fuel_type` without crossing `mape_pct` > 15 for UC-21.1.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `asset_id`, `fuel_type`, `_time`** — Health checks in `generation` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `pi:historian`** — First 48h baseline for UC-21.1.5 on `asset_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `asset_id`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T1078"
+  ],
   "equipment": [
     "splunk"
   ],

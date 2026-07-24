@@ -1,0 +1,71 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.9.18",
+  "title": "Algal bloom sensor threshold exceedance",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Water and Wastewater Utilities",
+  "exclusions": "Exclude planned maintenance windows, DR exercises, vendor pack updates, and seasonal demand patterns via asset/schedule lookup.",
+  "evidence": "Saved search `21_9_18_evidence` archived to restricted audit index.",
+  "controlTest": {
+    "positiveScenario": "Replay sample `water:treatment` events matching `*` into `index=water`. Confirm UC-21.9.18 search returns >=1 row and alert fires.",
+    "negativeScenario": "Replay benign `water:treatment` traffic without `*` markers. Confirm the search returns zero rows and alert does not fire."
+  },
+  "dataSources": "`index=water` `sourcetype=water:treatment`",
+  "app": "Splunk Edge Hub, custom HEC inputs from SCADA/RTU systems",
+  "spl": "index=water sourcetype=\"water:treatment\"\n| stats count as event_count dc(host) as distinct_assets by plant_id\n| where event_count > 0\n| table _time plant_id metric_name metric_value",
+  "description": "Monitors algal bloom sensor threshold exceedance using `water:treatment` telemetry in `index=water` to surface operational risk before it impacts water and wastewater utilities service delivery.",
+  "value": "Operations and risk leaders in Water and Wastewater Utilities use signals from Algal bloom sensor threshold exceedance to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
+  "implementation": "Ingest `water:treatment` events via HEC or Edge Hub into `index=water`. Normalize field extractions in props/transforms for the Water and Wastewater Utilities feed. Save as a scheduled search or real-time alert; tune thresholds using a 14-day baseline.",
+  "visualization": "Timechart by host/asset, single-value KPI, table of top offenders.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk OT Intelligence",
+      "url": "https://splunkbase.splunk.com/app/5180"
+    },
+    {
+      "title": "Splunk Lantern — Industry use cases",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Planned maintenance windows, vendor pack updates, DR exercises, and seasonal demand patterns excluded via asset/schedule lookup.",
+  "mitreAttack": [
+    "T0809"
+  ],
+  "securityDomain": "industry",
+  "equipment": [
+    "edge_hub",
+    "scada",
+    "water"
+  ],
+  "equipmentModels": [
+    "water_treatment"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "tstats_eligible": false
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=water`.\n• Install and configure: Splunk Edge Hub, custom HEC inputs from SCADA/RTU systems.\n• Ensure `water:treatment` events are flowing (prerequisite UC: 21.9.1 when applicable).\n• Map `water` and field extractions per `docs/guides/industry-verticals.md`.\n\nStep 1 — Configure data collection\nIngest `water:treatment` events via HEC or Edge Hub into `index=water`. Normalize field extractions in props/transforms for the Water and Wastewater Utilities feed. Save as a scheduled search or real-time alert; tune thresholds using a 14-day baseline.\nExpected sourcetype: `water:treatment`. Validate with:\n```spl\nindex=water sourcetype=\"water:treatment\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=water sourcetype=\"water:treatment\"\n| stats count as event_count dc(host) as distinct_hosts by _time span=1h\n| where event_count > 0\n| table _time event_count distinct_hosts\n```\n\nUnderstanding this SPL\nThe search scopes `water:treatment` in `index=water` and applies `*` to surface `Algal bloom sensor threshold exceedance`. Tune time range and alert threshold to your operational baseline; exclude planned maintenance via asset/schedule lookup.\n\nStep 3 — Validate\nCompare result counts to the source system UI (SCADA HMI, EHR interface engine, POS gateway, OSS/BSS console, etc.) for the same time range. Spot-check `_time` and asset fields.\n\nStep 4 — Operationalize and troubleshoot\nSave as `21_9_18_alert` with appropriate severity. Dashboard: Timechart by host/asset, single-value KPI, table of top offenders..\nFailure modes: (1) empty results — verify HEC/Edge Hub input and index routing; (2) duplicate events — check forwarder acknowledgment; (3) missing fields — review props/transforms; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch water and wastewater utilities systems for signs of algal bloom sensor threshold exceedance so your team can act early instead of learning about problems from customers or regulators.",
+  "prerequisiteUseCases": [
+    "UC-21.9.1"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 5180,
+      "name": "Splunk OT Intelligence",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}

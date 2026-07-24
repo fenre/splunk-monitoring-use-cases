@@ -20,7 +20,7 @@
   "app": "Splunk Edge Hub, SCADA HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=water sourcetype=\"treatment:process\"\n| eval ph_breach=if(ph < ph_min OR ph > ph_max, 1, 0)\n| eval turb_breach=if(turbidity_ntu > turbidity_max, 1, 0)\n| eval chlorine_breach=if(chlorine_mg_l < chlorine_min, 1, 0)\n| where ph_breach=1 OR turb_breach=1 OR chlorine_breach=1\n| stats latest(ph) as ph, latest(turbidity_ntu) as turb, latest(chlorine_mg_l) as cl2, max(ph_breach) as ph_br, max(turb_breach) as tb_br, max(chlorine_breach) as cl_br by plant_id, basin_id\n| table plant_id, basin_id, ph, turb, cl2, ph_br, tb_br, cl_br",
   "description": "Identifies UC-21.9.1 — Treatment, Plant, Process, Parameter, Monitoring — using `index=water` sourcetype `treatment:process`, grouped by `plant_id`, `basin_id`. Outputs `ph_br`, `tb_br`, `cl_br` each `the scheduled window`; alert when configured threshold. Primary focus: Parameter Monitoring. Purpose-built for 'Treatment Plant Process Parameter Monitoring' in Operations workflows.",
-  "value": "Tracking `ph_br`, `tb_br`, `cl_br` via UC-21.9.1 on `treatment:process` feeds improves response to 'Treatment Plant Process Parameter Monitoring' and reduces operational risk and delayed incident response.",
+  "value": "Operations and risk leaders in Water and Wastewater use signals from Treatment Plant Process Parameter Monitoring to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Ingest DCS/PLC tags at 1–5 minute intervals; align limits per permit in fields or lookup. Route alerts to plant operators; retain Splunk as supervisory visibility alongside SCADA alarms. **Domain context:** Surface water treatment limits (pH, turbidity, disinfectant residual) are jurisdiction-specific (e.g., U.S. EPA/State primacy rules)—mirror permit limits in lookups, not hardcoded SPL. **Splunk:** `latest()` in `stats` favors last sample in window—use `max(breach)` or time-weighted logic if multiple basins report per event.",
   "visualization": "Time chart (pH, turbidity, chlorine), Gauge (distance to limit), Table (active breaches).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `water` (UC-21.9.1)** — Planned work for 'Treatment Plant Process Parameter Monitoring' shifts `ph_br`, `tb_br`, `cl_br` over `span=1h` while `plant_id`, `basin_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `treatment:process`** — Scheduled automation elevates `basin_id` without crossing configured threshold for UC-21.9.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `plant_id`, `basin_id`** — Health checks in `water` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `treatment:process`** — First 48h baseline for UC-21.9.1 on `plant_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `plant_id`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T0809"
+  ],
   "equipment": [
     "edge_hub"
   ],

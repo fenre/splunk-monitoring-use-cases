@@ -20,7 +20,7 @@
   "app": "Custom HEC (RAN EMS / element manager export) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=telecom sourcetype=\"ran:cellsite\"\n| eval up=if(lower(operational_state) IN (\"up\",\"enabled\",\"on\"),1,0)\n| bin _time span=5m\n| stats avg(up) as avail_frac, min(up) as min_state by site_id, cell_id, _time\n| eval avail_pct=round(avail_frac*100,2)\n| where min_state=0 OR avail_pct < 99.5\n| table _time, site_id, cell_id, avail_pct, min_state",
   "description": "Monitors UC-21.8.1 — RAN, Cell, Site, Availability — using `index=telecom` sourcetype `ran:cellsite`, grouped by `site_id`, `cell_id`, `_time`. Outputs `avail_frac`, `min_state` each `5m`; alert when `avail_pct` < 99.5. Primary focus: Site Availability. Purpose-built for 'RAN Cell Site Availability' in Operations workflows.",
-  "value": "UC-21.8.1 operationalises 'RAN Cell Site Availability' against `ran:cellsite` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
+  "value": "Operations and risk leaders in Telecommunications use signals from RAN Cell Site Availability to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Ingest periodic SNMP or EMS polls with normalized `operational_state` strings. Align site identifiers with inventory CMDB. Alert on sustained down segments and flapping (multiple transitions per hour) using a follow-on search on `last_transition_epoch`. **Domain context:** RAN availability is a 3GPP/O-RAN operational KPI; distinguish planned work (RET/antenna) from faults—use `last_transition_epoch` flapping logic for churn. **Splunk:** `avail_pct < 99.5` on 5m buckets is strict—use longer windows for SLA reporting; ensure `operational_state` vocabulary is normalized across vendors.",
   "visualization": "Time chart (availability % by site), Status grid (cell × site), Single value (sites below SLA).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `telecom` (UC-21.8.1)** — Planned work for 'RAN Cell Site Availability' shifts `avail_frac`, `min_state` over `span=5m` while `site_id`, `cell_id`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `ran:cellsite`** — Scheduled automation elevates `cell_id` without crossing `avail_pct` < 99.5 for UC-21.8.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `site_id`, `cell_id`, `_time`** — Health checks in `telecom` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ran:cellsite`** — First 48h baseline for UC-21.8.1 on `site_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `site_id`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T1078"
+  ],
   "equipment": [
     "snmp"
   ],

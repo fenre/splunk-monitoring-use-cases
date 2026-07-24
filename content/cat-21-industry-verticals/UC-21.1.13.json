@@ -20,7 +20,7 @@
   "app": "Custom HEC (GIS / work management) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=oms sourcetype=\"oms:outage\"\n| where work_type=\"vegetation\" OR match(lower(outage_cause),\"veg|tree|limb\")\n| eval completed=if(isnotnull(completed_date) AND completed_date!=\"\",1,0)\n| stats count as related_events, sum(completed) as completed_orders, dc(feeder_id) as feeders_affected by work_order_id\n| eval completion_rate=if(related_events>0, 100*completed_orders/related_events, 0)\n| where completed_orders < related_events\n| table work_order_id, related_events, completed_orders, feeders_affected, completion_rate",
   "description": "Detects 'Vegetation Management Work Order Tracking' patterns (UC-21.1.13) sourced from `index=oms` sourcetype `oms:outage`. Threshold bundle: `related_events` > 0; aggregation grain: `work_order_id`; metrics: `completed_orders`, `feeders_affected`. Watch terms: Vegetation, Management, Work, Order, Tracking.",
-  "value": "UC-21.1.13 gives Operations teams earlier visibility into Order Tracking through `oms:outage` feeds, lowering operational risk and delayed incident response.",
+  "value": "Operations and risk leaders in Energy and Utilities use signals from Vegetation Management Work Order Tracking to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Ingest vegetation work orders and outage records with shared feeder and span identifiers via HEC from the enterprise work system. Use lookups for span-to-feeder if needed. Monthly reporting for regulatory vegetation cycles; optional join with `fleet:gps` for crew verification. **Domain context:** Many jurisdictions require traceable vegetation clearance cycles near conductors; repeat vegetation-caused outages on uncleared spans are regulatory and wildfire risk signals (where applicable). **Splunk:** `match(lower(outage_cause),\"veg|tree|limb\")` complements structured `work_type`; tune regex for your OMS vocabulary.",
   "visualization": "Table (open vegetation orders), Bar chart (outages vs completed trims by feeder), Timeline (work order lifecycle), Map (feeder segments).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `oms` (UC-21.1.13)** — Planned work for 'Vegetation Management Work Order Tracking' shifts `completed_orders`, `feeders_affected` over `span=1h` while `work_order_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `oms:outage`** — Scheduled automation elevates `completed` without crossing `related_events` > 0 for UC-21.1.13. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `work_order_id`** — Health checks in `oms` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `oms:outage`** — First 48h baseline for UC-21.1.13 on `work_order_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `work_order_id`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T1078"
+  ],
   "equipment": [
     "splunk"
   ],

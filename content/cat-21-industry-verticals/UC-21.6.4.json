@@ -20,7 +20,7 @@
   "app": "Retail IoT / people-counting platform via HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=retail sourcetype=\"foottraffic:sensor\"\n| eval net_flow=inbound_count-outbound_count\n| bin _time span=1h\n| stats sum(inbound_count) as entries, sum(outbound_count) as exits by store_id, zone_id, _time\n| eval dow=strftime(_time,\"%w\"), hr=strftime(_time,\"%H\")\n| eventstats median(entries) as med_ent by store_id, zone_id, dow, hr\n| eval ratio=if(med_ent>0, entries/med_ent, null)\n| where ratio < 0.5 OR ratio > 1.8\n| table _time, store_id, zone_id, entries, exits, med_ent, ratio",
   "description": "Surfaces UC-21.6.4 — Foot, Traffic, Analytics — using `index=retail` sourcetype `foottraffic:sensor`, grouped by `store_id`, `zone_id`, `_time`, `dow`. Outputs `entries`, `exits`, `med_ent` each `1h`; alert when `med_ent` > 0, `ratio` < 0.5, or `ratio` > 1.8. Primary focus: Traffic Analytics. Purpose-built for 'Foot Traffic Analytics' in Operations workflows.",
-  "value": "UC-21.6.4 operationalises 'Foot Traffic Analytics' against `foottraffic:sensor` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
+  "value": "Operations and risk leaders in Retail and E-Commerce use signals from Foot Traffic Analytics to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Align counts to store local time and exclude maintenance windows via a lookup. Compare same day-of-week baselines; investigate zones with sudden drops (blocked sensor) or spikes (configuration error). **Domain context:** People-counting is used for labor scheduling and lease performance—GDPR/CCPA may apply if combined with identifiers; use aggregates only. **Splunk:** `eventstats median` needs several weeks of history for stable `med_ent` per `dow`/`hr`.",
   "visualization": "Time chart (entries by zone), Heatmap (store × hour), Bar chart (week-over-week delta).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `retail` (UC-21.6.4)** — Planned work for 'Foot Traffic Analytics' shifts `entries`, `exits`, `med_ent` over `span=1h` while `store_id`, `zone_id`, `_time`, `dow` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `foottraffic:sensor`** — Scheduled automation elevates `zone_id` without crossing `med_ent` > 0 for UC-21.6.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `store_id`, `zone_id`, `_time`, `dow`** — Health checks in `retail` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `foottraffic:sensor`** — First 48h baseline for UC-21.6.4 on `store_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `store_id`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T1078"
+  ],
   "equipment": [
     "m365"
   ],

@@ -20,7 +20,7 @@
   "app": "Splunk Edge Hub, Splunk OT Intelligence — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ot sourcetype=\"opc:tag\"\n| bin _time span=5m\n| stats avg(vibration_rms) as v_rms, avg(temperature_c) as temp by asset_id, _time\n| sort 0 asset_id, _time\n| streamstats window=288 global=f avg(v_rms) as baseline_v, stdev(v_rms) as baseline_sd by asset_id\n| eval z=if(baseline_sd>0, (v_rms-baseline_v)/baseline_sd, null)\n| where z>3 OR v_rms>7.1 OR temp>85\n| table _time, asset_id, v_rms, baseline_v, z, temp",
   "description": "Surfaces when Baseline Drift criteria fire for 'Predictive Maintenance Vibration Baseline Drift' (UC-21.2.5) in `index=ot` sourcetype `opc:tag`. Pipeline aggregates `v_rms`, `temp`, `baseline_v` by `asset_id`, `_time` over `5m`. Alert logic enforces `baseline_sd` > 0, `v_rms` > 7.1, or `temp` > 85. Title terms: Predictive, Maintenance, Vibration, Baseline, Drift. Eliminates manual hunting for UC-21.2.5 conditions.",
-  "value": "UC-21.2.5 helps teams contain Predictive, Maintenance, Vibration, Baseline, Drift scenarios and reduce operational risk and delayed incident response before incidents compound.",
+  "value": "Operations and risk leaders in Manufacturing use signals from Predictive Maintenance Vibration Baseline Drift to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Sample vibration tags from Edge Hub OPC-UA at 1 Hz aggregated to 5-minute RMS in Splunk or at the edge. Establish baselines per asset with seasonal retuning. Integrate CMMS to auto-create work orders when z-score exceeds policy. **Domain context:** ISO 20816 / API 670 family defines vibration severity zones; 7.1 mm/s RMS is a common alert zone for general machinery but depends on machine class—replace with your engineering limits. **Splunk:** Baseline `streamstats` windows (288 = ~24h at 5m) need enough history; cold-start assets may false-positive until history exists.",
   "visualization": "Line chart (RMS vs baseline), Heatmap (asset × week), Table (assets in alert), Gauge (worst z-score).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `ot` (UC-21.2.5)** — Planned work for 'Predictive Maintenance Vibration Baseline Drift' shifts `v_rms`, `temp`, `baseline_v` over `span=5m` while `asset_id`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `opc:tag`** — Scheduled automation elevates `_time` without crossing `baseline_sd` > 0 for UC-21.2.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `asset_id`, `_time`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `opc:tag`** — First 48h baseline for UC-21.2.5 on `asset_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `asset_id`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T1078"
+  ],
   "equipment": [
     "edge_hub",
     "opcua"

@@ -20,7 +20,7 @@
   "app": "Splunk OT Intelligence, custom HEC (OMS) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=oms sourcetype=\"oms:outage\" status=\"open\"\n| fields device_id, _time, outage_id\n| join type=inner max=1 device_id [\n    search index=scada (sourcetype=\"scada:rtu\" OR sourcetype=\"scada:alarm\")\n    | eval breaker_state=coalesce(breaker_state, device_state)\n    | where lower(breaker_state) IN (\"closed\",\"energized\",\"1\")\n    | stats latest(breaker_state) as scada_state by device_id\n]\n| table outage_id, device_id, scada_state",
   "description": "Monitors UC-21.1.12 — Outage, Management, System, SCADA, State — using `index=oms` sourcetype `oms:outage`, grouped by `device_id`, `]`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: State Correlation. Purpose-built for 'Outage Management System vs SCADA State Correlation' in Operations workflows.",
-  "value": "Tracking `activity` via UC-21.1.12 on `oms:outage` feeds improves response to 'Outage Management System vs SCADA State Correlation' and reduces operational risk and delayed incident response.",
+  "value": "Operations and risk leaders in Energy and Utilities use signals from Outage Management System vs SCADA State Correlation to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Maintain a canonical `device_id` lookup between OMS and SCADA naming. Schedule frequent correlation; handle multiphase devices with MVLV mapping table. Alert ETRM/OMS when mismatches exceed zero for active outages. Use Edge Hub only for SCADA side if needed. **Domain context:** OMS–DMS–SCADA alignment is central to safe switching and accurate SAIDI/SAIFI; energized devices during “open” outages are a safety and customer-trust issue. **Splunk:** `join type=inner` only shows matches—add a separate search for OMS open outages with *no* SCADA row (left anti-join pattern) to catch missing SCADA data. Ensure `breaker_state` enumerations match across sources.",
   "visualization": "Table (mismatched devices), Single value (mismatch count), Timeline (OMS vs SCADA changes), Map (optional).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `oms` (UC-21.1.12)** — Planned work for 'Outage Management System vs SCADA State Correlation' shifts `count` over `span=1h` while `device_id`, `]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `oms:outage`** — Scheduled automation elevates `]` without crossing configured threshold for UC-21.1.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `device_id`, `]`** — Health checks in `oms` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `oms:outage`** — First 48h baseline for UC-21.1.12 on `device_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `device_id`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T1078"
+  ],
   "equipment": [
     "edge_hub",
     "m365"

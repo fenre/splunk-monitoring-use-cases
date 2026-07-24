@@ -16,11 +16,11 @@
     "positiveScenario": "UC-21.8.16 positive (Asterisk, Active, Channel, Saturation, Licensed): ingest synthetic events into `index=voip` sourcetype='asterisk:ami' where `count` grouped by `entity` satisfies `util_pct` > 85 for 'Asterisk Active Channel Saturation vs Licensed Session Ceiling'. Validate lookup `asterisk_license_limits`. Run the saved search and confirm at least one alertable row.",
     "negativeScenario": "UC-21.8.16 negative (Session Ceiling): ingest benign `voip` / `asterisk:ami` events where `entity` stays below `util_pct` > 85, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Asterisk Active Channel Saturation vs Licensed Session Ceiling'."
   },
-  "dataSources": "`index=voip` `sourcetype=asterisk:ami` `Event=CoreShowChannelsComplete` snapshots or scripted `asterisk -rx \"core show channels count\"` metrics Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "dataSources": "`index=voip` `sourcetype=scada:alarm`",
   "app": "AMI polling script + Universal Forwarder, optional SNMP if exported — Universal Forwarder (Splunkbase 617)",
   "spl": "index=voip sourcetype=asterisk:ami Event=\"CoreShowChannelsComplete\"\n| lookup asterisk_license_limits host OUTPUT session_license_limit AS license_ceiling\n| eval active=tonumber(ListItems), license_ceiling=tonumber(license_ceiling)\n| eval util_pct=round(100*active/nullif(license_ceiling,0),2)\n| where util_pct > 85\n| table _time, host, active, license_ceiling, util_pct\n| sort - util_pct",
   "description": "Surfaces UC-21.8.16 — Asterisk, Active, Channel, Saturation, Licensed — using `index=voip` sourcetype `asterisk:ami`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `util_pct` > 85. Filter chain includes lookup `asterisk_license_limits`. Purpose-built for 'Asterisk Active Channel Saturation vs Licensed Session Ceiling' in Operations workflows.",
-  "value": "UC-21.8.16 operationalises 'Asterisk Active Channel Saturation vs Licensed Session Ceiling' against `asterisk:ami` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
+  "value": "Operations and risk leaders in Telecommunications use signals from Asterisk Active Channel Saturation vs Licensed Session Ceiling to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Poll AMI `Action: CoreShowChannels` and capture `ListItems` from the completing event, or run CLI `core show channels` every minute via scripted input emitting `active_channels`. Maintain a lookup `session_license_limit` per `host` (commercial Asterisk or appliance cap). Alert above 85% utilization for 10 minutes. Cross-check CPU from OS metrics.",
   "visualization": "Gauge (util_pct), Line chart (active vs ceiling), Table (forecasted exhaust).",
   "cimModels": [
@@ -50,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "1. **Maintenance window on `voip` (UC-21.8.16)** — Planned work for 'Asterisk Active Channel Saturation vs Licensed Session Ceiling' shifts `count` over `span=1h` while `host` remains in-scope. Applies lookup `asterisk_license_limits`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `asterisk:ami`** — Scheduled automation elevates `active` without crossing `util_pct` > 85 for UC-21.8.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `voip` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `asterisk:ami`** — First 48h baseline for UC-21.8.16 on `host` is unstable; join `asterisk_license_limits` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "mitreAttack": [
+    "T1078"
+  ],
   "equipment": [
     "asterisk",
     "snmp"
