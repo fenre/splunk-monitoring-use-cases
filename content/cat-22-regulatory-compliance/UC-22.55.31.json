@@ -9,7 +9,7 @@
     "Configuration"
   ],
   "splunkPillar": "Security",
-  "industry": "Transportation",
+  "industry": "Rail",
   "owner": "CISO",
   "controlFamily": "regulation-specific",
   "exclusions": "Excludes changes formally documented as having no safety relevance with senior cyber-safety sign-off. Excludes purely-IT changes outside the SuC. Excludes changes during the formal pre-commissioning phase (those follow new-build acceptance).",
@@ -36,8 +36,8 @@
   "dataSources": "KV Store `rail50701_c12_3_lookup`. ServiceNow Change Management. ISA-issued concurrence documents.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup rail50701_c12_3_lookup\n| where change_implemented_at IS NOT NULL\n| eval coord_status = case(\n    en_50126_applicable=true AND isnull(en_50126_assessment_at), \"en_50126_missing\",\n    en_50128_applicable=true AND isnull(en_50128_assessment_at), \"en_50128_missing\",\n    en_50129_applicable=true AND isnull(en_50129_assessment_at), \"en_50129_missing\",\n    en_50657_applicable=true AND isnull(en_50657_assessment_at), \"en_50657_missing\",\n    isa_required=true AND isnull(isa_concurrence_at), \"isa_concurrence_missing\",\n    1=1, \"compliant\")\n| where coord_status != \"compliant\"\n| table change_id change_description en_50126_assessment_at en_50128_assessment_at en_50129_assessment_at en_50657_assessment_at isa_concurrence_at coord_status",
-  "description": "Verifies cyber control changes are coordinated with EN 50126/8/9 and EN 50657 safety standards.",
-  "value": "Without safety-standards coordination, cyber changes can compromise rail safety certifications. This UC enforces the linkage.",
+  "description": "CLC/TS 50701 decommissioning cybersecurity — Splunk continuously validates CLC-TS-50701-c12-3 using the saved search in this UC, routes gaps to Enterprise Security notables, and archives proof rows to `audit_evidence`.",
+  "value": "Inspectors ask for proof that «CLC/TS 50701 decommissioning cybersecurity» is operational today, not at last audit. Missing live evidence for CLC-TS-50701-c12-3 is a direct regulatory deficiency with enforcement exposure.",
   "implementation": "(1) Maintain `rail50701_c12_3_lookup`. (2) Head of Safety + ISA reviewers sign per applicable standard. (3) Schedule UC-22.55.31 weekly Monday 07:00.",
   "visualization": "(Panel 1) Coordination posture per change. (Panel 2) Missing-assessment queue. (Panel 3) ISA-pending queue.",
   "cimModels": [
@@ -52,9 +52,17 @@
     {
       "title": "EN 50126/8/9 family of rail-safety standards",
       "url": "https://www.cenelec.eu/"
+    },
+    {
+      "title": "CLC/TS 50701:2021 Railway cybersecurity",
+      "url": "https://www.cenelec.eu/"
+    },
+    {
+      "title": "ENISA Rail Threat Landscape",
+      "url": "https://www.enisa.europa.eu/"
     }
   ],
-  "knownFalsePositives": "1. **Phased change** — multi-phase change with phased safety assessments. Suppression: track per-phase status.\n\n**Suppression mechanism**: KV Store `clc_22_55_31_exceptions` with documented Head-of-Safety approval and 30-day maximum grant.",
+  "knownFalsePositives": "1. **Planned maintenance window** — documented change windows in lookup `rail50701_22_55_31_exceptions` suppress benign activity during approved work.\n\n2. **Pen-test / red-team activity** — engagements with agreed rules-of-engagement marker excluded via lookup `rail50701_22_55_31_exceptions`.\n\n3. **Vendor remote-access sessions** — authorised vendor PAM sessions cross-reference lookup `rail50701_22_55_31_exceptions` before alerting.\n\n4. **Regulatory transition / grace period** — time-bound exception register entry in lookup `rail50701_22_55_31_exceptions` with documented approver and expiry.\n\n**Suppression mechanism**: filter results with lookup `rail50701_22_55_31_exceptions` (time-bound exception register); rows must carry `approved_by` and `valid_until` epoch fields.",
   "mitreAttack": [
     "N/A (safety-standards coordination)"
   ],
@@ -76,11 +84,11 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "Compliance SME Panel (exemplar-adapted; pending verification)",
+  "reviewer": "Compliance SME Panel (finalized; pending verification)",
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail50701_c12_3_lookup`.\n- Head of Safety and ISA roles defined.\n\n## Step 1 — Coordination collection\n\n```ini\n[rail50701_c12_3_lookup]\nenforceTypes = true\nfield.change_id = string\nfield.change_description = string\nfield.change_implemented_at = number\nfield.en_50126_applicable = bool\nfield.en_50128_applicable = bool\nfield.en_50129_applicable = bool\nfield.en_50657_applicable = bool\nfield.en_50126_assessment_at = number\nfield.en_50128_assessment_at = number\nfield.en_50129_assessment_at = number\nfield.en_50657_assessment_at = number\nfield.isa_required = bool\nfield.isa_concurrence_at = number\nfield.isa_concurrence_signed_by = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.31: CLC/TS 50701 Safety Standards Coordination]\ncron_schedule = 0 7 * * 1\ndispatch.earliest_time = -1y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.31,reg=CLC-TS-50701,clause=CLC-TS-50701-c12-3\naction.notable.param.rule_title = Rail safety-standards coordination gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for any `*_missing`** (owner: Head of Safety, severity P2): complete assessment; sign; record.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **EN 50128 software-safety reviews** can take weeks; track schedule.\n- **ISA independence**: ISA must be independent of engineering and operations.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail50701_c12_3_lookup`.\n- Head of Safety and ISA roles defined.\n\n## Step 1 — Coordination collection\n\n```ini\n[rail50701_c12_3_lookup]\nenforceTypes = true\nfield.change_id = string\nfield.change_description = string\nfield.change_implemented_at = number\nfield.en_50126_applicable = bool\nfield.en_50128_applicable = bool\nfield.en_50129_applicable = bool\nfield.en_50657_applicable = bool\nfield.en_50126_assessment_at = number\nfield.en_50128_assessment_at = number\nfield.en_50129_assessment_at = number\nfield.en_50657_assessment_at = number\nfield.isa_required = bool\nfield.isa_concurrence_at = number\nfield.isa_concurrence_signed_by = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.31: CLC/TS 50701 Safety Standards Coordination]\ncron_schedule = 0 7 * * 1\ndispatch.earliest_time = -1y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.31,reg=CLC-TS-50701,clause=CLC-TS-50701-c12-3\naction.notable.param.rule_title = Rail safety-standards coordination gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for any `*_missing`** (owner: Head of Safety, severity P2): complete assessment; sign; record.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **EN 50128 software-safety reviews** can take weeks; track schedule.\n- **ISA independence**: ISA must be independent of engineering and operations.\n\n## Step 5 — Troubleshooting\n\n**Product-specific failure modes**:\n\n- **ServiceNow SIR custom-field drift** — if `csa_awareness_time` or `tsa_awareness_time` is NULL, verify the Security Incident Response workflow still writes the field on state transition to `In Progress`; compare against the vendor UI on the open ticket.\n- **KV Store sync lag** — if the lookup row updates but the saved search still surfaces stale status, confirm the `outputlookup` command completed (`| rest /services/data/transforms/lookup-table-files` shows matching row count).\n- **HEC token / modular-input silence** — run `index=_internal sourcetype=splunkd component=AggregatorMiningProcessor` for the source; no events for >2× the expected poll interval indicates an API or forwarder failure.\n- **Summary-index routing gaps** — validate `action.summary_index._name = audit_evidence` and RBAC role `compliance-analyst` retains write on the destination index.",
   "grandmaExplanation": "Every cyber-security change to our railway must also be checked by safety experts against railway safety rulebooks (EN 50126/8/9/657). We track each rule-check; if any is missing, the team is alerted.",
   "prerequisiteUseCases": [
     "UC-22.55.1"
