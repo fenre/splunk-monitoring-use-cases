@@ -9,8 +9,8 @@
     "Performance"
   ],
   "splunkPillar": "IT Operations",
-  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'ISE Hybrid Deployment — On-Prem PAN to Cloud-PSN Latency and Bandwidth'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.1.62).",
-  "evidence": "Saved search uc_17_1_62_ise_hybrid_deployment_on_prem_pan_to_clo, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "exclusions": "Covers the detection logic documented for 'ISE Hybrid Deployment — On-Prem PAN to Cloud-PSN Latency and Bandwidth' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_ise_hybrid_deployment_on_prem_pan_to_cloud_psn_l` (UC-17.1.62), SOC dashboard panel \"Network — ISE Hybrid Deployment — On-Prem PAN to Cloud-PSN Latency and Bandwidth\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "dora",
@@ -38,8 +38,8 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Drop the VPN tunnel between on-prem and cloud. ISE lag spikes. UC-17.1.62 fires.",
-    "negativeScenario": "Restore tunnel. Lag returns to normal."
+    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='aws:cloudwatch' that satisfy the UC-17.1.62 SPL filters for 'ISE Hybrid Deployment — On-Prem PAN to Cloud-PSN Latency and Bandwidth'. Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `network` / `aws:cloudwatch` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.1.62."
   },
   "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` for replication-lag fields. Network metrics for the on-prem→cloud path: VPN tunnel state from `index=network sourcetype=cisco:asa` or `cisco:ftd`; tunnel BW from `index=cloud sourcetype=aws:cloudwatch`. Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk Add-on for Cisco Identity Services` + Cisco firewall TA + cloud TA. — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
@@ -74,7 +74,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "knownFalsePositives": "1. **Planned network maintenance** — Switch/firewall change generates expected deviations for 'ISE Hybrid Deployment — On-Prem PAN to Cloud-PSN Latency and Bandwidth'. Cross-check CMDB change records.\n\n2. **New site onboarding** — Baseline metrics unstable first 72h on `network`.\n\n3. **Synthetic path monitoring** — Nagios/DNA Center probes from `monitoring_hosts.csv`.\n\n4. **Misconfigured ACL or VLAN** — Single `nas_ip` or segment dominates `aws:cloudwatch` failures.\n\n**Suppression mechanism:** `network_exception_register.csv` with entity, reason, valid_until.",
   "mitreAttack": [
     "N/A (data-feed liveness — measures ISE pxGrid topic delivery, no attack mapping)"
   ],

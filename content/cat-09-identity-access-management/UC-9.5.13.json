@@ -9,17 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Okta App Assignment Changes'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-9.5.13).",
-  "evidence": "Saved search uc_9_5_13_okta_app_assignment_changes, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "exclusions": "Covers the detection logic documented for 'Okta App Assignment Changes' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `iam_okta_app_assignment_changes` (UC-9.5.13), SOC dashboard panel \"IAM — Okta App Assignment Changes\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Okta App Assignment Changes'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-9.5.13.",
-    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+    "positiveScenario": "Ingest synthetic events into `index=okta` sourcetype='OktaIM2:log' that satisfy the UC-9.5.13 SPL filters for 'Okta App Assignment Changes'. Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `okta` / `OktaIM2:log` events outside the detection threshold, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.5.13."
   },
   "dataSources": "`sourcetype=OktaIM2:log` (`application.user_membership.*`, `group.user_membership.*`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_okta` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=okta sourcetype=\"OktaIM2:log\" (eventType=\"application.user_membership.add\" OR eventType=\"group.user_membership.add\")\n| stats count by actor.alternateId, target{}.displayName, target{}.type\n| sort -_time",
   "description": "New access to sensitive SaaS apps is a common attack path; monitoring assignments supports least-privilege and access reviews.",
-  "value": "Operations and leadership rely on 'Okta App Assignment Changes' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
+  "value": "Early 'Okta App Assignment Changes' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
   "implementation": "Capture adds/removes for apps and groups tied to apps. Use lookups for crown-jewel applications. Alert on assignment to privileged groups. Include `actor` for service-account vs human.",
   "visualization": "Table (app, user, actor), Timeline (assignments), Bar chart (assignments by app).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "knownFalsePositives": "1. **Scheduled IAM maintenance** — Planned directory or IdP change generates expected deviations for 'Okta App Assignment Changes'. Cross-check change records.\n\n2. **Onboarding burst** — New accounts or apps produce atypical `okta` volume.\n\n3. **Monitoring synthetic bind checks** — Health probes from known scanner hosts.\n\n4. **Stale application credential** — Single entity dominates `OktaIM2:log` failures.\n\n**Suppression mechanism:** `iam_exception_register.csv` with entity, reason, valid_until.",
   "mitreAttack": [
     "T1098.003"
   ],

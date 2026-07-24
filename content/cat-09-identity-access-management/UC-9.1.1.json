@@ -8,8 +8,8 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Brute-Force Login Detection'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-9.1.1).",
-  "evidence": "Saved search uc_9_1_1_brute_force_login_detection, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "exclusions": "Detects volume-based brute-force patterns on Windows Event ID 4625 only. Does not cover successful logons (4624), OAuth/Okta cloud IdP failures, or LDAP bind failures on non-Windows directories. Accounts in `iam_exception_register.csv` during approved pen tests are out of scope.",
+  "evidence": "Saved search `iam_brute_force_4625_10plus` (UC-9.1.1), ES Notable or SOC dashboard panel \"IAM — Failed Logon Bursts\", and archived weekly CSV to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "compliance": [
     {
       "regulation": "hitrust",
@@ -68,14 +68,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Brute-Force Login Detection'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-9.1.1.",
-    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+    "positiveScenario": "Replay ten synthetic `index=wineventlog sourcetype=WinEventLog:Security EventCode=4625` events for `Account_Name=testuser` from the same `Source_Network_Address` within 15 minutes. Run the UC-9.1.1 SPL and confirm one row with `count > 10`.",
+    "negativeScenario": "Ingest scattered 4625 failures (three per account from distinct sources) or exclude `Account_Name` via `iam_exception_register.csv` during an approved scanner window. Confirm zero rows above threshold."
   },
   "dataSources": "Windows Security Event Log (Event ID 4625 — failed logon) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4625\n| stats count by Account_Name, Source_Network_Address\n| where count > 10\n| sort -count",
-  "description": "Brute-force attacks are a primary credential compromise vector. Early detection prevents account takeover.",
-  "value": "Operations and leadership rely on 'Brute-Force Login Detection' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
+  "description": "Correlates Windows Security Event ID 4625 failed logons in `index=wineventlog` and fires when a single `Account_Name` and `Source_Network_Address` pair exceeds ten failures, indicating password spraying or online brute-force against Active Directory.",
+  "value": "Credential stuffing against domain accounts is one of the fastest paths to lateral movement. Catching the burst while 4625 volume is elevated lets IAM disable the source IP or force password reset before a successful 4624 logon occurs.",
   "implementation": "Deploy the Universal Forwarder on all Domain Controllers with `[WinEventLog://Security]` enabled. Ensure the GPO enables Audit Logon Success and Failure. Alert with `stats count by Account_Name, src span=15m` when count exceeds 10. Suppress break-glass and service accounts via a `privileged_accounts` lookup to reduce false positives.",
   "visualization": "Table (accounts with failure counts), Line chart (failure rate over time), Geo map (source IPs).",
   "cimModels": [
@@ -105,7 +105,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "knownFalsePositives": "1. **Password spray below threshold** — Attackers rotate one or two attempts per account; this UC counts per (`Account_Name`, `Source_Network_Address`) pair. Escalate to UC-9.1.x spray variant if `dc(user) > 50` with low per-user counts.\n\n2. **Service account Kerberos failure after password rotation** — Backup or batch service accounts generate clustered 4625 events post-rotation. Cross-check `privileged_accounts` lookup for `rotation_window=true` and active CHG ticket.\n\n3. **Break-glass administrator testing** — Quarterly credential exercises produce intentional failure bursts from jump hosts. Filter accounts in `break_glass_accounts.csv` with non-expired `valid_until`.\n\n4. **Approved vulnerability scanner** — Qualys/Tenable credentialed scans from `approved_scanners.csv` netblocks mimic brute-force. Exclude `Source_Network_Address` via CIDR lookup or match `Logon_Process=Advapi` scanner signature.\n\n**Suppression mechanism:** KV Store lookup `iam_exception_register.csv` with `account`, `source_ip`, `reason`, `valid_until`, `approved_by`. Join before `where count > 10`: `| lookup iam_exception_register Account_Name as account Source_Network_Address as source_ip OUTPUT valid_until | where isnull(valid_until) OR now()>valid_until`.",
   "mitreAttack": [
     "T1110",
     "T1110.001"

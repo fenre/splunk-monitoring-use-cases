@@ -9,8 +9,8 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'NERC CIP System Security Management Patch Tracking'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-10.14.18).",
-  "evidence": "Saved search uc_10_14_18_nerc_cip_system_security_management_patc, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "exclusions": "Covers the detection logic documented for 'NERC CIP System Security Management Patch Tracking' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_nerc_cip_system_security_management_patch_tracki` (UC-10.14.18), SOC dashboard panel \"Security Infra — NERC CIP System Security Management Patch Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "compliance": [
     {
       "regulation": "nerc-cip",
@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'NERC CIP System Security Management Patch Tracking'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-10.14.18.",
-    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+    "positiveScenario": "Ingest synthetic events into `index=ot_security` sourcetype='ot:security:patch' that satisfy the UC-10.14.18 SPL filters for 'NERC CIP System Security Management Patch Tracking'. Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `ot_security` / `ot:security:patch` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.14.18."
   },
   "dataSources": "`index=ot_security` vulnerability/patch feeds with `bes_asset=1` Indexes: ot_security. Sourcetypes: ot:security:patch. Key fields: applied, asset_id, deadline, hostname, max_sev, overdue. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "OT Security Add-on for Splunk (Splunkbase 5151)",
   "spl": "index=ot_security sourcetype=\"ot:security:patch\" bes_asset=1\n| eval overdue=if(patch_available=1 AND now()>deadline AND applied=0, 1, 0)\n| stats values(cve) as cves max(severity_score) as max_sev by asset_id, hostname, deadline, applied\n| where overdue=1 OR (max_sev>=7 AND applied=0)\n| eval cip_standard=\"CIP-007\"\n| table cip_standard, asset_id, hostname, cves, max_sev, deadline, applied",
   "description": "Supports NERC CIP-007 by tracking patch status and timelines for BES Cyber Assets, reducing exploitable vulnerabilities on cyber systems.",
-  "value": "Operations and leadership rely on 'NERC CIP System Security Management Patch Tracking' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
+  "value": "Early 'NERC CIP System Security Management Patch Tracking' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Integrate patch and vulnerability scanners with Splunk ES and OT Security Add-on for BES asset groups. Document evaluation intervals per CIP-007. Drive remediation tickets from overdue findings.",
   "visualization": "Gauge of patch compliance %, Timeline to deadlines, Treemap by severity.",
   "cimModels": [
@@ -63,7 +63,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "knownFalsePositives": "1. **Approved vulnerability scanner** — Scanner `src` triggers high-severity signatures for 'NERC CIP System Security Management Patch Tracking'. Join `scanner_ips` before threshold.\n\n2. **Signature definition update** — Vendor content push reclassifies benign traffic. Compare threat_id first_seen with content release date.\n\n3. **Red-team emulation** — Atomic test traffic from approved exercise hosts.\n\n4. **Backup replication traffic** — Off-hours bulk transfer matches lateral-movement heuristics.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `src`, `threat_id`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

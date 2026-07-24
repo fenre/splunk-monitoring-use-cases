@@ -9,8 +9,8 @@
     "Operations"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'ISE-Cisco ACI / Cisco Secure Workload SGT Binding Synchronisation'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.1.37).",
-  "evidence": "Saved search uc_17_1_37_ise_cisco_aci_cisco_secure_workload_sgt, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "exclusions": "Covers the detection logic documented for 'ISE-Cisco ACI / Cisco Secure Workload SGT Binding Synchronisation' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_ise_cisco_aci_cisco_secure_workload_sgt_binding_` (UC-17.1.37), SOC dashboard panel \"Network — ISE-Cisco ACI / Cisco Secure Workload SGT Binding Synchronisation\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "pci-dss",
@@ -51,8 +51,8 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "On a lab ACI fabric, delete an EPG that ISE has an active SGT-to-EPG binding for. ISE emits 83022 (binding update failed). UC-17.1.37 fires showing the (sgt, epg) pair with `failures > 0`.",
-    "negativeScenario": "Recreate the EPG. ISE re-syncs and emits 83020 (binding created). UC-17.1.37 does not fire on the next schedule."
+    "positiveScenario": "Ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' that satisfy the UC-17.1.37 SPL filters for 'ISE-Cisco ACI / Cisco Secure Workload SGT Binding Synchronisation'. Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `nac` / `cisco:ise:syslog` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.1.37."
   },
   "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *TrustSec* and *pxGrid* categories — codes `83020` (SGT-EPG mapping created), `83021` (SGT-EPG mapping deleted), `83022` (SGT-EPG mapping update failed). The Cisco ACI APIC controller syslog `index=network sourcetype=cisco:apic` reports `epg_static_path_change` and `EPG-binding-failure` events. Cisco Secure Workload (formerly Tetration) reports its scope-binding via the OpenAPI `/openapi/v1/inventory_filters` polled by a custom modular input.",
   "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)) + `Cisco ACI Connector` ([Splunkbase 4309](https://splunkbase.splunk.com/app/4309)) + custom Secure Workload poller.",
@@ -85,7 +85,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'ISE-Cisco ACI / Cisco Secure Workload SGT Binding Synchronisation'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "T1599"
   ],

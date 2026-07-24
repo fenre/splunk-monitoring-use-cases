@@ -9,17 +9,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'LAPS Password Rotation Failures'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-9.1.19).",
-  "evidence": "Saved search uc_9_1_19_laps_password_rotation_failures, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "exclusions": "Covers the detection logic documented for 'LAPS Password Rotation Failures' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `iam_laps_password_rotation_failures` (UC-9.1.19), SOC dashboard panel \"IAM — LAPS Password Rotation Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'LAPS Password Rotation Failures'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-9.1.19.",
-    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Microsoft-Windows-LAPS/Operational' that satisfy the UC-9.1.19 SPL filters for 'LAPS Password Rotation Failures'. Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Microsoft-Windows-LAPS/Operational` events outside the detection threshold, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.1.19."
   },
   "dataSources": "Operational log `Microsoft-Windows-LAPS/Operational` (Event IDs 10023, 10024, 10025, 10026), or legacy CSE events Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Microsoft-Windows-LAPS/Operational\" EventCode IN (10023,10024,10025,10026)\n| stats count by ComputerName, EventCode, Message\n| where count > 0\n| sort -count",
   "description": "Failed LAPS rotations leave predictable local admin passwords; attackers target stale LAPS attributes.",
-  "value": "Operations and leadership rely on 'LAPS Password Rotation Failures' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
+  "value": "Early 'LAPS Password Rotation Failures' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
   "implementation": "Forward LAPS Operational log from all domain-joined clients that use LAPS. Map Event IDs to rotation success/failure. Alert on repeated failures per OU or GPO scope. Correlate with GPO and network issues.",
   "visualization": "Table (hosts with failures), Bar chart (failures by OU), Single value (failed rotations 24h).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "knownFalsePositives": "1. **Scheduled IAM maintenance** — Planned directory or IdP change generates expected deviations for 'LAPS Password Rotation Failures'. Cross-check change records.\n\n2. **Onboarding burst** — New accounts or apps produce atypical `wineventlog` volume.\n\n3. **Monitoring synthetic bind checks** — Health probes from known scanner hosts.\n\n4. **Stale application credential** — Single entity dominates `WinEventLog:Microsoft-Windows-LAPS/Operational` failures.\n\n**Suppression mechanism:** `iam_exception_register.csv` with entity, reason, valid_until.",
   "mitreAttack": [
     "T1552"
   ],

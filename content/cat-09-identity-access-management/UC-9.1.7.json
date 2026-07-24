@@ -8,17 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'GPO Modification Detection'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-9.1.7).",
-  "evidence": "Saved search uc_9_1_7_gpo_modification_detection, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "exclusions": "Covers the detection logic documented for 'GPO Modification Detection' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `iam_gpo_modification_detection` (UC-9.1.7), SOC dashboard panel \"IAM — GPO Modification Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'GPO Modification Detection'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-9.1.7.",
-    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=5136 that satisfy the UC-9.1.7 SPL filters for 'GPO Modification Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Security` events outside the detection threshold, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.1.7."
   },
   "dataSources": "Security Event Log (5136 — directory service object modified) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=5136\n| search ObjectClass=\"groupPolicyContainer\"\n| table _time, SubjectUserName, ObjectDN, AttributeLDAPDisplayName, AttributeValue",
   "description": "GPO changes affect all domain-joined machines. Unauthorized modifications can disable security controls across the organization.",
-  "value": "Operations and leadership rely on 'GPO Modification Detection' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
+  "value": "Early 'GPO Modification Detection' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
   "implementation": "Enable \"Audit Directory Service Changes\" via GPO. Forward DC Security logs. Alert on any GPO modification. Correlate with change management tickets. Track which GPOs are modified most frequently.",
   "visualization": "Table (GPO changes with details), Timeline (modification events), Bar chart (changes by admin).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "knownFalsePositives": "1. **Application misconfigured bind DN** — Deploy sends wrong `bind_dn` after release. Correlate spike with `index=wineventlog` deploy timestamp in `index=changes`.\n\n2. **Directory maintenance restart** — Short bind failure burst while 389/636 restarts. Match maintenance window in change calendar.\n\n3. **Brute-force against LDAP** — External `src` hammering `bind_dn` with err=49. Compare with firewall deny logs for same `src`.\n\n4. **Expired service credential** — Single application account stale password. One `bind_dn` dominates stats; fix in vault rotation.\n\n**Suppression mechanism:** `ldap_exception_register.csv` with `bind_dn`, `src`, `valid_until`.",
   "mitreAttack": [
     "T1484.001"
   ],

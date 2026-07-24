@@ -9,8 +9,8 @@
     "Operations"
   ],
   "splunkPillar": "IT Operations",
-  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'RADIUS Authentication Latency SLO and Slow PSN Detection'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.1.40).",
-  "evidence": "Saved search uc_17_1_40_radius_authentication_latency_slo_and_sl, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "exclusions": "Covers the detection logic documented for 'RADIUS Authentication Latency SLO and Slow PSN Detection' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_radius_authentication_latency_slo_and_slow_psn_d` (UC-17.1.40), SOC dashboard panel \"Network — RADIUS Authentication Latency SLO and Slow PSN Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "nis2",
@@ -63,8 +63,8 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "On a lab PSN, induce identity-store latency by inserting a network impairment (e.g. `tc qdisc add dev eth0 root netem delay 1500ms`) on the path between PSN and AD. The next batch of auths shows step2 latency spike; UC-17.1.40 fires within 15 min showing the PSN with `p95_lat > 2000`.",
-    "negativeScenario": "Remove the impairment. Latency returns to baseline within 15 min. Alert clears on next schedule."
+    "positiveScenario": "Ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' that satisfy the UC-17.1.40 SPL filters for 'RADIUS Authentication Latency SLO and Slow PSN Detection'. Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `nac` / `cisco:ise:syslog` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.1.40."
   },
   "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Authentication* category. Every 5400 (auth success) and 5411/5417/5440 (auth failure) event carries the `Step Latency` extension fields recording per-step processing time inside ISE: `Step1Latency` (RADIUS receive→initial parse), `Step2Latency` (parsing→identity-store query), `Step3Latency` (identity-store query→policy evaluation), `Step4Latency` (policy eval→Access-Accept emit). Total is `TotalLatency`. Network Access Devices (NADs) also emit RADIUS server-response-time when configured: `index=network sourcetype=cisco:ios` codes `%RADIUS-3-NORESPONSE` and `%RADIUS-4-RADIUSDEAD`. CIM mapping: `Authentication.duration` after a calculated field aliases `TotalLatency` (in ms).",
   "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)) + `Splunk Add-on for Cisco IOS-XE/NX-OS`.",
@@ -99,7 +99,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'RADIUS Authentication Latency SLO and Slow PSN Detection'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "T1499.001"
   ],

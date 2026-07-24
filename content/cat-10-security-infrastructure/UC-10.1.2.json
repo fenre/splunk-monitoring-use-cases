@@ -8,17 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Wildfire / Sandbox Verdicts'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-10.1.2).",
-  "evidence": "Saved search uc_10_1_2_wildfire_sandbox_verdicts, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "exclusions": "Covers the detection logic documented for 'Wildfire / Sandbox Verdicts' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_wildfire_sandbox_verdicts` (UC-10.1.2), SOC dashboard panel \"Security Infra — Wildfire / Sandbox Verdicts\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Wildfire / Sandbox Verdicts'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-10.1.2.",
-    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+    "positiveScenario": "Ingest synthetic events into `index=pan` sourcetype='pan:wildfire' that satisfy the UC-10.1.2 SPL filters for 'Wildfire / Sandbox Verdicts'. Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `pan` / `pan:wildfire` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.1.2."
   },
   "dataSources": "Wildfire submission logs, sandbox analysis results Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_paloalto` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=pan sourcetype=\"pan:wildfire\"\n| stats count by verdict, filetype\n| eval verdict_label=case(verdict=0,\"benign\", verdict=1,\"malware\", verdict=2,\"grayware\", verdict=4,\"phishing\")",
   "description": "Tracks zero-day and unknown malware detection effectiveness. Malicious verdicts require immediate investigation of affected hosts.",
-  "value": "Operations and leadership rely on 'Wildfire / Sandbox Verdicts' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
+  "value": "Early 'Wildfire / Sandbox Verdicts' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Enable Wildfire logging on NGFW. Forward submission results to Splunk. Alert immediately on malware verdicts. Track affected users/hosts for investigation. Report on submission volumes and malicious file types.",
   "visualization": "Pie chart (verdict distribution), Table (malware verdicts with details), Line chart (submissions over time), Bar chart (by file type).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "knownFalsePositives": "1. **Approved vulnerability scanner** — Scanner `src` triggers high-severity signatures for 'Wildfire / Sandbox Verdicts'. Join `scanner_ips` before threshold.\n\n2. **Signature definition update** — Vendor content push reclassifies benign traffic. Compare threat_id first_seen with content release date.\n\n3. **Red-team emulation** — Atomic test traffic from approved exercise hosts.\n\n4. **Backup replication traffic** — Off-hours bulk transfer matches lateral-movement heuristics.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `src`, `threat_id`, `valid_until`.",
   "detectionType": "TTP",
   "securityDomain": "threat",
   "equipment": [

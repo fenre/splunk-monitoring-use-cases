@@ -8,17 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Playbook Execution Monitoring'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-10.7.4).",
-  "evidence": "Saved search uc_10_7_4_playbook_execution_monitoring, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "exclusions": "Covers the detection logic documented for 'Playbook Execution Monitoring' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_playbook_execution_monitoring` (UC-10.7.4), SOC dashboard panel \"Security Infra — Playbook Execution Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Playbook Execution Monitoring'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-10.7.4.",
-    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+    "positiveScenario": "Ingest synthetic events into `index=soar` sourcetype='phantom:playbook_run' that satisfy the UC-10.7.4 SPL filters for 'Playbook Execution Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `soar` / `phantom:playbook_run` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.7.4."
   },
   "dataSources": "SOAR execution logs, playbook run results Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk SOAR — Universal Forwarder (Splunkbase 617)",
   "spl": "index=soar sourcetype=\"phantom:playbook_run\"\n| stats count(eval(status=\"success\")) as success, count(eval(status=\"failed\")) as failed by playbook_name\n| eval success_rate=round(success/(success+failed)*100,1)\n| where success_rate < 95",
   "description": "SOAR playbook failures leave incidents unhandled. Monitoring ensures automation reliability and identifies integration issues.",
-  "value": "Operations and leadership rely on 'Playbook Execution Monitoring' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
+  "value": "Early 'Playbook Execution Monitoring' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Ingest SOAR execution logs into Splunk. Track playbook success/failure rates. Alert on failures for critical playbooks. Identify failing action steps for debugging. Report on automation coverage and time savings.",
   "visualization": "Table (playbook success rates), Bar chart (failure rate by playbook), Line chart (execution trend), Single value (overall success %).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Playbook Execution Monitoring'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=soar` `phantom:playbook_run`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
   "equipment": [
     "splunk"
   ],

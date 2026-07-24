@@ -9,11 +9,11 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Device Trust Score Trending'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.3.18).",
-  "evidence": "Saved search uc_17_3_18_device_trust_score_trending, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "exclusions": "Covers the detection logic documented for 'Device Trust Score Trending' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_device_trust_score_trending` (UC-17.3.18), SOC dashboard panel \"Network — Device Trust Score Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Device Trust Score Trending'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-17.3.18.",
-    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+    "positiveScenario": "Ingest synthetic events into `index=zt` sourcetype='zscaler:device_posture' that satisfy the UC-17.3.18 SPL filters for 'Device Trust Score Trending'. Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `zt` / `zscaler:device_posture` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.18."
   },
   "dataSources": "`zscaler:device_posture`, `zt:device_trust` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_zscaler`, `Splunk_TA_microsoft-cloudservices` (Entra ID), `TA-crowdstrike-falcon` — Universal Forwarder (Splunkbase 617)",
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "knownFalsePositives": "1. **Remote workforce login storm** — Morning VPN/ZTNA session spike for 'Device Trust Score Trending'. Compare with historical same-hour baseline.\n\n2. **IdP or SAML metadata refresh** — Brief auth failures during federation cert rotation.\n\n3. **Split-tunnel policy change** — New route advertisements shift traffic patterns.\n\n4. **Synthetic ZTNA health checks** — Monitoring probes from known appliance IPs.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `user`, `src`, `valid_until`.",
   "mitreAttack": [
     "T1200"
   ],

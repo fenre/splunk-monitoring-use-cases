@@ -9,17 +9,17 @@
   ],
   "splunkPillar": "Security",
   "industry": "Healthcare",
-  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'HL7 Message Delivery Monitoring'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-10.12.24).",
-  "evidence": "Saved search uc_10_12_24_hl7_message_delivery_monitoring, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "exclusions": "Covers the detection logic documented for 'HL7 Message Delivery Monitoring' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_hl7_message_delivery_monitoring` (UC-10.12.24), SOC dashboard panel \"Security Infra — HL7 Message Delivery Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'HL7 Message Delivery Monitoring'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-10.12.24.",
-    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+    "positiveScenario": "Ingest synthetic events into `index=interfaces` sourcetype='hl7:v2' that satisfy the UC-10.12.24 SPL filters for 'HL7 Message Delivery Monitoring'. Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `interfaces` / `hl7:v2` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.24."
   },
   "dataSources": "`sourcetype=\"hl7:v2\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Interface engine (Mirth, Cloverleaf) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=interfaces sourcetype=\"hl7:v2\"\n| eval ack_ok=if(ACK_Code=\"AA\",1,0)\n| timechart span=15m sum(ack_ok) as ok, count as total\n| eval ack_rate=round(ok/total*100,2)\n| where ack_rate < 99",
   "description": "ADT/ORM gaps break registration, billing, and care coordination workflows. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Operations and leadership rely on 'HL7 Message Delivery Monitoring' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
+  "value": "Early 'HL7 Message Delivery Monitoring' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Track message control ID retries; alert on NAK storms or queue depth from engine metrics.",
   "visualization": "Line chart (ACK rate), Table (top failing interfaces), Single value (queue depth).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'HL7 Message Delivery Monitoring'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=interfaces` `hl7:v2`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
   "equipment": [
     "splunk"
   ],

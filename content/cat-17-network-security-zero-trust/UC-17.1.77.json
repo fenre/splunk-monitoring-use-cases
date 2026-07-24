@@ -9,8 +9,8 @@
     "Capacity"
   ],
   "splunkPillar": "IT Operations",
-  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Cisco ISE PSN Authentication-Per-Second (TPS) SLO and Capacity Headroom'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.1.77).",
-  "evidence": "Saved search uc_17_1_77_cisco_ise_psn_authentication_per_second, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "exclusions": "Covers the detection logic documented for 'Cisco ISE PSN Authentication-Per-Second (TPS) SLO and Capacity Headroom' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_cisco_ise_psn_authentication_per_second_tps_slo_` (UC-17.1.77), SOC dashboard panel \"Network — Cisco ISE PSN Authentication-Per-Second (TPS) SLO and Capacity Headroom\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "nis2",
@@ -63,8 +63,8 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Generate 6,000 authentications per minute against an SNS-3715 (5,000 TPS rated). UC-17.1.77 fires.",
-    "negativeScenario": "PSN running at 50% capacity. No fire."
+    "positiveScenario": "Ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' that satisfy the UC-17.1.77 SPL filters for 'Cisco ISE PSN Authentication-Per-Second (TPS) SLO and Capacity Headroom'. Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `nac` / `cisco:ise:syslog` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.1.77."
   },
   "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Passed-Authentications* (5200) and *Failed-Authentications* (5400) — high-volume base searches. Use `_time` bucketing to compute per-PSN TPS. Cross-reference Cisco-published PSN sizing data: SNS-3715 = 5,000 TPS, SNS-3725 = 10,000 TPS, SNS-3755 = 20,000 TPS, SNS-3795 = 50,000 TPS. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)",
@@ -99,7 +99,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'Cisco ISE PSN Authentication-Per-Second (TPS) SLO and Capacity Headroom'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "N/A (SLO monitoring — measures ISE Policy Service Node latency, no adversary technique)"
   ],

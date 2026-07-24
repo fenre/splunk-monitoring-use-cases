@@ -9,17 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Safety Instrumented System (SIS) Bypass'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-10.14.11).",
-  "evidence": "Saved search uc_10_14_11_safety_instrumented_system_sis_bypass, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "exclusions": "Covers the detection logic documented for 'Safety Instrumented System (SIS) Bypass' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_safety_instrumented_system_sis_bypass` (UC-10.14.11), SOC dashboard panel \"Security Infra — Safety Instrumented System (SIS) Bypass\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "On a lab host or staging index, ingest sample events that satisfy all SPL filters for 'Safety Instrumented System (SIS) Bypass'. Run the saved search manually and confirm at least one result row with populated severity or metric fields. Verify the alert action fires within one schedule interval and the output matches the dashboard table projection for UC-10.14.11.",
-    "negativeScenario": "Ingest a control batch where threshold fields remain within normal bounds (for example compliant configuration values, timestamps outside the monitoring window, or entities listed in operational_exceptions.csv). Confirm the saved search returns zero rows, no notable is created, and scheduled export volume to the evidence index stays flat."
+    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='ics:sis' that satisfy the UC-10.14.11 SPL filters for 'Safety Instrumented System (SIS) Bypass'. Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `ot` / `ics:sis` events outside the detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.14.11."
   },
   "dataSources": "`index=ot` `sourcetype=\"ics:sis\"` safety PLC diagnostics, alarm historians Indexes: ot. Sourcetypes: ics:sis. Key fields: asset, loop_id, permit_ok, user. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "OT Security Add-on for Splunk (Splunkbase 5151)",
   "spl": "index=ot sourcetype=\"ics:sis\"\n| where match(status_message, \"(?i)bypass|override|maintenance|manual|inhibit\")\n| lookup ot_sis_authorized_changes loop_id user OUTPUT permit_id valid_until\n| eval permit_ok=if(!isnull(permit_id) AND _time<=valid_until, 1, 0)\n| where permit_ok=0\n| stats earliest(_time) as first_seen values(status_message) as states by loop_id, asset, user",
   "description": "Monitors mode changes, jumpering, or overrides on SIS (T0800), directly tied to process safety and regulatory expectations.",
-  "value": "Operations and leadership rely on 'Safety Instrumented System (SIS) Bypass' to catch regressions before they become customer-visible outages or audit findings. Early signal reduces mean time to repair, avoids duplicate manual log review, and preserves evidence for post-incident review without waiting for a user-reported ticket.",
+  "value": "Early 'Safety Instrumented System (SIS) Bypass' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
   "implementation": "Use Splunk ES and OT Safety data integrations. Require MOC/permit correlation. Escalate immediately to process safety and T0800 workflows.",
   "visualization": "State timeline per SIS loop, Alert list with permit linkage, Gauge of open bypasses.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "knownFalsePositives": "1. **SOC tuning or purple-team exercise** — Expected alert volume during rule validation for 'Safety Instrumented System (SIS) Bypass'. Match active CHG with `purple_team=true`.\n\n2. **Content deployment window** — TA or CIM update shifts field extractions on `index=ot` `ics:sis`.\n\n3. **Duplicate log ingestion** — HF/IDX misconfiguration doubles event counts.\n\n4. **Baseline seasonality** — Month-end batch jobs skew trending searches.\n\n**Suppression mechanism:** `soc_exception_register.csv` with entity, reason, valid_until.",
   "equipment": [
     "splunk"
   ],

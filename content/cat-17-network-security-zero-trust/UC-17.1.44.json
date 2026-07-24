@@ -10,8 +10,8 @@
     "Operations"
   ],
   "splunkPillar": "IT Operations",
-  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'Cisco ISE External Identity Store Health (AD/LDAP/RADIUS/SAML/OAuth)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.1.44).",
-  "evidence": "Saved search uc_17_1_44_cisco_ise_external_identity_store_health, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "exclusions": "Covers the detection logic documented for 'Cisco ISE External Identity Store Health (AD/LDAP/RADIUS/SAML/OAuth)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_cisco_ise_external_identity_store_health_ad_ldap` (UC-17.1.44), SOC dashboard panel \"Network — Cisco ISE External Identity Store Health (AD/LDAP/RADIUS/SAML/OAuth)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "nis2",
@@ -76,8 +76,8 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "On a lab AD, stop the LDAP service. Within 5 min ISE emits 24014. UC-17.1.44 fires showing AD store with non-zero count.",
-    "negativeScenario": "Restart LDAP service. ISE re-establishes connection. Alert clears."
+    "positiveScenario": "Ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' that satisfy the UC-17.1.44 SPL filters for 'Cisco ISE External Identity Store Health (AD/LDAP/RADIUS/SAML/OAuth)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `nac` / `cisco:ise:syslog` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.1.44."
   },
   "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Identity Store* and *Authentication* categories. Codes per store type — Active Directory: `24014` (AD connection lost), `24015` (AD authentication latency), `24023` (AD machine account password rotation failed), `24033` (AD trust relationship broken), `24050` (AD LDAP referral failed). LDAP: `24400`/`24401`/`24402` (LDAP search failure / timeout / bind failure). External RADIUS proxy: `11051` (proxy timeout), `11052` (proxy server unreachable). SAML/OAuth identity providers: `82400` (SAML/OAuth IdP connection lost), `82401` (SAML/OAuth metadata refresh failed). ISE OpenAPI `/api/v1/identitystore/healthcheck` polled every 5 min for active health stats per store, written to `index=nac sourcetype=cisco:ise:idstore_health`.",
   "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
@@ -112,7 +112,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'Cisco ISE External Identity Store Health (AD/LDAP/RADIUS/SAML/OAuth)'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "T1499.004"
   ],

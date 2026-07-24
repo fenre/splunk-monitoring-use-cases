@@ -8,8 +8,8 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Does not replace enterprise SIEM correlation for unrelated threat classes. Does not constitute legal, regulatory, or executive attestation for 'ISE Identity Risk Score Contribution to Splunk ES Risk-Based Alerting (RBA)'. Does not cover entities explicitly scoped out in operational_exceptions.csv. Pair with sibling UCs in the same subcategory when the SPL surface alone cannot prove control effectiveness (see prerequisiteUseCases on UC-17.1.81).",
-  "evidence": "Saved search uc_17_1_81_ise_identity_risk_score_contribution_to, dashboard panel tied to this UC, weekly CSV export archived to index=evidence with change-ticket reference, and git-tracked lookup baselines referenced in the search.",
+  "exclusions": "Covers the detection logic documented for 'ISE Identity Risk Score Contribution to Splunk ES Risk-Based Alerting (RBA)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_ise_identity_risk_score_contribution_to_splunk_e` (UC-17.1.81), SOC dashboard panel \"Network — ISE Identity Risk Score Contribution to Splunk ES Risk-Based Alerting (RBA)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "nis2",
@@ -50,8 +50,8 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Trigger ISE-side: 10 failed auths + posture fail. ES Risk DM aggregates; UC-17.1.81 surfaces user.",
-    "negativeScenario": "No ISE risk activity. No fire."
+    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' that satisfy the UC-17.1.81 SPL filters for 'ISE Identity Risk Score Contribution to Splunk ES Risk-Based Alerting (RBA)'. Run the saved search and confirm at least one alertable row with expected fields populated.",
+    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events outside the detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.1.81."
   },
   "dataSources": "Splunk ES `risk_index` populated via the `Splunk_TA_cisco_identity_services` add-on's risk modular outputs (or via a custom risk-correlation rule). Risk modifiers from ISE include: failed authentications (5400), posture non-compliance (80002), TC-NAC threat (86040), MDM compliance failure (86200), CII risk score >70 (86001 with risk reason). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Enterprise Security + `Splunk Add-on for Cisco Identity Services`. — Universal Forwarder (Splunkbase 617)",
@@ -86,7 +86,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Scheduled maintenance windows** — Planned change activity in the CMDB or change calendar produces expected deviations that match this detection pattern during approved maintenance. Cross-check ServiceNow change records for `state=implement` and the affected CI list.\n\n2. **Backup and batch job cycles** — Nightly ETL, backup agents, or log rotation jobs generate bursts of similar events that resemble alert conditions but occur on a fixed schedule. Compare `_time` against the documented batch window before paging.\n\n3. **Onboarding and provisioning bursts** — New users, devices, or services provisioned in bulk can temporarily skew counts until baselines stabilize. Filter events tagged `onboarding=true` in the identity or asset lookup.\n\n4. **Monitoring and health-check traffic** — Synthetic transactions or internal scanner accounts generate probe traffic designed to exercise the control. Exclude service accounts listed in `monitoring_exceptions.csv`.\n\n**Suppression mechanism:** Maintain a KV Store lookup `operational_exceptions.csv` with columns `entity`, `exception_reason`, `valid_from`, `valid_until`, and `approved_by`. Join the saved search to this lookup and filter `where isnull(exception_reason) OR now() > valid_until` so approved windows suppress alerts without muting the search globally.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'ISE Identity Risk Score Contribution to Splunk ES Risk-Based Alerting (RBA)'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=network` `configured sourcetype` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "N/A (ES integration — measures Risk-Based Alerting score-to-action effectiveness, no adversary technique)"
   ],
