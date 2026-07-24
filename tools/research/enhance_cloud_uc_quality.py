@@ -382,7 +382,7 @@ def _impact_from_title(title: str, events: list[str], provider: str) -> str:
         )
     if "cdn" in lower or "waf" in lower or "cloudfront" in lower:
         return (
-            f"At the {provider} edge, request anomalies may indicate scraping, credential stuffing, or WAF bypass "
+            f"At the {provider} edge, '{title}' request anomalies may indicate scraping, credential stuffing, or WAF bypass "
             f"attempts before origin servers are overwhelmed."
         )
     if event:
@@ -469,7 +469,11 @@ def _craft_value(
         "missing governance tags break cost allocation" in existing
         and " for '" not in existing
     )
-    if stale_finops or stale_create or stale_tag:
+    stale_edge = (
+        "request anomalies may indicate scraping, credential stuffing" in existing
+        and f"'{title}'" not in existing
+    )
+    if stale_finops or stale_create or stale_tag or stale_edge:
         existing = ""
     if preserve and existing and not _is_boilerplate_text(existing) and len(existing) >= 80:
         return existing[:600]
