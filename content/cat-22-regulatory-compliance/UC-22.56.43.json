@@ -10,7 +10,7 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "industry": "Pipeline + Rail + Aviation",
+  "industry": "Pipeline",
   "owner": "Procurement",
   "controlFamily": "regulation-specific",
   "exclusions": "Excludes documented vendor sessions in `tsa_pipeline_supply_chain_lookup` with valid start/end timestamps. Excludes break-glass vendor access logged in PAM.",
@@ -37,8 +37,8 @@
   "dataSources": "Palo Alto GlobalProtect (`pan:globalprotect`). Cisco AnyConnect (`cisco:anyconnect`). CyberArk PSM sessions (`cyberark:epv:audit`). BeyondTrust Privileged Remote Access (`beyondtrust:bra:event`). TSA vendor approval register (KV Store `tsa_pipeline_supply_chain_lookup`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Palo Alto Networks (Splunkbase 2757), Splunk Add-on for Cisco AnyConnect (Splunkbase 2008), Splunk Add-on for CyberArk (Splunkbase 4242).",
   "spl": "(sourcetype=pan:globalprotect OR sourcetype=cisco:anyconnect OR sourcetype=beyondtrust:bra:event) action IN (\"login\",\"start\",\"connected\")\n| lookup tsa_pipeline_supply_chain_lookup user AS user vendor_id AS vendor_id OUTPUT tsa_vendor_session_id approved_from approved_until destination_zone\n| eval session_status = case(\n    isnotnull(tsa_vendor_session_id) AND approved_from <= _time AND approved_until > _time, \"approved\",\n    isnotnull(tsa_vendor_session_id) AND approved_until < _time, \"expired\",\n    1=1, \"unapproved\")\n| where session_status IN (\"unapproved\",\"expired\")\n| stats count as sessions values(destination_zone) as destination_zone values(session_status) as session_status by user vendor_id src_ip\n| table user vendor_id src_ip destination_zone session_status sessions",
-  "description": "Reconciles vendor remote-access flows with the TSA vendor approval register; flags unapproved/expired sessions into TSA-regulated zones.",
-  "value": "Vendor remote access is a leading predicate to OT compromise (Solar Winds, Kaseya, CDK). This UC produces the evidence package for the vendor-access dimension of TSA SDs.",
+  "description": "TSA-SD Pipeline supply-chain and third-party cybersecurity risk register monitoring — Splunk continuously validates TSA-SD-P-2021-02C-s7 using the saved search in this UC, routes gaps to Enterprise Security notables, and archives proof rows to `audit_evidence`.",
+  "value": "Inspectors ask for proof that «TSA-SD Pipeline supply-chain and third-party cybersecurity risk register monitoring» is operational today, not at last audit. Missing live evidence for TSA-SD-P-2021-02C-s7 is a direct regulatory deficiency with enforcement exposure.",
   "implementation": "(1) Populate `tsa_pipeline_supply_chain_lookup` from PAM / change-control. (2) Schedule UC-22.56.43 every 4 hours. (3) Build the `TSA Vendor Remote-Access Health` dashboard.",
   "visualization": "(Panel 1) Unapproved/expired sessions by vendor. (Panel 2) Top-10 destination zones touched. (Panel 3) Approved-window utilization. (Panel 4) Session-recording coverage.",
   "cimModels": [
@@ -57,9 +57,13 @@
     {
       "title": "CISA Insights — Risk Considerations for MSPs",
       "url": "https://www.cisa.gov/news-events/cybersecurity-advisories/aa22-131a"
+    },
+    {
+      "title": "TSA Surface Cybersecurity Requirements (June 2024 reissue)",
+      "url": "https://www.tsa.gov/news/press/releases/2024/06/07/tsa-reissues-cybersecurity-requirements-pipeline-industry"
     }
   ],
-  "knownFalsePositives": "1. **Emergency vendor access** — break-glass vendor sessions logged in PAM with retroactive approval. Suppression: PAM PSM records auto-populate `tsa_pipeline_supply_chain_lookup` with `retroactive=true`.\n2. **Service-account vendor**: long-running vendor service accounts; classify in lookup with `account_type=vendor_service`.\n\n**Suppression mechanism**: KV Store `tsa_pipeline_supply_chain_lookup` and `tsa_22_56_43_exceptions`.",
+  "knownFalsePositives": "1. **Planned maintenance window** — documented change windows in lookup `tsa_22_56_43_exceptions` suppress benign activity during approved work.\n\n2. **Pen-test / red-team activity** — engagements with agreed rules-of-engagement marker excluded via lookup `tsa_22_56_43_exceptions`.\n\n3. **Vendor remote-access sessions** — authorised vendor PAM sessions cross-reference lookup `tsa_22_56_43_exceptions` before alerting.\n\n4. **Regulatory transition / grace period** — time-bound exception register entry in lookup `tsa_22_56_43_exceptions` with documented approver and expiry.\n\n**Suppression mechanism**: filter results with lookup `tsa_22_56_43_exceptions` (time-bound exception register); rows must carry `approved_by` and `valid_until` epoch fields.",
   "mitreAttack": [
     "T1133",
     "T1190",
@@ -95,11 +99,11 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "Compliance SME Panel (exemplar-adapted; pending verification)",
+  "reviewer": "Compliance SME Panel (finalized; pending verification)",
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + add-ons.\n- PAM/PSM session recording enabled for all vendor sessions.\n- KV Store `tsa_pipeline_supply_chain_lookup`.\n\n## Step 1 — Define vendor session register\n\n```ini\n[tsa_pipeline_supply_chain_lookup]\nfield.user = string\nfield.vendor_id = string\nfield.tsa_vendor_session_id = string\nfield.approved_from = number\nfield.approved_until = number\nfield.destination_zone = string\nfield.approver = string\nfield.change_id = string\nfield.retroactive = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.43: TSA Vendor Remote Access Surveillance]\ncron_schedule = 27 */4 * * *\ndispatch.earliest_time = -4h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.43,reg=TSA-Surface,clause=TSA-SD-multi-vendor-remote\nalert.severity = 5\n```\n\n## Step 3 — Runbooks\n\n**Unapproved vendor session into AIRSIDE_OT / PIPELINE_OT / RAIL_OT** (owner: CC, severity P1):\n1. Within 30 min: terminate session via PAM.\n2. Within 4 hours: investigate vendor-side compromise.\n3. Within 24 hours: post-mortem; reassess vendor risk.\n\n## Step 4 — Troubleshooting\n\n- **VDI / bastion bypass**: ensure VDI session telemetry feeds the UC; otherwise the bastion appears as the user.\n- **Service-account vendor**: distinguish from interactive vendor in lookup.\n\n**TSA-specific failure modes**:\n- **MSP / outsourced ops**: outsourced CC operations create concentrated risk; ensure outsourced personnel are registered.\n- **Hardware vendor on-site access**: on-site vendor visits may bypass remote-access controls; pair with physical-access UCs.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + add-ons.\n- PAM/PSM session recording enabled for all vendor sessions.\n- KV Store `tsa_pipeline_supply_chain_lookup`.\n\n## Step 1 — Define vendor session register\n\n```ini\n[tsa_pipeline_supply_chain_lookup]\nfield.user = string\nfield.vendor_id = string\nfield.tsa_vendor_session_id = string\nfield.approved_from = number\nfield.approved_until = number\nfield.destination_zone = string\nfield.approver = string\nfield.change_id = string\nfield.retroactive = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.43: TSA Vendor Remote Access Surveillance]\ncron_schedule = 27 */4 * * *\ndispatch.earliest_time = -4h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.43,reg=TSA-Surface,clause=TSA-SD-multi-vendor-remote\nalert.severity = 5\n```\n\n## Step 3 — Runbooks\n\n**Unapproved vendor session into AIRSIDE_OT / PIPELINE_OT / RAIL_OT** (owner: CC, severity P1):\n1. Within 30 min: terminate session via PAM.\n2. Within 4 hours: investigate vendor-side compromise.\n3. Within 24 hours: post-mortem; reassess vendor risk.\n\n## Step 4 — Troubleshooting\n\n- **VDI / bastion bypass**: ensure VDI session telemetry feeds the UC; otherwise the bastion appears as the user.\n- **Service-account vendor**: distinguish from interactive vendor in lookup.\n\n**TSA-specific failure modes**:\n- **MSP / outsourced ops**: outsourced CC operations create concentrated risk; ensure outsourced personnel are registered.\n- **Hardware vendor on-site access**: on-site vendor visits may bypass remote-access controls; pair with physical-access UCs.\n\n## Step 5 — Troubleshooting\n\n**Product-specific failure modes**:\n\n- **ServiceNow SIR custom-field drift** — if `csa_awareness_time` or `tsa_awareness_time` is NULL, verify the Security Incident Response workflow still writes the field on state transition to `In Progress`; compare against the vendor UI on the open ticket.\n- **KV Store sync lag** — if the lookup row updates but the saved search still surfaces stale status, confirm the `outputlookup` command completed (`| rest /services/data/transforms/lookup-table-files` shows matching row count).\n- **HEC token / modular-input silence** — run `index=_internal sourcetype=splunkd component=AggregatorMiningProcessor` for the source; no events for >2× the expected poll interval indicates an API or forwarder failure.\n- **Summary-index routing gaps** — validate `action.summary_index._name = audit_evidence` and RBAC role `compliance-analyst` retains write on the destination index.",
   "grandmaExplanation": "Outside companies (vendors) sometimes need to connect to our pipeline, train, or airport computers. We make sure every connection is approved in advance and we record what they do.",
   "prerequisiteUseCases": [
     "UC-22.56.1"

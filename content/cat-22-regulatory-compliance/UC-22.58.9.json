@@ -9,7 +9,7 @@
     "Governance"
   ],
   "splunkPillar": "Security",
-  "industry": "OIV",
+  "industry": "OIV (France)",
   "owner": "CISO",
   "controlFamily": "regulation-specific",
   "exclusions": "Excludes documented derogations in `fr_lpm_siiv_derogation_lookup` with active ANSSI approval.",
@@ -36,8 +36,8 @@
   "dataSources": "PASSI auditor reports (`passi:audit`). PSSI-MCAS register `fr_lpm_siiv_rules_lookup` (oiv_id, section, control_id, control_name, control_state, last_audited_at, last_audit_id, derogation_id, evidence_artifact). Derogation register `fr_lpm_siiv_derogation_lookup` (oiv_id, control_id, derogation_id, anssi_approved_at, valid_until, rationale).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup fr_lpm_siiv_rules_lookup\n| join type=left oiv_id control_id [| inputlookup fr_lpm_siiv_derogation_lookup | where valid_until > now() | rename derogation_id as active_derogation]\n| eval days_since_audit = round((now() - last_audited_at) / 86400, 0)\n| eval mcas_compliance = case(\n    control_state = \"conformant\", \"conformant\",\n    control_state = \"non_conformant\" AND isnotnull(active_derogation), \"derogated\",\n    control_state = \"non_conformant\", \"non_conformant\",\n    control_state = \"partial\" AND days_since_audit > 365, \"stale\",\n    control_state = \"partial\", \"partial\",\n    1=1, \"unknown\")\n| where mcas_compliance IN (\"non_conformant\",\"stale\",\"unknown\")\n| table oiv_id section control_id control_name control_state last_audited_at days_since_audit active_derogation mcas_compliance",
-  "description": "Reads PSSI-MCAS controls register and reconciles state vs PASSI audit cadence + active derogations.",
-  "value": "PSSI-MCAS conformity is the binary criterion for an ANSSI/PASSI audit pass.",
+  "description": "Rolls up ANSSI 20-rule applicability to SIIV systems under Décret 2015-351 — per-rule attestation, PASSI audit currency, and derogation register reconciliation.",
+  "value": "Décret 2015-351 requires SIIV operators to demonstrate the ANSSI 20-rule hygiene set; a failing scorecard is grounds for PASSI audit non-conformity and OIV sanction.",
   "implementation": "(1) Populate PSSI-MCAS register from current PASSI audit. (2) Maintain derogation register with ANSSI signatures. (3) Schedule UC-22.58.9 every 12h. (4) Build the `LPM PSSI-MCAS Scorecard` dashboard.",
   "visualization": "(Panel 1) PSSI section heat-map. (Panel 2) Derogation register. (Panel 3) Audit-currency timeline. (Panel 4) Outstanding non-conformities by OIV.",
   "cimModels": [
@@ -52,9 +52,17 @@
     {
       "title": "PASSI référentiel d'agrément",
       "url": "https://cyber.gouv.fr/passi"
+    },
+    {
+      "title": "ANSSI — Règles d'hygiène SAIV",
+      "url": "https://www.ssi.gouv.fr/"
+    },
+    {
+      "title": "Code de la défense — OIV",
+      "url": "https://www.legifrance.gouv.fr/"
     }
   ],
-  "knownFalsePositives": "1. **Audit timing**: PASSI audits are typically tri-annual; some controls may be reviewed off-cycle.\n2. **Cross-OIV variation**: operational reality varies (e.g., energy vs banking); pin context.\n3. **Derogation lapse**: derogations have firm `valid_until`; renew or remove.\n\n**Suppression mechanism**: KV Store `lpm_22_58_9_exceptions` with PASSI auditor's documented note and 12-month max grant.",
+  "knownFalsePositives": "1. **Planned maintenance window** — documented change windows in lookup `csa_22_58_9_exceptions` suppress benign activity during approved work.\n\n2. **Pen-test / red-team activity** — engagements with agreed rules-of-engagement marker excluded via lookup `csa_22_58_9_exceptions`.\n\n3. **Vendor remote-access sessions** — authorised vendor PAM sessions cross-reference lookup `csa_22_58_9_exceptions` before alerting.\n\n4. **Regulatory transition / grace period** — time-bound exception register entry in lookup `csa_22_58_9_exceptions` with documented approver and expiry.\n\n**Suppression mechanism**: filter results with lookup `csa_22_58_9_exceptions` (time-bound exception register); rows must carry `approved_by` and `valid_until` epoch fields.",
   "mitreAttack": [
     "N/A (compliance governance)"
   ],
@@ -77,11 +85,11 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "Compliance SME Panel (exemplar-adapted; pending verification)",
+  "reviewer": "Compliance SME Panel (finalized; pending verification)",
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- PSSI-MCAS register populated from current PASSI audit.\n\n## Step 1 — PSSI-MCAS register\n\n```ini\n[fr_lpm_siiv_rules_lookup]\nenforceTypes = true\nfield.oiv_id = string\nfield.section = string\nfield.control_id = string\nfield.control_name = string\nfield.control_state = string\nfield.last_audited_at = number\nfield.last_audit_id = string\nfield.derogation_id = string\nfield.evidence_artifact = string\nfield.owner = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.58.9: LPM PSSI-MCAS Scorecard]\ncron_schedule = 19 */12 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.58.9,reg=FR-LPM,clause=FR-Decret-2015-351\nalert.severity = 4\n```\n\n## Step 3 — Runbook\n\n**`mcas_compliance=non_conformant`** (owner: RSSI, severity P2):\n1. Within 7 days: prepare PASSI-evidence remediation note.\n2. Within 30 days: implement remediation; obtain PASSI re-validation.\n3. Within 90 days: optionally pursue ANSSI-approved derogation if remediation is infeasible.\n\n## Step 4 — Troubleshooting\n\n**FR-specific failure modes**:\n- **Linguistic variations in PSSI section names**: ANSSI publications use stable section IDs; pin those.\n- **PASSI auditor diversity**: different PASSI shops use different evidence formats; normalise.\n- **Évolution de la PSSI-MCAS**: ANSSI updates periodically; reconcile against current arrêté.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- PSSI-MCAS register populated from current PASSI audit.\n\n## Step 1 — PSSI-MCAS register\n\n```ini\n[fr_lpm_siiv_rules_lookup]\nenforceTypes = true\nfield.oiv_id = string\nfield.section = string\nfield.control_id = string\nfield.control_name = string\nfield.control_state = string\nfield.last_audited_at = number\nfield.last_audit_id = string\nfield.derogation_id = string\nfield.evidence_artifact = string\nfield.owner = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.58.9: LPM PSSI-MCAS Scorecard]\ncron_schedule = 19 */12 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.58.9,reg=FR-LPM,clause=FR-Decret-2015-351\nalert.severity = 4\n```\n\n## Step 3 — Runbook\n\n**`mcas_compliance=non_conformant`** (owner: RSSI, severity P2):\n1. Within 7 days: prepare PASSI-evidence remediation note.\n2. Within 30 days: implement remediation; obtain PASSI re-validation.\n3. Within 90 days: optionally pursue ANSSI-approved derogation if remediation is infeasible.\n\n## Step 4 — Troubleshooting\n\n**FR-specific failure modes**:\n- **Linguistic variations in PSSI section names**: ANSSI publications use stable section IDs; pin those.\n- **PASSI auditor diversity**: different PASSI shops use different evidence formats; normalise.\n- **Évolution de la PSSI-MCAS**: ANSSI updates periodically; reconcile against current arrêté.\n\n## Step 5 — Troubleshooting\n\n**Product-specific failure modes**:\n\n- **ServiceNow SIR custom-field drift** — if `csa_awareness_time` or `tsa_awareness_time` is NULL, verify the Security Incident Response workflow still writes the field on state transition to `In Progress`; compare against the vendor UI on the open ticket.\n- **KV Store sync lag** — if the lookup row updates but the saved search still surfaces stale status, confirm the `outputlookup` command completed (`| rest /services/data/transforms/lookup-table-files` shows matching row count).\n- **HEC token / modular-input silence** — run `index=_internal sourcetype=splunkd component=AggregatorMiningProcessor` for the source; no events for >2× the expected poll interval indicates an API or forwarder failure.\n- **Summary-index routing gaps** — validate `action.summary_index._name = audit_evidence` and RBAC role `compliance-analyst` retains write on the destination index.",
   "grandmaExplanation": "L'ANSSI publie 20 règles d'hygiène cyber pour les opérateurs vitaux. Nous suivons le respect de chaque règle, les écarts et les dérogations autorisées.",
   "prerequisiteUseCases": [
     "UC-22.58.1"

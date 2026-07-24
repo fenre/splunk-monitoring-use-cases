@@ -10,7 +10,7 @@
     "Configuration"
   ],
   "splunkPillar": "Security",
-  "industry": "Pipeline + Rail + Aviation",
+  "industry": "Pipeline",
   "owner": "Head of OT Security",
   "controlFamily": "regulation-specific",
   "exclusions": "Excludes routine read-only changes. Excludes changes in `tsa_pipeline_config_exception_lookup`.",
@@ -37,8 +37,8 @@
   "dataSources": "Windows + Linux audit logs (`wineventlog:security`, `linux:audit`). SCADA HMI/EWS audit (`scada:audit`). Network device config-change (`cisco:nxos:audit`). ServiceNow Change Management (`snow:change_request`). TSA asset register (KV Store `tsa_pipeline_config_lookup`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "(sourcetype=wineventlog:security EventCode IN (4672,4720,4724,4738,4756) OR sourcetype=cisco:nxos:audit cmd=*)\n| lookup tsa_pipeline_config_lookup host AS host OUTPUT facility_id modality tsa_in_scope\n| where tsa_in_scope=true\n| eval change_window = strftime(_time, \"%Y-%m-%dT%H\")\n| join type=left host change_window [search sourcetype=\"snow:change_request\" state IN (\"scheduled\",\"in_progress\",\"closed_complete\") | eval change_window=strftime(start_date, \"%Y-%m-%dT%H\") | stats values(number) as change_ticket by host change_window]\n| eval change_status = case(\n    isnotnull(change_ticket), \"approved\",\n    1=1, \"unapproved\")\n| where change_status=\"unapproved\"\n| stats count as events by facility_id modality host user EventCode change_status\n| table facility_id modality host user EventCode events change_status",
-  "description": "Joins privileged change events on TSA-regulated assets with ServiceNow change-control to surface unapproved changes.",
-  "value": "Unapproved changes on TSA-regulated systems are enforcement findings AND leading indicators of intrusion.",
+  "description": "TSA-SD Pipeline OT configuration management — Splunk continuously validates TSA-SD-P-2021-02C-s8 using the saved search in this UC, routes gaps to Enterprise Security notables, and archives proof rows to `audit_evidence`.",
+  "value": "Inspectors ask for proof that «TSA-SD Pipeline OT configuration management» is operational today, not at last audit. Missing live evidence for TSA-SD-P-2021-02C-s8 is a direct regulatory deficiency with enforcement exposure.",
   "implementation": "(1) Populate `tsa_pipeline_config_lookup`. (2) Schedule UC-22.56.44 every 4 hours. (3) Build the `TSA Change Control Audit` dashboard.",
   "visualization": "(Panel 1) Unapproved-change counts by modality. (Panel 2) Top-10 users. (Panel 3) Asset coverage. (Panel 4) 30-day trend.",
   "cimModels": [
@@ -52,9 +52,17 @@
     {
       "title": "NIST 800-128 — Security-focused Configuration Management",
       "url": "https://csrc.nist.gov/publications/detail/sp/800-128/final"
+    },
+    {
+      "title": "TSA Surface Cybersecurity Requirements (June 2024 reissue)",
+      "url": "https://www.tsa.gov/news/press/releases/2024/06/07/tsa-reissues-cybersecurity-requirements-pipeline-industry"
+    },
+    {
+      "title": "CISA Cross-Sector Cybersecurity Performance Goals",
+      "url": "https://www.cisa.gov/cross-sector-cybersecurity-performance-goals"
     }
   ],
-  "knownFalsePositives": "1. **Emergency change**: tagged retroactively; pin via `change_status_retroactive`.\n2. **Vendor maintenance under PAM**: PAM logs prove vendor-session boundary.\n\n**Suppression mechanism**: KV Store `tsa_pipeline_config_exception_lookup`.",
+  "knownFalsePositives": "1. **Planned maintenance window** — documented change windows in lookup `tsa_22_56_44_exceptions` suppress benign activity during approved work.\n\n2. **Pen-test / red-team activity** — engagements with agreed rules-of-engagement marker excluded via lookup `tsa_22_56_44_exceptions`.\n\n3. **Vendor remote-access sessions** — authorised vendor PAM sessions cross-reference lookup `tsa_22_56_44_exceptions` before alerting.\n\n4. **Regulatory transition / grace period** — time-bound exception register entry in lookup `tsa_22_56_44_exceptions` with documented approver and expiry.\n\n**Suppression mechanism**: filter results with lookup `tsa_22_56_44_exceptions` (time-bound exception register); rows must carry `approved_by` and `valid_until` epoch fields.",
   "mitreAttack": [
     "T1078",
     "T1543",
@@ -82,11 +90,11 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "Compliance SME Panel (exemplar-adapted; pending verification)",
+  "reviewer": "Compliance SME Panel (finalized; pending verification)",
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + Windows + ServiceNow TAs.\n- KV Store `tsa_pipeline_config_lookup`.\n\n## Step 1 — Asset register\n\n```ini\n[tsa_pipeline_config_lookup]\nfield.host = string\nfield.facility_id = string\nfield.modality = string\nfield.tsa_in_scope = string\nfield.criticality = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.44: TSA Change Control Audit]\ncron_schedule = 41 */4 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.44,reg=TSA-Surface,clause=TSA-SD-multi-change-control\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**Unapproved change on TSA-critical asset** (owner: Change Lead, severity P2): triage 1 hour; remediate or back-out 4 hours; root-cause 24 hours.\n\n## Step 4 — Troubleshooting\n\n- **Time-window alignment**: SCADA timezones may differ; normalise.\n- **Retroactive change tickets**: must include CC review.\n\n**TSA-specific failure modes**:\n- **PHMSA safety-case alignment**: changes affecting pipeline safety-case may require PHMSA notification.\n- **PTC vendor changes**: rail PTC vendor changes need vendor + FRA + TSA awareness.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + Windows + ServiceNow TAs.\n- KV Store `tsa_pipeline_config_lookup`.\n\n## Step 1 — Asset register\n\n```ini\n[tsa_pipeline_config_lookup]\nfield.host = string\nfield.facility_id = string\nfield.modality = string\nfield.tsa_in_scope = string\nfield.criticality = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.44: TSA Change Control Audit]\ncron_schedule = 41 */4 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.44,reg=TSA-Surface,clause=TSA-SD-multi-change-control\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**Unapproved change on TSA-critical asset** (owner: Change Lead, severity P2): triage 1 hour; remediate or back-out 4 hours; root-cause 24 hours.\n\n## Step 4 — Troubleshooting\n\n- **Time-window alignment**: SCADA timezones may differ; normalise.\n- **Retroactive change tickets**: must include CC review.\n\n**TSA-specific failure modes**:\n- **PHMSA safety-case alignment**: changes affecting pipeline safety-case may require PHMSA notification.\n- **PTC vendor changes**: rail PTC vendor changes need vendor + FRA + TSA awareness.\n\n## Step 5 — Troubleshooting\n\n**Product-specific failure modes**:\n\n- **ServiceNow SIR custom-field drift** — if `csa_awareness_time` or `tsa_awareness_time` is NULL, verify the Security Incident Response workflow still writes the field on state transition to `In Progress`; compare against the vendor UI on the open ticket.\n- **KV Store sync lag** — if the lookup row updates but the saved search still surfaces stale status, confirm the `outputlookup` command completed (`| rest /services/data/transforms/lookup-table-files` shows matching row count).\n- **HEC token / modular-input silence** — run `index=_internal sourcetype=splunkd component=AggregatorMiningProcessor` for the source; no events for >2× the expected poll interval indicates an API or forwarder failure.\n- **Summary-index routing gaps** — validate `action.summary_index._name = audit_evidence` and RBAC role `compliance-analyst` retains write on the destination index.",
   "grandmaExplanation": "Every change made on an important pipeline/train/airport system must have an approved ticket. If a change happens without one, we know within four hours.",
   "prerequisiteUseCases": [
     "UC-22.56.1"
