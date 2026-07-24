@@ -1,0 +1,78 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.10.99",
+  "title": "CO2 Recovery Time After Occupancy",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Physical",
+    "Analytics"
+  ],
+  "splunkPillar": "Platform",
+  "exclusions": "Covers personal hobby monitoring for 'CO2 Recovery Time After Occupancy' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_co2_recovery_time_after_occupancy` (UC-25.10.99), SOC dashboard panel \"Personal — CO2 Recovery Time After Occupancy\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.10.99 positive (CO2, Recovery, Time, After, Occupancy): ingest synthetic events into `index=personal` sourcetype='airgradient:sensor' where `avg_recovery_min`, `max_recovery_min` grouped by `room` satisfies `avg_recovery_min` > 45, or `max_recovery_min` > 90 for 'CO2 Recovery Time After Occupancy'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.10.99 negative (After Occupancy): ingest benign `personal` / `airgradient:sensor` events where `room` stays below `avg_recovery_min` > 45, or `max_recovery_min` > 90, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 12 confirms zero alert rows for 'CO2 Recovery Time After Occupancy'."
+  },
+  "dataSources": "Citizen-science telemetry (`seismo:reading`, `geiger:cpm`, `lightning:strike`, `airgradient:sensor`, `radon:reading`, `allsky:capture`, `magnetometer:reading`, `weatherstation:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Raspberry Shake, Safecast, Blitzortung-compatible lightning sensors, AirGradient CO2 sensors, radon monitors, allsky cameras, and magnetometers streamed to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=airgradient:sensor\n| stats avg(recovery_min) as avg_recovery_min, max(recovery_min) as max_recovery_min by room\n| where avg_recovery_min>45 OR max_recovery_min>90\n| sort - avg_recovery_min",
+  "description": "Detects UC-25.10.99 — CO2, Recovery, Time, After, Occupancy — using `index=personal` sourcetype `airgradient:sensor`, grouped by `room`. Outputs `avg_recovery_min`, `max_recovery_min` each `the scheduled window`; alert when `avg_recovery_min` > 45, or `max_recovery_min` > 90. Primary focus: After Occupancy. Purpose-built for 'CO2 Recovery Time After Occupancy' in Personal workflows.",
+  "value": "Tracking `avg_recovery_min`, `max_recovery_min` via UC-25.10.99 on `airgradient:sensor` feeds improves response to 'CO2 Recovery Time After Occupancy' and reduces missed training goals, stale hobby data, and connector failures.",
+  "implementation": "Ingest AirGradient room telemetry data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
+  "visualization": "Room table of average and max CO2 recovery time.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Raspberry Shake",
+      "url": "https://raspberryshake.org/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Safecast",
+      "url": "https://safecast.org/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Blitzortung",
+      "url": "https://www.blitzortung.org/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "AirGradient documentation",
+      "url": "https://www.airgradient.com/documentation/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Allsky",
+      "url": "https://github.com/AllSkyCamera/allsky",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "RadonEye",
+      "url": "https://radonftlab.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.10.99)** — Connector for 'CO2 Recovery Time After Occupancy' stops polling `airgradient:sensor`; stale `avg_recovery_min`, `max_recovery_min` on `room` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_recovery_min`, `max_recovery_min` over `1w` is expected for UC-25.10.99, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `airgradient:sensor`. Dedup with `stats latest(*) by room`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `avg_recovery_min` > 45 for 'CO2 Recovery Time After Occupancy'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "mqtt"
+  ],
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Citizen Science & Backyard Sensing — typical feeds: Seismograph (`seismo:reading`), Geiger counter (`geiger:cpm`), lightning strikes (`lightning:strike`), radon (`radon:reading`), all-sky meteor camera (`allsky:capture`), river-level gauge (`riverlevel.\n• **Sourcetypes in this search**: `airgradient:sensor`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=airgradient:sensor`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** DIY citizen-science sensors — Raspberry Shake seismograph, Geiger counter, AS3935/Blitzortung lightning detector, radon monitor, all-sky meteor camera, river-level gauge, and magnetometer — via MQTT and scripted inputs to Splunk HEC..\n\n**Author notes:** Ingest AirGradient room telemetry data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"airgradient:sensor\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=airgradient:sensor earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **CO2 Recovery Time After Occupancy** over `personal` data (primarily `sourcetype=airgradient:sensor`) across the full search range. It applies numeric thresholds on `avg_recovery_min` (> 45) after avg, max — tune these constants to your household baseline.\n\n**Fields this search depends on:** `avg_recovery_min`, `max_recovery_min`, `room`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=airgradient:sensor\n| stats avg(recovery_min) as avg_recovery_min, max(recovery_min) as max_recovery_min by room\n| where avg_recovery_min>45 OR max_recovery_min>90\n| sort - avg_recovery_min\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=airgradient:sensor earliest=-7d\n| head 50\n| table avg_recovery_min, max_recovery_min, room\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=airgradient:sensor earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `avg_recovery_min` before alerting:\n\n```spl\nindex=personal sourcetype=airgradient:sensor earliest=-30d\n| stats perc50(avg_recovery_min) AS p50 perc90(avg_recovery_min) AS p90 perc99(avg_recovery_min) AS p99 max(avg_recovery_min) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.10.99: Personal evidence` with the following panel layout:\n\n**Panel 1 — Room Table Of Average And Max Co2 Recovery Time (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `airgradient:sensor` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=airgradient:sensor | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It celebrates how quickly rooms recover after people leave so you can spot spaces that ventilate too slowly after occupancy before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

@@ -1,0 +1,68 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.10.203",
+  "title": "Philips Hue Grow Light Cycle Sync Gap Watch",
+  "criticality": "low",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Availability",
+    "Data Quality"
+  ],
+  "splunkPillar": "Platform",
+  "exclusions": "Covers personal hobby monitoring for 'Philips Hue Grow Light Cycle Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_philips_hue_grow_light_cycle_sync_gap_watch` (UC-25.10.203), SOC dashboard panel \"Personal — Philips Hue Grow Light Cycle Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.10.203 positive (Philips, Hue, Grow, Light, Cycle): ingest synthetic events into `index=personal` sourcetype='hue:event' where `last_seen` grouped by `zone_name` satisfies `hours_since` > 24 for 'Philips Hue Grow Light Cycle Sync Gap Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.10.203 negative (Gap Watch): ingest benign `personal` / `hue:event` events where `zone_name` stays below `hours_since` > 24, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 12 confirms zero alert rows for 'Philips Hue Grow Light Cycle Sync Gap Watch'."
+  },
+  "dataSources": "Planta plant care events (`planta:plant`), Govee soil readings (`govee:soil`), Philips Hue grow-light cycles (`hue:event`), and SensorPush dome climate (`sensorpush:climate`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Planta reminders, Govee soil sensors, Philips Hue grow-light schedules, and SensorPush humidity-dome readings streamed into Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=hue:event\n| stats max(_time) as last_seen by zone_name\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>24\n| sort - hours_since",
+  "description": "Alerts on UC-25.10.203 — Philips, Hue, Grow, Light, Cycle — using `index=personal` sourcetype `hue:event`, grouped by `zone_name`. Outputs `last_seen` each `the scheduled window`; alert when `hours_since` > 24. Primary focus: Gap Watch. Purpose-built for 'Philips Hue Grow Light Cycle Sync Gap Watch' in Personal workflows.",
+  "value": "Tracking `last_seen` via UC-25.10.203 on `hue:event` feeds improves response to 'Philips Hue Grow Light Cycle Sync Gap Watch' and reduces missed training goals, stale hobby data, and connector failures.",
+  "implementation": "Track the latest event time per zone name and alert when the feed is older than 24 hours.",
+  "visualization": "Table of entities by hours since last event.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Planta",
+      "url": "https://getplanta.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Govee Developer API",
+      "url": "https://developer.govee.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Philips Hue API",
+      "url": "https://developers.meethue.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "SensorPush",
+      "url": "https://www.sensorpush.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.10.203)** — Connector for 'Philips Hue Grow Light Cycle Sync Gap Watch' stops polling `hue:event`; stale `last_seen` on `zone_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.10.203, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `hue:event`. Dedup with `stats latest(*) by zone_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 24 for 'Philips Hue Grow Light Cycle Sync Gap Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Philips Hue — Hue API poll or Zigbee2MQTT → HEC.\n• **Subcategory context**: Houseplants & Indoor Jungle — typical feeds: Planta plant care events (`planta:plant`), Govee soil readings (`govee:soil`), Philips Hue grow-light cycles (`hue:event`), and SensorPush dome climate (`sensorpush:climate`)..\n• **Sourcetypes in this search**: `hue:event`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Philips Hue** events into `index=personal` with `sourcetype=hue:event`.\n\n**Collection method:** Hue API poll or Zigbee2MQTT → HEC.\n\n**Reference endpoint / path:** `GET /api/<username>/events or MQTT zigbee2mqtt/#`.\n\n**Suggested poll interval:** 60s.\n\n**Key fields to extract:** `device_name, state, brightness, color_temp`.\n\n**Typical connector stack:** Planta reminders, Govee soil sensors, Philips Hue grow-light schedules, and SensorPush humidity-dome readings streamed into Splunk..\n\n**Author notes:** Track the latest event time per zone name and alert when the feed is older than 24 hours.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"hue:event\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=hue:event earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Philips Hue Grow Light Cycle Sync Gap Watch** over `personal` data (primarily `sourcetype=hue:event`) across the full search range. It applies numeric thresholds on `hours_since` (> 24) after max — tune these constants to your household baseline.\n\n**Fields this search depends on:** `hours_since`, `zone_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=hue:event\n| stats max(_time) as last_seen by zone_name\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>24\n| sort - hours_since\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Hue app → Rooms → device state. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=hue:event earliest=-7d\n| head 50\n| table hours_since, zone_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=hue:event earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `hours_since` before alerting:\n\n```spl\nindex=personal sourcetype=hue:event earliest=-30d\n| stats perc50(hours_since) AS p50 perc90(hours_since) AS p90 perc99(hours_since) AS p99 max(hours_since) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.10.203: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Entities By Hours Since Last Event (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Philips Hue — no Philips Hue events / missing fields:** If `hue:event` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Philips Hue connector script is still running (`systemctl status` or cron log).\n\n**Philips Hue — NULL values in extracted fields:** The Philips Hue JSON export shape drifted — compare a raw event (`index=personal sourcetype=hue:event | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Philips Hue — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Philips Hue — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Philips Hue APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It monitors when one part of your Philips Hue grow light cycle feed has stopped checking in and probably needs fixing.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

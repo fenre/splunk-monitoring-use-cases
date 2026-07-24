@@ -1,0 +1,62 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.10.131",
+  "title": "Backyard Bird Species Diversity",
+  "criticality": "low",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Analytics"
+  ],
+  "splunkPillar": "Platform",
+  "exclusions": "Covers personal hobby monitoring for 'Backyard Bird Species Diversity' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_backyard_bird_species_diversity` (UC-25.10.131), SOC dashboard panel \"Personal — Backyard Bird Species Diversity\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.10.131 positive (Backyard, Bird, Species, Diversity): ingest synthetic events into `index=personal` sourcetype='birdnet:detection' where `species` grouped by `_time` satisfies `confidence` > 0.7 for 'Backyard Bird Species Diversity'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.10.131 negative (Species Diversity): ingest benign `personal` / `birdnet:detection` events where `_time` stays below `confidence` > 0.7, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 11 confirms zero alert rows for 'Backyard Bird Species Diversity'."
+  },
+  "dataSources": "BirdNET detections (`birdnet:detection`), trail-cam detections (`trailcam:detection`), moth-trap captures (`mothtrap:capture`), bat-detector passes (`batdetector:pass`), pollinator counts (`pollinator:count`), wildlife-cam visits (`wildlifecam:visit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Backyard wildlife monitoring — BirdNET acoustic bird ID, trail cameras with object detection, camera moth traps, ultrasonic bat detectors, and pollinator counts — streamed to Splunk HEC via MQTT and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=birdnet:detection confidence>0.7\n| bin _time span=1d\n| stats dc(species) as species, count as calls by _time\n| sort - _time",
+  "description": "Identifies UC-25.10.131 — Backyard, Bird, Species, Diversity — using `index=personal` sourcetype `birdnet:detection`, grouped by `_time`. Outputs `species` each `1d`; alert when `confidence` > 0.7. Primary focus: Species Diversity. Purpose-built for 'Backyard Bird Species Diversity' in Personal workflows.",
+  "value": "UC-25.10.131 helps teams contain Backyard, Bird, Species, Diversity scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
+  "implementation": "Feed BirdNET detections into `index=personal`; schedule daily and count distinct species heard.",
+  "visualization": "Column chart of daily species diversity with call counts.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "BirdNET — acoustic bird identification",
+      "url": "https://birdnet.cornell.edu/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.10.131)** — Connector for 'Backyard Bird Species Diversity' stops polling `birdnet:detection`; stale `species` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `species` over `1d` is expected for UC-25.10.131, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `birdnet:detection`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `confidence` > 0.7 for 'Backyard Bird Species Diversity'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "mqtt"
+  ],
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Wildlife & Biodiversity — typical feeds: BirdNET detections (`birdnet:detection`), trail-cam detections (`trailcam:detection`), moth-trap captures (`mothtrap:capture`), bat-detector passes (`batdetector:pass`), pollinator counts (`pollinator.\n• **Sourcetypes in this search**: `birdnet:detection`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=birdnet:detection`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Backyard wildlife monitoring — BirdNET acoustic bird ID, trail cameras with object detection, camera moth traps, ultrasonic bat detectors, and pollinator counts — via MQTT and scripted inputs..\n\n**Author notes:** Feed BirdNET detections into `index=personal`; schedule daily and count distinct species heard.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"birdnet:detection\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=birdnet:detection earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Backyard Bird Species Diversity** over `personal` data (primarily `sourcetype=birdnet:detection`) across the full search range. It applies numeric thresholds on `confidence` (> 0.7) after dc — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `confidence`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=birdnet:detection confidence>0.7\n| bin _time span=1d\n| stats dc(species) as species, count as calls by _time\n| sort - _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=birdnet:detection earliest=-7d\n| head 50\n| table _time, confidence\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=birdnet:detection earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `confidence` before alerting:\n\n```spl\nindex=personal sourcetype=birdnet:detection earliest=-30d\n| stats perc50(confidence) AS p50 perc90(confidence) AS p90 perc99(confidence) AS p99 max(confidence) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.10.131: Personal evidence` with the following panel layout:\n\n**Panel 1 — Column Chart Of Daily Species Diversity With Call Counts (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `birdnet:detection` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=birdnet:detection | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It counts how many different kinds of birds your microphone hears each day, tracking the wildlife in your garden.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

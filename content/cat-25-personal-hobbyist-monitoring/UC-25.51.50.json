@@ -1,0 +1,63 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.51.50",
+  "title": "Refill Gap Before Supply Runs Out",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Operations",
+    "Patient Safety"
+  ],
+  "splunkPillar": "Platform",
+  "exclusions": "Covers personal hobby monitoring for 'Refill Gap Before Supply Runs Out' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_refill_gap_before_supply_runs_out` (UC-25.51.50), SOC dashboard panel \"Personal — Refill Gap Before Supply Runs Out\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.51.50 positive (Refill, Gap, Before, Supply, Runs): ingest synthetic events into `index=personal` sourcetype='cvs:refill' where `count` grouped by `entity` satisfies `days_remaining` <= 3 for 'Refill Gap Before Supply Runs Out'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.51.50 negative (Runs Out): ingest benign `personal` / `cvs:refill` events where `entity` stays below `days_remaining` <= 3, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 0 confirms zero alert rows for 'Refill Gap Before Supply Runs Out'."
+  },
+  "dataSources": "GoodRx prices (`goodrx:price`), CVS refills (`cvs:refill`), pharmacy pickups (`pharmacy:pickup`), and prescription adherence logs (`prescription:adherence`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "GoodRx price lookups, CVS refill confirmations, pharmacy pickup logs, and prescription adherence trackers streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=cvs:refill days_supply=* days_since_fill=* refill_status=*\n| eval days_remaining=days_supply-days_since_fill\n| where days_remaining<=3 AND refill_status!=\"filled\"\n| sort days_remaining\n| table drug_name days_remaining days_supply refill_status",
+  "description": "Monitors 'Refill Gap Before Supply Runs Out' (UC-25.51.50) using `index=personal` sourcetype `cvs:refill` by aggregating `count` grouped by `entity` over `the scheduled window` and alerting when `days_remaining` <= 3. Keywords: Refill, Gap, Before, Supply, Runs. Focuses on Runs Out behaviour so personal teams can triage UC-25.51.50 without ad-hoc log review.",
+  "value": "UC-25.51.50 accelerates insight into Runs Out ('Refill Gap Before Supply Runs Out') by tracking `activity` on `cvs:refill` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
+  "implementation": "Track `days_supply` and `days_since_fill` on each refill event and alert before the three-day window.",
+  "visualization": "Table of drugs sorted by days remaining.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "GoodRx API",
+      "url": "https://www.goodrx.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CVS Pharmacy",
+      "url": "https://www.cvs.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.51.50)** — Connector for 'Refill Gap Before Supply Runs Out' stops polling `cvs:refill`; stale `count` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.51.50, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `cvs:refill`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_remaining` <= 3 for 'Refill Gap Before Supply Runs Out'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "snmp"
+  ],
+  "equipmentModels": [
+    "snmp_ups"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Pharmacy & Prescriptions — typical feeds: GoodRx prices (`goodrx:price`), CVS refills (`cvs:refill`), pharmacy pickups (`pharmacy:pickup`), and prescription adherence logs (`prescription:adherence`)..\n• **Sourcetypes in this search**: `cvs:refill`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=cvs:refill`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** GoodRx price lookups, CVS refill confirmations, pharmacy pickup logs, and prescription adherence trackers streamed into Splunk HEC..\n\n**Author notes:** Track `days_supply` and `days_since_fill` on each refill event and alert before the three-day window.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"cvs:refill\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=cvs:refill earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Refill Gap Before Supply Runs Out** over `personal` data (primarily `sourcetype=cvs:refill`) across the full search range. It applies numeric thresholds on `days_remaining` (<= 3) after aggregation — tune these constants to your household baseline.\n\n**Fields this search depends on:** `days_remaining`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=cvs:refill days_supply=* days_since_fill=* refill_status=*\n| eval days_remaining=days_supply-days_since_fill\n| where days_remaining<=3 AND refill_status!=\"filled\"\n| sort days_remaining\n| table drug_name days_remaining days_supply refill_status\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=cvs:refill earliest=-7d\n| head 50\n| table days_remaining\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=cvs:refill earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `days_remaining` before alerting:\n\n```spl\nindex=personal sourcetype=cvs:refill earliest=-30d\n| stats perc50(days_remaining) AS p50 perc90(days_remaining) AS p90 perc99(days_remaining) AS p99 max(days_remaining) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.51.50: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Drugs Sorted By Days Remaining (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `cvs:refill` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=cvs:refill | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It watches prescriptions about to run out before your next refill is ready.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

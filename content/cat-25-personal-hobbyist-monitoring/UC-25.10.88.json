@@ -1,0 +1,62 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.10.88",
+  "title": "Lightning Distance Histogram by Storm",
+  "criticality": "low",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Analytics"
+  ],
+  "splunkPillar": "Platform",
+  "exclusions": "Covers personal hobby monitoring for 'Lightning Distance Histogram by Storm' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_lightning_distance_histogram_by_storm` (UC-25.10.88), SOC dashboard panel \"Personal — Lightning Distance Histogram by Storm\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.10.88 positive (Lightning, Distance, Histogram, Storm): ingest synthetic events into `index=personal` sourcetype='lightning:strike' where `count` grouped by `storm_id`, `distance_bucket_km` satisfies detection threshold for 'Lightning Distance Histogram by Storm'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.10.88 negative (by Storm): ingest benign `personal` / `lightning:strike` events where `storm_id`, `distance_bucket_km` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 7 confirms zero alert rows for 'Lightning Distance Histogram by Storm'."
+  },
+  "dataSources": "Seismograph events (`seismograph:event`), seismic noise (`seismograph:noise`), air quality (`airquality:reading`), radiation counts (`radiation:count`), lightning strikes (`lightning:strike`), phenology observations (`phenology:observation`), and weather-station rainfall (`weatherstation:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Citizen-science telemetry from seismographs, weather stations, air-quality monitors, Geiger counters, lightning feeds, and phenology journals streamed to Splunk HEC via MQTT, APIs, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=lightning:strike\n| eval distance_bucket_km=ceil(distance_km/5)*5\n| stats count as strikes by storm_id distance_bucket_km\n| sort storm_id distance_bucket_km",
+  "description": "Alerts on UC-25.10.88 — Lightning, Distance, Histogram, Storm — using `index=personal` sourcetype `lightning:strike`, grouped by `storm_id`, `distance_bucket_km`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: by Storm. Purpose-built for 'Lightning Distance Histogram by Storm' in Personal workflows.",
+  "value": "UC-25.10.88 operationalises 'Lightning Distance Histogram by Storm' against `lightning:strike` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
+  "implementation": "Capture strike distance and a storm identifier from Blitzortung or your lightning sensor integration.",
+  "visualization": "Histogram of strike counts by distance bucket for each storm.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Raspberry Shake - citizen seismograph",
+      "url": "https://raspberryshake.org/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Safecast - open radiation data",
+      "url": "https://api.safecast.org/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.10.88)** — Connector for 'Lightning Distance Histogram by Storm' stops polling `lightning:strike`; stale `count` on `storm_id`, `distance_bucket_km` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.10.88, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lightning:strike`. Dedup with `stats latest(*) by storm_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Lightning Distance Histogram by Storm'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "mqtt"
+  ],
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Citizen Science & Backyard Sensing — typical feeds: Seismograph (`seismo:reading`), Geiger counter (`geiger:cpm`), lightning strikes (`lightning:strike`), radon (`radon:reading`), all-sky meteor camera (`allsky:capture`), river-level gauge (`riverlevel.\n• **Sourcetypes in this search**: `lightning:strike`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=lightning:strike`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** DIY citizen-science sensors — Raspberry Shake seismograph, Geiger counter, AS3935/Blitzortung lightning detector, radon monitor, all-sky meteor camera, river-level gauge, and magnetometer — via MQTT and scripted inputs to Splunk HEC..\n\n**Author notes:** Capture strike distance and a storm identifier from Blitzortung or your lightning sensor integration.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"lightning:strike\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=lightning:strike earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Lightning Distance Histogram by Storm** over `personal` data (primarily `sourcetype=lightning:strike`) across the full search range. The `aggregation` aggregation groups by `storm_id`, `distance_bucket_km`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `distance_bucket_km`, `storm_id`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=lightning:strike\n| eval distance_bucket_km=ceil(distance_km/5)*5\n| stats count as strikes by storm_id distance_bucket_km\n| sort storm_id distance_bucket_km\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=lightning:strike earliest=-7d\n| head 50\n| table distance_bucket_km, storm_id\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=lightning:strike earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.10.88: Personal evidence` with the following panel layout:\n\n**Panel 1 — Histogram Of Strike Counts By Distance Bucket For Each Storm (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `lightning:strike` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=lightning:strike | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It compares how close each storm's lightning usually got, so nearby storms are easier to compare.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

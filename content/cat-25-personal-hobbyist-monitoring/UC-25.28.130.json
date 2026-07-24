@@ -1,0 +1,63 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.28.130",
+  "title": "Racket Session Duration Import Freshness Gap",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Availability",
+    "Data Quality"
+  ],
+  "splunkPillar": "Platform",
+  "exclusions": "Covers personal hobby monitoring for 'Racket Session Duration Import Freshness Gap' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_racket_session_duration_import_freshness_gap` (UC-25.28.130), SOC dashboard panel \"Personal — Racket Session Duration Import Freshness Gap\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.28.130 positive (Racket, Session, Duration, Import, Freshness): ingest synthetic events into `index=personal` sourcetype='racket:session' where `last_seen` grouped by `player` satisfies `hours_since` > 72 for 'Racket Session Duration Import Freshness Gap'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.28.130 negative (Freshness Gap): ingest benign `personal` / `racket:session` events where `player` stays below `hours_since` > 72, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 9 confirms zero alert rows for 'Racket Session Duration Import Freshness Gap'."
+  },
+  "dataSources": "SwingVision sessions (`swingvision:session`), UTR rating history (`utr:rating`), racket-sport sessions (`racket:session`), stringing and maintenance events (`stringing:service`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "SwingVision match video analytics, UTR rating snapshots, court-session logs, and racket stringing reminders streamed to Splunk HEC via APIs, CSV exports, and mobile forms. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=racket:session\n| stats max(_time) as last_seen by player\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>72\n| sort - hours_since",
+  "description": "Monitors UC-25.28.130 — Racket, Session, Duration, Import, Freshness — using `index=personal` sourcetype `racket:session`, grouped by `player`. Outputs `last_seen` each `the scheduled window`; alert when `hours_since` > 72. Primary focus: Freshness Gap. Purpose-built for 'Racket Session Duration Import Freshness Gap' in Personal workflows.",
+  "value": "Operators running UC-25.28.130 on `racket:session` feeds shorten triage for Freshness Gap tied to 'Racket Session Duration Import Freshness Gap', lowering missed training goals, stale hobby data, and connector failures.",
+  "implementation": "Review this at least daily and tune the freshness threshold to the normal cadence of the underlying app or export job.",
+  "visualization": "Table of player values by hours since the last racket session duration event.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "SwingVision",
+      "url": "https://swing.vision/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "UTR Sports",
+      "url": "https://www.utrsports.net/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "USA Pickleball",
+      "url": "https://usapickleball.org/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.28.130)** — Connector for 'Racket Session Duration Import Freshness Gap' stops polling `racket:session`; stale `last_seen` on `player` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.28.130, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `racket:session`. Dedup with `stats latest(*) by player`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 72 for 'Racket Session Duration Import Freshness Gap'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Tennis, Pickleball & Racket Sports — typical feeds: SwingVision sessions (`swingvision:session`), UTR rating history (`utr:rating`), racket-sport sessions (`racket:session`), stringing and maintenance events (`stringing:service`)..\n• **Sourcetypes in this search**: `racket:session`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=racket:session`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** SwingVision match video analytics, UTR rating snapshots, court-session logs, and racket stringing reminders streamed to Splunk HEC via APIs, CSV exports, and mobile forms..\n\n**Author notes:** Review this at least daily and tune the freshness threshold to the normal cadence of the underlying app or export job.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"racket:session\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=racket:session earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Racket Session Duration Import Freshness Gap** over `personal` data (primarily `sourcetype=racket:session`) across the full search range. It applies numeric thresholds on `hours_since` (> 72) after max — tune these constants to your household baseline.\n\n**Fields this search depends on:** `hours_since`, `player`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=racket:session\n| stats max(_time) as last_seen by player\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>72\n| sort - hours_since\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=racket:session earliest=-7d\n| head 50\n| table hours_since, player\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=racket:session earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `hours_since` before alerting:\n\n```spl\nindex=personal sourcetype=racket:session earliest=-30d\n| stats perc50(hours_since) AS p50 perc90(hours_since) AS p90 perc99(hours_since) AS p99 max(hours_since) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.28.130: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Player Values By Hours Since The Last Racket Session Duration Event (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `racket:session` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=racket:session | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It reminds when data for racket session duration has stopped arriving and probably needs a sync check.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

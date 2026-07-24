@@ -1,0 +1,62 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.51.87",
+  "title": "Cvs Metric1 Weekend vs Weekday Split",
+  "criticality": "low",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Analytics"
+  ],
+  "splunkPillar": "Platform",
+  "exclusions": "Covers personal hobby monitoring for 'Cvs Metric1 Weekend vs Weekday Split' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_cvs_metric1_weekend_vs_weekday_split` (UC-25.51.87), SOC dashboard panel \"Personal — Cvs Metric1 Weekend vs Weekday Split\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.51.87 positive (Cvs, Metric1, Weekend, Weekday, Split): ingest synthetic events into `index=personal` sourcetype='cvs:metric1' where `avg_value` grouped by `bucket` satisfies `dow` >= 6 for 'Cvs Metric1 Weekend vs Weekday Split'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.51.87 negative (Weekday Split): ingest benign `personal` / `cvs:metric1` events where `bucket` stays below `dow` >= 6, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 1 confirms zero alert rows for 'Cvs Metric1 Weekend vs Weekday Split'."
+  },
+  "dataSources": "GoodRx prices (`goodrx:price`), CVS refills (`cvs:refill`), pharmacy pickups (`pharmacy:pickup`), and prescription adherence logs (`prescription:adherence`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "GoodRx price lookups, CVS refill confirmations, pharmacy pickup logs, and prescription adherence trackers streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=cvs:metric1\n| eval dow=strftime(_time,\"%u\")\n| eval bucket=if(dow>=6,\"weekend\",\"weekday\")\n| stats count as events, avg(value) as avg_value by bucket",
+  "description": "Detects Weekday Split activity in UC-25.51.87 ('Cvs Metric1 Weekend vs Weekday Split') from `index=personal` sourcetype `cvs:metric1`. Rolls up `avg_value` by `bucket` across `the scheduled window` and pages when `dow` >= 6. Covers Cvs, Metric1, Weekend, Weekday, Split. Personal operators treat UC-25.51.87 as the canonical signal.",
+  "value": "Operators running UC-25.51.87 on `cvs:metric1` feeds shorten triage for Weekday Split tied to 'Cvs Metric1 Weekend vs Weekday Split', lowering missed training goals, stale hobby data, and connector failures.",
+  "implementation": "Tag cvs metric1 (1) events as weekend or weekday and compare volume and `value`.",
+  "visualization": "Side-by-side bar chart for weekend vs weekday.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk ES Content Management",
+      "url": "https://docs.splunk.com/Documentation/ES/latest/Admin/ContentManagement",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.51.87)** — Connector for 'Cvs Metric1 Weekend vs Weekday Split' stops polling `cvs:metric1`; stale `avg_value` on `bucket` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_value` over `1w` is expected for UC-25.51.87, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `cvs:metric1`. Dedup with `stats latest(*) by bucket`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `dow` >= 6 for 'Cvs Metric1 Weekend vs Weekday Split'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "snmp"
+  ],
+  "equipmentModels": [
+    "snmp_ups"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Pharmacy & Prescriptions — typical feeds: GoodRx prices (`goodrx:price`), CVS refills (`cvs:refill`), pharmacy pickups (`pharmacy:pickup`), and prescription adherence logs (`prescription:adherence`)..\n• **Sourcetypes in this search**: `cvs:metric1`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=cvs:metric1`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** GoodRx price lookups, CVS refill confirmations, pharmacy pickup logs, and prescription adherence trackers streamed into Splunk HEC..\n\n**Author notes:** Tag cvs metric1 (1) events as weekend or weekday and compare volume and `value`.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"cvs:metric1\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=cvs:metric1 earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Cvs Metric1 Weekend vs Weekday Split** over `personal` data (primarily `sourcetype=cvs:metric1`) across the full search range. It applies numeric thresholds on `dow` (>= 6) after avg — tune these constants to your household baseline.\n\n**Fields this search depends on:** `bucket`, `dow`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=cvs:metric1\n| eval dow=strftime(_time,\"%u\")\n| eval bucket=if(dow>=6,\"weekend\",\"weekday\")\n| stats count as events, avg(value) as avg_value by bucket\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=cvs:metric1 earliest=-7d\n| head 50\n| table bucket, dow\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=cvs:metric1 earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `dow` before alerting:\n\n```spl\nindex=personal sourcetype=cvs:metric1 earliest=-30d\n| stats perc50(dow) AS p50 perc90(dow) AS p90 perc99(dow) AS p99 max(dow) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.51.87: Personal evidence` with the following panel layout:\n\n**Panel 1 — Side-By-Side Bar Chart For Weekend Vs Weekday (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `cvs:metric1` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=cvs:metric1 | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It gives you whether your cvs metric1 (1) activity looks different on weekends compared with weekdays.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

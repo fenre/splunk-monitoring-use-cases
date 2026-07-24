@@ -1,0 +1,65 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.4.267",
+  "title": "HomeKit Secure Video Sync Gap Watch",
+  "criticality": "low",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Availability",
+    "Data Quality"
+  ],
+  "splunkPillar": "Platform",
+  "exclusions": "Covers personal hobby monitoring for 'HomeKit Secure Video Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_homekit_secure_video_sync_gap_watch` (UC-25.4.267), SOC dashboard panel \"Personal — HomeKit Secure Video Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.4.267 positive (HomeKit, Secure, Video, Sync, Gap): ingest synthetic events into `index=personal` sourcetype='homekit:securevideo' where `last_seen` grouped by `camera_name` satisfies `hours_since` > 1 for 'HomeKit Secure Video Sync Gap Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.4.267 negative (Gap Watch): ingest benign `personal` / `homekit:securevideo` events where `camera_name` stays below `hours_since` > 1, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 9 confirms zero alert rows for 'HomeKit Secure Video Sync Gap Watch'."
+  },
+  "dataSources": "NVR object-detection (`frigate:event`), camera health (`camera:health`), alarm arm/disarm and life-safety (`alarm:event`), lock access (`lock:access`), plate recognition (`plate:detection`), doorbell (`doorbell:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Frigate / Blue Iris NVR object-detection events, camera health, alarm and smart-lock logs, and licence-plate recognition via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=homekit:securevideo\n| stats max(_time) as last_seen by camera_name\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>1\n| sort - hours_since",
+  "description": "Monitors UC-25.4.267 — HomeKit, Secure, Video, Sync, Gap — using `index=personal` sourcetype `homekit:securevideo`, grouped by `camera_name`. Outputs `last_seen` each `the scheduled window`; alert when `hours_since` > 1. Primary focus: Gap Watch. Purpose-built for 'HomeKit Secure Video Sync Gap Watch' in Personal workflows.",
+  "value": "Operators running UC-25.4.267 on `homekit:securevideo` feeds shorten triage for Gap Watch tied to 'HomeKit Secure Video Sync Gap Watch', lowering missed training goals, stale hobby data, and connector failures.",
+  "implementation": "Track the latest event time per camera and alert when the feed is older than 1 hours.",
+  "visualization": "Table of entities by hours since last event.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk ES Content Management",
+      "url": "https://docs.splunk.com/Documentation/ES/latest/Admin/ContentManagement",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.4.267)** — Connector for 'HomeKit Secure Video Sync Gap Watch' stops polling `homekit:securevideo`; stale `last_seen` on `camera_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.4.267, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `homekit:securevideo`. Dedup with `stats latest(*) by camera_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 1 for 'HomeKit Secure Video Sync Gap Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "cctv",
+    "mqtt"
+  ],
+  "equipmentModels": [
+    "cctv_generic",
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Home Security & Surveillance — typical feeds: NVR object-detection (`frigate:event`), camera health (`camera:health`), alarm arm/disarm and life-safety (`alarm:event`), lock access (`lock:access`), plate recognition (`plate:detection`), doorbell .\n• **Sourcetypes in this search**: `homekit:securevideo`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=homekit:securevideo`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Frigate / Blue Iris NVR object-detection events, camera health, alarm and smart-lock logs, and licence-plate recognition via MQTT and Splunk HEC..\n\n**Author notes:** Track the latest event time per camera and alert when the feed is older than 1 hours.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"homekit:securevideo\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=homekit:securevideo earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **HomeKit Secure Video Sync Gap Watch** over `personal` data (primarily `sourcetype=homekit:securevideo`) across the full search range. It applies numeric thresholds on `hours_since` (> 1) after max — tune these constants to your household baseline.\n\n**Fields this search depends on:** `camera_name`, `hours_since`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=homekit:securevideo\n| stats max(_time) as last_seen by camera_name\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>1\n| sort - hours_since\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=homekit:securevideo earliest=-7d\n| head 50\n| table camera_name, hours_since\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=homekit:securevideo earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `hours_since` before alerting:\n\n```spl\nindex=personal sourcetype=homekit:securevideo earliest=-30d\n| stats perc50(hours_since) AS p50 perc90(hours_since) AS p90 perc99(hours_since) AS p99 max(hours_since) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.4.267: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Entities By Hours Since Last Event (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `homekit:securevideo` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=homekit:securevideo | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It quietly keeps when one part of your HomeKit Secure Video feed has stopped checking in and probably needs fixing.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

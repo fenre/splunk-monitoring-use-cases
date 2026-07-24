@@ -1,0 +1,62 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.15.86",
+  "title": "Brew-Fridge Compressor Duty Cycle",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Reliability"
+  ],
+  "splunkPillar": "Platform",
+  "exclusions": "Covers personal hobby monitoring for 'Brew-Fridge Compressor Duty Cycle' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_brew_fridge_compressor_duty_cycle` (UC-25.15.86), SOC dashboard panel \"Personal — Brew-Fridge Compressor Duty Cycle\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.15.86 positive (Brew, Fridge, Compressor, Duty, Cycle): ingest synthetic events into `index=personal` sourcetype='brewfridge:compressor' where `duty_cycle_pct` grouped by `fridge` satisfies `duty_cycle_pct` > 0 for 'Brew-Fridge Compressor Duty Cycle'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.15.86 negative (Duty Cycle): ingest benign `personal` / `brewfridge:compressor` events where `fridge` stays below `duty_cycle_pct` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 12 confirms zero alert rows for 'Brew-Fridge Compressor Duty Cycle'."
+  },
+  "dataSources": "Fermentation telemetry (`brew:fermentation`), brew-day records (`brew:batch`), mash probes (`brew:mash`), keg pressure (`kegerator:pressure`), tap pours (`kegerator:pour`), brew-fridge duty logs (`brewfridge:compressor`), cellar climate (`winecellar:reading`), and line-cleaning events (`tapline:clean`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Homebrewing telemetry from Tilt/iSpindel fermentation sensors, Brewfather batch exports, ESPHome mash and fridge probes, keg pressure sensors, tap flow meters, and cellar climate sensors streamed to Splunk HEC via MQTT and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=brewfridge:compressor\n| timechart span=1h avg(duty_cycle_pct) as duty_cycle_pct by fridge\n| where duty_cycle_pct>0",
+  "description": "Alerts on UC-25.15.86 — Brew, Fridge, Compressor, Duty, Cycle — using `index=personal` sourcetype `brewfridge:compressor`, grouped by `fridge`. Outputs `duty_cycle_pct` each `1h`; alert when `duty_cycle_pct` > 0. Primary focus: Duty Cycle. Purpose-built for 'Brew-Fridge Compressor Duty Cycle' in Personal workflows.",
+  "value": "Tracking `duty_cycle_pct` via UC-25.15.86 on `brewfridge:compressor` feeds improves response to 'Brew-Fridge Compressor Duty Cycle' and reduces missed training goals, stale hobby data, and connector failures.",
+  "implementation": "Log compressor on/off state or derived duty cycle from a smart plug controlling the brew fridge.",
+  "visualization": "Time chart of compressor duty cycle by fridge.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "iSpindel - DIY digital hydrometer",
+      "url": "https://www.ispindel.de/docs/README_en.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Brewfather - API",
+      "url": "https://api.brewfather.app/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.15.86)** — Connector for 'Brew-Fridge Compressor Duty Cycle' stops polling `brewfridge:compressor`; stale `duty_cycle_pct` on `fridge` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `duty_cycle_pct` over `1h` is expected for UC-25.15.86, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `brewfridge:compressor`. Dedup with `stats latest(*) by fridge`.\n\n4. **Timezone bucket misalignment** — `1h` bins on UTC vs local schedule skew `duty_cycle_pct` > 0 for 'Brew-Fridge Compressor Duty Cycle'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "mqtt"
+  ],
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Homebrewing, Beer & Wine — typical feeds: Fermentation gravity/temperature (`brew:fermentation`), kegerator pours (`kegerator:pour`), wine-cellar climate (`winecellar:reading`)..\n• **Sourcetypes in this search**: `brewfridge:compressor`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=brewfridge:compressor`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Fermentation sensors (Tilt/iSpindel hydrometer, temperature), kegerator flow meters and scales, and wine-cellar climate sensors via MQTT and Splunk HEC..\n\n**Author notes:** Log compressor on/off state or derived duty cycle from a smart plug controlling the brew fridge.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"brewfridge:compressor\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=brewfridge:compressor earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Brew-Fridge Compressor Duty Cycle** over `personal` data (primarily `sourcetype=brewfridge:compressor`) across the full search range. It applies numeric thresholds on `duty_cycle_pct` (> 0) after avg — tune these constants to your household baseline.\n\n**Fields this search depends on:** `duty_cycle_pct`, `fridge`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=brewfridge:compressor\n| timechart span=1h avg(duty_cycle_pct) as duty_cycle_pct by fridge\n| where duty_cycle_pct>0\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=brewfridge:compressor earliest=-7d\n| head 50\n| table duty_cycle_pct, fridge\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=brewfridge:compressor earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `duty_cycle_pct` before alerting:\n\n```spl\nindex=personal sourcetype=brewfridge:compressor earliest=-30d\n| stats perc50(duty_cycle_pct) AS p50 perc90(duty_cycle_pct) AS p90 perc99(duty_cycle_pct) AS p99 max(duty_cycle_pct) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.15.86: Personal evidence` with the following panel layout:\n\n**Panel 1 — Time Chart Of Compressor Duty Cycle By Fridge (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `brewfridge:compressor` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=brewfridge:compressor | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1h` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1h` buckets.",
+  "grandmaExplanation": "It ranks how hard the brewing fridge is working, which can warn you about trouble before it stops keeping beer cool.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

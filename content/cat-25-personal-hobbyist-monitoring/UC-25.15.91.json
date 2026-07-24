@@ -1,0 +1,68 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.15.91",
+  "title": "Tilt Temperature Calibration Bias",
+  "criticality": "low",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Quality",
+    "Performance"
+  ],
+  "splunkPillar": "Platform",
+  "exclusions": "Covers personal hobby monitoring for 'Tilt Temperature Calibration Bias' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_tilt_temperature_calibration_bias` (UC-25.15.91), SOC dashboard panel \"Personal — Tilt Temperature Calibration Bias\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.15.91 positive (Tilt, Temperature, Calibration, Bias): ingest synthetic events into `index=personal` sourcetype='tilt:hydrometer' where `tilt_temp_c`, `reference_temp_c` grouped by `color` satisfies detection threshold for 'Tilt Temperature Calibration Bias'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.15.91 negative (Calibration Bias): ingest benign `personal` / `tilt:hydrometer` events where `color` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 11 confirms zero alert rows for 'Tilt Temperature Calibration Bias'."
+  },
+  "dataSources": "Brewing telemetry (`brew:batch`, `brew:fermentation`, `brew:mash`, `tilt:hydrometer`, `ispindel:reading`, `kegerator:pressure`, `kegerator:pour`, `brewfridge:compressor`, `winecellar:reading`, `tapline:clean`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Brewfather batch exports, iSpindel and Tilt hydrometers, ESPHome mash probes, keg pressure sensors, brew-fridge telemetry, and cellar climate data via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=tilt:hydrometer\n| stats avg(temp_c) as tilt_temp_c, avg(reference_temp_c) as reference_temp_c by color\n| eval bias_c=round(tilt_temp_c-reference_temp_c,1)\n| where abs(bias_c)>0.5\n| sort bias_c",
+  "description": "Alerts on UC-25.15.91 — Tilt, Temperature, Calibration, Bias — using `index=personal` sourcetype `tilt:hydrometer`, grouped by `color`. Outputs `tilt_temp_c`, `reference_temp_c` each `the scheduled window`; alert when configured threshold. Primary focus: Calibration Bias. Purpose-built for 'Tilt Temperature Calibration Bias' in Personal workflows.",
+  "value": "UC-25.15.91 helps teams contain Tilt, Temperature, Calibration, Bias scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
+  "implementation": "Ingest Tilt hydrometer readings data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
+  "visualization": "Color table of Tilt temperature bias.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Brewfather API",
+      "url": "https://api.brewfather.app/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "iSpindel docs",
+      "url": "https://www.ispindel.de/docs/README_en.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Tilt Hydrometer",
+      "url": "https://tilthydrometer.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "ESPHome",
+      "url": "https://esphome.io/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.15.91)** — Connector for 'Tilt Temperature Calibration Bias' stops polling `tilt:hydrometer`; stale `tilt_temp_c`, `reference_temp_c` on `color` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `tilt_temp_c`, `reference_temp_c` over `1w` is expected for UC-25.15.91, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tilt:hydrometer`. Dedup with `stats latest(*) by color`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Tilt Temperature Calibration Bias'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "mqtt"
+  ],
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Homebrewing, Beer & Wine — typical feeds: Fermentation gravity/temperature (`brew:fermentation`), kegerator pours (`kegerator:pour`), wine-cellar climate (`winecellar:reading`)..\n• **Sourcetypes in this search**: `tilt:hydrometer`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=tilt:hydrometer`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Fermentation sensors (Tilt/iSpindel hydrometer, temperature), kegerator flow meters and scales, and wine-cellar climate sensors via MQTT and Splunk HEC..\n\n**Author notes:** Ingest Tilt hydrometer readings data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"tilt:hydrometer\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=tilt:hydrometer earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Tilt Temperature Calibration Bias** over `personal` data (primarily `sourcetype=tilt:hydrometer`) across the full search range. The `avg` aggregation groups by `color`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `color`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=tilt:hydrometer\n| stats avg(temp_c) as tilt_temp_c, avg(reference_temp_c) as reference_temp_c by color\n| eval bias_c=round(tilt_temp_c-reference_temp_c,1)\n| where abs(bias_c)>0.5\n| sort bias_c\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=tilt:hydrometer earliest=-7d\n| head 50\n| table color\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=tilt:hydrometer earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.15.91: Personal evidence` with the following panel layout:\n\n**Panel 1 — Color Table Of Tilt Temperature Bias (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `tilt:hydrometer` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=tilt:hydrometer | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It records temperature bias against a trusted reference probe so you can spot sensors that need recalibration before batch logs drift before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

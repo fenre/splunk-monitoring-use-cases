@@ -1,0 +1,62 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.13.95",
+  "title": "Source-to-Synthesis Lag",
+  "criticality": "low",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Analytics"
+  ],
+  "splunkPillar": "Platform",
+  "exclusions": "Covers personal hobby monitoring for 'Source-to-Synthesis Lag' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_source_to_synthesis_lag` (UC-25.13.95), SOC dashboard panel \"Personal — Source-to-Synthesis Lag\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.13.95 positive (Source, Synthesis, Lag): ingest synthetic events into `index=personal` sourcetype='highlight:capture' where `avg_lag_days`, `worst_lag_days` grouped by `source_id` satisfies detection threshold for 'Source-to-Synthesis Lag'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.13.95 negative (Synthesis Lag): ingest benign `personal` / `highlight:capture` events where `source_id` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 1 confirms zero alert rows for 'Source-to-Synthesis Lag'."
+  },
+  "dataSources": "Reading progress (`reading:progress`), highlights (`highlight:capture`), note links (`note:link`), books finished (`book:finished`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Reading and knowledge-management telemetry — Goodreads / StoryGraph libraries, Kindle highlights (Readwise), and note-graph exports (Obsidian, Notion) — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal (sourcetype=highlight:capture OR sourcetype=note:link)\n| stats earliest(eval(if(sourcetype=\"highlight:capture\",_time,null()))) as first_highlight, latest(eval(if(sourcetype=\"note:link\",_time,null()))) as last_note by source_id\n| where isnotnull(first_highlight) AND isnotnull(last_note)\n| eval lag_days=round((last_note-first_highlight)/86400,1)\n| stats avg(lag_days) as avg_lag_days, max(lag_days) as worst_lag_days",
+  "description": "Surfaces Synthesis Lag activity in UC-25.13.95 ('Source-to-Synthesis Lag') from `index=personal` sourcetype `highlight:capture`. Rolls up `avg_lag_days`, `worst_lag_days` by `source_id` across `the scheduled window` and pages when configured threshold. Covers Source, Synthesis, Lag. Personal operators treat UC-25.13.95 as the canonical signal.",
+  "value": "Operators running UC-25.13.95 on `highlight:capture` feeds shorten triage for Synthesis Lag tied to 'Source-to-Synthesis Lag', lowering missed training goals, stale hobby data, and connector failures.",
+  "implementation": "Use a shared `source_id` between highlights and linked notes; measure time from first highlight to latest synthesis note.",
+  "visualization": "Single-value panel with average and worst synthesis lag.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "The StoryGraph — reading tracker",
+      "url": "https://thestorygraph.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Readwise — highlights",
+      "url": "https://readwise.io/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Obsidian — knowledge base",
+      "url": "https://obsidian.md/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.13.95)** — Connector for 'Source-to-Synthesis Lag' stops polling `highlight:capture`; stale `avg_lag_days`, `worst_lag_days` on `source_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_lag_days`, `worst_lag_days` over `1w` is expected for UC-25.13.95, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `highlight:capture`. Dedup with `stats latest(*) by source_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Source-to-Synthesis Lag'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Reading & Second Brain — typical feeds: Reading progress (`reading:progress`), highlights (`highlight:capture`), note links (`note:link`), books finished (`book:finished`)..\n• **Sourcetypes in this search**: `highlight:capture`, `note:link`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=highlight:capture`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Reading and knowledge-management telemetry — Goodreads / StoryGraph libraries, Kindle highlights (Readwise), and note-graph exports (Obsidian, Notion) — streamed to Splunk HEC via APIs and scripted inputs..\n\n**Author notes:** Use a shared `source_id` between highlights and linked notes; measure time from first highlight to latest synthesis note.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"highlight:capture\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=highlight:capture earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Source-to-Synthesis Lag** over `personal` data (primarily `sourcetype=highlight:capture`) across the full search range. The `earliest, latest, avg, max` aggregation groups by `source_id`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `source_id`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal (sourcetype=highlight:capture OR sourcetype=note:link)\n| stats earliest(eval(if(sourcetype=\"highlight:capture\",_time,null()))) as first_highlight, latest(eval(if(sourcetype=\"note:link\",_time,null()))) as last_note by source_id\n| where isnotnull(first_highlight) AND isnotnull(last_note)\n| eval lag_days=round((last_note-first_highlight)/86400,1)\n| stats avg(lag_days) as avg_lag_days, max(lag_days) as worst_lag_days\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=highlight:capture earliest=-7d\n| head 50\n| table source_id\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=highlight:capture earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.13.95: Personal evidence` with the following panel layout:\n\n**Panel 1 — Single-Value Panel With Average And Worst Synthesis Lag (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `highlight:capture` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=highlight:capture | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It compares how long ideas sit around before they become part of your actual thinking system.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

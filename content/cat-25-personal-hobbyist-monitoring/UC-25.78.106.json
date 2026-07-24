@@ -1,0 +1,63 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.78.106",
+  "title": "Will Status Sync Gap Watch",
+  "criticality": "low",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Availability",
+    "Data Quality"
+  ],
+  "splunkPillar": "Platform",
+  "exclusions": "Covers personal hobby monitoring for 'Will Status Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_will_status_sync_gap_watch` (UC-25.78.106), SOC dashboard panel \"Personal — Will Status Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.78.106 positive (Will, Status, Sync, Gap, Watch): ingest synthetic events into `index=personal` sourcetype='will:status' where `last_seen` grouped by `jurisdiction` satisfies `hours_since` > 720 for 'Will Status Sync Gap Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.78.106 negative (Gap Watch): ingest benign `personal` / `will:status` events where `jurisdiction` stays below `hours_since` > 720, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 15 confirms zero alert rows for 'Will Status Sync Gap Watch'."
+  },
+  "dataSources": "Trust documents (`trust:document`), will status logs (`will:status`), power-of-attorney records (`poa:record`), and estate review sessions (`estate:review`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Trust document vault exports, will status trackers, power-of-attorney records, and estate review checklists forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=will:status\n| stats max(_time) as last_seen by jurisdiction\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>720\n| sort - hours_since",
+  "description": "Identifies UC-25.78.106 — Will, Status, Sync, Gap, Watch — using `index=personal` sourcetype `will:status`, grouped by `jurisdiction`. Outputs `last_seen` each `the scheduled window`; alert when `hours_since` > 720. Primary focus: Gap Watch. Purpose-built for 'Will Status Sync Gap Watch' in Personal workflows.",
+  "value": "UC-25.78.106 operationalises 'Will Status Sync Gap Watch' against `will:status` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
+  "implementation": "Track the latest event time per jurisdiction and alert when the feed is older than 720 hours.",
+  "visualization": "Table of entities by hours since last event.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Lemonade Insurance API",
+      "url": "https://www.lemonade.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.78.106)** — Connector for 'Will Status Sync Gap Watch' stops polling `will:status`; stale `last_seen` on `jurisdiction` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.78.106, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `will:status`. Dedup with `stats latest(*) by jurisdiction`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 720 for 'Will Status Sync Gap Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "hashicorp"
+  ],
+  "equipmentModels": [
+    "hashicorp_vault"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Estate Planning & Legal — typical feeds: Trust documents (`trust:document`), will status logs (`will:status`), power-of-attorney records (`poa:record`), and estate review sessions (`estate:review`)..\n• **Sourcetypes in this search**: `will:status`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=will:status`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Trust document vault exports, will status trackers, power-of-attorney records, and estate review checklists forwarded to Splunk HEC..\n\n**Author notes:** Track the latest event time per jurisdiction and alert when the feed is older than 720 hours.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"will:status\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=will:status earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Will Status Sync Gap Watch** over `personal` data (primarily `sourcetype=will:status`) across the full search range. It applies numeric thresholds on `hours_since` (> 720) after max — tune these constants to your household baseline.\n\n**Fields this search depends on:** `hours_since`, `jurisdiction`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=will:status\n| stats max(_time) as last_seen by jurisdiction\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>720\n| sort - hours_since\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=will:status earliest=-7d\n| head 50\n| table hours_since, jurisdiction\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=will:status earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `hours_since` before alerting:\n\n```spl\nindex=personal sourcetype=will:status earliest=-30d\n| stats perc50(hours_since) AS p50 perc90(hours_since) AS p90 perc99(hours_since) AS p99 max(hours_since) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.78.106: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Entities By Hours Since Last Event (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `will:status` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=will:status | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It measures when one part of your will status feed has stopped checking in and probably needs fixing.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

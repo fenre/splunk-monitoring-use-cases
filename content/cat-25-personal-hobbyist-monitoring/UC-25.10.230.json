@@ -1,0 +1,62 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.10.230",
+  "title": "Sleep Hours Weather Impact Condition Bucket Split",
+  "criticality": "low",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Analytics"
+  ],
+  "splunkPillar": "Platform",
+  "exclusions": "Covers personal hobby monitoring for 'Sleep Hours Weather Impact Condition Bucket Split' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_sleep_hours_weather_impact_condition_bucket_spli` (UC-25.10.230), SOC dashboard panel \"Personal — Sleep Hours Weather Impact Condition Bucket Split\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.10.230 positive (Sleep, Hours, Weather, Impact, Condition): ingest synthetic events into `index=personal` sourcetype='personalweather:sleep' where `avg_metric`, `total_days` grouped by `condition_bucket` satisfies detection threshold for 'Sleep Hours Weather Impact Condition Bucket Split'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.10.230 negative (Bucket Split): ingest benign `personal` / `personalweather:sleep` events where `condition_bucket` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 2 confirms zero alert rows for 'Sleep Hours Weather Impact Condition Bucket Split'."
+  },
+  "dataSources": "Weather-station readings (`weatherstation:reading`), daily weather-impact rollups (`personalweather:daily`), sleep correlation records (`personalweather:sleep`), step correlation records (`personalweather:steps`), mood correlation records (`personalweather:mood`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Local weather-station readings correlated with personal sleep, steps, mood, and outdoor-activity summaries in Splunk via scripted inputs and daily rollups. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=personalweather:sleep\n| stats avg(sleep_hours) as avg_metric count as days by condition_bucket\n| eventstats sum(days) as total_days\n| eval pct_days=round(100*days/total_days,1)\n| sort - days",
+  "description": "Identifies UC-25.10.230 for Sleep, Hours, Weather, Impact, Condition over `index=personal` sourcetype `personalweather:sleep` with thresholds configured threshold. Groups `avg_metric`, `total_days` by `condition_bucket` each `the scheduled window`. Centered on Bucket Split indicators. Supports repeatable personal triage for 'Sleep Hours Weather Impact Condition Bucket Split'.",
+  "value": "For 'Sleep Hours Weather Impact Condition Bucket Split', UC-25.10.230 converts `avg_metric`, `total_days` on `personalweather:sleep` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
+  "implementation": "Review sparse buckets carefully before acting on them; a tiny sample is often just noise.",
+  "visualization": "Table of condition buckets with day counts and average sleep hours.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "NOAA Weather API",
+      "url": "https://www.weather.gov/documentation/services-web-api",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Tempest API",
+      "url": "https://weatherflow.github.io/Tempest/api/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CDC - Sleep",
+      "url": "https://www.cdc.gov/sleep/about_sleep/how_much_sleep.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.10.230)** — Connector for 'Sleep Hours Weather Impact Condition Bucket Split' stops polling `personalweather:sleep`; stale `avg_metric`, `total_days` on `condition_bucket` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_metric`, `total_days` over `1w` is expected for UC-25.10.230, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `personalweather:sleep`. Dedup with `stats latest(*) by condition_bucket`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Sleep Hours Weather Impact Condition Bucket Split'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "snmp"
+  ],
+  "equipmentModels": [
+    "snmp_ups"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Personal Weather Impact — typical feeds: Weather-station readings (`weatherstation:reading`), daily weather-impact rollups (`personalweather:daily`), sleep correlation records (`personalweather:sleep`), step correlation records (`personalwea.\n• **Sourcetypes in this search**: `personalweather:sleep`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=personalweather:sleep`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Local weather-station readings correlated with personal sleep, steps, mood, and outdoor-activity summaries in Splunk via scripted inputs and daily rollups..\n\n**Author notes:** Review sparse buckets carefully before acting on them; a tiny sample is often just noise.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"personalweather:sleep\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=personalweather:sleep earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Sleep Hours Weather Impact Condition Bucket Split** over `personal` data (primarily `sourcetype=personalweather:sleep`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `condition_bucket`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=personalweather:sleep\n| stats avg(sleep_hours) as avg_metric count as days by condition_bucket\n| eventstats sum(days) as total_days\n| eval pct_days=round(100*days/total_days,1)\n| sort - days\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=personalweather:sleep earliest=-7d\n| head 50\n| table condition_bucket\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=personalweather:sleep earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.10.230: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Condition Buckets With Day Counts And Average Sleep Hours (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `personalweather:sleep` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=personalweather:sleep | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It warns how much of your data happened in each kind of weather and what your sleep hours looked like there.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

@@ -1,0 +1,68 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.87.61",
+  "title": "SimplePractice Session Session Fee Leaderboard",
+  "criticality": "low",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Analytics",
+    "Business"
+  ],
+  "splunkPillar": "Platform",
+  "exclusions": "Covers personal hobby monitoring for 'SimplePractice Session Session Fee Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_simplepractice_session_session_fee_leaderboard` (UC-25.87.61), SOC dashboard panel \"Personal — SimplePractice Session Session Fee Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.87.61 positive (SimplePractice, Session, Session, Fee, Leaderboard): ingest synthetic events into `index=personal` sourcetype='simplepractice:session' where `total_value`, `avg_value` grouped by `therapist_name` satisfies detection threshold for 'SimplePractice Session Session Fee Leaderboard'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.87.61 negative (Fee Leaderboard): ingest benign `personal` / `simplepractice:session` events where `therapist_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 0 confirms zero alert rows for 'SimplePractice Session Session Fee Leaderboard'."
+  },
+  "dataSources": "SimplePractice therapy sessions (`simplepractice:session`), Headway appointments (`headway:appointment`), BetterHelp sessions (`betterhelp:session`), CBT homework logs (`cbt:homework`), and Daylio mood entries (`daylio:mood`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "SimplePractice session notes, Headway appointment confirmations, BetterHelp messaging sessions, CBT homework trackers, and Daylio mood exports ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=simplepractice:session session_fee_usd=*\n| stats sum(session_fee_usd) as total_value, avg(session_fee_usd) as avg_value by therapist_name\n| sort - total_value",
+  "description": "Alerts on 'SimplePractice Session Session Fee Leaderboard' (UC-25.87.61) using `index=personal` sourcetype `simplepractice:session` by aggregating `total_value`, `avg_value` grouped by `therapist_name` over `the scheduled window` and alerting when configured threshold. Keywords: SimplePractice, Session, Session, Fee, Leaderboard. Focuses on Fee Leaderboard behaviour so personal teams can triage UC-25.87.61 without ad-hoc log review.",
+  "value": "UC-25.87.61 accelerates insight into Fee Leaderboard ('SimplePractice Session Session Fee Leaderboard') by tracking `total_value`, `avg_value` on `simplepractice:session` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
+  "implementation": "Ingest numeric `session_fee_usd` values for each SimplePractice therapy session event and review total and average session fee by therapist.",
+  "visualization": "Table of entities ranked by total session fee.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "SimplePractice",
+      "url": "https://www.simplepractice.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Headway",
+      "url": "https://headway.co/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "BetterHelp",
+      "url": "https://www.betterhelp.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Daylio",
+      "url": "https://daylio.net/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.87.61)** — Connector for 'SimplePractice Session Session Fee Leaderboard' stops polling `simplepractice:session`; stale `total_value`, `avg_value` on `therapist_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `total_value`, `avg_value` over `1w` is expected for UC-25.87.61, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `simplepractice:session`. Dedup with `stats latest(*) by therapist_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'SimplePractice Session Session Fee Leaderboard'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Therapy & Mental Health Care — typical feeds: SimplePractice therapy sessions (`simplepractice:session`), Headway appointments (`headway:appointment`), BetterHelp sessions (`betterhelp:session`), CBT homework logs (`cbt:homework`), and Daylio moo.\n• **Sourcetypes in this search**: `simplepractice:session`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=simplepractice:session`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** SimplePractice session notes, Headway appointment confirmations, BetterHelp messaging sessions, CBT homework trackers, and Daylio mood exports ingested into Splunk HEC..\n\n**Author notes:** Ingest numeric `session_fee_usd` values for each SimplePractice therapy session event and review total and average session fee by therapist.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"simplepractice:session\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=simplepractice:session earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **SimplePractice Session Session Fee Leaderboard** over `personal` data (primarily `sourcetype=simplepractice:session`) across the full search range. The `sum, avg` aggregation groups by `therapist_name`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `therapist_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=simplepractice:session session_fee_usd=*\n| stats sum(session_fee_usd) as total_value, avg(session_fee_usd) as avg_value by therapist_name\n| sort - total_value\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=simplepractice:session earliest=-7d\n| head 50\n| table therapist_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=simplepractice:session earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.87.61: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Entities Ranked By Total Session Fee (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `simplepractice:session` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=simplepractice:session | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It compares which therapist shows the biggest session fee numbers in your SimplePractice therapy session data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

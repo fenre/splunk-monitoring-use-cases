@@ -24,9 +24,8 @@ CoSAI MCP alignment
   characters before touching the filesystem (no path traversal possible).
 * Transport safety: the HTTPS base URL is pinned; arbitrary URLs cannot be
   substituted at runtime.
-* Payload limits: ``MAX_PAYLOAD_BYTES`` caps every load (default 10 MB, big
-  enough for the largest shipped endpoint which is ``compliance/ucs/
-  index.json`` at ~855 KB, small enough to prevent DoS).
+* Payload limits: ``MAX_PAYLOAD_BYTES`` caps every load (default 16 MB; the
+  largest shipped endpoint is ``recommender/uc-thin.json`` at ~15 MB).
 """
 
 from __future__ import annotations
@@ -51,7 +50,7 @@ DEFAULT_BASE_URL = "https://fenre.github.io/splunk-monitoring-use-cases"
 are honoured; :meth:`Catalog._validate_base_url` enforces this."""
 
 
-MAX_PAYLOAD_BYTES = 14 * 1024 * 1024
+MAX_PAYLOAD_BYTES = 16 * 1024 * 1024
 """Per-endpoint payload cap. 10 MB is comfortably above the largest shipped
 endpoint (compliance/ucs/index.json ~ 855 KB) and well below any plausible
 memory pressure from a single tool call."""

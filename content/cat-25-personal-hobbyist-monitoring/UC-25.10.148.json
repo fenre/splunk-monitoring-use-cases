@@ -1,0 +1,62 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.10.148",
+  "title": "Rare Pollinator Return Interval",
+  "criticality": "low",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Analytics"
+  ],
+  "splunkPillar": "Platform",
+  "exclusions": "Covers personal hobby monitoring for 'Rare Pollinator Return Interval' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_rare_pollinator_return_interval` (UC-25.10.148), SOC dashboard panel \"Personal — Rare Pollinator Return Interval\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.10.148 positive (Rare, Pollinator, Return, Interval): ingest synthetic events into `index=personal` sourcetype='pollinator:count' where `avg_days_between`, `max_days_between` grouped by `species` satisfies detection threshold for 'Rare Pollinator Return Interval'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.10.148 negative (Return Interval): ingest benign `personal` / `pollinator:count` events where `species` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 3 confirms zero alert rows for 'Rare Pollinator Return Interval'."
+  },
+  "dataSources": "Bird acoustic detections (`birdnet:detection`), wildlife-camera visits (`wildlifecam:visit`), nest-box state (`nestbox:event`), frog-call activity (`frogcall:detection`), and pollinator counts (`pollinator:count`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Wildlife telemetry from BirdNET, trail and feeder cameras, nest-box sensors, frog-call detectors, and pollinator counters streamed to Splunk HEC via MQTT, APIs, and scripted imports. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=pollinator:count rare=1\n| sort 0 _time\n| streamstats current=f last(_time) as prev_time by species\n| eval days_between=round((_time-prev_time)/86400,1)\n| stats avg(days_between) as avg_days_between max(days_between) as max_days_between by species\n| sort - max_days_between",
+  "description": "Surfaces when Return Interval criteria fire for 'Rare Pollinator Return Interval' (UC-25.10.148) in `index=personal` sourcetype `pollinator:count`. Pipeline aggregates `avg_days_between`, `max_days_between` by `species` over `the scheduled window`. Alert logic enforces configured threshold. Title terms: Rare, Pollinator, Return, Interval. Eliminates manual hunting for UC-25.10.148 conditions.",
+  "value": "UC-25.10.148 helps teams contain Rare, Pollinator, Return, Interval scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
+  "implementation": "Tag uncommon pollinator visits from camera or manual counts and keep species naming stable over time.",
+  "visualization": "Table of average and maximum days between sightings by species.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "BirdNET - acoustic bird identification",
+      "url": "https://birdnet.cornell.edu/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "iNaturalist - biodiversity observations",
+      "url": "https://www.inaturalist.org/pages/api+reference",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.10.148)** — Connector for 'Rare Pollinator Return Interval' stops polling `pollinator:count`; stale `avg_days_between`, `max_days_between` on `species` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_days_between`, `max_days_between` over `1w` is expected for UC-25.10.148, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `pollinator:count`. Dedup with `stats latest(*) by species`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Rare Pollinator Return Interval'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "mqtt"
+  ],
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Wildlife & Biodiversity — typical feeds: BirdNET detections (`birdnet:detection`), trail-cam detections (`trailcam:detection`), moth-trap captures (`mothtrap:capture`), bat-detector passes (`batdetector:pass`), pollinator counts (`pollinator.\n• **Sourcetypes in this search**: `pollinator:count`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=pollinator:count`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Backyard wildlife monitoring — BirdNET acoustic bird ID, trail cameras with object detection, camera moth traps, ultrasonic bat detectors, and pollinator counts — via MQTT and scripted inputs..\n\n**Author notes:** Tag uncommon pollinator visits from camera or manual counts and keep species naming stable over time.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"pollinator:count\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=pollinator:count earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Rare Pollinator Return Interval** over `personal` data (primarily `sourcetype=pollinator:count`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `species`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=pollinator:count rare=1\n| sort 0 _time\n| streamstats current=f last(_time) as prev_time by species\n| eval days_between=round((_time-prev_time)/86400,1)\n| stats avg(days_between) as avg_days_between max(days_between) as max_days_between by species\n| sort - max_days_between\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=pollinator:count earliest=-7d\n| head 50\n| table species\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=pollinator:count earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.10.148: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Average And Maximum Days Between Sightings By Species (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `pollinator:count` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=pollinator:count | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It compares how long it usually takes before a rare pollinator comes back again.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

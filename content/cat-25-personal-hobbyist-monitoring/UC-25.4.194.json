@@ -1,0 +1,64 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.4.194",
+  "title": "Smoke and CO Alarm Event Log",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Safety"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Covers personal hobby monitoring for 'Smoke and CO Alarm Event Log' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_smoke_and_co_alarm_event_log` (UC-25.4.194), SOC dashboard panel \"Personal — Smoke and CO Alarm Event Log\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.4.194 positive (Smoke, and, Alarm, Event, Log): ingest synthetic events into `index=personal` sourcetype='alarm:event' where `values` grouped by `device`, `room` satisfies `battery` < 20 for 'Smoke and CO Alarm Event Log'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.4.194 negative (Event Log): ingest benign `personal` / `alarm:event` events where `device`, `room` stays below `battery` < 20, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 14 confirms zero alert rows for 'Smoke and CO Alarm Event Log'."
+  },
+  "dataSources": "NVR object-detection (`frigate:event`), camera health (`camera:health`), alarm arm/disarm and life-safety (`alarm:event`), lock access (`lock:access`), plate recognition (`plate:detection`), doorbell (`doorbell:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Frigate / Blue Iris NVR object-detection events, camera health, alarm and smart-lock logs, and licence-plate recognition via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=alarm:event (device=smoke OR device=co)\n| stats count as alerts, values(state) as states, latest(battery_pct) as battery by device room\n| eval low_battery=if(battery<20,1,0)\n| sort - alerts",
+  "description": "Alerts on UC-25.4.194 — Smoke, and, Alarm, Event, Log — using `index=personal` sourcetype `alarm:event`, grouped by `device`, `room`. Outputs `values` each `the scheduled window`; alert when `battery` < 20. Primary focus: Event Log. Purpose-built for 'Smoke and CO Alarm Event Log' in Personal workflows.",
+  "value": "Alerting on Smoke, and, Alarm, Event, Log through UC-25.4.194 reduces missed training goals, stale hobby data, and connector failures by surfacing `activity` early.",
+  "implementation": "Ingest connected smoke and CO detector events; alert immediately on any activation or low battery.",
+  "visualization": "Table of smoke and CO devices with alert counts and battery level.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Home Assistant — binary sensor (smoke/CO)",
+      "url": "https://www.home-assistant.io/integrations/binary_sensor/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.4.194)** — Connector for 'Smoke and CO Alarm Event Log' stops polling `alarm:event`; stale `values` on `device`, `room` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `values` over `1w` is expected for UC-25.4.194, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `alarm:event`. Dedup with `stats latest(*) by device`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `battery` < 20 for 'Smoke and CO Alarm Event Log'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "cctv",
+    "mqtt"
+  ],
+  "equipmentModels": [
+    "cctv_generic",
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Home Security & Surveillance — typical feeds: NVR object-detection (`frigate:event`), camera health (`camera:health`), alarm arm/disarm and life-safety (`alarm:event`), lock access (`lock:access`), plate recognition (`plate:detection`), doorbell .\n• **Sourcetypes in this search**: `alarm:event`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=alarm:event`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Frigate / Blue Iris NVR object-detection events, camera health, alarm and smart-lock logs, and licence-plate recognition via MQTT and Splunk HEC..\n\n**Author notes:** Ingest connected smoke and CO detector events; alert immediately on any activation or low battery.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"alarm:event\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=alarm:event earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Smoke and CO Alarm Event Log** over `personal` data (primarily `sourcetype=alarm:event`) across the full search range. It applies numeric thresholds on `battery` (< 20) after values, latest — tune these constants to your household baseline.\n\n**Fields this search depends on:** `battery`, `device`, `low_battery`, `room`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=alarm:event (device=smoke OR device=co)\n| stats count as alerts, values(state) as states, latest(battery_pct) as battery by device room\n| eval low_battery=if(battery<20,1,0)\n| sort - alerts\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=alarm:event earliest=-7d\n| head 50\n| table battery, device, low_battery, room\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=alarm:event earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `battery` before alerting:\n\n```spl\nindex=personal sourcetype=alarm:event earliest=-30d\n| stats perc50(battery) AS p50 perc90(battery) AS p90 perc99(battery) AS p99 max(battery) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.4.194: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Smoke And Co Devices With Alert Counts And Battery Level (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `alarm:event` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=alarm:event | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It records every smoke and carbon-monoxide alarm and warns of low batteries, keeping the most important home alarms working.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

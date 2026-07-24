@@ -1,0 +1,63 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.51.52",
+  "title": "Pharmacy Pickup Wait Outlier",
+  "criticality": "low",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Anomaly",
+    "Operations"
+  ],
+  "splunkPillar": "Platform",
+  "exclusions": "Covers personal hobby monitoring for 'Pharmacy Pickup Wait Outlier' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_pharmacy_pickup_wait_outlier` (UC-25.51.52), SOC dashboard panel \"Personal — Pharmacy Pickup Wait Outlier\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.51.52 positive (Pharmacy, Pickup, Wait, Outlier): ingest synthetic events into `index=personal` sourcetype='pharmacy:pickup' where `avg_wait`, `wait_stdev` grouped by `pharmacy_name` satisfies `z_score` >= 2 for 'Pharmacy Pickup Wait Outlier'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.51.52 negative (Wait Outlier): ingest benign `personal` / `pharmacy:pickup` events where `pharmacy_name` stays below `z_score` >= 2, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 3 confirms zero alert rows for 'Pharmacy Pickup Wait Outlier'."
+  },
+  "dataSources": "GoodRx prices (`goodrx:price`), CVS refills (`cvs:refill`), pharmacy pickups (`pharmacy:pickup`), and prescription adherence logs (`prescription:adherence`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "GoodRx price lookups, CVS refill confirmations, pharmacy pickup logs, and prescription adherence trackers streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=pharmacy:pickup pharmacy_name=* pickup_wait_minutes=*\n| eventstats avg(pickup_wait_minutes) as avg_wait, stdev(pickup_wait_minutes) as wait_stdev by pharmacy_name\n| eval z_score=round((pickup_wait_minutes-avg_wait)/nullif(wait_stdev,0),2)\n| where z_score>=2\n| table _time pharmacy_name pickup_wait_minutes avg_wait z_score",
+  "description": "Monitors when Wait Outlier criteria fire for 'Pharmacy Pickup Wait Outlier' (UC-25.51.52) in `index=personal` sourcetype `pharmacy:pickup`. Pipeline aggregates `avg_wait`, `wait_stdev` by `pharmacy_name` over `the scheduled window`. Alert logic enforces `z_score` >= 2. Title terms: Pharmacy, Pickup, Wait, Outlier. Eliminates manual hunting for UC-25.51.52 conditions.",
+  "value": "UC-25.51.52 helps teams contain Pharmacy, Pickup, Wait, Outlier scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
+  "implementation": "Log `pickup_wait_minutes` per visit and review z-score outliers when choosing a default pharmacy.",
+  "visualization": "Table of outlier pickup waits by pharmacy.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "GoodRx API",
+      "url": "https://www.goodrx.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CVS Pharmacy",
+      "url": "https://www.cvs.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.51.52)** — Connector for 'Pharmacy Pickup Wait Outlier' stops polling `pharmacy:pickup`; stale `avg_wait`, `wait_stdev` on `pharmacy_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_wait`, `wait_stdev` over `1w` is expected for UC-25.51.52, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `pharmacy:pickup`. Dedup with `stats latest(*) by pharmacy_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `z_score` >= 2 for 'Pharmacy Pickup Wait Outlier'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "snmp"
+  ],
+  "equipmentModels": [
+    "snmp_ups"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Pharmacy & Prescriptions — typical feeds: GoodRx prices (`goodrx:price`), CVS refills (`cvs:refill`), pharmacy pickups (`pharmacy:pickup`), and prescription adherence logs (`prescription:adherence`)..\n• **Sourcetypes in this search**: `pharmacy:pickup`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=pharmacy:pickup`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** GoodRx price lookups, CVS refill confirmations, pharmacy pickup logs, and prescription adherence trackers streamed into Splunk HEC..\n\n**Author notes:** Log `pickup_wait_minutes` per visit and review z-score outliers when choosing a default pharmacy.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"pharmacy:pickup\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=pharmacy:pickup earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Pharmacy Pickup Wait Outlier** over `personal` data (primarily `sourcetype=pharmacy:pickup`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `pharmacy_name`, `z_score`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=pharmacy:pickup pharmacy_name=* pickup_wait_minutes=*\n| eventstats avg(pickup_wait_minutes) as avg_wait, stdev(pickup_wait_minutes) as wait_stdev by pharmacy_name\n| eval z_score=round((pickup_wait_minutes-avg_wait)/nullif(wait_stdev,0),2)\n| where z_score>=2\n| table _time pharmacy_name pickup_wait_minutes avg_wait z_score\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=pharmacy:pickup earliest=-7d\n| head 50\n| table pharmacy_name, z_score\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=pharmacy:pickup earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `z_score` before alerting:\n\n```spl\nindex=personal sourcetype=pharmacy:pickup earliest=-30d\n| stats perc50(z_score) AS p50 perc90(z_score) AS p90 perc99(z_score) AS p99 max(z_score) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.51.52: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Outlier Pickup Waits By Pharmacy (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `pharmacy:pickup` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=pharmacy:pickup | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It spots pharmacy visits where you waited much longer than usual to pick up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

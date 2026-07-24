@@ -1,0 +1,63 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.23.147",
+  "title": "Childcare & Early Years Longest Quiet Streak",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Anomaly",
+    "Availability"
+  ],
+  "splunkPillar": "Platform",
+  "exclusions": "Covers personal hobby monitoring for 'Childcare & Early Years Longest Quiet Streak' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_childcare_early_years_longest_quiet_streak` (UC-25.23.147), SOC dashboard panel \"Personal — Childcare & Early Years Longest Quiet Streak\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.23.147 positive (Childcare, Early, Years, Longest, Quiet): ingest synthetic events into `index=personal` sourcetype='nanny:timesheet' where `longest_quiet_streak_days` grouped by `_time` satisfies `prev_events` > 0, or `gap_days` >= 2 for 'Childcare & Early Years Longest Quiet Streak'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.23.147 negative (Quiet Streak): ingest benign `personal` / `nanny:timesheet` events where `_time` stays below `prev_events` > 0, or `gap_days` >= 2, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Childcare & Early Years Longest Quiet Streak'."
+  },
+  "dataSources": "brightwheel check-ins (`brightwheel:checkin`), Procare attendance (`procare:attendance`), Huckleberry sleep logs (`huckleberry:sleep`), daycare incidents (`daycare:incident`), and nanny timesheets (`nanny:timesheet`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "brightwheel check-in exports, Procare attendance logs, Huckleberry sleep tracking, daycare incident reports, and nanny timesheet entries streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=nanny:timesheet\n| bin _time span=1d\n| stats count as events by _time\n| sort _time\n| streamstats current=f last(_time) as prev_day last(events) as prev_events\n| eval gap_days=round((_time-prev_day)/86400,0)\n| where isnotnull(prev_day) AND prev_events>0 AND events=0 AND gap_days>=2\n| stats max(gap_days) as longest_quiet_streak_days",
+  "description": "Detects Quiet Streak anomalies for UC-25.23.147 with window `1d` on `index=personal` sourcetype `nanny:timesheet`. Combines `longest_quiet_streak_days` by `_time` and compares against `prev_events` > 0, or `gap_days` >= 2. Mapped to keywords Childcare, Early, Years, Longest, Quiet for dashboard routing.",
+  "value": "Alerting on Childcare, Early, Years, Longest, Quiet through UC-25.23.147 reduces missed training goals, stale hobby data, and connector failures by surfacing `longest_quiet_streak_days` early.",
+  "implementation": "Run daily on `nanny:timesheet` after ingestion; investigate streaks that exceed your normal pause window for this domain.",
+  "visualization": "Single-value tile for longest quiet streak with supporting timeline.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.23.147)** — Connector for 'Childcare & Early Years Longest Quiet Streak' stops polling `nanny:timesheet`; stale `longest_quiet_streak_days` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `longest_quiet_streak_days` over `1d` is expected for UC-25.23.147, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `nanny:timesheet`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `prev_events` > 0 for 'Childcare & Early Years Longest Quiet Streak'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Childcare & Early Years — typical feeds: brightwheel check-ins (`brightwheel:checkin`), Procare attendance (`procare:attendance`), Huckleberry sleep logs (`huckleberry:sleep`), daycare incidents (`daycare:incident`), and nanny timesheets (`n.\n• **Sourcetypes in this search**: `nanny:timesheet`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=nanny:timesheet`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** brightwheel check-in exports, Procare attendance logs, Huckleberry sleep tracking, daycare incident reports, and nanny timesheet entries streamed into Splunk HEC..\n\n**Author notes:** Run daily on `nanny:timesheet` after ingestion; investigate streaks that exceed your normal pause window for this domain.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"nanny:timesheet\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=nanny:timesheet earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Childcare & Early Years Longest Quiet Streak** over `personal` data (primarily `sourcetype=nanny:timesheet`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `_time`, `gap_days`, `prev_events`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=nanny:timesheet\n| bin _time span=1d\n| stats count as events by _time\n| sort _time\n| streamstats current=f last(_time) as prev_day last(events) as prev_events\n| eval gap_days=round((_time-prev_day)/86400,0)\n| where isnotnull(prev_day) AND prev_events>0 AND events=0 AND gap_days>=2\n| stats max(gap_days) as longest_quiet_streak_days\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=nanny:timesheet earliest=-7d\n| head 50\n| table _time, gap_days, prev_events\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=nanny:timesheet earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `prev_events` before alerting:\n\n```spl\nindex=personal sourcetype=nanny:timesheet earliest=-30d\n| stats perc50(prev_events) AS p50 perc90(prev_events) AS p90 perc99(prev_events) AS p99 max(prev_events) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.23.147: Personal evidence` with the following panel layout:\n\n**Panel 1 — Single-Value Tile For Longest Quiet Streak With Supporting Timeline (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `nanny:timesheet` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=nanny:timesheet | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It adds up the longest stretch with no childcare activity at all so you can tell when a feed or habit went quiet for too long.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}
