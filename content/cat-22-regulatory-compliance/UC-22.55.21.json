@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Mark a Signal Engineering Lead's training as expired 60 days ago. UC-22.55.21 MUST flag `competence_status=\"training_expired\"`.",
-    "negativeScenario": "Refresh training; UC-22.55.21 MUST record `competence_status=\"current\"`."
+    "positiveScenario": "UC-22.55.21 positive (CLC, 50701, Rail, Cybersecurity, Competence): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `count` grouped by `entity` satisfies detection threshold for 'CLC/TS 50701 Rail Cybersecurity Competence — role-specific training current for every staff member with rail-cyber accountability'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.55.21 negative (cyber accountability): ingest benign `target_index` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv`. Variant 7 confirms zero alert rows for 'CLC/TS 50701 Rail Cybersecurity Competence — role-specific training current for every staff member with rail-cyber accountability'."
   },
   "dataSources": "KV Store `rail_competence_lookup`. LMS (KnowBe4, Workday Learning, Cornerstone OnDemand) completion HEC events.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup rail_competence_lookup\n| where staff_status=\"active\"\n| eval now_ts = now()\n| eval competence_status = case(\n    isnull(training_completed_at), \"training_missing\",\n    isnotnull(training_expires_at) AND training_expires_at < now_ts, \"training_expired\",\n    isnotnull(training_expires_at) AND training_expires_at < now_ts + 30 * 86400, \"training_expiring_soon\",\n    1=1, \"current\")\n| where competence_status != \"current\"\n| table staff_id staff_role training_course_id training_completed_at training_expires_at competence_status",
-  "description": "Cross-references staff roles with role-mapped training completion. Surfaces missing, expired, or expiring training.",
-  "value": "Untrained or expired-training staff is a top NSA audit finding. This UC enforces currency.",
+  "description": "Identifies UC-22.55.21 — CLC, 50701, Rail, Cybersecurity, Competence — using `index=target_index` sourcetype `configured sourcetype`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: cyber accountability. Purpose-built for 'CLC/TS 50701 Rail Cybersecurity Competence — role-specific training current for every staff member with rail-cyber accountability' in Compliance workflows.",
+  "value": "UC-22.55.21 operationalises 'CLC/TS 50701 Rail Cybersecurity Competence — role-specific training current for every staff member with rail-cyber accountability' against UC-22.55.21 search results so operators reduce audit findings, regulatory gaps, and attestation delays without manual correlation.",
   "implementation": "(1) Define role-to-course mapping. (2) LMS pushes completion events to Splunk. (3) Schedule UC-22.55.21 weekly Monday 08:00.",
   "visualization": "(Panel 1) Competence-status by role. (Panel 2) Expiring queue. (Panel 3) Completion-rate trend.",
   "cimModels": [
@@ -47,14 +47,26 @@
   "references": [
     {
       "title": "CLC/TS 50701:2021 clause 11.2",
-      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "EUAR (European Union Agency for Railways) Training Recommendations",
-      "url": "https://www.era.europa.eu/"
+      "url": "https://www.era.europa.eu/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **LMS sync lag** — 24h grace for LMS-to-Splunk sync.\n\n**Suppression mechanism**: KV Store `clc_22_55_21_exceptions` with documented HR Director approval and 60-day maximum grant.",
+  "knownFalsePositives": "1. **Authorised CLC TS 50701 control testing** — Internal audit exercises 'CLC/TS 50701 Rail Cybersecurity Competence — role-specific training current for every staff member with rail-cyber accountability' (UC-22.55.21) on `entity` during scheduled clause CLC-TS-50701-c11-2 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `clc_ts_50701_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `clc_ts_50701_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (training governance)"
   ],
@@ -80,7 +92,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_competence_lookup`.\n- LMS integration via HEC.\n\n## Step 1 — Collection\n\n```ini\n[rail_competence_lookup]\nenforceTypes = true\nfield.staff_id = string\nfield.staff_role = string\nfield.training_course_id = string\nfield.training_completed_at = number\nfield.training_expires_at = number\nfield.staff_status = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.21: CLC/TS 50701 Rail Cyber Competence]\ncron_schedule = 0 8 * * 1\ndispatch.earliest_time = -3y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.21,reg=CLC-TS-50701,clause=CLC-TS-50701-c11-2\naction.notable.param.rule_title = Rail cyber training expired or missing\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `training_expired`** (owner: HR Director, severity P3): enrol staff in refresh course; track to completion.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Role-specific course mapping**: Signal Engineering Lead needs different course than Procurement Lead.\n- **Refresher cadence**: typically 12 months for high-risk roles; 24 months for general awareness.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_competence_lookup`.\n- LMS integration via HEC.\n\n## Step 1 — Collection\n\n```ini\n[rail_competence_lookup]\nenforceTypes = true\nfield.staff_id = string\nfield.staff_role = string\nfield.training_course_id = string\nfield.training_completed_at = number\nfield.training_expires_at = number\nfield.staff_status = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.21: CLC/TS 50701 Rail Cyber Competence]\ncron_schedule = 0 8 * * 1\ndispatch.earliest_time = -3y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.21,reg=CLC-TS-50701,clause=CLC-TS-50701-c11-2\naction.notable.param.rule_title = Rail cyber training expired or missing\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `training_expired`** (owner: HR Director, severity P3): enrol staff in refresh course; track to completion.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Role-specific course mapping**: Signal Engineering Lead needs different course than Procurement Lead.\n- **Refresher cadence**: typically 12 months for high-risk roles; 24 months for general awareness.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`competence_status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Every railway worker who touches cyber-stuff must complete training. We track who took which course and when it expires. If anyone is overdue, the team is alerted.",
   "prerequisiteUseCases": [
     "UC-22.55.2"

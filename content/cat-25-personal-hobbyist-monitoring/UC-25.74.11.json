@@ -8,31 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Race results (`raceresult:event`), TrainingPeaks workouts (`trainingpeaks:workout`), marathon splits (`race:split`), bib pickup and race logistics (`race:bib`).",
-  "app": "Race result APIs, TrainingPeaks workouts and TSS, marathon split exports, and bib-collection checklists streamed to Splunk HEC via scripted REST inputs, CSV imports, and mobile forms.",
+  "exclusions": "Covers personal hobby monitoring for 'TrainingPeaks TSS Workout Type Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_trainingpeaks_tss_workout_type_leaderboard` (UC-25.74.11), SOC dashboard panel \"Personal — TrainingPeaks TSS Workout Type Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.74.11 positive (TrainingPeaks, TSS, Workout, Type, Leaderboard): ingest synthetic events into `index=personal` sourcetype='trainingpeaks:workout' where `avg_value`, `peak_value` grouped by `workout_type` satisfies detection threshold for 'TrainingPeaks TSS Workout Type Leaderboard'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.74.11 negative (Type Leaderboard): ingest benign `personal` / `trainingpeaks:workout` events where `workout_type` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 0 confirms zero alert rows for 'TrainingPeaks TSS Workout Type Leaderboard'."
+  },
+  "dataSources": "Race results (`raceresult:event`), TrainingPeaks workouts (`trainingpeaks:workout`), marathon splits (`race:split`), bib pickup and race logistics (`race:bib`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Race result APIs, TrainingPeaks workouts and TSS, marathon split exports, and bib-collection checklists streamed to Splunk HEC via scripted REST inputs, CSV imports, and mobile forms. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=trainingpeaks:workout\n| stats avg(tss) as avg_value max(tss) as peak_value count as sessions by workout_type\n| sort - avg_value",
-  "description": "Ranks workout type values by average and peak training stress score, helping you see where trainingpeaks tss performs best.",
-  "value": "A simple leaderboard is an easy way to see which workout type contexts are producing the strongest outcomes without deep analysis.",
+  "description": "Detects 'TrainingPeaks TSS Workout Type Leaderboard' (UC-25.74.11) using `index=personal` sourcetype `trainingpeaks:workout` by aggregating `avg_value`, `peak_value` grouped by `workout_type` over `the scheduled window` and alerting when configured threshold. Keywords: TrainingPeaks, TSS, Workout, Type, Leaderboard. Focuses on Type Leaderboard behaviour so personal teams can triage UC-25.74.11 without ad-hoc log review.",
+  "value": "UC-25.74.11 accelerates insight into Type Leaderboard ('TrainingPeaks TSS Workout Type Leaderboard') by tracking `avg_value`, `peak_value` on `trainingpeaks:workout` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Populate `workout_type` consistently from your export pipeline so the leaderboard can compare like with like.",
   "visualization": "Leaderboard table of workout type, average training stress score, and peak training stress score.",
   "cimModels": [],
   "references": [
     {
       "title": "TrainingPeaks",
-      "url": "https://www.trainingpeaks.com/"
+      "url": "https://www.trainingpeaks.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RunSignup API",
-      "url": "https://runsignup.com/API"
+      "url": "https://runsignup.com/API",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "World Athletics",
-      "url": "https://worldathletics.org/"
+      "url": "https://worldathletics.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It checks which workout type areas give you the strongest trainingpeaks tss results."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.74.11)** — Connector for 'TrainingPeaks TSS Workout Type Leaderboard' stops polling `trainingpeaks:workout`; stale `avg_value`, `peak_value` on `workout_type` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_value`, `peak_value` over `1w` is expected for UC-25.74.11, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `trainingpeaks:workout`. Dedup with `stats latest(*) by workout_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'TrainingPeaks TSS Workout Type Leaderboard'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Running Races & Endurance — typical feeds: Race results (`raceresult:event`), TrainingPeaks workouts (`trainingpeaks:workout`), marathon splits (`race:split`), bib pickup and race logistics (`race:bib`)..\n• **Sourcetypes in this search**: `trainingpeaks:workout`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=trainingpeaks:workout`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Race result APIs, TrainingPeaks workouts and TSS, marathon split exports, and bib-collection checklists streamed to Splunk HEC via scripted REST inputs, CSV imports, and mobile forms..\n\n**Author notes:** Populate `workout_type` consistently from your export pipeline so the leaderboard can compare like with like.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"trainingpeaks:workout\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=trainingpeaks:workout earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **TrainingPeaks TSS Workout Type Leaderboard** over `personal` data (primarily `sourcetype=trainingpeaks:workout`) across the full search range. The `avg, max` aggregation groups by `workout_type`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `workout_type`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=trainingpeaks:workout\n| stats avg(tss) as avg_value max(tss) as peak_value count as sessions by workout_type\n| sort - avg_value\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=trainingpeaks:workout earliest=-7d\n| head 50\n| table workout_type\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=trainingpeaks:workout earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.74.11: Personal evidence` with the following panel layout:\n\n**Panel 1 — Leaderboard Table Of Workout Type (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n**Panel 2 — Average Training Stress Score (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n**Panel 3 — And Peak Training Stress Score (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `trainingpeaks:workout` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=trainingpeaks:workout | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It checks which workout type areas give you the strongest trainingpeaks tss results.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

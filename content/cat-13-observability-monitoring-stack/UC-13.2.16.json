@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Backup job logs, `sourcetype=itsi:backup`",
-  "app": "Splunk ITSI, backup automation",
+  "exclusions": "Covers the detection logic documented for 'ITSI Backup Set Integrity' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_itsi_backup_set_integrity` (UC-13.2.16), SOC dashboard panel \"Operations — ITSI Backup Set Integrity\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-13.2.16 positive (ITSI, Backup, Set, Integrity): ingest synthetic events into `index=_internal` sourcetype='itsi:backup' where `count` grouped by `backup_job`, `host`, `message` satisfies detection threshold for 'ITSI Backup Set Integrity'. Validate filter `status IN (\"failed\",\"partial\",\"corrupt\") OR match(_raw,\"(?i)`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-13.2.16 negative (Set Integrity): ingest benign `_internal` / `itsi:backup` events where `backup_job`, `host`, `message` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'ITSI Backup Set Integrity'."
+  },
+  "dataSources": "Backup job logs, `sourcetype=itsi:backup` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk ITSI, backup automation — Universal Forwarder (Splunkbase 617)",
   "spl": "index=_internal OR index=main sourcetype=\"itsi:backup\"\n| search status IN (\"failed\",\"partial\",\"corrupt\") OR match(_raw,\"(?i)(checksum|verify failed)\")\n| stats count by backup_job, host, message\n| sort -count",
-  "description": "Corrupt or incomplete KV Store / ITSI backup objects prevent disaster recovery after SH loss.",
-  "value": "Corrupt or incomplete KV Store / ITSI backup objects prevent disaster recovery after SH loss.",
+  "description": "Detects 'ITSI Backup Set Integrity' (UC-13.2.16) using `index=_internal` sourcetype `itsi:backup` via filter `status IN (\"failed\",\"partial\",\"corrupt\") OR match(_raw,\"(?i)` by aggregating `count` grouped by `backup_job`, `host`, `message` over `the scheduled window` and alerting when configured threshold. Keywords: ITSI, Backup, Set, Integrity. Focuses on Set Integrity behaviour so operations teams can triage UC-13.2.16 without ad-hoc log review.",
+  "value": "UC-13.2.16 accelerates insight into Set Integrity ('ITSI Backup Set Integrity') by tracking `activity` on `itsi:backup` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Log ITSI backup jobs (scheduled exports, `kvstore` backup). Verify checksum after write. Alert on any non-success. Test restore quarterly to a lab SH.",
   "visualization": "Table (failed backups), Timeline (backup jobs), Single value (last successful backup age).",
   "cimModels": [
@@ -22,12 +28,35 @@
   "references": [
     {
       "title": "Splunk ITSI",
-      "url": "https://splunkbase.splunk.com/app/1841"
+      "url": "https://splunkbase.splunk.com/app/1841",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Episode and score noise from content changes, seasonality, and who is in scope. We check maintenance and drill paths before we escalate.",
+  "knownFalsePositives": "1. **Maintenance window on `_internal` (UC-13.2.16)** — Planned work for 'ITSI Backup Set Integrity' shifts `count` over `span=1h` while `backup_job`, `host`, `message` remains in-scope. Applies filter `status IN (\"failed\",\"partial\",\"corrupt\") OR match(_raw,\"(?i)`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `itsi:backup`** — Scheduled automation elevates `host` without crossing configured threshold for UC-13.2.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `backup_job`, `host`, `message`** — Health checks in `_internal` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `itsi:backup`** — First 48h baseline for UC-13.2.16 on `backup_job` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `backup_job`, `exception_reason`, `valid_until`.",
   "equipment": [
     "itsi"
+  ],
+  "equipmentModels": [
+    "itsi_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     {
@@ -37,5 +66,7 @@
     }
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ITSI, backup automation.\n• Ensure the following data sources are available: Backup job logs, `sourcetype=itsi:backup`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nLog ITSI backup jobs (scheduled exports, `kvstore` backup). Verify checksum after write. Alert on any non-success. Test restore quarterly to a lab SH.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=_internal OR index=main sourcetype=\"itsi:backup\"\n| search status IN (\"failed\",\"partial\",\"corrupt\") OR match(_raw,\"(?i)(checksum|verify failed)\")\n| stats count by backup_job, host, message\n| sort -count\n```\n\nUnderstanding this SPL\n\n**ITSI Backup Set Integrity** — Corrupt or incomplete KV Store / ITSI backup objects prevent disaster recovery after SH loss.\n\nDocumented **Data sources**: Backup job logs, `sourcetype=itsi:backup`. **App/TA** (typical add-on context): Splunk ITSI, backup automation. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: _internal, main; **sourcetype**: itsi:backup. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=_internal, index=main, sourcetype=\"itsi:backup\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by backup_job, host, message** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nRun the search when you know the service or episode context. Compare with the ITSI Service Analyzer, episode or notable views, and Glass Tables or drill-downs for the same time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (failed backups), Timeline (backup jobs), Single value (last successful backup age).",
-  "grandmaExplanation": "We track service health, episodes, and related signals in one workspace so the team can see what broke and who owns it without juggling every console."
+  "grandmaExplanation": "We track service health, episodes, and related signals in one workspace so the team can see what broke and who owns it without juggling every console.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

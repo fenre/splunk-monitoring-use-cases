@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=edge-hub-logs` sourcetype=edge_hub gnss_position, `index=edge-hub-health` sourcetype=edge_hub location_heartbeat",
-  "app": "Splunk Edge Hub (cellular + GNSS), Splunk OT Intelligence",
+  "exclusions": "Covers the detection logic documented for 'Device Location Tracking via GNSS' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_device_location_tracking_via_gnss` (UC-14.3.40), SOC dashboard panel \"Operations — Device Location Tracking via GNSS\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.3.40 positive (Device, Location, Tracking, via, GNSS): ingest synthetic events into `index=edge-hub-logs` sourcetype='edge_hub' where `count` grouped by `device_id` satisfies detection threshold for 'Device Location Tracking via GNSS'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.3.40 negative (via GNSS): ingest benign `edge-hub-logs` / `edge_hub` events where `device_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Device Location Tracking via GNSS'."
+  },
+  "dataSources": "`index=edge-hub-logs` sourcetype=edge_hub gnss_position, `index=edge-hub-health` sourcetype=edge_hub location_heartbeat Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Edge Hub (cellular + GNSS), Splunk OT Intelligence — Universal Forwarder (Splunkbase 617)",
   "spl": "index=edge-hub-logs sourcetype=edge_hub gnss_position=true\n| stats latest(latitude) as lat, latest(longitude) as lon, latest(accuracy_meters) as accuracy by device_id\n| join max=1 device_id [| rest /services/data-model/indexes/edge_hub_location_baseline | fields device_id, expected_latitude, expected_longitude, geofence_radius_meters]\n| eval distance=sqrt(((lat - expected_latitude)*111111)^2 + ((lon - expected_longitude)*111111*cos(expected_latitude*pi()/180))^2)\n| where distance > geofence_radius_meters\n| eval location_drift=\"ALERT\"",
-  "description": "Monitors Edge Hub physical location for mobile/outdoor deployments to verify proper coverage and detect theft/unauthorized movement.",
-  "value": "Monitors Edge Hub physical location for mobile/outdoor deployments to verify proper coverage and detect theft/unauthorized movement.",
+  "description": "Identifies 'Device Location Tracking via GNSS' patterns (UC-14.3.40) sourced from `index=edge-hub-logs` sourcetype `edge_hub`. Threshold bundle: configured threshold; aggregation grain: `device_id`; metrics: `count`. Watch terms: Device, Location, Tracking, via, GNSS.",
+  "value": "UC-14.3.40 gives Operations teams earlier visibility into via GNSS through `edge_hub` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Edge Hub with cellular module (LTE/4G) includes integrated GNSS receiver. Enable GNSS in Advanced Settings (requires clear sky line-of-sight). Edge Hub logs GPS position (latitude, longitude, accuracy_meters) to edge-hub-logs every 15 minutes. Store expected location + geofence radius per device. Alert if device moves outside geofence (e.g., trailer theft detection, equipment relocation). For outdoor industrial sites, track GNSS acquisition time and accuracy metrics (typically 5-20m accuracy in open sky). Local SQLite stores 30+ days of position history.",
   "visualization": "Device location map, geofence status indicator, movement timeline.",
   "cimModels": [
@@ -22,17 +28,42 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Sensors offline during scheduled site visits, calibration, or replacement campaigns.",
+  "knownFalsePositives": "1. **Maintenance window on `edge-hub-logs` (UC-14.3.40)** — Planned work for 'Device Location Tracking via GNSS' shifts `count` over `span=1h` while `device_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `edge_hub`** — Scheduled automation elevates `distance` without crossing configured threshold for UC-14.3.40. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `device_id`** — Health checks in `edge-hub-logs` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `edge_hub`** — First 48h baseline for UC-14.3.40 on `device_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `device_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "edge_hub"
+  ],
+  "equipmentModels": [
+    "edge_hub_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     "Splunk Edge Hub",
     "Splunk OT Intelligence"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (cellular + GNSS), Splunk OT Intelligence.\n• Ensure the following data sources are available: `index=edge-hub-logs` sourcetype=edge_hub gnss_position, `index=edge-hub-health` sourcetype=edge_hub location_heartbeat.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEdge Hub with cellular module (LTE/4G) includes integrated GNSS receiver. Enable GNSS in Advanced Settings (requires clear sky line-of-sight). Edge Hub logs GPS position (latitude, longitude, accuracy_meters) to edge-hub-logs every 15 minutes. Store expected location + geofence radius per device. Alert if device moves outside geofence (e.g., trailer theft detection, equipment relocation). For outdoor industrial sites, track GNSS acquisition time and accuracy metrics (typically 5-20m accuracy in …\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edge-hub-logs sourcetype=edge_hub gnss_position=true\n| stats latest(latitude) as lat, latest(longitude) as lon, latest(accuracy_meters) as accuracy by device_id\n| join max=1 device_id [| rest /services/data-model/indexes/edge_hub_location_baseline | fields device_id, expected_latitude, expected_longitude, geofence_radius_meters]\n| eval distance=sqrt(((lat - expected_latitude)*111111)^2 + ((lon - expected_longitude)*111111*cos(expected_latitude*pi()/180))^2)\n| where distance > geofence_radius_meters\n| eval location_drift=\"ALERT\"\n```\n\nUnderstanding this SPL\n\n**Device Location Tracking via GNSS** — Monitors Edge Hub physical location for mobile/outdoor deployments to verify proper coverage and detect theft/unauthorized movement.\n\nDocumented **Data sources**: `index=edge-hub-logs` sourcetype=edge_hub gnss_position, `index=edge-hub-health` sourcetype=edge_hub location_heartbeat. **App/TA** (typical add-on context): Splunk Edge Hub (cellular + GNSS), Splunk OT Intelligence. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-logs; **sourcetype**: edge_hub. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edge-hub-logs, sourcetype=edge_hub. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by device_id** so each row reflects one combination of those dimensions.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **distance** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where distance > geofence_radius_meters` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **location_drift** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\nConfirm metric or event volume in the time range, then compare trends and device status to the Splunk Edge Hub admin UI or the mobile app for the same devices. Verify metric names, hosts, and time skew.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Device location map, geofence status indicator, movement timeline.",
-  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with this area: device location tracking via gnss before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with this area: device location tracking via gnss before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

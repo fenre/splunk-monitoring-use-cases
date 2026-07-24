@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "TrueNAS API (/api/v2.0/pool, /api/v2.0/pool/id/X)",
-  "app": "Custom (TrueNAS REST API)",
+  "exclusions": "Covers the detection logic documented for 'TrueNAS / FreeNAS Pool Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_truenas_freenas_pool_health` (UC-6.1.13), SOC dashboard panel \"Operations — TrueNAS / FreeNAS Pool Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.1.13 positive (TrueNAS, FreeNAS, Pool, Health): ingest synthetic events into `index=storage` sourcetype='truenas:pool' where `count` grouped by `entity` satisfies detection threshold for 'TrueNAS / FreeNAS Pool Health'. Validate filter `status!=\"ONLINE\" OR health!=\"HEALTHY\" OR \"resilver\" OR \"scru`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.1.13 negative (Pool Health): ingest benign `storage` / `truenas:pool` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'TrueNAS / FreeNAS Pool Health'."
+  },
+  "dataSources": "TrueNAS API (/api/v2.0/pool, /api/v2.0/pool/id/X) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom (TrueNAS REST API) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"truenas:pool\"\n| search status!=\"ONLINE\" OR health!=\"HEALTHY\" OR \"resilver\" OR \"scrub\"\n| eval health_status=coalesce(health, status)\n| table _time, pool_name, health_status, status, size, used_pct, resilver_progress, scrub_status\n| sort -_time",
-  "description": "ZFS pool degradation, scrub results, and resilver progress directly impact data integrity. Early detection of unhealthy pools prevents data loss and enables timely intervention during rebuilds.",
-  "value": "ZFS pool degradation, scrub results, and resilver progress directly impact data integrity. Early detection of unhealthy pools prevents data loss and enables timely intervention during rebuilds.",
+  "description": "Monitors Pool Health activity in UC-6.1.13 ('TrueNAS / FreeNAS Pool Health') from `index=storage` sourcetype `truenas:pool`. Rolls up `count` by `entity` across `the scheduled window` and pages when configured threshold. Uses filter `status!=\"ONLINE\" OR health!=\"HEALTHY\" OR \"resilver\" OR \"scru`. Operations operators treat UC-6.1.13 as the canonical signal.",
+  "value": "Operators running UC-6.1.13 on `truenas:pool` feeds shorten triage for Pool Health tied to 'TrueNAS / FreeNAS Pool Health', lowering operational risk and delayed incident response.",
   "implementation": "Create scripted input or HTTP Event Collector (HEC) input that polls TrueNAS REST API every 5–15 minutes. Use `/api/v2.0/pool` for pool list and `/api/v2.0/pool/id/{id}` for detailed status including scrub/resilver. Authenticate with API key. Parse JSON response and index to Splunk with sourcetype `truenas:pool`. Alert on health != HEALTHY or status != ONLINE. Track resilver progress and ETA during rebuilds.",
   "visualization": "Single value (pools not healthy), Table (pool name, health, resilver %), Timeline (health change events), Gauge (resilver progress during rebuild).",
   "cimModels": [
@@ -22,13 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.1.13)** — Planned work for 'TrueNAS / FreeNAS Pool Health' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `status!=\"ONLINE\" OR health!=\"HEALTHY\" OR \"resilver\" OR \"scru`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `truenas:pool`** — Scheduled automation elevates `health_status` without crossing configured threshold for UC-6.1.13. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `truenas:pool`** — First 48h baseline for UC-6.1.13 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "truenas"
   ],
+  "equipmentModels": [
+    "truenas_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (TrueNAS REST API).\n• Ensure the following data sources are available: TrueNAS API (/api/v2.0/pool, /api/v2.0/pool/id/X).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate scripted input or HTTP Event Collector (HEC) input that polls TrueNAS REST API every 5–15 minutes. Use `/api/v2.0/pool` for pool list and `/api/v2.0/pool/id/{id}` for detailed status including scrub/resilver. Authenticate with API key. Parse JSON response and index to Splunk with sourcetype `truenas:pool`. Alert on health != HEALTHY or status != ONLINE. Track resilver progress and ETA during rebuilds.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=storage sourcetype=\"truenas:pool\"\n| search status!=\"ONLINE\" OR health!=\"HEALTHY\" OR \"resilver\" OR \"scrub\"\n| eval health_status=coalesce(health, status)\n| table _time, pool_name, health_status, status, size, used_pct, resilver_progress, scrub_status\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**TrueNAS / FreeNAS Pool Health** — ZFS pool degradation, scrub results, and resilver progress directly impact data integrity. Early detection of unhealthy pools prevents data loss and enables timely intervention during rebuilds.\n\nDocumented **Data sources**: TrueNAS API (/api/v2.0/pool, /api/v2.0/pool/id/X). **App/TA** (typical add-on context): Custom (TrueNAS REST API). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: storage; **sourcetype**: truenas:pool. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=storage, sourcetype=\"truenas:pool\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `eval` defines or adjusts **health_status** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **TrueNAS / FreeNAS Pool Health**): table _time, pool_name, health_status, status, size, used_pct, resilver_progress, scrub_status\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare pools, datasets, and alerts with the TrueNAS web UI or SCALE CLI for the same resource and timestamp.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Point on-call to the ONTAP or array runbook, Cisco SAN references, and SNMP/REST credentials already used in production—not generic platform steps only. Consider visualizations: Single value (pools not healthy), Table (pool name, health, resilver %), Timeline (health change events), Gauge (resilver progress during rebuild).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We help you see how your arrays and related gear are doing before small issues turn into full outages or restore surprises."
+  "grandmaExplanation": "We help you see how your arrays and related gear are doing before small issues turn into full outages or restore surprises.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

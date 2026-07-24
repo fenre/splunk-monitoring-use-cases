@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=endpoint` `sourcetype=\"igel:os:syslog\"` fields `host`, `severity`, `facility`, `process`, `message`",
-  "app": "Splunk syslog input (TCP/TLS) receiving IGEL OS rsyslog",
+  "exclusions": "Covers the detection logic documented for 'IGEL OS Endpoint Syslog Error Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_igel_os_endpoint_syslog_error_monitoring` (UC-2.5.5), SOC dashboard panel \"Linux — IGEL OS Endpoint Syslog Error Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.5.5 positive (IGEL, Endpoint, Syslog, Error, Monitoring): ingest synthetic events into `index=endpoint` sourcetype='igel:os:syslog' where `affected_devices` grouped by `severity`, `_time` satisfies `error_count` > 10 for 'IGEL OS Endpoint Syslog Error Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.5.5 negative (Error Monitoring): ingest benign `endpoint` / `igel:os:syslog` events where `severity`, `_time` stays below `error_count` > 10, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 5 confirms zero alert rows for 'IGEL OS Endpoint Syslog Error Monitoring'."
+  },
+  "dataSources": "`index=endpoint` `sourcetype=\"igel:os:syslog\"` fields `host`, `severity`, `facility`, `process`, `message` Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk syslog input (TCP/TLS) receiving IGEL OS rsyslog — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=endpoint sourcetype=\"igel:os:syslog\" (severity=\"err\" OR severity=\"crit\" OR severity=\"alert\" OR severity=\"emerg\")\n| bin _time span=1h\n| stats count as error_count, dc(host) as affected_devices, values(process) as processes by severity, _time\n| where error_count > 10\n| table _time, severity, error_count, affected_devices, processes",
-  "description": "IGEL OS endpoints forward syslog messages via rsyslog with TLS encryption to centralized collectors. Monitoring for error and critical severity messages across the fleet surfaces hardware failures, driver issues, network connectivity problems, and application crashes that users may not report until they become workflow-blocking.",
-  "value": "IGEL OS endpoints forward syslog messages via rsyslog with TLS encryption to centralized collectors. Monitoring for error and critical severity messages across the fleet surfaces hardware failures, driver issues, network connectivity problems, and application crashes that users may not report until they become workflow-blocking.",
+  "description": "Alerts on 'IGEL OS Endpoint Syslog Error Monitoring' patterns (UC-2.5.5) sourced from `index=endpoint` sourcetype `igel:os:syslog`. Threshold bundle: `error_count` > 10; aggregation grain: `severity`, `_time`; metrics: `affected_devices`. Watch terms: IGEL, Endpoint, Syslog, Error, Monitoring.",
+  "value": "UC-2.5.5 gives Linux teams earlier visibility into Error Monitoring through `igel:os:syslog` feeds, lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Configure IGEL OS syslog forwarding via UMS profile: System > Logging > Remote mode = Client, with TLS enabled and CA certificate at `/wfs/ca-certs/ca.pem`. Point to Splunk TCP/TLS input on port 6514. Create a props.conf entry for `sourcetype=igel:os:syslog` to parse syslog priority into `severity` and `facility` fields. Alert on cluster patterns (same error across many devices = systemic issue, repeated errors on one device = hardware fault). Exclude known benign messages via a lookup filter.",
   "visualization": "Timechart (error count by severity), Table (top errors by frequency), Bar chart (affected devices by error type).",
   "cimModels": [
@@ -21,14 +27,40 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 833",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Proxmox and hypervisor health can go yellow during Ceph rebalancing, zfs scrubs, or one-node maintenance; check cluster quorum and job progress before reassigning the alert.",
+  "knownFalsePositives": "1. **Patch Tuesday on `endpoint`** — Package managers spike `severity` metrics for 'IGEL OS Endpoint Syslog Error Monitoring'. Correlate with apt/yum logs in the same `igel:os:syslog` window.\n\n2. **Nightly backup I/O on `severity`** — Predictable `dc` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `igel:os:syslog`** — Nagios/Zabbix polls `severity` and mimics sustained load without crossing `error_count` > 10.\n\n4. **New host onboarding** — `severity` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `severity`, `valid_until`.",
   "equipment": [
     "m365",
     "syslog"
   ],
+  "equipmentModels": [
+    "m365_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk syslog input (TCP/TLS) receiving IGEL OS rsyslog.\n• Ensure the following data sources are available: `index=endpoint` `sourcetype=\"igel:os:syslog\"` fields `host`, `severity`, `facility`, `process`, `message`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure IGEL OS syslog forwarding via UMS profile: System > Logging > Remote mode = Client, with TLS enabled and CA certificate at `/wfs/ca-certs/ca.pem`. Point to Splunk TCP/TLS input on port 6514. Create a props.conf entry for `sourcetype=igel:os:syslog` to parse syslog priority into `severity` and `facility` fields. Alert on cluster patterns (same error across many devices = systemic issue, repeated errors on one device = hardware fault). Exclude known benign messages via a lookup filter.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=endpoint sourcetype=\"igel:os:syslog\" (severity=\"err\" OR severity=\"crit\" OR severity=\"alert\" OR severity=\"emerg\")\n| bin _time span=1h\n| stats count as error_count, dc(host) as affected_devices, values(process) as processes by severity, _time\n| where error_count > 10\n| table _time, severity, error_count, affected_devices, processes\n```\n\nUnderstanding this SPL\n\n**IGEL OS Endpoint Syslog Error Monitoring** — IGEL OS endpoints forward syslog messages via rsyslog with TLS encryption to centralized collectors. Monitoring for error and critical severity messages across the fleet surfaces hardware failures, driver issues, network connectivity problems, and application crashes that users may not report until they become workflow-blocking.\n\nDocumented **Data sources**: `index=endpoint` `sourcetype=\"igel:os:syslog\"` fields `host`, `severity`, `facility`, `process`, `message`. **App/TA** (typical add-on context): Splunk syslog input (TCP/TLS) receiving IGEL OS rsyslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: endpoint; **sourcetype**: igel:os:syslog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=endpoint, sourcetype=\"igel:os:syslog\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by severity, _time** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where error_count > 10` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **IGEL OS Endpoint Syslog Error Monitoring**): table _time, severity, error_count, affected_devices, processes\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart (error count by severity), Table (top errors by frequency), Bar chart (affected devices by error type).",
-  "grandmaExplanation": "We keep an eye on iGEL OS Endpoint Syslog Error and raise the alarm before it drags down real work or real outages start."
+  "grandmaExplanation": "We keep an eye on iGEL OS Endpoint Syslog Error and raise the alarm before it drags down real work or real outages start.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,35 +8,60 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Catch trips (`outdoor:trip`), hunt map activity (`hunt:map`), foraging observations (`forage:observation`), smoker sessions (`cook:smoker`), harvest queues (`outdoor:queue`).",
-  "app": "Fishing, hunting, foraging, and outdoor-cooking telemetry — Fishbrain catch logs, onX Hunt map exports, iNaturalist observations, and ThermoWorks smoker probes — streamed to Splunk HEC via APIs, exports, and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Fishbrain Catch Window by Weather Band' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_fishbrain_catch_window_by_weather_band` (UC-25.44.20), SOC dashboard panel \"Personal — Fishbrain Catch Window by Weather Band\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.44.20 positive (Fishbrain, Catch, Window, Weather, Band): ingest synthetic events into `index=personal` sourcetype='outdoor:trip' where `avg_catch_window_min` grouped by `weather_band` satisfies detection threshold for 'Fishbrain Catch Window by Weather Band'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.44.20 negative (Weather Band): ingest benign `personal` / `outdoor:trip` events where `weather_band` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 12 confirms zero alert rows for 'Fishbrain Catch Window by Weather Band'."
+  },
+  "dataSources": "Catch trips (`outdoor:trip`), hunt map activity (`hunt:map`), foraging observations (`forage:observation`), smoker sessions (`cook:smoker`), harvest queues (`outdoor:queue`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Fishing, hunting, foraging, and outdoor-cooking telemetry — Fishbrain catch logs, onX Hunt map exports, iNaturalist observations, and ThermoWorks smoker probes — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=outdoor:trip platform=\"fishbrain\" weather_band=* catch_window_min=*\n| stats avg(catch_window_min) as avg_catch_window_min, count as events by weather_band\n| sort - avg_catch_window_min",
-  "description": "Shows average catch-window minutes by weather band for catch timing.",
-  "value": "Average catch-window minutes by weather band helps compare catch timing across the factors that matter most.",
+  "description": "Identifies UC-25.44.20 — Fishbrain, Catch, Window, Weather, Band — using `index=personal` sourcetype `outdoor:trip`, grouped by `weather_band`. Outputs `avg_catch_window_min` each `the scheduled window`; alert when configured threshold. Primary focus: Weather Band. Purpose-built for 'Fishbrain Catch Window by Weather Band' in Personal workflows.",
+  "value": "Tracking `avg_catch_window_min` via UC-25.44.20 on `outdoor:trip` feeds improves response to 'Fishbrain Catch Window by Weather Band' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Capture `catch_window_min` on `outdoor:trip` events and normalize `weather_band` so Splunk can summarize performance by weather band.",
   "visualization": "Bar chart of average catch-window minutes by weather band.",
   "cimModels": [],
   "references": [
     {
       "title": "Fishbrain — fishing app",
-      "url": "https://fishbrain.com/"
+      "url": "https://fishbrain.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "onX Hunt — maps",
-      "url": "https://www.onxmaps.com/hunt/app"
+      "url": "https://www.onxmaps.com/hunt/app",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "iNaturalist — observations",
-      "url": "https://www.inaturalist.org/"
+      "url": "https://www.inaturalist.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThermoWorks Signals — smoker telemetry",
-      "url": "https://www.thermoworks.com/signals/"
+      "url": "https://www.thermoworks.com/signals/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It records the average catch-window minutes for each weather band so you can see what works best for catch timing."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.44.20)** — Connector for 'Fishbrain Catch Window by Weather Band' stops polling `outdoor:trip`; stale `avg_catch_window_min` on `weather_band` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_catch_window_min` over `1w` is expected for UC-25.44.20, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `outdoor:trip`. Dedup with `stats latest(*) by weather_band`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Fishbrain Catch Window by Weather Band'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Fishing, Hunting & Foraging — typical feeds: Fishing catches (`fishing:catch`), fishfinder sonar (`fishfinder:reading`), foraging finds (`foraging:find`), game-cam triggers (`gamecam:trigger`)..\n• **Sourcetypes in this search**: `outdoor:trip`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=outdoor:trip`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Outdoor logs — fishing apps (Fishbrain), sonar / fishfinder exports, game/trail cameras, and foraging journals — streamed to Splunk HEC via APIs and scripted inputs..\n\n**Author notes:** Capture `catch_window_min` on `outdoor:trip` events and normalize `weather_band` so Splunk can summarize performance by weather band.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"outdoor:trip\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=outdoor:trip earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Fishbrain Catch Window by Weather Band** over `personal` data (primarily `sourcetype=outdoor:trip`) across the full search range. The `avg` aggregation groups by `weather_band`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `weather_band`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=outdoor:trip platform=\"fishbrain\" weather_band=* catch_window_min=*\n| stats avg(catch_window_min) as avg_catch_window_min, count as events by weather_band\n| sort - avg_catch_window_min\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=outdoor:trip earliest=-7d\n| head 50\n| table weather_band\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=outdoor:trip earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.44.20: Personal evidence` with the following panel layout:\n\n**Panel 1 — Bar Chart Of Average Catch-Window Minutes By Weather Band (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `outdoor:trip` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=outdoor:trip | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It records the average catch-window minutes for each weather band so you can see what works best for catch timing.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

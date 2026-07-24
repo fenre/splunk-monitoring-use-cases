@@ -8,30 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Baby feedings (`baby:feed`), baby sleep (`baby:sleep`), diaper changes (`diaper:change`), school departures (`school:departure`), stroller activity (`stroller:walk`), household chores (`chore:event`), and family geofence events (`family:location`).",
-  "app": "Family and baby telemetry from baby-tracking apps, school and geofence automations, stroller logs, chore trackers, and shared-home events streamed to Splunk HEC via APIs and Home Assistant.",
+  "exclusions": "Covers personal hobby monitoring for 'Nap-Transition Readiness by Wake Window' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_nap_transition_readiness_by_wake_window` (UC-25.23.13), SOC dashboard panel \"Personal — Nap-Transition Readiness by Wake Window\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.23.13 positive (Nap, Transition, Readiness, Wake, Window): ingest synthetic events into `index=personal` sourcetype='baby:sleep' where `avg_wake_window_min`, `avg_nap_minutes` grouped by `child`, `nap_number` satisfies detection threshold for 'Nap-Transition Readiness by Wake Window'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.23.13 negative (Wake Window): ingest benign `personal` / `baby:sleep` events where `child`, `nap_number` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 10 confirms zero alert rows for 'Nap-Transition Readiness by Wake Window'."
+  },
+  "dataSources": "Baby feedings (`baby:feed`), baby sleep (`baby:sleep`), diaper changes (`diaper:change`), school departures (`school:departure`), stroller activity (`stroller:walk`), household chores (`chore:event`), and family geofence events (`family:location`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Family and baby telemetry from baby-tracking apps, school and geofence automations, stroller logs, chore trackers, and shared-home events streamed to Splunk HEC via APIs and Home Assistant. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=baby:sleep event=\"nap_start\"\n| stats avg(wake_window_min) as avg_wake_window_min avg(sleep_minutes) as avg_nap_minutes by child nap_number\n| sort child nap_number",
-  "description": "Compares wake-window length with the quality of the following nap to show when the nap schedule is ready to shift.",
-  "value": "Nap transitions are easier when you can see the wake windows that still produce good sleep instead of relying on vague intuition.",
+  "description": "Monitors UC-25.23.13 — Nap, Transition, Readiness, Wake, Window — using `index=personal` sourcetype `baby:sleep`, grouped by `child`, `nap_number`. Outputs `avg_wake_window_min`, `avg_nap_minutes` each `the scheduled window`; alert when configured threshold. Primary focus: Wake Window. Purpose-built for 'Nap-Transition Readiness by Wake Window' in Personal workflows.",
+  "value": "For 'Nap-Transition Readiness by Wake Window', UC-25.23.13 converts `avg_wake_window_min`, `avg_nap_minutes` on `baby:sleep` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Capture nap starts with the preceding wake-window duration from your baby-tracking app.",
   "visualization": "Line chart of average wake window and nap duration by nap number.",
   "cimModels": [],
   "references": [
     {
       "title": "Huckleberry - baby tracking",
-      "url": "https://huckleberrycare.com/"
+      "url": "https://huckleberrycare.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Google Calendar - API",
-      "url": "https://developers.google.com/calendar/api"
+      "url": "https://developers.google.com/calendar/api",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.23.13)** — Connector for 'Nap-Transition Readiness by Wake Window' stops polling `baby:sleep`; stale `avg_wake_window_min`, `avg_nap_minutes` on `child`, `nap_number` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_wake_window_min`, `avg_nap_minutes` over `1w` is expected for UC-25.23.13, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `baby:sleep`. Dedup with `stats latest(*) by child`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Nap-Transition Readiness by Wake Window'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],
-  "grandmaExplanation": "It spots how long your child stays awake before a nap and whether that timing still seems to work well."
+  "equipmentModels": [
+    "asterisk_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Family, Baby & Household Chaos — typical feeds: Baby feeds (`baby:feed`), baby sleep (`baby:sleep`), diaper changes (`diaper:change`), chore completions (`chore:completion`), allowance ledger (`allowance:ledger`), family calendar (`family:calendar`.\n• **Sourcetypes in this search**: `baby:sleep`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=baby:sleep`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Baby-tracking app exports (Huckleberry/Baby Daybook), chore and allowance boards, shared family calendars, screen-time reports, and growth logs via Splunk HEC scripted inputs..\n\n**Author notes:** Capture nap starts with the preceding wake-window duration from your baby-tracking app.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"baby:sleep\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=baby:sleep earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Nap-Transition Readiness by Wake Window** over `personal` data (primarily `sourcetype=baby:sleep`) across the full search range. The `avg` aggregation groups by `child`, `nap_number`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `child`, `nap_number`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=baby:sleep event=\"nap_start\"\n| stats avg(wake_window_min) as avg_wake_window_min avg(sleep_minutes) as avg_nap_minutes by child nap_number\n| sort child nap_number\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=baby:sleep earliest=-7d\n| head 50\n| table child, nap_number\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=baby:sleep earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.23.13: Personal evidence` with the following panel layout:\n\n**Panel 1 — Line Chart Of Average Wake Window And Nap Duration By Nap Number (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `baby:sleep` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=baby:sleep | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It spots how long your child stays awake before a nap and whether that timing still seems to work well.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

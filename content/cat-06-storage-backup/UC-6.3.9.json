@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Veeam job session data (REST API or PowerShell Get-VBRSession)",
-  "app": "Custom (Veeam Enterprise Manager REST API, PowerShell output)",
+  "exclusions": "Covers the detection logic documented for 'Veeam Backup Job Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_veeam_backup_job_monitoring` (UC-6.3.9), SOC dashboard panel \"Operations — Veeam Backup Job Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.3.9 positive (Veeam, Backup, Job, Monitoring): ingest synthetic events into `index=backup` sourcetype='veeam:job_session' where `count` grouped by `job_name` satisfies `duration_min` > 480 for 'Veeam Backup Job Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.3.9 negative (Job Monitoring): ingest benign `backup` / `veeam:job_session` events where `job_name` stays below `duration_min` > 480, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Veeam Backup Job Monitoring'."
+  },
+  "dataSources": "Veeam job session data (REST API or PowerShell Get-VBRSession) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom (Veeam Enterprise Manager REST API, PowerShell output) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=backup sourcetype=\"veeam:job_session\"\n| stats latest(_time) as last_run, latest(status) as status, latest(duration_min) as duration_min, latest(data_transferred_gb) as data_gb by job_name\n| where status!=\"Success\" OR duration_min>480\n| table job_name, last_run, status, duration_min, data_gb\n| sort last_run",
-  "description": "Job success/failure/warning status, duration, and data transferred are essential for backup reliability. Immediate visibility into job outcomes ensures data protection SLAs are met and enables rapid troubleshooting.",
-  "value": "Job success/failure/warning status, duration, and data transferred are essential for backup reliability. Immediate visibility into job outcomes ensures data protection SLAs are met and enables rapid troubleshooting.",
+  "description": "Identifies UC-6.3.9 — Veeam, Backup, Job, Monitoring — using `index=backup` sourcetype `veeam:job_session`, grouped by `job_name`. Outputs `count` each `the scheduled window`; alert when `duration_min` > 480. Primary focus: Job Monitoring. Purpose-built for 'Veeam Backup Job Monitoring' in Operations workflows.",
+  "value": "UC-6.3.9 operationalises 'Veeam Backup Job Monitoring' against `veeam:job_session` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Use Veeam Enterprise Manager REST API (`/api/sessionMgr`) or PowerShell script invoking `Get-VBRSession` to collect job session data. Poll every 15–30 minutes or trigger on job completion. Extract job_name, status (Success/Failed/Warning), start/end time (for duration), and data transferred. Index to Splunk with sourcetype `veeam:job_session`. Alert immediately on status=Failed; warning on status=Warning. Alert when duration exceeds backup window (e.g., >8 hours).",
   "visualization": "Table (job, status, duration, data transferred), Single value (failed jobs count), Bar chart (duration by job), Status grid (job × date).",
   "cimModels": [
@@ -21,13 +27,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `backup` (UC-6.3.9)** — Planned work for 'Veeam Backup Job Monitoring' shifts `count` over `span=1h` while `job_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `veeam:job_session`** — Scheduled automation elevates `src` without crossing `duration_min` > 480 for UC-6.3.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `job_name`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `veeam:job_session`** — First 48h baseline for UC-6.3.9 on `job_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `job_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "veeam"
   ],
+  "equipmentModels": [
+    "veeam_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (Veeam Enterprise Manager REST API, PowerShell output).\n• Ensure the following data sources are available: Veeam job session data (REST API or PowerShell Get-VBRSession).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nUse Veeam Enterprise Manager REST API (`/api/sessionMgr`) or PowerShell script invoking `Get-VBRSession` to collect job session data. Poll every 15–30 minutes or trigger on job completion. Extract job_name, status (Success/Failed/Warning), start/end time (for duration), and data transferred. Index to Splunk with sourcetype `veeam:job_session`. Alert immediately on status=Failed; warning on status=Warning. Alert when duration exceeds backup window (e.g., >8 hours).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=backup sourcetype=\"veeam:job_session\"\n| stats latest(_time) as last_run, latest(status) as status, latest(duration_min) as duration_min, latest(data_transferred_gb) as data_gb by job_name\n| where status!=\"Success\" OR duration_min>480\n| table job_name, last_run, status, duration_min, data_gb\n| sort last_run\n```\n\nUnderstanding this SPL\n\n**Veeam Backup Job Monitoring** — Job success/failure/warning status, duration, and data transferred are essential for backup reliability. Immediate visibility into job outcomes ensures data protection SLAs are met and enables rapid troubleshooting.\n\nDocumented **Data sources**: Veeam job session data (REST API or PowerShell Get-VBRSession). **App/TA** (typical add-on context): Custom (Veeam Enterprise Manager REST API, PowerShell output). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: backup; **sourcetype**: veeam:job_session. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=backup, sourcetype=\"veeam:job_session\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by job_name** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where status!=\"Success\" OR duration_min>480` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Veeam Backup Job Monitoring**): table job_name, last_run, status, duration_min, data_gb\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare job session state, duration, and transferred bytes with Veeam Backup & Replication or Veeam Enterprise Manager for the same job and time window.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. List media server, proxy, and repository names in the runbook, and when to open a ticket with the application team versus the backup team. Consider visualizations: Table (job, status, duration, data transferred), Single value (failed jobs count), Bar chart (duration by job), Status grid (job × date).",
-  "grandmaExplanation": "We help you see which backup runs finished cleanly and which did not, so you are not caught thinking data was protected when a job really failed or stopped early."
+  "grandmaExplanation": "We help you see which backup runs finished cleanly and which did not, so you are not caught thinking data was protected when a job really failed or stopped early.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

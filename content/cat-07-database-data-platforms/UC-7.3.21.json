@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "MongoDB audit log (`atype: authenticate`, `result: 0`) or mongod log lines `Authentication failed`",
-  "app": "MongoDB Atlas audit export, MongoDB Enterprise Advanced audit, or forwarded mongod logs",
+  "exclusions": "Covers the detection logic documented for 'MongoDB Authentication Failure Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_mongodb_authentication_failure_monitoring` (UC-7.3.21), SOC dashboard panel \"Operations — MongoDB Authentication Failure Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.3.21 positive (MongoDB, Authentication, Failure, Monitoring): ingest synthetic events into `index=database` sourcetype='mongodb:audit' where `users`, `sources` grouped by `host`, `_time` satisfies `failures` > 30 for 'MongoDB Authentication Failure Monitoring'. Validate filter `\"Authentication failed\" OR result=\"fail\" OR errCode=18`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.3.21 negative (Failure Monitoring): ingest benign `database` / `mongodb:audit` events where `host`, `_time` stays below `failures` > 30, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'MongoDB Authentication Failure Monitoring'."
+  },
+  "dataSources": "MongoDB audit log (`atype: authenticate`, `result: 0`) or mongod log lines `Authentication failed` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "MongoDB Atlas audit export, MongoDB Enterprise Advanced audit, or forwarded mongod logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"mongodb:audit\"\n| search \"Authentication failed\" OR result=\"fail\" OR errCode=18\n| bin _time span=1h\n| stats count as failures dc(user) as users dc(ip) as sources by host, _time\n| where failures > 30",
-  "description": "Failed authentication events in MongoDB audit logs indicate credential attacks or misconfigured clients. Teams monitor these alongside Atlas authentication alerts.",
-  "value": "Improves detection of database credential abuse in self-managed and Atlas-backed MongoDB deployments ingested into Splunk.",
+  "description": "Surfaces 'MongoDB Authentication Failure Monitoring' (UC-7.3.21) using `index=database` sourcetype `mongodb:audit` via filter `\"Authentication failed\" OR result=\"fail\" OR errCode=18` by aggregating `users`, `sources` grouped by `host`, `_time` over `1h` and alerting when `failures` > 30. Keywords: MongoDB, Authentication, Failure, Monitoring. Focuses on Failure Monitoring behaviour so operations teams can triage UC-7.3.21 without ad-hoc log review.",
+  "value": "UC-7.3.21 accelerates insight into Failure Monitoring ('MongoDB Authentication Failure Monitoring') by tracking `users`, `sources` on `mongodb:audit` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Normalize audit schema (Atlas vs on-prem). Map result codes: success vs failure per vendor docs. Enrich addr with threat intel if permitted. Tune thresholds for CI/CD service accounts.",
   "visualization": "Table (user, sources, count), Timeline (failures), Map (addr).",
   "cimModels": [
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "MongoDB Auditing",
-      "url": "https://www.mongodb.com/docs/manual/administration/"
+      "url": "https://www.mongodb.com/docs/manual/administration/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned access reviews, recertification, break-glass accounts, and vendor maintenance can emit privilege- or access-change events that match the rule but are already approved; require a change ticket for context.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.3.21)** — Planned work for 'MongoDB Authentication Failure Monitoring' shifts `users`, `sources` over `span=1h` while `host`, `_time` remains in-scope. Applies filter `\"Authentication failed\" OR result=\"fail\" OR errCode=18`. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `mongodb:audit`** — Scheduled automation elevates `_time` without crossing `failures` > 30 for UC-7.3.21. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `_time`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mongodb:audit`** — First 48h baseline for UC-7.3.21 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "mongodb"
   ],
@@ -38,5 +60,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch for repeated or suspicious sign-in activity on our databases so we can catch brute-force and misconfiguration before they become account takeovers."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (MongoDB Atlas audit export, MongoDB Enterprise Advanced audit, or forwarded mongod logs — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=mongodb:audit into database. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, failures, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch for repeated or suspicious sign-in activity on our databases so we can catch brute-force and misconfiguration before they become account takeovers.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,31 +9,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Ravelry projects (`ravelry:project`), knitCompanion row counters (`knitcompanion:counter`), Shelly smart-plug machine runtime (`shelly:status`), and Ravelry stash entries (`ravelry:stash`).",
-  "app": "Ravelry project and stash exports, knitCompanion row-counter logs, and Shelly plug telemetry for sewing-machine hours sent to Splunk.",
+  "exclusions": "Covers personal hobby monitoring for 'Pattern Queue Age by Craft Type' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_pattern_queue_age_by_craft_type` (UC-25.73.4), SOC dashboard panel \"Personal — Pattern Queue Age by Craft Type\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.73.4 positive (Pattern, Queue, Age, Craft, Type): ingest synthetic events into `index=personal` sourcetype='ravelry:project' where `max_days_in_queue` grouped by `craft_type` satisfies detection threshold for 'Pattern Queue Age by Craft Type'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.73.4 negative (Craft Type): ingest benign `personal` / `ravelry:project` events where `craft_type` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 3 confirms zero alert rows for 'Pattern Queue Age by Craft Type'."
+  },
+  "dataSources": "Ravelry projects (`ravelry:project`), knitCompanion row counters (`knitcompanion:counter`), Shelly smart-plug machine runtime (`shelly:status`), and Ravelry stash entries (`ravelry:stash`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Ravelry project and stash exports, knitCompanion row-counter logs, and Shelly plug telemetry for sewing-machine hours sent to Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=ravelry:project project_status=\"queued\"\n| stats max(days_in_queue) as max_days_in_queue, count as queued_projects by craft_type\n| sort - max_days_in_queue",
-  "description": "Shows how long queued knitting, crochet, or sewing projects have been waiting to start.",
-  "value": "Queue age is a healthy antidote to aspirational over-planning because it reveals the oldest neglected intentions.",
+  "description": "Monitors when Craft Type criteria fire for 'Pattern Queue Age by Craft Type' (UC-25.73.4) in `index=personal` sourcetype `ravelry:project`. Pipeline aggregates `max_days_in_queue` by `craft_type` over `the scheduled window`. Alert logic enforces configured threshold. Title terms: Pattern, Queue, Age, Craft, Type. Eliminates manual hunting for UC-25.73.4 conditions.",
+  "value": "UC-25.73.4 helps teams contain Pattern, Queue, Age, Craft, Type scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Export queued Ravelry project metadata with craft type and the number of days since it entered the queue.",
   "visualization": "Table of craft types with queued project count and oldest queue age.",
   "cimModels": [],
   "references": [
     {
       "title": "Ravelry",
-      "url": "https://www.ravelry.com/"
+      "url": "https://www.ravelry.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "knitCompanion",
-      "url": "https://www.knitcompanion.com/"
+      "url": "https://www.knitcompanion.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Shelly API Documentation",
-      "url": "https://shelly-api-docs.shelly.cloud/"
+      "url": "https://shelly-api-docs.shelly.cloud/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It spots which kinds of craft projects have been waiting the longest to get started."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.73.4)** — Connector for 'Pattern Queue Age by Craft Type' stops polling `ravelry:project`; stale `max_days_in_queue` on `craft_type` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max_days_in_queue` over `1w` is expected for UC-25.73.4, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ravelry:project`. Dedup with `stats latest(*) by craft_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Pattern Queue Age by Craft Type'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Fiber Arts & Crafting — typical feeds: Ravelry projects (`ravelry:project`), knitCompanion row counters (`knitcompanion:counter`), Shelly smart-plug machine runtime (`shelly:status`), and Ravelry stash entries (`ravelry:stash`)..\n• **Sourcetypes in this search**: `ravelry:project`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=ravelry:project`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Ravelry project and stash exports, knitCompanion row-counter logs, and Shelly plug telemetry for sewing-machine hours sent to Splunk..\n\n**Author notes:** Export queued Ravelry project metadata with craft type and the number of days since it entered the queue.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"ravelry:project\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=ravelry:project earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Pattern Queue Age by Craft Type** over `personal` data (primarily `sourcetype=ravelry:project`) across the full search range. The `max` aggregation groups by `craft_type`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `craft_type`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=ravelry:project project_status=\"queued\"\n| stats max(days_in_queue) as max_days_in_queue, count as queued_projects by craft_type\n| sort - max_days_in_queue\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=ravelry:project earliest=-7d\n| head 50\n| table craft_type\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=ravelry:project earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.73.4: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Craft Types With Queued Project Count And Oldest Queue Age (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `ravelry:project` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=ravelry:project | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It spots which kinds of craft projects have been waiting the longest to get started.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

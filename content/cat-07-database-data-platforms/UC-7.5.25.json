@@ -8,11 +8,17 @@
     "Change"
   ],
   "splunkPillar": "IT Operations",
-  "dataSources": "mongod log messages for `createIndexes`, `dropIndexes`, `collMod`, or profiler events",
-  "app": "Splunk Universal Forwarder on mongod hosts",
+  "exclusions": "Covers the detection logic documented for 'MongoDB Index Build and collMod Operations' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_mongodb_index_build_and_collmod_operations` (UC-7.5.25), SOC dashboard panel \"Operations — MongoDB Index Build and collMod Operations\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.5.25 positive (MongoDB, Index, Build, and, collMod): ingest synthetic events into `index=database` sourcetype='mongodb:log' where `count` grouped by `ns`, `host` satisfies detection threshold for 'MongoDB Index Build and collMod Operations'. Validate filter `\"createIndexes\" OR \"dropIndexes\" OR \"collMod\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.5.25 negative (collMod Operations): ingest benign `database` / `mongodb:log` events where `ns`, `host` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'MongoDB Index Build and collMod Operations'."
+  },
+  "dataSources": "mongod log messages for `createIndexes`, `dropIndexes`, `collMod`, or profiler events Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder on mongod hosts — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"mongodb:log\"\n| search \"createIndexes\" OR \"dropIndexes\" OR \"collMod\"\n| rex field=_raw \"ns:\\s+(?<ns>[^\\s]+)\"\n| stats earliest(_time) as started latest(_raw) as sample by ns, host\n| sort -started",
-  "description": "Index builds change performance characteristics and can throttle production workloads. Operators track createIndexes/dropIndexes/collMod events for correlation with latency regressions.",
-  "value": "Speeds root-cause analysis when deployments coincide with long-running index builds on large collections.",
+  "description": "Monitors UC-7.5.25 — MongoDB, Index, Build, and, collMod — using `index=database` sourcetype `mongodb:log`, grouped by `ns`, `host`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `\"createIndexes\" OR \"dropIndexes\" OR \"collMod\"`. Purpose-built for 'MongoDB Index Build and collMod Operations' in Operations workflows.",
+  "value": "UC-7.5.25 gives Operations teams earlier visibility into collMod Operations through `mongodb:log` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Ensure mongod logs include command namespace. For Atlas, ship equivalent audit events. Pair with currentOp index builds panel. Filter routine automation via service account lookup.",
   "visualization": "Timeline (operations), Table (ns, host), Drill to raw sample.",
   "cimModels": [
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "MongoDB Index Builds on Populated Collections",
-      "url": "https://www.mongodb.com/docs/manual/core/index-creation/"
+      "url": "https://www.mongodb.com/docs/manual/core/index-creation/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Maintenance work (ANALYZE, VACUUM, REINDEX, index builds) and ETL or large report jobs may show up as long-running or blocking — compare with the maintenance and batch schedule.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.5.25)** — Planned work for 'MongoDB Index Build and collMod Operations' shifts `count` over `span=1h` while `ns`, `host` remains in-scope. Applies filter `\"createIndexes\" OR \"dropIndexes\" OR \"collMod\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `mongodb:log`** — Scheduled automation elevates `host` without crossing configured threshold for UC-7.5.25. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ns`, `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mongodb:log`** — First 48h baseline for UC-7.5.25 on `ns` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ns`, `exception_reason`, `valid_until`.",
   "equipment": [
     "mongodb"
   ],
@@ -38,5 +60,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We surface slow and blocking queries so we can fix the worst offenders first and keep applications and batch jobs within the response times we promise."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Universal Forwarder on mongod hosts — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=mongodb:log into database. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, ns`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We surface slow and blocking queries so we can fix the worst offenders first and keep applications and batch jobs within the response times we promise.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

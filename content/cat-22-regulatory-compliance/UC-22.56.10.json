@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Trigger synthetic IR ticket with `tsa_passenger_rail_in_scope=true` and 23-hour-old awareness. UC-22.56.10 MUST escalate.",
-    "negativeScenario": "Submit within 24h with FTA notification time set. UC-22.56.10 MUST record `submission_status=on_time` and `fta_parallel=notified`."
+    "positiveScenario": "UC-22.56.10 positive (TSA, Passenger, Rail, Hour, Reporting): ingest synthetic events into `index=itsm` sourcetype='snow:sn_si_incident' where `count` grouped by `entity` satisfies `hours_to_submission` <= 24, `hours_to_submission` > 24, `hours_since_awareness` > 23, or `hours_since_awareness` <= 24 for 'TSA-SD Passenger-Rail 24-Hour Reporting (SD-1582-2022-01) — Amtrak + PTC + transit cyber events'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.56.10 negative (cyber events): ingest benign `itsm` / `snow:sn_si_incident` events where `entity` stays below `hours_to_submission` <= 24, `hours_to_submission` > 24, `hours_since_awareness` > 23, or `hours_since_awareness` <= 24, or exclude the test entity via `compliance_exception_register.csv`. Variant 6 confirms zero alert rows for 'TSA-SD Passenger-Rail 24-Hour Reporting (SD-1582-2022-01) — Amtrak + PTC + transit cyber events'."
   },
   "dataSources": "ServiceNow SIR with `tsa_passenger_rail_in_scope`, `tsa_reportable_category`, `fta_notification_time`. KV Store `tsa_passenger_rail_operator_lookup`. SOAR `tsa_passenger_rail_cisa_submission`.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928).",
   "spl": "index=itsm sourcetype=\"snow:sn_si_incident\" tsa_passenger_rail_in_scope=true tsa_reportable_category=*\n| eval awareness_time = coalesce(tsa_awareness_time, opened_at)\n| eval cisa_submission_time = strptime(cisa_submission_time, \"%Y-%m-%dT%H:%M:%S\")\n| eval hours_since_awareness = round((now() - awareness_time) / 3600, 2)\n| eval hours_to_submission = case(\n    isnotnull(cisa_submission_time), round((cisa_submission_time - awareness_time) / 3600, 2),\n    1=1, hours_since_awareness)\n| eval submission_status = case(\n    isnotnull(cisa_submission_time) AND hours_to_submission <= 24, \"on_time\",\n    isnotnull(cisa_submission_time) AND hours_to_submission > 24, \"late\",\n    isnull(cisa_submission_time) AND hours_since_awareness > 23 AND hours_since_awareness <= 24, \"clock_burning\",\n    isnull(cisa_submission_time) AND hours_since_awareness > 24, \"missed\",\n    1=1, \"in_window\")\n| eval fta_parallel = case(\n    fta_grant_recipient=true AND isnotnull(fta_notification_time), \"notified\",\n    fta_grant_recipient=true AND isnull(fta_notification_time), \"missing\",\n    1=1, \"na\")\n| where submission_status IN (\"clock_burning\",\"missed\",\"late\") OR fta_parallel=\"missing\"\n| table incident_id passenger_rail_operator_id tsa_reportable_category awareness_time cisa_submission_time hours_to_submission submission_status fta_parallel",
-  "description": "Passenger-rail 24-hour reporting mirror with FTA parallel branch for federally-funded transit agencies.",
-  "value": "Major transit operators (NJT, MTA, BART, WMATA, Caltrain) face dual TSA + FTA + FRA scrutiny on cyber events.",
+  "description": "Surfaces cyber events anomalies for UC-22.56.10 with window `the scheduled window` on `index=itsm` sourcetype `snow:sn_si_incident`. Combines `count` by `entity` and compares against `hours_to_submission` <= 24, `hours_to_submission` > 24, `hours_since_awareness` > 23, or `hours_since_awareness` <= 24. Mapped to keywords TSA, Passenger, Rail, Hour, Reporting for dashboard routing.",
+  "value": "Alerting on TSA, Passenger, Rail, Hour, Reporting through UC-22.56.10 reduces audit findings, regulatory gaps, and attestation delays by surfacing `activity` early.",
   "implementation": "Same as UC-22.56.9 with passenger-rail register and FTA branch instead of (or in addition to) FRA branch.",
   "visualization": "(Panel 1) Live clock-burn. (Panel 2) FTA + FRA parallel-notification status. (Panel 3) Submission performance. (Panel 4) Late/missed table.",
   "cimModels": [
@@ -46,18 +46,26 @@
   "references": [
     {
       "title": "TSA SD-1582-2022-01 (passenger rail cybersecurity)",
-      "url": "https://www.tsa.gov/sites/default/files/sd-1582-2022-01.pdf"
+      "url": "https://www.tsa.gov/sites/default/files/sd-1582-2022-01.pdf",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TSA reissues passenger rail cyber requirements (Oct 2024)",
-      "url": "https://www.tsa.gov/news/press/releases/2024/10/24/tsa-reissues-cybersecurity-requirements-rail-industry"
+      "url": "https://www.tsa.gov/news/press/releases/2024/10/24/tsa-reissues-cybersecurity-requirements-rail-industry",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "FTA Cybersecurity Information",
-      "url": "https://www.transit.dot.gov/regulations-and-guidance/safety/cybersecurity"
+      "url": "https://www.transit.dot.gov/regulations-and-guidance/safety/cybersecurity",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Commuter rail/transit overlap**: many transit agencies operate both. Tag for both UC-22.56.10 and UC-22.56.17.\n2. **PTC vs Train Control System**: PTC-related events may not be FTA-reportable but are CISA-reportable.\n\n**Suppression mechanism**: KV Store `tsa_22_56_10_exceptions`.",
+  "knownFalsePositives": "1. **Authorised TSA SURFACE control testing** — Internal audit exercises 'TSA-SD Passenger-Rail 24-Hour Reporting (SD-1582-2022-01) — Amtrak + PTC + transit cyber events' (UC-22.56.10) on `entity` during scheduled clause TSA-SD-1582-2022-01-s2 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=itsm` `snow:sn_si_incident` without crossing `hours_to_submission` <= 24. Cross-check engagement letter in `tsa_surface_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `itsm` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `tsa_surface_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (regulatory reporting)"
   ],
@@ -88,7 +96,7 @@
     "Splunk Enterprise Security",
     "Splunk SOAR"
   ],
-  "detailedImplementation": "## Prerequisites\n\nSame as UC-22.56.9.\n\n## Step 1 — Passenger-rail register\n\n```ini\n[tsa_passenger_rail_operator_lookup]\nfield.passenger_rail_operator_id = string\nfield.operator_name = string\nfield.tsa_in_scope = string\nfield.fta_grant_recipient = string\nfield.ptc_vendor = string\n```\n\n## Step 2 — SOAR playbook\n\n`tsa_passenger_rail_cisa_submission`: mirrors `tsa_cisa_submission` with FTA parallel-routing on grant-funded operators.\n\n## Step 3 — Runbook\n\nSame structure as UC-22.56.1. Add FTA branch when `fta_grant_recipient=true`.\n\n## Step 4 — Troubleshooting\n\n**Multi-jurisdictional operators** (e.g. NJT into NYC): coordinate with multiple state agencies; the CC documents the decision tree.\n\n**TSA-specific failure modes**:\n- **Federal funding revocation risk**: missing FTA notification on grant-funded agency can affect federal funding.\n- **DHS / DOT inter-agency coordination**: CISA submission triggers DOT consultation; ensure the CC participates.",
+  "detailedImplementation": "## Prerequisites\n\nSame as UC-22.56.9.\n\n## Step 1 — Passenger-rail register\n\n```ini\n[tsa_passenger_rail_operator_lookup]\nfield.passenger_rail_operator_id = string\nfield.operator_name = string\nfield.tsa_in_scope = string\nfield.fta_grant_recipient = string\nfield.ptc_vendor = string\n```\n\n## Step 2 — SOAR playbook\n\n`tsa_passenger_rail_cisa_submission`: mirrors `tsa_cisa_submission` with FTA parallel-routing on grant-funded operators.\n\n## Step 3 — Runbook\n\nSame structure as UC-22.56.1. Add FTA branch when `fta_grant_recipient=true`.\n\n## Step 4 — Troubleshooting\n\n**Multi-jurisdictional operators** (e.g. NJT into NYC): coordinate with multiple state agencies; the CC documents the decision tree.\n\n**TSA-specific failure modes**:\n- **Federal funding revocation risk**: missing FTA notification on grant-funded agency can affect federal funding.\n- **DHS / DOT inter-agency coordination**: CISA submission triggers DOT consultation; ensure the CC participates.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928).). Enable the modular input or HEC token that writes sourcetype=snow:sn_si_incident into itsm. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cisa_submission_time, fta_parallel, hours_since_awareness, hours_to_submission`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Same 24-hour clock as freight rail, but for passenger trains — and for transit operators that get federal money, we also tell the transit funding agency.",
   "prerequisiteUseCases": [
     "UC-22.56.9"

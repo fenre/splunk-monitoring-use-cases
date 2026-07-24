@@ -31,14 +31,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Deploy a non-qualified IDS to a SAIV. UC-22.58.5 MUST flag within 24h.",
-    "negativeScenario": "Deploy ANSSI-qualified product (e.g., Stormshield SNS qualified) with current visa. UC-22.58.5 MUST NOT escalate."
+    "positiveScenario": "UC-22.58.5 positive (France, LPM, ANSSI, qualified, product): ingest synthetic events into `index=target_index` sourcetype='snow:cmdb' where `asset_count` grouped by `oiv_id`, `product_id` satisfies -24h for 'France LPM ANSSI-qualified product (visa de sécurité, CSPN, CC) procurement evidence + LSP ledger'. Validate lookup `lpm_anssi_visa_lookup`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.58.5 negative (LSP ledger): ingest benign `target_index` / `snow:cmdb` events where `oiv_id`, `product_id` stays below -24h, or exclude the test entity via `compliance_exception_register.csv`. Variant 10 confirms zero alert rows for 'France LPM ANSSI-qualified product (visa de sécurité, CSPN, CC) procurement evidence + LSP ledger'."
   },
   "dataSources": "ServiceNow CMDB (`snow:cmdb`). ANSSI visa register `lpm_anssi_visa_lookup` (product_id, vendor, qualification_type, certificate_id, certificate_valid_until). ServiceNow Procurement records (`snow:proc`). KV Store `lpm_visa_derogation_lookup`.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "search sourcetype=snow:cmdb saiv_protecting=true earliest=-24h\n| stats values(vendor) as vendor values(product_id) as product_id dc(asset_id) as asset_count by oiv_id product_id\n| lookup lpm_anssi_visa_lookup product_id AS product_id OUTPUT qualification_type certificate_id certificate_valid_until\n| join type=left product_id [| inputlookup lpm_visa_derogation_lookup | where valid_until > now() | rename derogation_id as active_derogation]\n| eval compliance_status = case(\n    isnotnull(certificate_id) AND certificate_valid_until > now(), \"qualified\",\n    isnotnull(certificate_id) AND certificate_valid_until <= now(), \"qualification_expired\",\n    isnull(certificate_id) AND isnotnull(active_derogation), \"derogated\",\n    isnull(certificate_id), \"non_qualified\")\n| where compliance_status IN (\"non_qualified\",\"qualification_expired\")\n| table oiv_id product_id vendor qualification_type certificate_id certificate_valid_until asset_count active_derogation compliance_status",
-  "description": "Reconciles SAIV-protecting product inventory against ANSSI visa register and active derogations.",
-  "value": "ANSSI procurement scrutiny on OIV is direct. Non-qualified product deployment can void OIV compliance and trigger compulsory removal.",
+  "description": "Identifies UC-22.58.5 — France, LPM, ANSSI, qualified, product — using `index=target_index` sourcetype `snow:cmdb`, grouped by `oiv_id`, `product_id`. Outputs `asset_count` each `the scheduled window`; alert when -24h. Filter chain includes lookup `lpm_anssi_visa_lookup`. Purpose-built for 'France LPM ANSSI-qualified product (visa de sécurité, CSPN, CC) procurement evidence + LSP ledger' in Compliance workflows.",
+  "value": "For 'France LPM ANSSI-qualified product (visa de sécurité, CSPN, CC) procurement evidence + LSP ledger', UC-22.58.5 converts `asset_count` on `snow:cmdb` feeds into actionable rows and reduces audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Populate ANSSI visa register from cyber.gouv.fr/produits-services-qualifies. (2) Maintain CMDB `saiv_protecting` flag. (3) Schedule UC-22.58.5 daily. (4) Build the `LPM Qualified-Product Ledger` dashboard.",
   "visualization": "(Panel 1) Qualified vs non-qualified products. (Panel 2) Vendor mix. (Panel 3) Visa expiry timeline. (Panel 4) Derogation register.",
   "cimModels": [
@@ -48,14 +48,26 @@
   "references": [
     {
       "title": "Code de la défense Art. R.1332-41-13",
-      "url": "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000028370715/"
+      "url": "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000028370715/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ANSSI — Produits et services qualifiés",
-      "url": "https://cyber.gouv.fr/produits-services-qualifies"
+      "url": "https://cyber.gouv.fr/produits-services-qualifies",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **In-flight re-qualification**: vendors may have submitted re-qualification dossier; tag with `recertification_pending` and short grace.\n2. **Equivalent qualification**: some EU products carry CC/CSPN equivalents; map.\n3. **Trial deployment**: lab/PoC deployments may use non-qualified products; tag with `lab_only=true`.\n\n**Suppression mechanism**: KV Store `lpm_22_58_5_exceptions` with documented Procurement approval and 6-month max grant.",
+  "knownFalsePositives": "1. **Authorised FR LPM control testing** — Internal audit exercises 'France LPM ANSSI-qualified product (visa de sécurité, CSPN, CC) procurement evidence + LSP ledger' (UC-22.58.5) on `oiv_id` during scheduled clause FR-ANSSI-rule-protection-access-control sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `snow:cmdb` without crossing evidence threshold. Cross-check engagement letter in `fr_lpm_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `oiv_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `oiv_id` during normal service delivery.\n\n**Suppression mechanism:** `fr_lpm_exception_register.csv` keyed on `oiv_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (supply-chain governance)"
   ],
@@ -84,7 +96,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- ANSSI visa register synced daily from cyber.gouv.fr.\n- ServiceNow CMDB with `saiv_protecting` tag.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.58.5: LPM Qualified-Product Ledger]\ncron_schedule = 39 9 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.58.5,reg=FR-LPM,clause=LPM-Art-R1332-41-13\nalert.severity = 4\n```\n\n## Step 2 — Runbook\n\n**`compliance_status=non_qualified`** (owner: Procurement, severity P2):\n1. Within 7 days: identify ANSSI-qualified alternative or initiate derogation.\n2. Within 30 days: deploy qualified alternative or obtain ANSSI derogation.\n3. Within 90 days: decommission non-qualified product unless derogation granted.\n\n## Step 3 — Troubleshooting\n\n**FR-specific failure modes**:\n- **Visa renewal lag**: ANSSI re-qualifications can take 12+ months; engage vendor early.\n- **Cross-EU equivalent**: SOG-IS CC/EAL equivalents may apply; pin mapping.\n- **Stormshield, ITrust, Atempo, Wallix etc.**: French national champions hold qualifications; favour these.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- ANSSI visa register synced daily from cyber.gouv.fr.\n- ServiceNow CMDB with `saiv_protecting` tag.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.58.5: LPM Qualified-Product Ledger]\ncron_schedule = 39 9 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.58.5,reg=FR-LPM,clause=LPM-Art-R1332-41-13\nalert.severity = 4\n```\n\n## Step 2 — Runbook\n\n**`compliance_status=non_qualified`** (owner: Procurement, severity P2):\n1. Within 7 days: identify ANSSI-qualified alternative or initiate derogation.\n2. Within 30 days: deploy qualified alternative or obtain ANSSI derogation.\n3. Within 90 days: decommission non-qualified product unless derogation granted.\n\n## Step 3 — Troubleshooting\n\n**FR-specific failure modes**:\n- **Visa renewal lag**: ANSSI re-qualifications can take 12+ months; engage vendor early.\n- **Cross-EU equivalent**: SOG-IS CC/EAL equivalents may apply; pin mapping.\n- **Stormshield, ITrust, Atempo, Wallix etc.**: French national champions hold qualifications; favour these.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).). Enable the modular input or HEC token that writes sourcetype=snow:cmdb into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`compliance_status, oiv_id, product_id, qualification_type certificate_id certificate_valid_until`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Les produits qui protègent les systèmes vitaux doivent porter le tampon de l'ANSSI. Nous vérifions chaque équipement déployé et signalons s'il n'a pas (ou plus) ce tampon.",
   "prerequisiteUseCases": [
     "UC-22.58.3"

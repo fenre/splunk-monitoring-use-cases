@@ -9,46 +9,70 @@
     "Anomaly"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Endurance activities (`strava:activity`, `garmin:activity`, `coros:activity`, `wahoo:workout`, `trainerroad:workout`, `applefitness:workout`, `concept2:workout`, `zwift:activity`).",
-  "app": "COROS, Wahoo ELEMNT, TrainerRoad, Apple Fitness / HealthKit exports, Concept2 Logbook, Strava, Garmin Connect, and Zwift activity feeds via official APIs, FIT/CSV exports, and Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Wahoo Sensor Dropout by Ride' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_wahoo_sensor_dropout_by_ride` (UC-25.1.20), SOC dashboard panel \"Personal — Wahoo Sensor Dropout by Ride\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.1.20 positive (Wahoo, Sensor, Dropout, Ride): ingest synthetic events into `index=personal` sourcetype='wahoo:workout' where `cadence_dropouts`, `hr_dropouts`, `duration_min` grouped by `workout_id`, `head_unit` satisfies `cadence_dropouts` > 2, or `hr_dropouts` > 2 for 'Wahoo Sensor Dropout by Ride'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.1.20 negative (by Ride): ingest benign `personal` / `wahoo:workout` events where `workout_id`, `head_unit` stays below `cadence_dropouts` > 2, or `hr_dropouts` > 2, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Wahoo Sensor Dropout by Ride'."
+  },
+  "dataSources": "Endurance activities (`strava:activity`, `garmin:activity`, `coros:activity`, `wahoo:workout`, `trainerroad:workout`, `applefitness:workout`, `concept2:workout`, `zwift:activity`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "COROS, Wahoo ELEMNT, TrainerRoad, Apple Fitness / HealthKit exports, Concept2 Logbook, Strava, Garmin Connect, and Zwift activity feeds via official APIs, FIT/CSV exports, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=wahoo:workout\n| stats sum(cadence_dropouts) as cadence_dropouts, sum(hr_dropouts) as hr_dropouts, avg(duration_min) as duration_min by workout_id head_unit\n| where cadence_dropouts>2 OR hr_dropouts>2\n| sort - cadence_dropouts - hr_dropouts",
-  "description": "Uses Wahoo ELEMNT ride telemetry telemetry to monitor sensor stability during each recorded ride in index=personal.",
-  "value": "Splunk turns the feed into an operational check for head units or sensors that are quietly losing data quality, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Alerts on by Ride anomalies for UC-25.1.20 with window `the scheduled window` on `index=personal` sourcetype `wahoo:workout`. Combines `cadence_dropouts`, `hr_dropouts`, `duration_min` by `workout_id`, `head_unit` and compares against `cadence_dropouts` > 2, or `hr_dropouts` > 2. Mapped to keywords Wahoo, Sensor, Dropout, Ride for dashboard routing.",
+  "value": "Alerting on Wahoo, Sensor, Dropout, Ride through UC-25.1.20 reduces missed training goals, stale hobby data, and connector failures by surfacing `cadence_dropouts`, `hr_dropouts`, `duration_min` early.",
   "implementation": "Ingest Wahoo ELEMNT ride telemetry data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a weekly cadence.",
   "visualization": "Table of rides with cadence and heart-rate dropouts.",
   "cimModels": [],
   "references": [
     {
       "title": "Strava - API reference",
-      "url": "https://developers.strava.com/docs/reference/"
+      "url": "https://developers.strava.com/docs/reference/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "COROS support",
-      "url": "https://support.coros.com/hc/en-us"
+      "url": "https://support.coros.com/hc/en-us",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Wahoo support",
-      "url": "https://support.wahoofitness.com/hc/en-us"
+      "url": "https://support.wahoofitness.com/hc/en-us",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TrainerRoad support",
-      "url": "https://support.trainerroad.com/hc/en-us"
+      "url": "https://support.trainerroad.com/hc/en-us",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Apple HealthKit",
-      "url": "https://developer.apple.com/documentation/healthkit"
+      "url": "https://developer.apple.com/documentation/healthkit",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Concept2 Logbook API",
-      "url": "https://log.concept2.com/developers/documentation"
+      "url": "https://log.concept2.com/developers/documentation",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.1.20)** — Connector for 'Wahoo Sensor Dropout by Ride' stops polling `wahoo:workout`; stale `cadence_dropouts`, `hr_dropouts`, `duration_min` on `workout_id`, `head_unit` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `cadence_dropouts`, `hr_dropouts`, `duration_min` over `1w` is expected for UC-25.1.20, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `wahoo:workout`. Dedup with `stats latest(*) by workout_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `cadence_dropouts` > 2 for 'Wahoo Sensor Dropout by Ride'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It highlights sensor stability during each recorded ride so you can spot head units or sensors that are quietly losing data quality before it becomes annoying."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Fitness & Activity Tracking — typical feeds: Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`), Zwift/TrainingPeaks exports..\n• **Sourcetypes in this search**: `wahoo:workout`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=wahoo:workout`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as files..\n\n**Author notes:** Ingest Wahoo ELEMNT ride telemetry data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a weekly cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"wahoo:workout\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=wahoo:workout earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Wahoo Sensor Dropout by Ride** over `personal` data (primarily `sourcetype=wahoo:workout`) across the full search range. It applies numeric thresholds on `cadence_dropouts` (> 2) after sum, avg — tune these constants to your household baseline.\n\n**Fields this search depends on:** `cadence_dropouts`, `head_unit`, `hr_dropouts`, `workout_id`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=wahoo:workout\n| stats sum(cadence_dropouts) as cadence_dropouts, sum(hr_dropouts) as hr_dropouts, avg(duration_min) as duration_min by workout_id head_unit\n| where cadence_dropouts>2 OR hr_dropouts>2\n| sort - cadence_dropouts - hr_dropouts\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=wahoo:workout earliest=-7d\n| head 50\n| table cadence_dropouts, head_unit, hr_dropouts, workout_id\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=wahoo:workout earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `cadence_dropouts` before alerting:\n\n```spl\nindex=personal sourcetype=wahoo:workout earliest=-30d\n| stats perc50(cadence_dropouts) AS p50 perc90(cadence_dropouts) AS p90 perc99(cadence_dropouts) AS p99 max(cadence_dropouts) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.1.20: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Rides With Cadence And Heart-Rate Dropouts (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `wahoo:workout` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=wahoo:workout | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It highlights sensor stability during each recorded ride so you can spot head units or sensors that are quietly losing data quality before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -10,28 +10,42 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Detailed: SNMP polls (`mplsLsrIdentifier`, label range MIBs), streaming telemetry (`label-space`, `free-labels`, `in-use`), syslog threshold traps (`LABEL`, `LIB`, `LFIB`, platform-specific exhaustion warnings); indexes `network`, `infra_metrics`.",
-  "app": "Splunk Connect for SNMP or Supporting Add-on for SNMP; Cisco IOS-XR telemetry; Juniper OpenConfig `network-instances/network-instance/mpls/` sensors; Nokia SR OS streaming state paths.",
+  "exclusions": "Covers the detection logic documented for 'MPLS Label Table Utilization' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_mpls_label_table_utilization` (UC-5.18.5), SOC dashboard panel \"Operations — MPLS Label Table Utilization\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.18.5 positive (MPLS, Label, Table, Utilization): ingest synthetic events into `index=network` sourcetype='target_sourcetype' where `peak_pct`, `syslog_crit` grouped by `_time`, `host` satisfies `total` > 0, `pct` >= 85, `peak_pct` >= 85, or `syslog_crit` >= 1 for 'MPLS Label Table Utilization'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.18.5 negative (Table Utilization): ingest benign `network` / `target_sourcetype` events where `_time`, `host` stays below `total` > 0, `pct` >= 85, `peak_pct` >= 85, or `syslog_crit` >= 1, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'MPLS Label Table Utilization'."
+  },
+  "dataSources": "Detailed: SNMP polls (`mplsLsrIdentifier`, label range MIBs), streaming telemetry (`label-space`, `free-labels`, `in-use`), syslog threshold traps (`LABEL`, `LIB`, `LFIB`, platform-specific exhaustion warnings); indexes `network`, `infra_metrics`. Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Connect for SNMP or Supporting Add-on for SNMP; Cisco IOS-XR telemetry; Juniper OpenConfig `network-instances/network-instance/mpls/` sensors; Nokia SR OS streaming state paths. — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=network OR index=infra_metrics earliest=-24h@h latest=now\n| eval metric_name=lower(coalesce(metric_name,name,\"\"))\n| eval msg=lower(_raw)\n| eval lab_use=match(metric_name,\"label|lfib|mpls.*table|mpls.*usage\") OR match(msg,\"label.*(?:space|range|table)|(?:mpls|lfib).*(?:full|exhaust|threshold|high.?water)|free.?labels|in.?use.?labels\")\n| where lab_use=1\n| eval used=tonumber(coalesce(labels_in_use,in_use_labels,mpls_labels_used,lfib_entries))\n| eval total=tonumber(coalesce(label_space_total,max_labels,platform_label_capacity))\n| eval pct=if(isnotnull(used) AND isnotnull(total) AND total>0, round(100*used/total,2), null())\n| eval syslog_crit=if(match(msg,\"(?:critical|major).*label\"),1,0)\n| bin _time span=15m\n| stats latest(used) as used latest(total) as total latest(pct) as pct max(pct) as peak_pct max(syslog_crit) as syslog_crit by _time host\n| where pct>=85 OR peak_pct>=85 OR syslog_crit>=1\n| sort host _time",
-  "description": "Splunk trends MPLS label-space consumption per forwarding plane so platforms approaching vendor-imposed LFIB or dynamic label limits trigger proactive hardware upgrades before RSVP or LDP admissions fail catastrophically.",
-  "value": "Capacity governance avoids midnight Sev1 failures where new VPN sites cannot signal because free labels dropped below safe margins while dashboards still showed green interface utilization unrelated to control-plane resource exhaustion.",
+  "description": "Detects UC-5.18.5 — MPLS, Label, Table, Utilization — using `index=network` sourcetype `configured sourcetype`, grouped by `_time`, `host`. Outputs `peak_pct`, `syslog_crit` each `15m`; alert when `total` > 0, `pct` >= 85, `peak_pct` >= 85, or `syslog_crit` >= 1. Primary focus: Table Utilization. Purpose-built for 'MPLS Label Table Utilization' in Operations workflows.",
+  "value": "Tracking `peak_pct`, `syslog_crit` via UC-5.18.5 on UC-5.18.5 search results improves response to 'MPLS Label Table Utilization' and reduces operational risk and delayed incident response.",
   "implementation": "Schedule fifteen-minute SNMP or telemetry polls into metrics index, compute percent used vs platform caps from CMDB, alert when sustained ≥85% for four buckets or syslog reports critical label exhaustion.",
   "visualization": "Dashboard Studio: KPI row for PEs above warn threshold; timechart of `pct` by `host`; overlay syslog exhaustion markers as annotations.",
   "references": [
     {
       "title": "Cisco IOS XR MPLS Label Allocation Overview",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Juniper MPLS Applications User Guide — Label Allocation",
-      "url": "https://www.juniper.net/documentation/us/en/software/junos/mpls/"
+      "url": "https://www.juniper.net/documentation/us/en/software/junos/mpls/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "IETF RFC 3032 — MPLS Label Stack Encoding",
-      "url": "https://www.rfc-editor.org/rfc/rfc3032"
+      "url": "https://www.rfc-editor.org/rfc/rfc3032",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Per-LC vs global counters:** polling global only misses hot LC—split by slot.**SNMP 32-bit wraps:** rare but possible—use 64-bit HC counters.**Telemetry sparsity:** null `pct` skips alert—fallback to syslog.**Vendor MIB drift:** upgrades rename OIDs—version-pin TA.**Burst churn:** transient spikes during reconvergence—smooth with median window.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.18.5)** — Planned work for 'MPLS Label Table Utilization' shifts `peak_pct`, `syslog_crit` over `span=15m` while `_time`, `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `configured_sourcetype`** — Scheduled automation elevates `host` without crossing `total` > 0 for UC-5.18.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.18.5 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "N/A (capacity monitoring)"
   ],
@@ -58,7 +72,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Hardware SKU matrix documenting global vs per-line-card label pools.\n• Normalized `host` aligning SNMP agent address with syslog identity.\n\nStep 1 — Discover OIDs/sensors\nCisco: identify platform-specific MPLS label counters via CLI `show mpls label table summary` vs SNMP tree availability. Juniper: confirm sensor paths exposing `allocated-label-blocks`. Nokia: validate TIMOS model exposes free dynamic labels via SNMP or streaming.\n\nStep 2 — Build modular input\nUse SC4SNMP profiles polling counters every five minutes; backoff on timeout; tag `site` and `role` via lookup.\n\nStep 3 — SPL thresholds\nImplement staged alerts: warn ≥75%, page ≥90% for two consecutive intervals unless suppress.\n\nStep 4 — Validation\nDuring acceptance, artificially inflate VPN scale in lab (mass RD churn) while observing Splunk pct tracking CLI counters within ±2%.\n\nStep 5 — Lifecycle integration\nFeed Splunk summary index monthly into Capex workflow; attach trending screenshots for steering committee.",
+  "detailedImplementation": "Prerequisites\n• Hardware SKU matrix documenting global vs per-line-card label pools.\n• Normalized `host` aligning SNMP agent address with syslog identity.\n\nStep 1 — Discover OIDs/sensors\nCisco: identify platform-specific MPLS label counters via CLI `show mpls label table summary` vs SNMP tree availability. Juniper: confirm sensor paths exposing `allocated-label-blocks`. Nokia: validate TIMOS model exposes free dynamic labels via SNMP or streaming.\n\nStep 2 — Build modular input\nUse SC4SNMP profiles polling counters every five minutes; backoff on timeout; tag `site` and `role` via lookup.\n\nStep 3 — SPL thresholds\nImplement staged alerts: warn ≥75%, page ≥90% for two consecutive intervals unless suppress.\n\nStep 4 — Validation\nDuring acceptance, artificially inflate VPN scale in lab (mass RD churn) while observing Splunk pct tracking CLI counters within ±2%.\n\nStep 5 — Lifecycle integration\nFeed Splunk summary index monthly into Capex workflow; attach trending screenshots for steering committee.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Connect for SNMP or Supporting Add-on for SNMP; Cisco IOS-XR telemetry; Juniper OpenConfig `network-instances/network-instance/mpls/` sensors; Nokia SR OS streaming state paths. — Splunk Add-on for Unix and Linux (Splunkbase 833)). Enable the modular input or HEC token that writes sourcetype=see SPL into network, infra_metrics. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, host, pct, peak_pct`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We meter how many sticky numbered tags our routers still have left to hand out. When the sticker book fills up, we plan upgrades before new offices cannot plug in at all.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

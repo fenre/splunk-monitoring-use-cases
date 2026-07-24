@@ -8,8 +8,8 @@ This report inverts the compliance coverage audit: for every regulation-version 
 
 | Tier | Clauses | Covered | Coverage % | Priority weight | Priority covered | Priority % |
 |------|--------:|--------:|-----------:|----------------:|------------------:|-----------:|
-| tier-1 | 450 | 409 | 90.89 | 418.6000 | 380.5000 | 90.90 |
-| tier-2 | 204 | 199 | 97.55 | 194.7000 | 190.9000 | 98.05 |
+| tier-1 | 450 | 450 | 100.00 | 418.6000 | 418.6000 | 100.00 |
+| tier-2 | 204 | 204 | 100.00 | 194.7000 | 194.7000 | 100.00 |
 | tier-3 | 2 | 2 | 100.00 | 1.7000 | 1.7000 | 100.00 |
 
 ## Tier 1 frameworks
@@ -21,8 +21,8 @@ _America's Water Infrastructure Act of 2018 (Section 2013 amendments to SDWA s 1
 #### AWIA@2018-amended-SDWA-1433
 
 - Common clauses: **28**
-- Covered: **27** (96.43%)
-- Priority-weighted coverage: **97.20%** (24.3000 / 25.0000)
+- Covered: **28** (100.00%)
+- Priority-weighted coverage: **100.00%** (25.0000 / 25.0000)
 - Authoritative source: https://www.epa.gov/waterresilience/awia-section-2013
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
@@ -46,7 +46,7 @@ _America's Water Infrastructure Act of 2018 (Section 2013 amendments to SDWA s 1
 | `AWIA-EPA-cwc-reporting` | Cyber-incident reporting — WaterISAC and EPA Region pathway | 1.00 | ✔ 1 | full | 22.53.17 |
 | `AWIA-EPA-sanitary-survey` | EPA Cybersecurity Action Plan — voluntary cyber-incorporation into sanitary surveys | 0.70 | ✔ 1 | full | 22.53.18 |
 | `AWIA-EPA-aware-checklist` | EPA / CISA Top Cyber Actions for Water Utilities (Top 8 / 9 / Pathway) | 1.00 | ✔ 1 | full | 22.53.19 |
-| `AWIA-EPA-vsat-j100` | Use of recognised RRA methodology — J100-21 / AWWA M19 / VSAT-Web | 0.70 | ✖ 0 | — | — |
+| `AWIA-EPA-vsat-j100` | Use of recognised RRA methodology — J100-21 / AWWA M19 / VSAT-Web | 0.70 | ✔ 1 | full | 22.53.29 |
 | `AWIA-EPA-asset-inventory` | OT/IT asset inventory (cyber baseline) | 1.00 | ✔ 1 | full | 22.53.27 |
 | `AWIA-EPA-mfa-remote-access` | Multi-factor authentication on all remote access | 1.00 | ✔ 1 | full | 22.53.21 |
 | `AWIA-EPA-network-segmentation` | Network segmentation between IT and OT | 1.00 | ✔ 1 | full | 22.53.22 |
@@ -56,14 +56,6 @@ _America's Water Infrastructure Act of 2018 (Section 2013 amendments to SDWA s 1
 | `AWIA-EPA-vuln-mgmt` | Reduce exposure to vulnerabilities — patching and configuration | 1.00 | ✔ 1 | full | 22.53.26 |
 | `AWIA-EPA-records-retention` | RRA / ERP / certification records retention | 0.70 | ✔ 1 | full | 22.53.28 |
 
-<details><summary>Top gaps (ranked by priority weight)</summary>
-
-| Priority | Clause | Topic |
-|---------:|--------|-------|
-| 0.70 | `AWIA-EPA-vsat-j100` | Use of recognised RRA methodology — J100-21 / AWWA M19 / VSAT-Web |
-
-</details>
-
 ### CERT-In Directions 2022 — `cert-in`
 
 _Indian Computer Emergency Response Team (CERT-In) Directions of 28 April 2022 (No. 20(3)/2022-CERT-In) under Section 70B(6) of the Information Technology Act 2000, plus Digital Personal Data Protection Act 2023 (DPDP) operational overlay_
@@ -71,8 +63,8 @@ _Indian Computer Emergency Response Team (CERT-In) Directions of 28 April 2022 (
 #### CERT-In Directions 2022@2022-04-28-cert-in-directions-with-2023-dpdp
 
 - Common clauses: **10**
-- Covered: **9** (90.00%)
-- Priority-weighted coverage: **94.12%** (8.0000 / 8.5000)
+- Covered: **10** (100.00%)
+- Priority-weighted coverage: **100.00%** (8.5000 / 8.5000)
 - Authoritative source: https://www.cert-in.org.in/PDF/CERT-In_Directions_70B_28.04.2022.pdf
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
@@ -83,18 +75,10 @@ _Indian Computer Emergency Response Team (CERT-In) Directions of 28 April 2022 (
 | `CERT-In-Dir-5` | Log retention 180 days minimum, stored within Indian jurisdiction | 1.00 | ✔ 1 | full | 22.62.4 |
 | `CERT-In-Dir-5-1` | VPN / VPS / cloud-service-provider KYC + 5-year record retention | 1.00 | ✔ 1 | full | 22.62.5 |
 | `CERT-In-Dir-6` | Virtual Asset Service Provider / crypto-exchange 5-year record retention | 1.00 | ✔ 1 | full | 22.62.6 |
-| `CERT-In-Dir-7` | Body-corporate KYC retention (5 years post-business relationship) | 0.50 | ✖ 0 | — | — |
+| `CERT-In-Dir-7` | Body-corporate KYC retention (5 years post-business relationship) | 0.50 | ✔ 1 | full | 22.62.9 |
 | `IT-Act-Sec-70B` | CERT-In statutory authority — directions binding under Section 70B(6) of IT Act 2000 | 1.00 | ✔ 1 | partial | 22.62.1 |
 | `IT-Act-Sec-43A` | Reasonable Security Practices and Procedures for Sensitive Personal Data (overlay) | 0.50 | ✔ 3 | full | 22.62.6, 22.62.7, 22.62.8 |
 | `DPDP-Sec-8` | Significant Data Fiduciary obligations (Data Protection Officer, DPIA, annual independent audit) — DPDP overlay | 0.50 | ✔ 2 | full | 22.62.7, 22.62.8 |
-
-<details><summary>Top gaps (ranked by priority weight)</summary>
-
-| Priority | Clause | Topic |
-|---------:|--------|-------|
-| 0.50 | `CERT-In-Dir-7` | Body-corporate KYC retention (5 years post-business relationship) |
-
-</details>
 
 ### CIRCIA — `circia`
 
@@ -168,14 +152,14 @@ _Cybersecurity Law of the People's Republic of China, Data Security Law, Persona
 #### CN CSL / DSL / PIPL@2017-csl-with-2021-dsl-pipl-and-2022-ciio-cross-border
 
 - Common clauses: **15**
-- Covered: **14** (93.33%)
-- Priority-weighted coverage: **93.33%** (14.0000 / 15.0000)
+- Covered: **15** (100.00%)
+- Priority-weighted coverage: **100.00%** (15.0000 / 15.0000)
 - Authoritative source: https://www.cac.gov.cn/
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
 | `CSL-Art-21` | Network operator obligations — tiered protection, technical security measures, contingency plans (MLPS as implementation vehicle) | 1.00 | ✔ 2 | full | 22.61.1, 22.61.12 |
-| `CSL-Art-21-3` | Universal log retention — ≥6 months for network operational status and security incidents | 1.00 | ✖ 0 | — | — |
+| `CSL-Art-21-3` | Universal log retention — ≥6 months for network operational status and security incidents | 1.00 | ✔ 1 | full | 22.61.13 |
 | `CSL-Art-25` | Cybersecurity incident emergency response plan + reporting to authorities | 1.00 | ✔ 1 | full | 22.61.3 |
 | `CSL-Art-37` | CIIO data localization — personal information and important data collected in PRC must be stored in PRC | 1.00 | ✔ 1 | full | 22.61.4 |
 | `CSL-Art-38` | CIIO annual cybersecurity inspection + risk assessment | 1.00 | ✔ 1 | full | 22.61.2 |
@@ -189,14 +173,6 @@ _Cybersecurity Law of the People's Republic of China, Data Security Law, Persona
 | `CIIO-Reg-Art-14` | Cybersecurity Review for CIIO procurement of network products and services | 1.00 | ✔ 1 | full | 22.61.10 |
 | `MLPS-2-0-L3` | MLPS 2.0 Level 3 controls — technical and administrative security baseline for important national systems | 1.00 | ✔ 3 | full | 22.61.1, 22.61.11, 22.61.12 |
 | `MLPS-2-0-annual` | Annual MLPS assessment by MPS-accredited testing organisation (Level 3+) | 1.00 | ✔ 2 | full | 22.61.1, 22.61.11 |
-
-<details><summary>Top gaps (ranked by priority weight)</summary>
-
-| Priority | Clause | Topic |
-|---------:|--------|-------|
-| 1.00 | `CSL-Art-21-3` | Universal log retention — ≥6 months for network operational status and security incidents |
-
-</details>
 
 ### DO-326A / ED-202A — `do-326a`
 
@@ -268,28 +244,20 @@ _Loi de programmation militaire (LPM) — French Operators of Vital Importance (
 #### France LPM (OIV)@2013-2018-with-anssi-2024-decrees
 
 - Common clauses: **8**
-- Covered: **7** (87.50%)
-- Priority-weighted coverage: **87.50%** (7.0000 / 8.0000)
+- Covered: **8** (100.00%)
+- Priority-weighted coverage: **100.00%** (8.0000 / 8.0000)
 - Authoritative source: https://cyber.gouv.fr/le-dispositif-francais-de-cybersecurite-des-oiv
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
 | `FR-LPM-Art22` | OIV designation — operator-of-vital-importance status and SIIV identification | 1.00 | ✔ 1 | full | 22.58.1 |
-| `FR-Decret-2015-351` | Décret 2015-351 — applicability of the 20 ANSSI cybersecurity rules to SIIV | 1.00 | ✖ 0 | — | — |
+| `FR-Decret-2015-351` | Décret 2015-351 — applicability of the 20 ANSSI cybersecurity rules to SIIV | 1.00 | ✔ 1 | partial | 22.58.9 |
 | `FR-ANSSI-rule-governance-cyber-officer` | Governance rule 1 — Cybersecurity Officer (RSSI) for the OIV | 1.00 | ✔ 1 | partial | 22.58.3 |
 | `FR-ANSSI-rule-governance-siiv-mapping` | Governance rule 2 — SIIV mapping and asset inventory | 1.00 | ✔ 1 | full | 22.58.6 |
 | `FR-ANSSI-rule-protection-access-control` | Protection rule — strong identity and access control + MFA | 1.00 | ✔ 1 | partial | 22.58.5 |
 | `FR-ANSSI-rule-defense-detection` | Defence rule — cybersecurity event detection + SOC capability | 1.00 | ✔ 1 | full | 22.58.4 |
 | `FR-ANSSI-rule-detection-pdis-qualification` | Defence rule — PDIS qualification for detection providers | 1.00 | ✔ 1 | full | 22.58.8 |
 | `FR-ANSSI-rule-incident-reporting` | Identification-of-incidents rule — incident reporting to ANSSI | 1.00 | ✔ 1 | full | 22.58.2 |
-
-<details><summary>Top gaps (ranked by priority weight)</summary>
-
-| Priority | Clause | Topic |
-|---------:|--------|-------|
-| 1.00 | `FR-Decret-2015-351` | Décret 2015-351 — applicability of the 20 ANSSI cybersecurity rules to SIIV |
-
-</details>
 
 ### GDPR — `gdpr`
 
@@ -361,33 +329,24 @@ _IEC 61511 Edition 2 (2016) — Functional safety: Safety Instrumented Systems f
 #### IEC 61511 + ISA TR84.00.09@2016-iec-61511-ed-2-with-isa-tr84-00-09
 
 - Common clauses: **12**
-- Covered: **10** (83.33%)
-- Priority-weighted coverage: **81.82%** (9.0000 / 11.0000)
+- Covered: **12** (100.00%)
+- Priority-weighted coverage: **100.00%** (11.0000 / 11.0000)
 - Authoritative source: https://webstore.iec.ch/publication/24241
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
 | `IEC-61511-Cl-5` | SIS safety lifecycle — phases, deliverables, and verification | 1.00 | ✔ 1 | full | 22.63.1 |
 | `IEC-61511-Cl-8-2-4` | Cybersecurity hazard analysis (CHA) — mandatory cybersecurity risk assessment for the SIS | 1.00 | ✔ 3 | full | 22.63.2, 22.63.5, 22.63.7 |
-| `IEC-61511-Cl-10` | SIS safety requirements specification (SRS) — SIL allocation per safety function | 1.00 | ✖ 0 | — | — |
+| `IEC-61511-Cl-10` | SIS safety requirements specification (SRS) — SIL allocation per safety function | 1.00 | ✔ 1 | full | 22.63.8 |
 | `IEC-61511-Cl-11` | SIS design and engineering — separation from BPCS, fail-safe, fault tolerance, diagnostic coverage | 1.00 | ✔ 1 | full | 22.63.3 |
 | `IEC-61511-Cl-11-7-6` | Override / bypass / inhibit / force — operational restrictions and logging | 1.00 | ✔ 1 | full | 22.63.3 |
-| `IEC-61511-Cl-14` | Operation and maintenance — procedures, training, and competence | 1.00 | ✖ 0 | — | — |
+| `IEC-61511-Cl-14` | Operation and maintenance — procedures, training, and competence | 1.00 | ✔ 1 | full | 22.63.9 |
 | `IEC-61511-Cl-16-3` | Proof testing — intervals, scope, and records | 1.00 | ✔ 1 | full | 22.63.4 |
 | `IEC-61511-Cl-17-2` | Management of change — impact assessment for SIS modification (including cyber-affecting changes) | 1.00 | ✔ 1 | full | 22.63.5 |
 | `ISA-TR84-00-09-s4` | Cybersecurity programme integrated with the SIS safety lifecycle | 1.00 | ✔ 2 | full | 22.63.2, 22.63.6 |
 | `ISA-TR84-00-09-s5` | Cybersecurity risk assessment (CRA) — zones, conduits, threat scenarios, countermeasures | 1.00 | ✔ 1 | partial | 22.63.6 |
 | `IEC-61508-Pt-1-Cl-7-4` | Overall SIL allocation — generic safety lifecycle (IEC 61508 root) | 0.50 | ✔ 2 | partial | 22.63.1, 22.63.4 |
 | `IEC-62443-3-2` | Cybersecurity risk assessment and zones-and-conduits partitioning (cross-referenced from IEC 61511 Cl.8.2.4) | 0.50 | ✔ 2 | full | 22.63.2, 22.63.7 |
-
-<details><summary>Top gaps (ranked by priority weight)</summary>
-
-| Priority | Clause | Topic |
-|---------:|--------|-------|
-| 1.00 | `IEC-61511-Cl-10` | SIS safety requirements specification (SRS) — SIL allocation per safety function |
-| 1.00 | `IEC-61511-Cl-14` | Operation and maintenance — procedures, training, and competence |
-
-</details>
 
 ### IMO MSC.428(98) — `imo-msc-428-98`
 
@@ -396,8 +355,8 @@ _IMO Resolution MSC.428(98) — Maritime Cyber Risk Management in Safety Managem
 #### IMO MSC.428(98)@2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27
 
 - Common clauses: **18**
-- Covered: **17** (94.44%)
-- Priority-weighted coverage: **94.44%** (17.0000 / 18.0000)
+- Covered: **18** (100.00%)
+- Priority-weighted coverage: **100.00%** (18.0000 / 18.0000)
 - Authoritative source: https://www.imo.org/en/OurWork/Security/Pages/Cyber-security.aspx
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
@@ -411,7 +370,7 @@ _IMO Resolution MSC.428(98) — Maritime Cyber Risk Management in Safety Managem
 | `IMO-MSC-FAL-Circ-3-s2-4` | Respond — incident-response activities including authority-notification | 1.00 | ✔ 2 | full | 22.59.13, 22.59.2 |
 | `IMO-MSC-FAL-Circ-3-s2-5` | Recover — recovery activities to restore safety-critical operations | 1.00 | ✔ 1 | full | 22.59.14 |
 | `IMO-MSC-FAL-Circ-3-s3-1` | Vulnerable shipboard systems — bridge, propulsion, cargo, communications, passenger, administrative, access | 1.00 | ✔ 6 | full | 22.59.12, 22.59.3, 22.59.5, 22.59.6, 22.59.8, 22.59.9 |
-| `IMO-MSC-FAL-Circ-3-s3-2` | Stakeholder and supply-chain considerations | 1.00 | ✖ 0 | — | — |
+| `IMO-MSC-FAL-Circ-3-s3-2` | Stakeholder and supply-chain considerations | 1.00 | ✔ 1 | full | 22.59.18 |
 | `IACS-UR-E26-r3` | IACS UR E26 — cyber resilience of ships, design-level requirements | 1.00 | ✔ 3 | full | 22.59.3, 22.59.4, 22.59.7 |
 | `IACS-UR-E26-r5` | IACS UR E26 — access control, MFA for privileged remote access, removable-media governance | 1.00 | ✔ 2 | full | 22.59.10, 22.59.11 |
 | `IACS-UR-E26-r9` | IACS UR E26 — security-event monitoring on CBS | 1.00 | ✔ 1 | full | 22.59.8 |
@@ -420,14 +379,6 @@ _IMO Resolution MSC.428(98) — Maritime Cyber Risk Management in Safety Managem
 | `IMO-ISM-Code-s8-2` | ISM Code — emergency-preparedness drills and exercises (including cyber) | 1.00 | ✔ 2 | full | 22.59.13, 22.59.14 |
 | `BIMCO-Cyber-bridge-systems` | BIMCO Guidelines — bridge-systems cyber considerations (ECDIS, GMDSS, AIS, VDR, GNSS) | 1.00 | ✔ 2 | full | 22.59.5, 22.59.6 |
 | `BIMCO-Cyber-satcom` | BIMCO Guidelines — satcom and shore-to-ship remote-access governance | 1.00 | ✔ 1 | full | 22.59.11 |
-
-<details><summary>Top gaps (ranked by priority weight)</summary>
-
-| Priority | Clause | Topic |
-|---------:|--------|-------|
-| 1.00 | `IMO-MSC-FAL-Circ-3-s3-2` | Stakeholder and supply-chain considerations |
-
-</details>
 
 ### ISO 27001 — `iso-27001`
 
@@ -689,43 +640,27 @@ _Cybersecurity Act 2018 (Singapore) and the Cybersecurity (Critical Information 
 #### SG Cyber Act@2018-amended-2024
 
 - Common clauses: **15**
-- Covered: **6** (40.00%)
-- Priority-weighted coverage: **40.00%** (6.0000 / 15.0000)
+- Covered: **15** (100.00%)
+- Priority-weighted coverage: **100.00%** (15.0000 / 15.0000)
 - Authoritative source: https://sso.agc.gov.sg/Act/CA2018
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
 | `SG-CA-s7` | CII designation — Commissioner's power and Owner's duties on designation | 1.00 | ✔ 1 | full | 22.57.1 |
-| `SG-CA-s10` | Code of Practice — binding implementation guidance | 1.00 | ✖ 0 | — | — |
-| `SG-CA-s14(1)` | CII Owner — reporting prescribed cybersecurity incidents to Commissioner | 1.00 | ✖ 0 | — | — |
+| `SG-CA-s10` | Code of Practice — binding implementation guidance | 1.00 | ✔ 1 | partial | 22.57.16 |
+| `SG-CA-s14(1)` | CII Owner — reporting prescribed cybersecurity incidents to Commissioner | 1.00 | ✔ 1 | full | 22.57.17 |
 | `SG-CA-s14(2)` | CII Owner — reporting material change in CII | 1.00 | ✔ 1 | partial | 22.57.8 |
 | `SG-CA-s15(1)` | CII Owner — annual cybersecurity audit | 1.00 | ✔ 1 | full | 22.57.4 |
 | `SG-CA-s15(2)` | CII Owner — cybersecurity risk assessment | 1.00 | ✔ 1 | full | 22.57.5 |
 | `SG-CA-s16` | CII Owner — participation in cybersecurity exercises | 1.00 | ✔ 1 | full | 22.57.6 |
-| `SG-CA-s19` | Commissioner's investigation powers and Owner's cooperation duty | 1.00 | ✖ 0 | — | — |
-| `SG-CII-Reg-3` | CII Owner — designation of Cybersecurity Officer + Alternate | 1.00 | ✖ 0 | — | — |
-| `SG-CII-Reg-5` | CII Owner — prescribed cybersecurity incident reporting (2-hour rule) | 1.00 | ✖ 0 | — | — |
-| `SG-CSA-COC-asset-mgmt` | COP — asset management and inventory | 1.00 | ✖ 0 | — | — |
-| `SG-CSA-COC-access-control` | COP — identity, access, MFA, and privileged-account management | 1.00 | ✖ 0 | — | — |
+| `SG-CA-s19` | Commissioner's investigation powers and Owner's cooperation duty | 1.00 | ✔ 1 | full | 22.57.18 |
+| `SG-CII-Reg-3` | CII Owner — designation of Cybersecurity Officer + Alternate | 1.00 | ✔ 1 | full | 22.57.19 |
+| `SG-CII-Reg-5` | CII Owner — prescribed cybersecurity incident reporting (2-hour rule) | 1.00 | ✔ 1 | full | 22.57.20 |
+| `SG-CSA-COC-asset-mgmt` | COP — asset management and inventory | 1.00 | ✔ 1 | full | 22.57.21 |
+| `SG-CSA-COC-access-control` | COP — identity, access, MFA, and privileged-account management | 1.00 | ✔ 1 | full | 22.57.22 |
 | `SG-CSA-COC-monitoring` | COP — continuous monitoring and SOC-of-CSA notification | 1.00 | ✔ 1 | full | 22.57.11 |
-| `SG-CSA-COC-supply-chain` | COP — third-party cybersecurity and managed-service obligations | 1.00 | ✖ 0 | — | — |
-| `SG-CSA-COC-business-continuity` | COP — Business continuity and disaster recovery for the CII | 1.00 | ✖ 0 | — | — |
-
-<details><summary>Top gaps (ranked by priority weight)</summary>
-
-| Priority | Clause | Topic |
-|---------:|--------|-------|
-| 1.00 | `SG-CA-s10` | Code of Practice — binding implementation guidance |
-| 1.00 | `SG-CA-s14(1)` | CII Owner — reporting prescribed cybersecurity incidents to Commissioner |
-| 1.00 | `SG-CA-s19` | Commissioner's investigation powers and Owner's cooperation duty |
-| 1.00 | `SG-CII-Reg-3` | CII Owner — designation of Cybersecurity Officer + Alternate |
-| 1.00 | `SG-CII-Reg-5` | CII Owner — prescribed cybersecurity incident reporting (2-hour rule) |
-| 1.00 | `SG-CSA-COC-access-control` | COP — identity, access, MFA, and privileged-account management |
-| 1.00 | `SG-CSA-COC-asset-mgmt` | COP — asset management and inventory |
-| 1.00 | `SG-CSA-COC-business-continuity` | COP — Business continuity and disaster recovery for the CII |
-| 1.00 | `SG-CSA-COC-supply-chain` | COP — third-party cybersecurity and managed-service obligations |
-
-</details>
+| `SG-CSA-COC-supply-chain` | COP — third-party cybersecurity and managed-service obligations | 1.00 | ✔ 1 | full | 22.57.23 |
+| `SG-CSA-COC-business-continuity` | COP — Business continuity and disaster recovery for the CII | 1.00 | ✔ 1 | full | 22.57.24 |
 
 ### SOC 2 — `soc-2`
 
@@ -764,8 +699,8 @@ _Security of Critical Infrastructure Act 2018 (Cth) and Critical Infrastructure 
 #### SOCI Act@2022-SLACIP+CIRMP-2023
 
 - Common clauses: **28**
-- Covered: **21** (75.00%)
-- Priority-weighted coverage: **77.73%** (19.2000 / 24.7000)
+- Covered: **28** (100.00%)
+- Priority-weighted coverage: **100.00%** (24.7000 / 24.7000)
 - Authoritative source: https://www.legislation.gov.au/C2018A00029/latest/text
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
@@ -790,28 +725,14 @@ _Security of Critical Infrastructure Act 2018 (Cth) and Critical Infrastructure 
 | `SOCI-CIRMP-r8.1` | CIRMP Rules — Supply-chain hazards: vendor risk register | 1.00 | ✔ 1 | full | 22.52.18 |
 | `SOCI-CIRMP-r8.2` | CIRMP Rules — Supply-chain hazards: continuous supplier monitoring | 0.70 | ✔ 1 | full | 22.52.19 |
 | `SOCI-CIRMP-r9.1` | CIRMP Rules — Physical and natural hazards: site security | 0.70 | ✔ 1 | full | 22.52.20 |
-| `SOCI-CIRMP-r9.2` | CIRMP Rules — Natural hazards and business continuity exercises | 0.70 | ✖ 0 | — | — |
+| `SOCI-CIRMP-r9.2` | CIRMP Rules — Natural hazards and business continuity exercises | 0.70 | ✔ 1 | full | 22.52.29 |
 | `SOCI-CIRMP-r10` | CIRMP Rules — Annual report to the Department | 1.00 | ✔ 2 | full | 22.52.22, 22.52.23 |
-| `SOCI-ECSO-vulnerability` | Enhanced Cyber Security Obligations — vulnerability disclosure and remediation tracking | 0.70 | ✖ 0 | — | — |
-| `SOCI-cross-segmentation` | OT zone-and-conduit segmentation (Defence, Energy, Water, Critical Manufacturing) | 1.00 | ✖ 0 | — | — |
-| `SOCI-cross-asset-inventory` | OT asset inventory with criticality classification (CISC expectation) | 1.00 | ✖ 0 | — | — |
-| `SOCI-cross-data-residency` | Australian data residency and operational-data sovereignty | 0.70 | ✖ 0 | — | — |
-| `SOCI-cross-encryption` | Encryption of operational data in transit between zones | 0.70 | ✖ 0 | — | — |
-| `SOCI-cross-audit-evidence` | Audit-evidence retention for CIRMP and incident reporting | 0.70 | ✖ 0 | — | — |
-
-<details><summary>Top gaps (ranked by priority weight)</summary>
-
-| Priority | Clause | Topic |
-|---------:|--------|-------|
-| 1.00 | `SOCI-cross-asset-inventory` | OT asset inventory with criticality classification (CISC expectation) |
-| 1.00 | `SOCI-cross-segmentation` | OT zone-and-conduit segmentation (Defence, Energy, Water, Critical Manufacturing) |
-| 0.70 | `SOCI-CIRMP-r9.2` | CIRMP Rules — Natural hazards and business continuity exercises |
-| 0.70 | `SOCI-ECSO-vulnerability` | Enhanced Cyber Security Obligations — vulnerability disclosure and remediation tracking |
-| 0.70 | `SOCI-cross-audit-evidence` | Audit-evidence retention for CIRMP and incident reporting |
-| 0.70 | `SOCI-cross-data-residency` | Australian data residency and operational-data sovereignty |
-| 0.70 | `SOCI-cross-encryption` | Encryption of operational data in transit between zones |
-
-</details>
+| `SOCI-ECSO-vulnerability` | Enhanced Cyber Security Obligations — vulnerability disclosure and remediation tracking | 0.70 | ✔ 1 | full | 22.52.30 |
+| `SOCI-cross-segmentation` | OT zone-and-conduit segmentation (Defence, Energy, Water, Critical Manufacturing) | 1.00 | ✔ 1 | full | 22.52.31 |
+| `SOCI-cross-asset-inventory` | OT asset inventory with criticality classification (CISC expectation) | 1.00 | ✔ 1 | full | 22.52.32 |
+| `SOCI-cross-data-residency` | Australian data residency and operational-data sovereignty | 0.70 | ✔ 1 | full | 22.52.33 |
+| `SOCI-cross-encryption` | Encryption of operational data in transit between zones | 0.70 | ✔ 1 | full | 22.52.34 |
+| `SOCI-cross-audit-evidence` | Audit-evidence retention for CIRMP and incident reporting | 0.70 | ✔ 1 | full | 22.52.35 |
 
 ### SOX ITGC — `sox-itgc`
 
@@ -846,8 +767,8 @@ _TSA Surface Cybersecurity Security Directives (SD-Pipeline-2021-01/02 + amendme
 #### TSA Surface SDs@2024-consolidated-pipeline-rail
 
 - Common clauses: **28**
-- Covered: **10** (35.71%)
-- Priority-weighted coverage: **36.50%** (10.0000 / 27.4000)
+- Covered: **28** (100.00%)
+- Priority-weighted coverage: **100.00%** (27.4000 / 27.4000)
 - Authoritative source: https://www.tsa.gov/news/press/releases/2024/06/07/tsa-reissues-cybersecurity-requirements-pipeline-industry
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
@@ -861,44 +782,25 @@ _TSA Surface Cybersecurity Security Directives (SD-Pipeline-2021-01/02 + amendme
 | `TSA-SD-P-2021-02C-s4` | Pipeline — Cybersecurity Incident Response Plan (CIRP) with annual exercise | 1.00 | ✔ 1 | full | 22.56.7 |
 | `TSA-SD-P-2021-02C-s5` | Pipeline — Cybersecurity Assessment (CSA) including CSAS / CAA | 1.00 | ✔ 1 | full | 22.56.8 |
 | `TSA-SD-1580-82-2022-01-s2` | Freight Rail — Cybersecurity Incident Reporting to CISA within 24 hours | 1.00 | ✔ 1 | full | 22.56.9 |
-| `TSA-SD-1580-82-2022-01-s3` | Freight Rail — Cybersecurity Coordinator designation | 1.00 | ✖ 0 | — | — |
-| `TSA-SD-1580-82-2022-01-s4` | Freight Rail — Cybersecurity Incident Response Plan (CIRP) with annual exercise | 1.00 | ✖ 0 | — | — |
-| `TSA-SD-1580-82-2022-01-s5` | Freight Rail — Cybersecurity Vulnerability Assessment | 1.00 | ✖ 0 | — | — |
+| `TSA-SD-1580-82-2022-01-s3` | Freight Rail — Cybersecurity Coordinator designation | 1.00 | ✔ 1 | full | 22.56.29 |
+| `TSA-SD-1580-82-2022-01-s4` | Freight Rail — Cybersecurity Incident Response Plan (CIRP) with annual exercise | 1.00 | ✔ 1 | full | 22.56.30 |
+| `TSA-SD-1580-82-2022-01-s5` | Freight Rail — Cybersecurity Vulnerability Assessment | 1.00 | ✔ 1 | full | 22.56.31 |
 | `TSA-SD-1582-2022-01-s2` | Passenger Rail — Cybersecurity Incident Reporting to CISA within 24 hours | 1.00 | ✔ 1 | full | 22.56.10 |
-| `TSA-SD-1582-2022-01-s3` | Passenger Rail — Cybersecurity Coordinator designation | 1.00 | ✖ 0 | — | — |
-| `TSA-SD-1582-2022-01-s4` | Passenger Rail — Cybersecurity Incident Response Plan (CIRP) with annual exercise | 1.00 | ✖ 0 | — | — |
-| `TSA-SD-1582-2022-01-cf-1` | Passenger Rail — control family 1 (network segmentation) | 1.00 | ✖ 0 | — | — |
-| `TSA-SD-1582-2022-01-cf-2` | Passenger Rail — control family 2 (access control + MFA for OT) | 1.00 | ✖ 0 | — | — |
-| `TSA-SD-1582-2022-01-cf-3` | Passenger Rail — control family 3 (continuous monitoring + detection) | 1.00 | ✖ 0 | — | — |
-| `TSA-SD-1582-2022-01-cf-4` | Passenger Rail — control family 4 (timely patching with OT considerations) | 1.00 | ✖ 0 | — | — |
-| `TSA-SD-1582-2022-01-cf-5` | Passenger Rail — control family 5 (cybersecurity assessment + CSAS) | 1.00 | ✖ 0 | — | — |
-| `TSA-SCAS-aco-designation` | Surface — Authorized Compliance Official designation (where applicable) | 0.70 | ✖ 0 | — | — |
-| `TSA-SD-P-2021-02C-s6` | Pipeline — Annual CIP attestation and corrective-action submission | 1.00 | ✖ 0 | — | — |
-| `TSA-SD-P-2021-02C-s7` | Pipeline — Supply chain / third-party cybersecurity | 1.00 | ✖ 0 | — | — |
-| `TSA-SD-P-2021-02C-s8` | Pipeline — Configuration management for OT | 1.00 | ✖ 0 | — | — |
-| `TSA-SD-1580-82-2022-01-s6` | Freight Rail — Annual CIP attestation and corrective-action submission | 1.00 | ✖ 0 | — | — |
-| `TSA-SD-P-2021-01-s4` | Pipeline — Reporting cyber incidents that affect physical operations | 1.00 | ✖ 0 | — | — |
-| `TSA-SD-P-2021-02C-s9` | Pipeline — Recovery and resilience testing | 0.70 | ✖ 0 | — | — |
-| `TSA-SD-1582-2022-01-cf-6` | Passenger Rail — Configuration management for OT | 1.00 | ✖ 0 | — | — |
-
-<details><summary>Top gaps (ranked by priority weight)</summary>
-
-| Priority | Clause | Topic |
-|---------:|--------|-------|
-| 1.00 | `TSA-SD-1580-82-2022-01-s3` | Freight Rail — Cybersecurity Coordinator designation |
-| 1.00 | `TSA-SD-1580-82-2022-01-s4` | Freight Rail — Cybersecurity Incident Response Plan (CIRP) with annual exercise |
-| 1.00 | `TSA-SD-1580-82-2022-01-s5` | Freight Rail — Cybersecurity Vulnerability Assessment |
-| 1.00 | `TSA-SD-1580-82-2022-01-s6` | Freight Rail — Annual CIP attestation and corrective-action submission |
-| 1.00 | `TSA-SD-1582-2022-01-cf-1` | Passenger Rail — control family 1 (network segmentation) |
-| 1.00 | `TSA-SD-1582-2022-01-cf-2` | Passenger Rail — control family 2 (access control + MFA for OT) |
-| 1.00 | `TSA-SD-1582-2022-01-cf-3` | Passenger Rail — control family 3 (continuous monitoring + detection) |
-| 1.00 | `TSA-SD-1582-2022-01-cf-4` | Passenger Rail — control family 4 (timely patching with OT considerations) |
-| 1.00 | `TSA-SD-1582-2022-01-cf-5` | Passenger Rail — control family 5 (cybersecurity assessment + CSAS) |
-| 1.00 | `TSA-SD-1582-2022-01-cf-6` | Passenger Rail — Configuration management for OT |
-| 1.00 | `TSA-SD-1582-2022-01-s3` | Passenger Rail — Cybersecurity Coordinator designation |
-| 1.00 | `TSA-SD-1582-2022-01-s4` | Passenger Rail — Cybersecurity Incident Response Plan (CIRP) with annual exercise |
-
-</details>
+| `TSA-SD-1582-2022-01-s3` | Passenger Rail — Cybersecurity Coordinator designation | 1.00 | ✔ 1 | full | 22.56.33 |
+| `TSA-SD-1582-2022-01-s4` | Passenger Rail — Cybersecurity Incident Response Plan (CIRP) with annual exercise | 1.00 | ✔ 1 | full | 22.56.34 |
+| `TSA-SD-1582-2022-01-cf-1` | Passenger Rail — control family 1 (network segmentation) | 1.00 | ✔ 1 | full | 22.56.35 |
+| `TSA-SD-1582-2022-01-cf-2` | Passenger Rail — control family 2 (access control + MFA for OT) | 1.00 | ✔ 1 | full | 22.56.36 |
+| `TSA-SD-1582-2022-01-cf-3` | Passenger Rail — control family 3 (continuous monitoring + detection) | 1.00 | ✔ 1 | full | 22.56.37 |
+| `TSA-SD-1582-2022-01-cf-4` | Passenger Rail — control family 4 (timely patching with OT considerations) | 1.00 | ✔ 1 | full | 22.56.38 |
+| `TSA-SD-1582-2022-01-cf-5` | Passenger Rail — control family 5 (cybersecurity assessment + CSAS) | 1.00 | ✔ 1 | full | 22.56.39 |
+| `TSA-SCAS-aco-designation` | Surface — Authorized Compliance Official designation (where applicable) | 0.70 | ✔ 1 | full | 22.56.41 |
+| `TSA-SD-P-2021-02C-s6` | Pipeline — Annual CIP attestation and corrective-action submission | 1.00 | ✔ 1 | full | 22.56.42 |
+| `TSA-SD-P-2021-02C-s7` | Pipeline — Supply chain / third-party cybersecurity | 1.00 | ✔ 1 | partial | 22.56.43 |
+| `TSA-SD-P-2021-02C-s8` | Pipeline — Configuration management for OT | 1.00 | ✔ 1 | full | 22.56.44 |
+| `TSA-SD-1580-82-2022-01-s6` | Freight Rail — Annual CIP attestation and corrective-action submission | 1.00 | ✔ 1 | full | 22.56.32 |
+| `TSA-SD-P-2021-01-s4` | Pipeline — Reporting cyber incidents that affect physical operations | 1.00 | ✔ 1 | partial | 22.56.45 |
+| `TSA-SD-P-2021-02C-s9` | Pipeline — Recovery and resilience testing | 0.70 | ✔ 1 | full | 22.56.46 |
+| `TSA-SD-1582-2022-01-cf-6` | Passenger Rail — Configuration management for OT | 1.00 | ✔ 1 | full | 22.56.40 |
 
 ## Tier 2 frameworks
 
@@ -1074,8 +976,8 @@ _CLC/TS 50701:2021 — Railway applications - Cybersecurity (with IEC 63452 forw
 #### CLC/TS 50701@2021-with-iec63452-alignment
 
 - Common clauses: **28**
-- Covered: **23** (82.14%)
-- Priority-weighted coverage: **85.33%** (22.1000 / 25.9000)
+- Covered: **28** (100.00%)
+- Priority-weighted coverage: **100.00%** (25.9000 / 25.9000)
 - Authoritative source: https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987&cs=126B5C0B23D6F4B9D3C0B0A8E26AC0DE6
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
@@ -1102,24 +1004,12 @@ _CLC/TS 50701:2021 — Railway applications - Cybersecurity (with IEC 63452 forw
 | `CLC-TS-50701-c11-1` | Operator's continuous cybersecurity obligations | 1.00 | ✔ 2 | full | 22.55.20, 22.55.27 |
 | `CLC-TS-50701-c11-2` | Awareness and competence — railway-specific cybersecurity training | 0.70 | ✔ 1 | full | 22.55.21 |
 | `CLC-TS-50701-c11-3` | Continuous risk-assessment refresh — re-trigger on material change | 1.00 | ✔ 1 | full | 22.55.22 |
-| `CLC-TS-50701-c12-1` | Maintenance cybersecurity — depot and on-board | 1.00 | ✖ 0 | — | — |
-| `CLC-TS-50701-c12-2` | Maintenance-laptop cybersecurity baseline | 0.70 | ✖ 0 | — | — |
-| `CLC-TS-50701-c12-3` | Decommissioning cybersecurity — end-of-life data and components | 0.70 | ✖ 0 | — | — |
-| `CLC-TS-50701-Annex-A` | Threat-actor types relevant to railway cybersecurity | 0.70 | ✖ 0 | — | — |
-| `CLC-TS-50701-Annex-D` | Reference architecture — rail-specific zone-and-conduit model | 0.70 | ✖ 0 | — | — |
+| `CLC-TS-50701-c12-1` | Maintenance cybersecurity — depot and on-board | 1.00 | ✔ 1 | full | 22.55.29 |
+| `CLC-TS-50701-c12-2` | Maintenance-laptop cybersecurity baseline | 0.70 | ✔ 1 | full | 22.55.30 |
+| `CLC-TS-50701-c12-3` | Decommissioning cybersecurity — end-of-life data and components | 0.70 | ✔ 1 | full | 22.55.31 |
+| `CLC-TS-50701-Annex-A` | Threat-actor types relevant to railway cybersecurity | 0.70 | ✔ 1 | full | 22.55.32 |
+| `CLC-TS-50701-Annex-D` | Reference architecture — rail-specific zone-and-conduit model | 0.70 | ✔ 1 | full | 22.55.33 |
 | `CLC-TS-50701-c11-4` | Operator self-assessment and audit cycle | 0.70 | ✔ 1 | full | 22.55.28 |
-
-<details><summary>Top gaps (ranked by priority weight)</summary>
-
-| Priority | Clause | Topic |
-|---------:|--------|-------|
-| 1.00 | `CLC-TS-50701-c12-1` | Maintenance cybersecurity — depot and on-board |
-| 0.70 | `CLC-TS-50701-Annex-A` | Threat-actor types relevant to railway cybersecurity |
-| 0.70 | `CLC-TS-50701-Annex-D` | Reference architecture — rail-specific zone-and-conduit model |
-| 0.70 | `CLC-TS-50701-c12-2` | Maintenance-laptop cybersecurity baseline |
-| 0.70 | `CLC-TS-50701-c12-3` | Decommissioning cybersecurity — end-of-life data and components |
-
-</details>
 
 ### COBIT — `cobit`
 

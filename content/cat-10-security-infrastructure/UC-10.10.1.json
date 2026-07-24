@@ -8,11 +8,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Summary metrics from ES or custom TA populating detection_metrics",
-  "app": "Splunk Enterprise Security / custom",
+  "exclusions": "Covers the detection logic documented for 'Detection rule false positive rate tracking' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_detection_rule_false_positive_rate_tracking` (UC-10.10.1), SOC dashboard panel \"Security Infra — Detection rule false positive rate tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.10.1 positive (Detection, rule, false, positive, rate): ingest synthetic events into `index=summary` sourcetype='detection_metrics' where `avg` grouped by `rule_name` satisfies `total_hits` > 0 for 'Detection rule false positive rate tracking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.10.1 negative (rate tracking): ingest benign `summary` / `detection_metrics` events where `rule_name` stays below `total_hits` > 0, or exclude the test entity via `soc_exception_register.csv`. Variant 14 confirms zero alert rows for 'Detection rule false positive rate tracking'."
+  },
+  "dataSources": "Summary metrics from ES or custom TA populating detection_metrics Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise Security / custom — Universal Forwarder (Splunkbase 617)",
   "spl": "index=summary sourcetype=detection_metrics\n| bin _time span=1d\n| eval fp_rate=if(total_hits>0, false_positives/total_hits, 0)\n| timechart span=1d avg(fp_rate) by rule_name",
-  "description": "Tracks the ratio of false positives to total hits per correlation search to prioritize tuning.",
-  "value": "Tracks the ratio of false positives to total hits per correlation search to prioritize tuning.",
+  "description": "Identifies UC-10.10.1 — Detection, rule, false, positive, rate — using `index=summary` sourcetype `detection_metrics`, grouped by `rule_name`. Outputs `avg` each `1d`; alert when `total_hits` > 0. Primary focus: rate tracking. Purpose-built for 'Detection rule false positive rate tracking' in Security Infra workflows.",
+  "value": "Alerting on Detection, rule, false, positive, rate through UC-10.10.1 reduces missed threat campaigns, control regressions, and SOC SLA breaches by surfacing `activity` early.",
   "implementation": "Normalize field names to your Splunk ES version and index names. Use summary indexing or ES introspection where `detection_metrics` is not present. For YARA, deploy a scripted input or HEC to ingest scanner JSON.",
   "visualization": "Table, Single value, Time chart",
   "cimModels": [
@@ -22,15 +28,43 @@
   "references": [
     {
       "title": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263"
+      "url": "https://splunkbase.splunk.com/app/263",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk ES Content Management",
+      "url": "https://docs.splunk.com/Documentation/ES/latest/Admin/ContentManagement",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "False-positive rates swing when we retune rules, re-label old closed notables, run purple-team exercises, or onboard new data feeds — the math moves even when the control is still sound.",
+  "knownFalsePositives": "1. **Maintenance window on `summary` (UC-10.10.1)** — Planned work for 'Detection rule false positive rate tracking' shifts `avg` over `span=1d` while `rule_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `detection_metrics`** — Scheduled automation elevates `fp_rate` without crossing `total_hits` > 0 for UC-10.10.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `rule_name`** — Health checks in `summary` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `detection_metrics`** — First 48h baseline for UC-10.10.1 on `rule_name` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `rule_name`, `exception_reason`, `valid_until`.",
   "detectionType": "Operational metrics",
   "securityDomain": "soc_operations",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security / custom.\n• Ensure the following data sources are available: Summary metrics from ES or custom TA populating detection_metrics.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNormalize field names to your Splunk ES version and index names. Use summary indexing or ES introspection where `detection_metrics` is not present. For YARA, deploy a scripted input or HEC to ingest scanner JSON.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=summary sourcetype=detection_metrics\n| bin _time span=1d\n| eval fp_rate=if(total_hits>0, false_positives/total_hits, 0)\n| timechart span=1d avg(fp_rate) by rule_name\n```\n\nUnderstanding this SPL\n\n**Detection rule false positive rate tracking** — Tracks the ratio of false positives to total hits per correlation search to prioritize tuning.\n\nDocumented **Data sources**: Summary metrics from ES or custom TA populating detection_metrics. **App/TA** (typical add-on context): Splunk Enterprise Security / custom. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: summary; **sourcetype**: detection_metrics. That sourcetype matches what this use case lists under Data sources.\n\n**Detection type** for this use case: Operational metrics — interpret thresholds and fields in that context.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=summary, sourcetype=detection_metrics. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `eval` defines or adjusts **fp_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by rule_name** — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nCompare the chart to **detection health exports** or your metrics store for the same week. Reconcile a day where you know a tuning exercise relabeled notables, and check that the false-positive ratio moves the way you expect.\n\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Single value, Time chart\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md\n",
-  "grandmaExplanation": "We track how often our rules cry wolf versus hit real issues so we can tune detections and give leadership honest numbers on quality."
+  "grandmaExplanation": "We track how often our rules cry wolf versus hit real issues so we can tune detections and give leadership honest numbers on quality.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

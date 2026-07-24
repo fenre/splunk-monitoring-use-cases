@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=application` `sourcetype=jboss:server`",
-  "app": "JBoss/WildFly log forwarding",
+  "exclusions": "Covers the detection logic documented for 'WildFly server.log Error Logger Spike' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_wildfly_server_log_error_logger_spike` (UC-8.6.22), SOC dashboard panel \"Operations — WildFly server.log Error Logger Spike\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.6.22 positive (WildFly, server.log, Error, Logger, Spike): ingest synthetic events into `index=application` sourcetype='jboss:server' where `count` grouped by `host` satisfies `count` > 30 for 'WildFly server.log Error Logger Spike'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.6.22 negative (Logger Spike): ingest benign `application` / `jboss:server` events where `host` stays below `count` > 30, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'WildFly server.log Error Logger Spike'."
+  },
+  "dataSources": "`index=application` `sourcetype=jboss:server` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "JBoss/WildFly log forwarding — Universal Forwarder (Splunkbase 617)",
   "spl": "index=application sourcetype=\"jboss:server\"\n| regex _raw=\"(?i)(ERROR|WFLYCTL|Exception|failed to|failure)\"\n| bin _time span=5m\n| stats count by host\n| where count > 30",
-  "description": "WildFly clusters emit subsystem errors (datasources, messaging, EJB) in server.log with distinct codes.",
-  "value": "Shortens Java EE incident response versus generic OS monitoring.",
+  "description": "Monitors UC-8.6.22 — WildFly, server.log, Error, Logger, Spike — using `index=application` sourcetype `jboss:server`, grouped by `host`. Outputs `count` each `5m`; alert when `count` > 30. Primary focus: Logger Spike. Purpose-built for 'WildFly server.log Error Logger Spike' in Operations workflows.",
+  "value": "Alerting on WildFly, server.log, Error, Logger, Spike through UC-8.6.22 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Use `cluster` to group stack traces; tune for bootstrap noise.",
   "visualization": "Timechart, table of logger categories if parsed.",
   "cimModels": [
@@ -22,12 +28,31 @@
   "references": [
     {
       "title": "WildFly Admin Guide — Access Logging",
-      "url": "https://docs.wildfly.org/"
+      "url": "https://docs.wildfly.org/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
+  "knownFalsePositives": "1. **Maintenance window on `application` (UC-8.6.22)** — Planned work for 'WildFly server.log Error Logger Spike' shifts `count` over `span=5m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `jboss:server`** — Scheduled automation elevates `src` without crossing `count` > 30 for UC-8.6.22. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `application` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `jboss:server`** — First 48h baseline for UC-8.6.22 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "jboss"
+  ],
+  "equipmentModels": [
+    "jboss_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -36,6 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: JBoss/WildFly log forwarding.\n• Ensure the following data sources are available: `index=application` `sourcetype=jboss:server`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNarrow WFLY tokens to your deployment (omit broad `WFLYSRV` if too noisy).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=application sourcetype=\"jboss:server\"\n| search \" ERROR \" OR \" WFLYCTL\" OR \" WFLYSRV\"\n| search \"ERROR\" OR \"failure\" OR \"exception\"\n| bin _time span=5m\n| stats count by host\n| where count > 30\n```\n\nUnderstanding this SPL\n\n**WildFly server.log Error Logger Spike** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=application` `sourcetype=jboss:server`. **App/TA**: JBoss/WildFly log forwarding. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nCompare with the application or platform source of truth (logs, UI, or metrics) for the same time range, and with known change or maintenance windows.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Timechart, table of logger categories if parsed..",
-  "grandmaExplanation": "We use this to shortens Java EE incident response versus generic OS monitoring."
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: JBoss/WildFly log forwarding.\n• Ensure the following data sources are available: `index=application` `sourcetype=jboss:server`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNarrow WFLY tokens to your deployment (omit broad `WFLYSRV` if too noisy).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=application sourcetype=\"jboss:server\"\n| search \" ERROR \" OR \" WFLYCTL\" OR \" WFLYSRV\"\n| search \"ERROR\" OR \"failure\" OR \"exception\"\n| bin _time span=5m\n| stats count by host\n| where count > 30\n```\n\nUnderstanding this SPL\n\n**WildFly server.log Error Logger Spike** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=application` `sourcetype=jboss:server`. **App/TA**: JBoss/WildFly log forwarding. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nCompare with the application or platform source of truth (logs, UI, or metrics) for the same time range, and with known change or maintenance windows.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Timechart, table of logger categories if parsed..\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (JBoss/WildFly log forwarding — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=jboss:server into application. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to shortens Java EE incident response versus generic OS monitoring.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=web` `sourcetype=traefik:access` (`RouterName` / `EntryPointName`)",
-  "app": "Add On for Traefik Proxy (Splunkbase app 6733)",
+  "exclusions": "Covers the detection logic documented for 'Traefik Dashboard and API Unauthorized Access' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_traefik_dashboard_and_api_unauthorized_access` (UC-8.3.23), SOC dashboard panel \"Operations — Traefik Dashboard and API Unauthorized Access\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.3.23 positive (Traefik, Dashboard, and, API, Unauthorized): ingest synthetic events into `index=web` sourcetype='traefik:access' where `count` grouped by `ClientAddr`, `DownstreamStatus` satisfies detection threshold for 'Traefik Dashboard and API Unauthorized Access'. Validate filter `RouterName=\"api@internal\" OR EntryPointName=\"traefik\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.3.23 negative (Unauthorized Access): ingest benign `web` / `traefik:access` events where `ClientAddr`, `DownstreamStatus` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Traefik Dashboard and API Unauthorized Access'."
+  },
+  "dataSources": "`index=web` `sourcetype=traefik:access` (`RouterName` / `EntryPointName`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Add On for Traefik Proxy (Splunkbase app 6733) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"traefik:access\"\n| search RouterName=\"api@internal\" OR EntryPointName=\"traefik\"\n| where DownstreamStatus=401 OR DownstreamStatus=403\n| stats count by ClientAddr, DownstreamStatus\n| sort -count",
-  "description": "Traefik’s API/dashboard should not see repeated 401/403 from unknown clients—possible credential stuffing or scanning.",
-  "value": "Protects control plane endpoints that can expose dynamic configuration.",
+  "description": "Alerts on when Unauthorized Access criteria fire for 'Traefik Dashboard and API Unauthorized Access' (UC-8.3.23) in `index=web` sourcetype `traefik:access`. Pipeline aggregates `count` by `ClientAddr`, `DownstreamStatus` over `the scheduled window`. Alert logic enforces configured threshold. SPL signature: filter `RouterName=\"api@internal\" OR EntryPointName=\"traefik\"`. Eliminates manual hunting for UC-8.3.23 conditions.",
+  "value": "UC-8.3.23 helps teams contain Traefik, Dashboard, and, API, Unauthorized scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Restrict management entrypoints, enforce mTLS or IP allowlists, and log to Splunk.",
   "visualization": "Table (client × count), map, alert on new ClientAddr.",
   "cimModels": [
@@ -23,20 +29,31 @@
   "references": [
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Add On for Traefik Proxy (Splunkbase)",
-      "url": "https://splunkbase.splunk.com/app/6733"
+      "url": "https://splunkbase.splunk.com/app/6733",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Traefik — Logs and Access Logs",
-      "url": "https://doc.traefik.io/traefik/"
+      "url": "https://doc.traefik.io/traefik/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "4xx spikes from web crawlers, scanners, or after URL routing and auth policy changes. We correlate with change records and intent.",
+  "knownFalsePositives": "1. **Maintenance window on `web` (UC-8.3.23)** — Planned work for 'Traefik Dashboard and API Unauthorized Access' shifts `count` over `span=1h` while `ClientAddr`, `DownstreamStatus` remains in-scope. Applies filter `RouterName=\"api@internal\" OR EntryPointName=\"traefik\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `traefik:access`** — Scheduled automation elevates `DownstreamStatus` without crossing configured threshold for UC-8.3.23. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ClientAddr`, `DownstreamStatus`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `traefik:access`** — First 48h baseline for UC-8.3.23 on `ClientAddr` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ClientAddr`, `exception_reason`, `valid_until`.",
   "equipment": [
     "traefik"
+  ],
+  "equipmentModels": [
+    "traefik_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -45,6 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Add On for Traefik Proxy (Splunkbase app 6733).\n• Ensure the following data sources are available: `index=web` `sourcetype=traefik:access` (`RouterName` / `EntryPointName`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nRouter names depend on Traefik version; confirm `api@internal` in your access logs.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=web sourcetype=\"traefik:access\"\n| search RouterName=\"api@internal\" OR EntryPointName=\"traefik\"\n| where DownstreamStatus=401 OR DownstreamStatus=403\n| stats count by ClientAddr, DownstreamStatus\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Traefik Dashboard and API Unauthorized Access** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=web` `sourcetype=traefik:access` (`RouterName` / `EntryPointName`). **App/TA**: Add On for Traefik Proxy (Splunkbase app 6733). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\n\nStep 3 — Validate\nCompare with the broker or gateway’s own UI or CLI (`kafka-consumer-groups`, RabbitMQ management, ActiveMQ console, or Traefik/Envoy access log on the node) for the same period.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Table (client × count), map, alert on new ClientAddr..",
-  "grandmaExplanation": "We watch Traefik’s management and API paths so we catch repeated unauthorized access before someone changes our routes or backends."
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Add On for Traefik Proxy (Splunkbase app 6733).\n• Ensure the following data sources are available: `index=web` `sourcetype=traefik:access` (`RouterName` / `EntryPointName`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nRouter names depend on Traefik version; confirm `api@internal` in your access logs.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=web sourcetype=\"traefik:access\"\n| search RouterName=\"api@internal\" OR EntryPointName=\"traefik\"\n| where DownstreamStatus=401 OR DownstreamStatus=403\n| stats count by ClientAddr, DownstreamStatus\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Traefik Dashboard and API Unauthorized Access** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=web` `sourcetype=traefik:access` (`RouterName` / `EntryPointName`). **App/TA**: Add On for Traefik Proxy (Splunkbase app 6733). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\n\nStep 3 — Validate\nCompare with the broker or gateway’s own UI or CLI (`kafka-consumer-groups`, RabbitMQ management, ActiveMQ console, or Traefik/Envoy access log on the node) for the same period.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Table (client × count), map, alert on new ClientAddr..\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Add On for Traefik Proxy (Splunkbase app 6733) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=traefik:access into web. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`ClientAddr, DownstreamStatus`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch Traefik’s management and API paths so we catch repeated unauthorized access before someone changes our routes or backends.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

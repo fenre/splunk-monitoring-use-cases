@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'USB and Peripheral Redirection Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_usb_and_peripheral_redirection_failures` (UC-2.6.39), SOC dashboard panel \"Linux — USB and Peripheral Redirection Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.6.39 positive (USB, and, Peripheral, Redirection, Failures): ingest synthetic events into `index=xd` sourcetype='citrix:vda:events' where `users` grouped by `host`, `channel`, `user` satisfies detection threshold for 'USB and Peripheral Redirection Failures'. Validate filter `match(_raw, \"(?i)USB`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.6.39 negative (Redirection Failures): ingest benign `xd` / `citrix:vda:events` events where `host`, `channel`, `user` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 15 confirms zero alert rows for 'USB and Peripheral Redirection Failures'."
+  },
   "dataSources": "`sourcetype=\"citrix:vda:events\"` (USB, TWAIN, WIA, `CtxUsb`, `CtxCam`), `sourcetype=\"WinEventLog:Application\"` for Citrix ICA client driver messages, `index=windows` for Group Policy/clipboard blocks if forwarded; optional `sourcetype=\"uberAgent:Peripheral:USB*\"` if you enable end-point visibility",
   "app": "Template for Citrix XenDesktop 7 (TA-XD7-Broker), Splunk Add-on for Microsoft Windows, optional uberAgent UXM (Splunkbase 1448)",
   "spl": "(index=xd sourcetype=\"citrix:vda:events\" OR (index=windows (sourcetype=\"WinEventLog:Application\" OR sourcetype=\"citrix:vda:events\")) OR (index=uberagent sourcetype=\"uberAgent:Peripheral*\"))\n| search match(_raw, \"(?i)USB|TWAIN|WIA|redirect|peripheral|smart.?card|scard|clipboard|mapped drive|clpb|device.*(fail|deny|block|stop|stall)\")\n| eval channel=if(match(_raw, \"(?i)twain|wia|scan\"), \"imaging\", if(match(_raw, \"(?i)clipboard|clip\"), \"clipboard\", if(match(_raw, \"(?i)drive|mapped\"), \"drives\", \"usb_usb\")))\n| where match(_raw, \"(?i)fail|error|block|deny|policy|restric|not supported|time.?out|stall\")\n| stats count, values(Message) as sample, earliest(_time) as first_t, latest(_time) as last_t, dc(user) as users by host, channel, user\n| sort - count",
-  "description": "USB, scanner, and smart card redirection, plus client drive mapping and clipboard, depend on VDA services, client versions, and Citrix/Windows policies. Failures are often per-device or per-user but can spike when a new policy, endpoint agent, or firmware change blocks channels. VDA and Application logs capture the denial reason, while optional uberAgent peripheral metrics confirm drop-off in hardware attach success rates.",
-  "value": "USB, scanner, and smart card redirection, plus client drive mapping and clipboard, depend on VDA services, client versions, and Citrix/Windows policies. Failures are often per-device or per-user but can spike when a new policy, endpoint agent, or firmware change blocks channels. VDA and Application logs capture the denial reason, while optional uberAgent peripheral metrics confirm drop-off in hardware attach success rates.",
+  "description": "Identifies UC-2.6.39 — USB, and, Peripheral, Redirection, Failures — using `index=xd` sourcetype `citrix:vda:events`, grouped by `host`, `channel`, `user`. Outputs `users` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `match(_raw, \"(?i)USB`. Purpose-built for 'USB and Peripheral Redirection Failures' in Linux workflows.",
+  "value": "UC-2.6.39 operationalises 'USB and Peripheral Redirection Failures' against `citrix:vda:events` feeds so operators reduce capacity incidents, patch regressions, and service outages without manual correlation.",
   "implementation": "Ingest a broad slice of VDA logs with USB/TWAIN categories enabled. Add policy lookup by AD group. Separate Help Desk false positives (unsupported devices) with `NOT match(device_class,\"(legacy)\")` style filters where fields exist. Correlate with NetScaler/ADC app flow only if the channel is not negotiated locally. Alert on new denial strings in a 24h compare.",
   "visualization": "Table (users and channels with sample errors), Pareto chart (error text top 10), Bar chart (failed channel by delivery group if joined).",
   "cimModels": [
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "HDX features - USB, TWAIN, drives",
-      "url": "https://docs.citrix.com/en-us/"
+      "url": "https://docs.citrix.com/en-us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1448",
+      "url": "https://splunkbase.splunk.com/app/1448",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows (Splunkbase 742)",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Endpoint",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Citrix environments often coordinate broker, VDA, gateway, and profile layers; a single noisy component may clear when maintenance or a publish job completes.",
+  "knownFalsePositives": "1. **Patch Tuesday on `xd`** — Package managers spike `host` metrics for 'USB and Peripheral Redirection Failures'. Correlate with apt/yum logs in the same `citrix:vda:events` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `values` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `citrix:vda:events`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "citrix"
   ],
@@ -34,6 +56,12 @@
     "citrix_uberagent"
   ],
   "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Template for Citrix XenDesktop 7 (TA-XD7-Broker), Splunk Add-on for Microsoft Windows, optional uberAgent UXM (Splunkbase 1448).\n• Ensure the following data sources are available: `sourcetype=\"citrix:vda:events\"`, `sourcetype=\"WinEventLog:Application\"`, optional `index=uberagent` peripheral data.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable detailed VDA logging for HDX device redirection per Citrix doc for your LTSR/CR build. If logs are very verbose, route to a dedicated index with shorter retention. Map `user` and `ClientName` fields consistently.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; limit `index=uberagent` to your deployment):\n\n```spl\n(index=xd sourcetype=\"citrix:vda:events\" OR (index=windows (sourcetype=\"WinEventLog:Application\" OR sourcetype=\"citrix:vda:events\")) OR (index=uberagent sourcetype=\"uberAgent:Peripheral*\"))\n| search match(_raw, \"(?i)USB|TWAIN|WIA|redirect|peripheral|smart.?card|scard|clipboard|mapped drive|clpb|device.*(fail|deny|block|stop|stall)\")\n| eval channel=if(match(_raw, \"(?i)twain|wia|scan\"), \"imaging\", if(match(_raw, \"(?i)clipboard|clip\"), \"clipboard\", if(match(_raw, \"(?i)drive|mapped\"), \"drives\", \"usb_usb\")))\n| where match(_raw, \"(?i)fail|error|block|deny|policy|restric|not supported|time.?out|stall\")\n| stats count, values(Message) as sample, earliest(_time) as first_t, latest(_time) as last_t, dc(user) as users by host, channel, user\n| sort - count\n```\n\nStep 3 — Validate\nUnplug/attach a test USB in lab; confirm a failure path logs if you block via policy. Verify sampling does not include benign detach messages.\n\nStep 4 — Operationalize\nShare weekly Top 10 error strings with endpoint engineering. For regulated sites, add privacy guardrails to mask serial numbers in Message.",
-  "grandmaExplanation": "We look for the hidden notes when a camera, USB stick, or copy-paste path is turned off or breaks inside a remote session — so you catch blocked gadgets before they hurt real work."
+  "grandmaExplanation": "We look for the hidden notes when a camera, USB stick, or copy-paste path is turned off or breaks inside a remote session — so you catch blocked gadgets before they hurt real work.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

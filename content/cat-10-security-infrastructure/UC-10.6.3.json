@@ -8,11 +8,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Scan activity, asset inventory",
-  "app": "Vuln management TA + CMDB",
+  "exclusions": "Covers the detection logic documented for 'Scan Coverage Monitoring' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_scan_coverage_monitoring` (UC-10.6.3), SOC dashboard panel \"Security Infra — Scan Coverage Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.6.3 positive (Scan, Coverage, Monitoring): ingest synthetic events into `index=vulnerability` sourcetype='tenable:vuln' where `count` grouped by `hostname]` satisfies `days_since_scan` > 30 for 'Scan Coverage Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.6.3 negative (Coverage Monitoring): ingest benign `vulnerability` / `tenable:vuln` events where `hostname]` stays below `days_since_scan` > 30, or exclude the test entity via `soc_exception_register.csv`. Variant 9 confirms zero alert rows for 'Scan Coverage Monitoring'."
+  },
+  "dataSources": "Scan activity, asset inventory Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Vuln management TA + CMDB — Universal Forwarder (Splunkbase 617)",
   "spl": "| inputlookup cmdb_assets.csv\n| join type=left max=1 hostname [search index=vulnerability sourcetype=\"tenable:vuln\" | stats latest(_time) as last_scan by hostname]\n| eval days_since_scan=round((now()-last_scan)/86400)\n| where isnull(last_scan) OR days_since_scan > 30\n| table hostname, os, department, last_scan, days_since_scan",
-  "description": "Assets not scanned are unknown risks. Coverage monitoring ensures comprehensive vulnerability assessment.",
-  "value": "Assets not scanned are unknown risks. Coverage monitoring ensures comprehensive vulnerability assessment.",
+  "description": "Alerts on UC-10.6.3 — Scan, Coverage, Monitoring — using `index=vulnerability` sourcetype `tenable:vuln`, grouped by `hostname]`. Outputs `count` each `the scheduled window`; alert when `days_since_scan` > 30. Primary focus: Coverage Monitoring. Purpose-built for 'Scan Coverage Monitoring' in Security Infra workflows.",
+  "value": "Operators running UC-10.6.3 on `tenable:vuln` feeds shorten triage for Coverage Monitoring tied to 'Scan Coverage Monitoring', lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Cross-reference scan targets with CMDB. Identify assets not scanned in 30 days. Alert on scan failures. Track coverage percentage as a KPI. Report on uncovered assets for remediation.",
   "visualization": "Single value (scan coverage %), Table (unscanned assets), Pie chart (scanned vs unscanned), Bar chart (gaps by department).",
   "cimModels": [
@@ -21,13 +27,38 @@
   "references": [
     {
       "title": "CIM: Vulnerabilities",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Vulnerabilities"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Vulnerabilities",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Coverage gaps from new asset onboarding, IP changes, or assets in maintenance mode. Lab or decommissioned hosts may look \"unscanned\" on purpose.",
+  "knownFalsePositives": "1. **Maintenance window on `vulnerability` (UC-10.6.3)** — Planned work for 'Scan Coverage Monitoring' shifts `count` over `span=1h` while `hostname]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `tenable:vuln`** — Scheduled automation elevates `days_since_scan` without crossing `days_since_scan` > 30 for UC-10.6.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `hostname]`** — Health checks in `vulnerability` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `tenable:vuln`** — First 48h baseline for UC-10.6.3 on `hostname]` is unstable; join `cmdb_assets.csv` prior to threshold.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `hostname]`, `exception_reason`, `valid_until`.",
   "equipment": [
     "tenable"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Vuln management TA + CMDB.\n• Ensure the following data sources are available: Scan activity, asset inventory.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCross-reference scan targets with CMDB. Identify assets not scanned in 30 days. Alert on scan failures. Track coverage percentage as a KPI. Report on uncovered assets for remediation.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup cmdb_assets.csv\n| join type=left max=1 hostname [search index=vulnerability sourcetype=\"tenable:vuln\" | stats latest(_time) as last_scan by hostname]\n| eval days_since_scan=round((now()-last_scan)/86400)\n| where isnull(last_scan) OR days_since_scan > 30\n| table hostname, os, department, last_scan, days_since_scan\n```\n\nUnderstanding this SPL\n\n**Scan Coverage Monitoring** — Assets not scanned are unknown risks. Coverage monitoring ensures comprehensive vulnerability assessment.\n\nDocumented **Data sources**: Scan activity, asset inventory. **App/TA** (typical add-on context): Vuln management TA + CMDB. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **days_since_scan** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where isnull(last_scan) OR days_since_scan > 30` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Scan Coverage Monitoring**): table hostname, os, department, last_scan, days_since_scan\n\nStep 3 — Validate\nReconcile the unscanned or stale list with Tenable.io asset coverage, Qualys VMDR or agent reporting, and CMDB (hostnames, IP ranges, excluded groups). Confirm whether \"missing\" hosts are expected offline, lab, or pending onboarding.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (scan coverage %), Table (unscanned assets), Pie chart (scanned vs unscanned), Bar chart (gaps by department).",
-  "grandmaExplanation": "We compare our asset list to recent scan activity so we are not blind to whole systems that never got checked for known weaknesses."
+  "equipmentModels": [
+    "tenable_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Vuln management TA + CMDB.\n• Ensure the following data sources are available: Scan activity, asset inventory.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCross-reference scan targets with CMDB. Identify assets not scanned in 30 days. Alert on scan failures. Track coverage percentage as a KPI. Report on uncovered assets for remediation.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup cmdb_assets.csv\n| join type=left max=1 hostname [search index=vulnerability sourcetype=\"tenable:vuln\" | stats latest(_time) as last_scan by hostname]\n| eval days_since_scan=round((now()-last_scan)/86400)\n| where isnull(last_scan) OR days_since_scan > 30\n| table hostname, os, department, last_scan, days_since_scan\n```\n\nUnderstanding this SPL\n\n**Scan Coverage Monitoring** — Assets not scanned are unknown risks. Coverage monitoring ensures comprehensive vulnerability assessment.\n\nDocumented **Data sources**: Scan activity, asset inventory. **App/TA** (typical add-on context): Vuln management TA + CMDB. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **days_since_scan** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where isnull(last_scan) OR days_since_scan > 30` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Scan Coverage Monitoring**): table hostname, os, department, last_scan, days_since_scan\n\nStep 3 — Validate\nReconcile the unscanned or stale list with Tenable.io asset coverage, Qualys VMDR or agent reporting, and CMDB (hostnames, IP ranges, excluded groups). Confirm whether \"missing\" hosts are expected offline, lab, or pending onboarding.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (scan coverage %), Table (unscanned assets), Pie chart (scanned vs unscanned), Bar chart (gaps by department).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Vuln management TA + CMDB — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=tenable:vuln into vulnerability. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`days_since_scan, hostname]`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We compare our asset list to recent scan activity so we are not blind to whole systems that never got checked for known weaknesses.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

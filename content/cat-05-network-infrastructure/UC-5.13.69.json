@@ -9,28 +9,42 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Catalyst Center + SD-WAN WAN Path Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_catalyst_center_sd_wan_wan_path_health` (UC-5.13.69), SOC dashboard panel \"Operations — Catalyst Center + SD-WAN WAN Path Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.13.69 positive (Catalyst, Center, WAN, WAN, Path): ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:networkhealth' where `count` grouped by `_time`, `_time]` satisfies `health_gap` > 20 for 'Catalyst Center + SD-WAN WAN Path Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.13.69 negative (Path Health): ingest benign `catalyst` / `cisco:dnac:networkhealth` events where `_time`, `_time]` stays below `health_gap` > 20, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Catalyst Center + SD-WAN WAN Path Health'."
+  },
   "dataSources": "`index=catalyst sourcetype=cisco:dnac:networkhealth`. from the `networkhealth` modular input in the Cisco Catalyst Add-on (Splunkbase 7538) polling `GET /dna/intent/api/v1/network-health`. Default poll interval: 900s (15m). Volume: ~1 event per poll (aggregate network score). RBAC: NETWORK-ADMIN-ROLE. Key fields: `healthScore` (integer 0-100), `goodCount` (integer), `badCount` (integer), `totalCount` (integer). Additionally correlates with `index=sdwan sourcetype=cisco:sdwan:*` (SD-WAN path and tunnel metrics via the Cisco SD-WAN TA). Requires both Catalyst Center and vManage data collection.",
   "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:networkhealth\" | stats latest(healthScore) as campus_health by _time | appendcols [search index=sdwan sourcetype=\"cisco:sdwan:*\" | stats latest(health_score) as wan_health by _time] | eval combined_health=round((campus_health+wan_health)/2,1) | eval health_gap=abs(campus_health-wan_health) | where health_gap > 20 | table _time campus_health wan_health combined_health health_gap",
-  "description": "Correlates Catalyst Center campus network health with SD-WAN WAN path health to provide an end-to-end view and detect scenarios where campus or WAN is the bottleneck.",
-  "value": "Users experience the entire path — campus LAN plus WAN. Correlating both domains shows whether poor experience is caused by local infrastructure or WAN quality.",
+  "description": "Identifies UC-5.13.69 — Catalyst, Center, WAN, WAN, Path — using `index=catalyst` sourcetype `cisco:dnac:networkhealth`, grouped by `_time`, `_time]`. Outputs `count` each `the scheduled window`; alert when `health_gap` > 20. Primary focus: Path Health. Purpose-built for 'Catalyst Center + SD-WAN WAN Path Health' in Operations workflows.",
+  "value": "UC-5.13.69 gives Operations teams earlier visibility into Path Health through `cisco:dnac:networkhealth` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Both Catalyst Center and SD-WAN data come from the same TA (7538). Ensure both are configured:\n\n1. **Catalyst Center:** Already configured for network health UCs\n2. **SD-WAN account:** Add an SD-WAN account in the TA pointing to your vManage/SD-WAN Manager\n3. **Enable SD-WAN inputs:** Enable `health` and `site_and_tunnel_health` inputs → `index=sdwan`\n4. **Correlation:** Time-based correlation using `appendcols` — both health scores are time-series",
   "visualization": "Time-series line chart: campus_health, wan_health, health_gap; single-value for combined_health when gap exceeds threshold; optional alert on sustained divergence.",
   "references": [
     {
       "title": "Splunkbase app 7538",
-      "url": "https://splunkbase.splunk.com/app/7538"
+      "url": "https://splunkbase.splunk.com/app/7538",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center API docs",
-      "url": "https://developer.cisco.com/docs/catalyst-center/"
+      "url": "https://developer.cisco.com/docs/catalyst-center/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Network Health API — Cisco DevNet",
-      "url": "https://developer.cisco.com/docs/catalyst-center/#!get-overall-network-health"
+      "url": "https://developer.cisco.com/docs/catalyst-center/#!get-overall-network-health",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**SD-WAN circuit maintenance causing temporary WAN health drop while campus health is stable.** When an MPLS or internet circuit undergoes maintenance, the SD-WAN health score drops while the Catalyst Center campus health remains unaffected. Distinguish by checking whether the WAN health drop coincides with a circuit provider maintenance notification. This is a real event — correlate, don't suppress.\n\n**Different poll intervals between Catalyst Center and SD-WAN data sources causing time alignment issues.** The `appendcols` join assumes both queries return data for the same time window. If the Catalyst Center and SD-WAN TAs poll at different intervals, the time alignment may produce mismatched comparisons. Distinguish by comparing `latest(_time)` from both sourcetypes and verifying they are within the same poll window. Suppress by using `| eval` with time-binning (`bin _time span=15m`) on both data sources before the correlation.\n\n**SD-WAN vManage cluster in standby mode reporting stale health data.** If the SD-WAN vManage cluster fails over, the TA may continue polling the old primary until reconfigured, returning stale health scores. Distinguish by checking `_time` of the SD-WAN events — if they are significantly older than the Catalyst Center events, the vManage data is stale. Suppress by alerting when the SD-WAN data latency exceeds 2x the expected poll interval.\n\n**Campus health high while WAN health low is a genuine cross-domain finding.** A WAN degradation will not immediately affect campus device health scores since Catalyst Center monitors campus infrastructure independently. The divergence is a correct correlation showing the WAN as the bottleneck. Do not suppress — this is the purpose of the cross-product UC.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst` (UC-5.13.69)** — Planned work for 'Catalyst Center + SD-WAN WAN Path Health' shifts `count` over `span=1h` while `_time`, `_time]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:dnac:networkhealth`** — Scheduled automation elevates `_time]` without crossing `health_gap` > 20 for UC-5.13.69. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `_time]`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:networkhealth`** — First 48h baseline for UC-5.13.69 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

@@ -9,28 +9,43 @@
     "Data Quality"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "MicroStrategy DSS logs (`microstrategy:dsserror`), Cognos audit (`cognos:audit`), BusinessObjects audit (`businessobjects:audit`), Oracle Analytics usage (`oracle:analytics:usage`), ThoughtSpot audit (`thoughtspot:audit`), QuickSight CloudTrail (`aws:cloudtrail`).",
-  "app": "Enterprise BI server logs (MicroStrategy, Cognos, SAP BusinessObjects, Oracle Analytics, ThoughtSpot) via Universal Forwarder; platform admin APIs and QuickSight CloudTrail via HEC and the Splunk Add-on for AWS.",
+  "exclusions": "Covers the detection logic documented for 'Amazon QuickSight SPICE Ingestion Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_amazon_quicksight_spice_ingestion_failures` (UC-24.6.11), SOC dashboard panel \"Operations — Amazon QuickSight SPICE Ingestion Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.6.11 positive (Amazon, QuickSight, SPICE, Ingestion, Failures): ingest synthetic events into `index=bi` sourcetype='aws:cloudtrail' where `count` grouped by `requestParameters.dataSetId`, `errorCode` satisfies detection threshold for 'Amazon QuickSight SPICE Ingestion Failures'. Validate filter `errorCode=* OR ingestionStatus=\"FAILED\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.6.11 negative (Ingestion Failures): ingest benign `bi` / `aws:cloudtrail` events where `requestParameters.dataSetId`, `errorCode` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Amazon QuickSight SPICE Ingestion Failures'."
+  },
+  "dataSources": "MicroStrategy DSS logs (`microstrategy:dsserror`), Cognos audit (`cognos:audit`), BusinessObjects audit (`businessobjects:audit`), Oracle Analytics usage (`oracle:analytics:usage`), ThoughtSpot audit (`thoughtspot:audit`), QuickSight CloudTrail (`aws:cloudtrail`). Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "Enterprise BI server logs (MicroStrategy, Cognos, SAP BusinessObjects, Oracle Analytics, ThoughtSpot) via Universal Forwarder; platform admin APIs and QuickSight CloudTrail via HEC and the Splunk Add-on for AWS. — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=bi sourcetype=aws:cloudtrail eventSource=\"quicksight.amazonaws.com\" eventName=\"CreateIngestion\" OR eventName=\"UpdateDataSet\"\n| search errorCode=* OR ingestionStatus=\"FAILED\"\n| stats count as failures by requestParameters.dataSetId, errorCode\n| sort - failures",
-  "description": "Detects failed Amazon QuickSight SPICE dataset ingestions from CloudTrail so dashboards backed by SPICE do not silently serve stale imported data.",
-  "value": "SPICE ingestion failures freeze QuickSight dashboards at the last good import; CloudTrail-based detection catches them without polling each dataset.",
+  "description": "Surfaces Ingestion Failures activity in UC-24.6.11 ('Amazon QuickSight SPICE Ingestion Failures') from `index=bi` sourcetype `aws:cloudtrail`. Rolls up `count` by `requestParameters.dataSetId`, `errorCode` across `the scheduled window` and pages when configured threshold. Uses filter `errorCode=* OR ingestionStatus=\"FAILED\"`. Operations operators treat UC-24.6.11 as the canonical signal.",
+  "value": "Operators running UC-24.6.11 on `aws:cloudtrail` feeds shorten triage for Ingestion Failures tied to 'Amazon QuickSight SPICE Ingestion Failures', lowering operational risk and delayed incident response.",
   "implementation": "Route QuickSight CloudTrail via the Splunk Add-on for AWS; schedule hourly and alert on ingestion failures for production datasets.",
   "visualization": "Table of dataset by failures and error code.",
   "cimModels": [],
   "references": [
     {
       "title": "MicroStrategy — Enterprise Manager / monitoring",
-      "url": "https://www2.microstrategy.com/producthelp/current/EnterpriseManager/en-us/Content/enterprise_manager.htm"
+      "url": "https://www2.microstrategy.com/producthelp/current/EnterpriseManager/en-us/Content/enterprise_manager.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "IBM Cognos Analytics — Audit reporting",
-      "url": "https://www.ibm.com/docs/en/cognos-analytics"
+      "url": "https://www.ibm.com/docs/en/cognos-analytics",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.6.11)** — Planned work for 'Amazon QuickSight SPICE Ingestion Failures' shifts `count` over `span=1h` while `requestParameters.dataSetId`, `errorCode` remains in-scope. Applies filter `errorCode=* OR ingestionStatus=\"FAILED\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudtrail`** — Scheduled automation elevates `errorCode` without crossing configured threshold for UC-24.6.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `requestParameters.dataSetId`, `errorCode`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudtrail`** — First 48h baseline for UC-24.6.11 on `requestParameters.dataSetId` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `requestParameters.dataSetId`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "oracle"
@@ -38,5 +53,12 @@
   "equipmentModels": [
     "oracle_oracle_db"
   ],
-  "grandmaExplanation": "We watch QuickSight's data imports so dashboards do not quietly show old data after a failed refresh."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Enterprise BI server logs (MicroStrategy, Cognos, SAP BusinessObjects, Oracle Analytics, ThoughtSpot) via Universal Forwarder; platform admin APIs and QuickSight CloudTrail via HEC and the Splunk Add-on for AWS. — Splunk Add-on for Amazon Web Services (Splunkbase 1876)). Enable the modular input or HEC token that writes sourcetype=aws:cloudtrail into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`errorCode, requestParameters.dataSetId`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch QuickSight's data imports so dashboards do not quietly show old data after a failed refresh.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

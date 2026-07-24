@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=edge-hub-logs` sourcetype=splunk_edge_hub_log audio_classification_event, `index=edge-hub-data` audio_class_confidence",
-  "app": "Splunk Edge Hub (stereo microphone + NPU container), v2.1+",
+  "exclusions": "Covers the detection logic documented for 'Audio Classification for Anomalous Sound Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_audio_classification_for_anomalous_sound_detecti` (UC-14.3.29), SOC dashboard panel \"Operations — Audio Classification for Anomalous Sound Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.3.29 positive (Audio, Classification, for, Anomalous, Sound): ingest synthetic events into `index=edge-hub-logs` sourcetype='splunk_edge_hub_log' where `count` grouped by `host`, `equipment_type` satisfies `anomaly_rate` > 5 for 'Audio Classification for Anomalous Sound Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.3.29 negative (Sound Detection): ingest benign `edge-hub-logs` / `splunk_edge_hub_log` events where `host`, `equipment_type` stays below `anomaly_rate` > 5, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Audio Classification for Anomalous Sound Detection'."
+  },
+  "dataSources": "`index=edge-hub-logs` sourcetype=splunk_edge_hub_log audio_classification_event, `index=edge-hub-data` audio_class_confidence Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Edge Hub (stereo microphone + NPU container), v2.1+ — Universal Forwarder (Splunkbase 617)",
   "spl": "index=edge-hub-logs sourcetype=splunk_edge_hub_log audio_classification_event\n| stats count as classification_attempts, count(eval(sound_class=\"ABNORMAL\")) as anomalies by host, equipment_type\n| eval anomaly_rate = (anomalies / classification_attempts) * 100\n| where anomaly_rate > 5",
-  "description": "Detects equipment distress (compressor cavitation, bearing squeal, motor whine) by classifying sound types without FFT spectral analysis.",
-  "value": "Detects equipment distress (compressor cavitation, bearing squeal, motor whine) by classifying sound types without FFT spectral analysis.",
+  "description": "Surfaces Sound Detection anomalies for UC-14.3.29 with window `the scheduled window` on `index=edge-hub-logs` sourcetype `splunk_edge_hub_log`. Combines `count` by `host`, `equipment_type` and compares against `anomaly_rate` > 5. Mapped to keywords Audio, Classification, for, Anomalous, Sound for dashboard routing.",
+  "value": "Alerting on Audio, Classification, for, Anomalous, Sound through UC-14.3.29 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Deploy TensorFlow Lite audio classification model (v2.1+ NPU support) in custom ARM64 container. Train model on normal equipment sounds (baseline) and abnormal sounds (target classes: cavitation, squeal, whine, vibration). Container processes 1-second audio chunks from stereo microphone at 16kHz, runs inference on NPU, publishes classification result (sound_class + confidence) to MQTT. Store classification logs locally for retraining. Configure edge.json: memory 512MB, CPU 1 core. Note: Do not stream raw audio to cloud (privacy); only log classification results.",
   "visualization": "Anomaly classification frequency, confidence score distribution, sound type timeline.",
   "cimModels": [
@@ -22,17 +28,43 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "High sound readings during shift changes, open dock doors, nearby construction, or planned equipment tests.",
+  "knownFalsePositives": "1. **Maintenance window on `edge-hub-logs` (UC-14.3.29)** — Planned work for 'Audio Classification for Anomalous Sound Detection' shifts `count` over `span=1h` while `host`, `equipment_type` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `splunk_edge_hub_log`** — Scheduled automation elevates `equipment_type` without crossing `anomaly_rate` > 5 for UC-14.3.29. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `equipment_type`** — Health checks in `edge-hub-logs` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `splunk_edge_hub_log`** — First 48h baseline for UC-14.3.29 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "edge_hub",
     "mqtt"
+  ],
+  "equipmentModels": [
+    "edge_hub_generic",
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     "Splunk Edge Hub"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (stereo microphone + NPU container), v2.1+.\n• Ensure the following data sources are available: `index=edge-hub-logs` sourcetype=splunk_edge_hub_log audio_classification_event, `index=edge-hub-data` audio_class_confidence.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy TensorFlow Lite audio classification model (v2.1+ NPU support) in custom ARM64 container. Train model on normal equipment sounds (baseline) and abnormal sounds (target classes: cavitation, squeal, whine, vibration). Container processes 1-second audio chunks from stereo microphone at 16kHz, runs inference on NPU, publishes classification result (sound_class + confidence) to MQTT. Store classification logs locally for retraining. Configure edge.json: memory 512MB, CPU 1 core. Note: Do not s…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edge-hub-logs sourcetype=splunk_edge_hub_log audio_classification_event\n| stats count as classification_attempts, count(eval(sound_class=\"ABNORMAL\")) as anomalies by host, equipment_type\n| eval anomaly_rate = (anomalies / classification_attempts) * 100\n| where anomaly_rate > 5\n```\n\nUnderstanding this SPL\n\n**Audio Classification for Anomalous Sound Detection** — Detects equipment distress (compressor cavitation, bearing squeal, motor whine) by classifying sound types without FFT spectral analysis.\n\nDocumented **Data sources**: `index=edge-hub-logs` sourcetype=splunk_edge_hub_log audio_classification_event, `index=edge-hub-data` audio_class_confidence. **App/TA** (typical add-on context): Splunk Edge Hub (stereo microphone + NPU container), v2.1+. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-logs; **sourcetype**: splunk_edge_hub_log. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edge-hub-logs, sourcetype=splunk_edge_hub_log. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, equipment_type** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **anomaly_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where anomaly_rate > 5` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm metric or event volume in the time range, then compare trends and device status to the Splunk Edge Hub admin UI or the mobile app for the same devices. Verify metric names, hosts, and time skew.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Anomaly classification frequency, confidence score distribution, sound type timeline.",
-  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with loud or unsafe noise in the work area before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with loud or unsafe noise in the work area before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

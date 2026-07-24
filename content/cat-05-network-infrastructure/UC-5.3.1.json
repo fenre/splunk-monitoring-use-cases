@@ -8,21 +8,43 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=f5:bigip:syslog`",
-  "app": "`Splunk_TA_f5-bigip`, syslog",
+  "exclusions": "Covers the detection logic documented for 'Pool Member Health Status (F5 BIG-IP)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_pool_member_health_status_f5_big_ip` (UC-5.3.1), SOC dashboard panel \"Operations — Pool Member Health Status (F5 BIG-IP)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.3.1 positive (Pool, Member, Health, Status, (F5): ingest synthetic events into `index=network` sourcetype='f5:bigip:syslog' where `count` grouped by `entity` satisfies detection threshold for 'Pool Member Health Status (F5 BIG-IP)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.3.1 negative (BIG IP)): ingest benign `network` / `f5:bigip:syslog` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Pool Member Health Status (F5 BIG-IP)'."
+  },
+  "dataSources": "`sourcetype=f5:bigip:syslog` Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_f5-bigip`, syslog — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=network sourcetype=\"f5:bigip:syslog\" (\"pool member\" AND (\"down\" OR \"up\" OR \"offline\"))\n| rex \"Pool (?<pool>\\S+) member (?<member>\\S+) monitor status (?<status>\\w+)\"\n| table _time host pool member status | sort -_time",
-  "description": "Offline pool members reduce capacity. All members down = complete service outage.",
-  "value": "Application delivery teams monitor F5 BIG-IP pool member availability with capacity impact analysis, detecting degraded pools, complete outages, and flapping members before user-facing service impact.",
+  "description": "Detects UC-5.3.1 — Pool, Member, Health, Status, (F5 — using `index=network` sourcetype `f5:bigip:syslog`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: BIG IP). Purpose-built for 'Pool Member Health Status (F5 BIG-IP)' in Operations workflows.",
+  "value": "UC-5.3.1 operationalises 'Pool Member Health Status (F5 BIG-IP)' against `f5:bigip:syslog` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Forward F5 syslog (LTM log level). Install TA. Alert when pool members go down. Critical alert when all members in a pool offline.",
   "visualization": "Status grid (green/red per member), Table, Timeline.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk_TA_f5-bigip",
-      "url": "https://splunkbase.splunk.com/app/2680"
+      "url": "https://splunkbase.splunk.com/app/2680",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 833",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Backend servers are often drained on purpose for deploys, capacity tests, or standby; down members are not always broken.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.3.1)** — Planned work for 'Pool Member Health Status (F5 BIG-IP)' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `f5:bigip:syslog`** — Scheduled automation elevates `src` without crossing configured threshold for UC-5.3.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `f5:bigip:syslog`** — First 48h baseline for UC-5.3.1 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "f5",
     "syslog"
@@ -30,6 +52,12 @@
   "equipmentModels": [
     "f5_bigip"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* Splunk Add-on for F5 BIG-IP (`Splunk_TA_f5-bigip`, Splunkbase 2680) installed. F5 BIG-IP LTM syslog forwarded to Splunk with `sourcetype=f5:bigip:syslog`. Key syslog messages: `MCPD` subsystem for pool member state transitions (\"Pool member ... monitor status down/up\"), `bigd` for health monitor results.\n* F5 syslog configuration: System > Logs > Configuration > Remote Logging > add Splunk syslog IP, set severity to Informational.\n* Create `f5_pool_inventory.csv` lookup: `pool`, `member`, `application`, `owner`, `tier` (prod/staging), `expected_members` (count of members that should be up).\n\nStep 1 -- Configure data collection\nOn the F5 BIG-IP, configure remote syslog:\n```\ntmsh modify sys syslog remote-servers add { splunk { host <SPLUNK_SYSLOG_IP> remote-port 514 } }\n```\nVerify data flows:\n```spl\nindex=network sourcetype=\"f5:bigip:syslog\" earliest=-4h\n| where match(_raw, \"(?i)(pool member|monitor status)\")\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Pool member state with capacity impact:**\n```spl\nindex=network sourcetype=\"f5:bigip:syslog\" (\"pool member\" AND (\"down\" OR \"up\" OR \"offline\" OR \"available\")) earliest=-4h\n| rex \"Pool (?<pool>\\S+) member (?<member>\\S+) monitor status (?<status>\\w+)\"\n| where isnotnull(pool)\n| stats latest(status) as current_status latest(_time) as last_change by host, pool, member\n| lookup f5_pool_inventory.csv pool OUTPUT application, owner, tier, expected_members\n| eval is_down=if(match(lower(current_status), \"down|offline\"), 1, 0)\n| stats sum(is_down) as down_count count as total_members values(application) as app values(tier) as tier by host, pool, expected_members\n| eval up_count=total_members - down_count\n| eval capacity_pct=round(100*up_count/total_members, 1)\n| eval severity=case(down_count=total_members, \"CRITICAL -- ALL MEMBERS DOWN\", capacity_pct < 50, \"HIGH -- below 50%\", down_count > 0, \"WARNING -- degraded\", 1==1, \"OK\")\n| where down_count > 0\n| sort severity, -down_count\n```\n\n**Pool member flapping detection:**\n```spl\nindex=network sourcetype=\"f5:bigip:syslog\" (\"pool member\" AND (\"down\" OR \"up\")) earliest=-4h\n| rex \"Pool (?<pool>\\S+) member (?<member>\\S+) monitor status (?<status>\\w+)\"\n| stats count as transitions dc(status) as states by pool, member\n| where transitions > 4\n| eval issue=\"FLAPPING -- member toggling up/down (\".transitions.\" transitions in 4h)\"\n| sort -transitions\n```\n\nStep 3 -- Validate\n(a) In tmsh: `show ltm pool <pool_name> members` -- compare member states with Splunk.\n(b) Force a pool member offline: `tmsh modify ltm node <node> state user-down` -- verify the event appears in Splunk within 60 seconds.\n(c) Re-enable: `tmsh modify ltm node <node> state user-up` -- verify the \"up\" event.\n\nStep 4 -- Operationalize\nDashboard (\"F5 -- Pool Health\"):\n* Row 1 -- Single-value tiles: \"Pools with down members\", \"Total down members\", \"Critical pools (all down)\", \"Flapping members\".\n* Row 2 -- Pool capacity table: pool, app, tier, up/total, capacity %, severity.\n* Row 3 -- Flapping member detail.\n\nAlerting:\n* Critical (all members down in any prod pool): immediate -- complete service outage.\n* High (pool capacity < 50%): degraded -- remaining members may be overloaded.\n* Warning (member flapping > 4 transitions in 1h): unstable backend -- investigate health monitor or server.\n\nStep 5 -- Troubleshooting\n\n* **All members down but application works** -- Check if the pool has a \"fallback host\" or \"action on service down\" configured (tmsh: `list ltm pool <pool> all-properties`). Traffic may be going to a sorry page or alternate pool.\n\n* **Member shows down but server is healthy** -- The F5 health monitor is failing. Check: (1) monitor type (HTTP, TCP, ICMP), (2) send/receive strings, (3) network path between F5 and backend. Test: `tmsh run ltm monitor <monitor> destination <member_ip:port>`.\n\n* **Flapping member** -- The backend is intermittently failing the health check. Common causes: (1) backend at capacity (slow responses exceed monitor timeout), (2) GC pauses (JVM), (3) health endpoint returning errors under load.\n\n**IPv6 Note:** ICMPv6 is architecturally critical for IPv6 — it carries NDP (Neighbor Discovery), Path MTU Discovery, and Multicast Listener Discovery. Unlike ICMP for IPv4, blocking ICMPv6 breaks IPv6 connectivity entirely. Ensure firewall policies permit at minimum ICMPv6 types 1-4 (Destination Unreachable, Packet Too Big, Time Exceeded, Parameter Problem) and types 133-137 (RS, RA, NS, NA, Redirect). See RFC 4890 for filtering recommendations.",
-  "grandmaExplanation": "We read pool member up and down messages from the load balancer so a drained server or a real failure is obvious before customers complain."
+  "grandmaExplanation": "We read pool member up and down messages from the load balancer so a drained server or a real failure is obvious before customers complain.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

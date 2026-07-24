@@ -9,11 +9,17 @@
     "Change"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=ovirt` `sourcetype=\"ovirt:storagedomain\"` — `domain_type=iso`, `mount_status`, `last_scan`",
-  "app": "Engine storage events to Splunk",
+  "exclusions": "Covers the detection logic documented for 'oVirt ISO Domain Mount and Image Provisioning Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_ovirt_iso_domain_mount_and_image_provisioning_ev` (UC-2.8.13), SOC dashboard panel \"Linux — oVirt ISO Domain Mount and Image Provisioning Events\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.8.13 positive (oVirt, ISO, Domain, Mount, and): ingest synthetic events into `index=ovirt` sourcetype='ovirt:storagedomain' where `count` grouped by `entity` satisfies -7d for 'oVirt ISO Domain Mount and Image Provisioning Events'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.8.13 negative (Provisioning Events): ingest benign `ovirt` / `ovirt:storagedomain` events where `entity` stays below -7d, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 11 confirms zero alert rows for 'oVirt ISO Domain Mount and Image Provisioning Events'."
+  },
+  "dataSources": "`index=ovirt` `sourcetype=\"ovirt:storagedomain\"` — `domain_type=iso`, `mount_status`, `last_scan` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Engine storage events to Splunk — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ovirt sourcetype=\"ovirt:storagedomain\" earliest=-7d\n| eval dt=lower(coalesce(domain_type, type))\n| where dt=\"iso\"\n| eval ms=lower(mount_status)\n| where ms!=\"active\" OR match(lower(_raw), \"(?i)unmount|nfs.*fail|permission\")\n| table _time, domain_name, ms, last_scan, message",
-  "description": "ISO domains power installs and rescue media. Mount failures delay builds and can mask NFS permission regressions.",
-  "value": "Keeps build pipelines and operator runbooks unblocked.",
+  "description": "Identifies UC-2.8.13 — oVirt, ISO, Domain, Mount, and — using `index=ovirt` sourcetype `ovirt:storagedomain`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when -7d. Primary focus: Provisioning Events. Purpose-built for 'oVirt ISO Domain Mount and Image Provisioning Events' in Linux workflows.",
+  "value": "UC-2.8.13 helps teams contain oVirt, ISO, Domain, Mount, and scenarios and reduce capacity incidents, patch regressions, and service outages before incidents compound.",
   "implementation": "Monitor ISO domain health separately from data domains. Alert on failed mounts. Correlate with NAS audit logs.",
   "visualization": "Timeline mount state; table domains; NFS error keywords.",
   "cimModels": [
@@ -22,13 +28,33 @@
   "references": [
     {
       "title": "oVirt ISO Storage Domains",
-      "url": "https://www.ovirt.org/documentation/administration_guide/#ISO_domain"
+      "url": "https://www.ovirt.org/documentation/administration_guide/#ISO_domain",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "AOS storage metrics can look worse during background heal, curator, or disk removal work; match alerts to Nutanix task progress and maintenance windows.",
+  "knownFalsePositives": "1. **Patch Tuesday on `ovirt`** — Package managers spike `host` metrics for 'oVirt ISO Domain Mount and Image Provisioning Events'. Correlate with apt/yum logs in the same `ovirt:storagedomain` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `ovirt:storagedomain`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "ovirt",
     "security_essentials"
+  ],
+  "equipmentModels": [
+    "ovirt_generic",
+    "security_essentials_generic"
   ],
   "status": "verified",
   "lastReviewed": "2025-06-01",
@@ -37,5 +63,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We keep an eye on the control panel that runs your virtual datacenter—who changed what, whether storage and hosts are healthy, and when something is about to strand running machines."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Engine storage events to Splunk — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ovirt:storagedomain into ovirt. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user, action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We keep an eye on the control panel that runs your virtual datacenter—who changed what, whether storage and hosts are healthy, and when something is about to strand running machines.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

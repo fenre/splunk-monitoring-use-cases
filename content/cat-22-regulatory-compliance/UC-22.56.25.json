@@ -31,14 +31,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Make a synthetic privileged change on a TSA-regulated asset without a change ticket. UC-22.56.25 MUST flag within 4 hours.",
-    "negativeScenario": "Pin the change to an approved ticket. UC-22.56.25 MUST NOT escalate."
+    "positiveScenario": "UC-22.56.25 positive (TSA, multi, modal, change, control): ingest synthetic events into `index=target_index` sourcetype='snow:change_request' where `values` grouped by `host`, `change_window]`, `facility_id`, `modality` satisfies detection threshold for 'TSA-SD multi-modal change-control + privileged-change audit trail across SCADA / OT / NOTAM-relevant systems'. Validate lookup `tsa_change_asset_lookup`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.56.25 negative (relevant systems): ingest benign `target_index` / `snow:change_request` events where `host`, `change_window]`, `facility_id`, `modality` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv`. Variant 8 confirms zero alert rows for 'TSA-SD multi-modal change-control + privileged-change audit trail across SCADA / OT / NOTAM-relevant systems'."
   },
   "dataSources": "Windows + Linux audit logs (`wineventlog:security`, `linux:audit`). SCADA HMI/EWS audit (`scada:audit`). Network device config-change (`cisco:nxos:audit`). ServiceNow Change Management (`snow:change_request`). TSA asset register (KV Store `tsa_change_asset_lookup`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "(sourcetype=wineventlog:security EventCode IN (4672,4720,4724,4738,4756) OR sourcetype=cisco:nxos:audit cmd=*)\n| lookup tsa_change_asset_lookup host AS host OUTPUT facility_id modality tsa_in_scope\n| where tsa_in_scope=true\n| eval change_window = strftime(_time, \"%Y-%m-%dT%H\")\n| join type=left host change_window [search sourcetype=\"snow:change_request\" state IN (\"scheduled\",\"in_progress\",\"closed_complete\") | eval change_window=strftime(start_date, \"%Y-%m-%dT%H\") | stats values(number) as change_ticket by host change_window]\n| eval change_status = case(\n    isnotnull(change_ticket), \"approved\",\n    1=1, \"unapproved\")\n| where change_status=\"unapproved\"\n| stats count as events by facility_id modality host user EventCode change_status\n| table facility_id modality host user EventCode events change_status",
-  "description": "Joins privileged change events on TSA-regulated assets with ServiceNow change-control to surface unapproved changes.",
-  "value": "Unapproved changes on TSA-regulated systems are enforcement findings AND leading indicators of intrusion.",
+  "description": "Detects UC-22.56.25 — TSA, multi, modal, change, control — using `index=target_index` sourcetype `snow:change_request`, grouped by `host`, `change_window]`, `facility_id`, `modality`. Outputs `values` each `the scheduled window`; alert when configured threshold. Filter chain includes lookup `tsa_change_asset_lookup`. Purpose-built for 'TSA-SD multi-modal change-control + privileged-change audit trail across SCADA / OT / NOTAM-relevant systems' in Compliance workflows.",
+  "value": "UC-22.56.25 accelerates insight into relevant systems ('TSA-SD multi-modal change-control + privileged-change audit trail across SCADA / OT / NOTAM-relevant systems') by tracking `activity` on `snow:change_request` feeds, reducing audit findings, regulatory gaps, and attestation delays before spreadsheet checks hide regressions.",
   "implementation": "(1) Populate `tsa_change_asset_lookup`. (2) Schedule UC-22.56.25 every 4 hours. (3) Build the `TSA Change Control Audit` dashboard.",
   "visualization": "(Panel 1) Unapproved-change counts by modality. (Panel 2) Top-10 users. (Panel 3) Asset coverage. (Panel 4) 30-day trend.",
   "cimModels": [
@@ -47,14 +47,26 @@
   "references": [
     {
       "title": "TSA SD multi-modal change-control expectations",
-      "url": "https://www.tsa.gov/cybersecurity"
+      "url": "https://www.tsa.gov/cybersecurity",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "NIST 800-128 — Security-focused Configuration Management",
-      "url": "https://csrc.nist.gov/publications/detail/sp/800-128/final"
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-128/final",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Emergency change**: tagged retroactively; pin via `change_status_retroactive`.\n2. **Vendor maintenance under PAM**: PAM logs prove vendor-session boundary.\n\n**Suppression mechanism**: KV Store `tsa_change_exception_lookup`.",
+  "knownFalsePositives": "1. **Authorised TSA SURFACE control testing** — Internal audit exercises 'TSA-SD multi-modal change-control + privileged-change audit trail across SCADA / OT / NOTAM-relevant systems' (UC-22.56.25) on `host` during scheduled clause TSA-SCAS-change-control sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `snow:change_request` without crossing evidence threshold. Cross-check engagement letter in `tsa_surface_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `host`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `host` during normal service delivery.\n\n**Suppression mechanism:** `tsa_surface_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1078",
     "T1543",
@@ -86,7 +98,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + Windows + ServiceNow TAs.\n- KV Store `tsa_change_asset_lookup`.\n\n## Step 1 — Asset register\n\n```ini\n[tsa_change_asset_lookup]\nfield.host = string\nfield.facility_id = string\nfield.modality = string\nfield.tsa_in_scope = string\nfield.criticality = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.25: TSA Change Control Audit]\ncron_schedule = 41 */4 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.25,reg=TSA-Surface,clause=TSA-SD-multi-change-control\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**Unapproved change on TSA-critical asset** (owner: Change Lead, severity P2): triage 1 hour; remediate or back-out 4 hours; root-cause 24 hours.\n\n## Step 4 — Troubleshooting\n\n- **Time-window alignment**: SCADA timezones may differ; normalise.\n- **Retroactive change tickets**: must include CC review.\n\n**TSA-specific failure modes**:\n- **PHMSA safety-case alignment**: changes affecting pipeline safety-case may require PHMSA notification.\n- **PTC vendor changes**: rail PTC vendor changes need vendor + FRA + TSA awareness.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + Windows + ServiceNow TAs.\n- KV Store `tsa_change_asset_lookup`.\n\n## Step 1 — Asset register\n\n```ini\n[tsa_change_asset_lookup]\nfield.host = string\nfield.facility_id = string\nfield.modality = string\nfield.tsa_in_scope = string\nfield.criticality = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.25: TSA Change Control Audit]\ncron_schedule = 41 */4 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.25,reg=TSA-Surface,clause=TSA-SD-multi-change-control\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**Unapproved change on TSA-critical asset** (owner: Change Lead, severity P2): triage 1 hour; remediate or back-out 4 hours; root-cause 24 hours.\n\n## Step 4 — Troubleshooting\n\n- **Time-window alignment**: SCADA timezones may differ; normalise.\n- **Retroactive change tickets**: must include CC review.\n\n**TSA-specific failure modes**:\n- **PHMSA safety-case alignment**: changes affecting pipeline safety-case may require PHMSA notification.\n- **PTC vendor changes**: rail PTC vendor changes need vendor + FRA + TSA awareness.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).). Enable the modular input or HEC token that writes sourcetype=wineventlog:security, cisco:nxos:audit, snow:change_request into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`EventCode, change_status, change_window], facility_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Every change made on an important pipeline/train/airport system must have an approved ticket. If a change happens without one, we know within four hours.",
   "prerequisiteUseCases": [
     "UC-22.56.4"

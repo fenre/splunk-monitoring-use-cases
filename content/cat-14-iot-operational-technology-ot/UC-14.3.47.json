@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=edge-hub-data` enriched_sensor_metrics, `index=edge-hub-logs` enrichment_event",
-  "app": "Splunk Edge Hub (custom container), gRPC SDK, HTTP client",
+  "exclusions": "Covers the detection logic documented for 'Custom Python Container for API Integration & Data Enrichment' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_custom_python_container_for_api_integration_data` (UC-14.3.47), SOC dashboard panel \"Operations — Custom Python Container for API Integration & Data Enrichment\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.3.47 positive (Custom, Python, Container, for, API): ingest synthetic events into `index=edge-hub-data` sourcetype='target_sourcetype' where `avg_temp`, `sensor_temp`, `s_mean` grouped by `host` satisfies `v_s` > 0, `v_a` > 0, or `correlation` < 0.5 for 'Custom Python Container for API Integration & Data Enrichment'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.3.47 negative (Data Enrichment): ingest benign `edge-hub-data` / `target_sourcetype` events where `host` stays below `v_s` > 0, `v_a` > 0, or `correlation` < 0.5, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Custom Python Container for API Integration & Data Enrichment'."
+  },
+  "dataSources": "`index=edge-hub-data` enriched_sensor_metrics, `index=edge-hub-logs` enrichment_event Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Edge Hub (custom container), gRPC SDK, HTTP client — Universal Forwarder (Splunkbase 617)",
   "spl": "index=edge-hub-data metric_name=temperature\n| join max=1 host [| mstats avg(temperature) as avg_temp by host | eval weather_context_available=1]\n| stats avg(avg_temp) as sensor_temp, latest(external_air_temp_c) as api_air_temp by host\n| eventstats avg(sensor_temp) as s_mean, avg(api_air_temp) as a_mean by host\n| eval ds=sensor_temp-s_mean, da=api_air_temp-a_mean\n| eventstats sum(eval(ds*da)) as cov, sum(eval(ds*ds)) as v_s, sum(eval(da*da)) as v_a by host\n| eval correlation=if(v_s>0 AND v_a>0, round(cov/sqrt(v_s*v_a),3), null())\n| where correlation < 0.5\n| eval enrichment_anomaly=\"LOW_CORRELATION\"",
-  "description": "Integrates Edge Hub data with external APIs (weather, commodity prices, inventory systems) to enrich sensor context without cloud latency.",
-  "value": "Integrates Edge Hub data with external APIs (weather, commodity prices, inventory systems) to enrich sensor context without cloud latency.",
+  "description": "Identifies UC-14.3.47 — Custom, Python, Container, for, API — using `index=edge-hub-data` sourcetype `configured sourcetype`, grouped by `host`. Outputs `avg_temp`, `sensor_temp`, `s_mean` each `the scheduled window`; alert when `v_s` > 0, `v_a` > 0, or `correlation` < 0.5. Primary focus: Data Enrichment. Purpose-built for 'Custom Python Container for API Integration & Data Enrichment' in Operations workflows.",
+  "value": "UC-14.3.47 accelerates insight into Data Enrichment ('Custom Python Container for API Integration & Data Enrichment') by tracking `avg_temp`, `sensor_temp`, `s_mean` on UC-14.3.47 search results, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Build custom ARM64 container with Python requests library. Container subscribes to sensor data via gRPC API, periodically fetches external data (weather API, stock prices, etc.) via HTTPS, correlates with sensor data, and publishes enriched metrics back to MQTT. Example: fetch external air temperature from weather API every 30 minutes, correlate with Edge Hub inside temperature to detect HVAC failures. Implement caching layer to minimize API calls. Store enrichment logs locally. Configure edge.json: memory 256MB, CPU 1 core. Container runs as non-root (v2.0+).",
   "visualization": "Sensor vs API correlation scatter, enrichment success rate trend, external data staleness timeline.",
   "cimModels": [
@@ -22,17 +28,43 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "AQI spikes during cooking, cleaning, paint or solvent use, or HVAC maintenance.",
+  "knownFalsePositives": "1. **Maintenance window on `edge-hub-data` (UC-14.3.47)** — Planned work for 'Custom Python Container for API Integration & Data Enrichment' shifts `avg_temp`, `sensor_temp`, `s_mean` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `weather_context_available` without crossing `v_s` > 0 for UC-14.3.47. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `edge-hub-data` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-14.3.47 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "edge_hub",
     "mqtt"
+  ],
+  "equipmentModels": [
+    "edge_hub_generic",
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     "Splunk Edge Hub"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (custom container), gRPC SDK, HTTP client.\n• Ensure the following data sources are available: `index=edge-hub-data` enriched_sensor_metrics, `index=edge-hub-logs` enrichment_event.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBuild custom ARM64 container with Python requests library. Container subscribes to sensor data via gRPC API, periodically fetches external data (weather API, stock prices, etc.) via HTTPS, correlates with sensor data, and publishes enriched metrics back to MQTT. Example: fetch external air temperature from weather API every 30 minutes, correlate with Edge Hub inside temperature to detect HVAC failures. Implement caching layer to minimize API calls. Store enrichment logs locally. Configure edge.j…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edge-hub-data metric_name=temperature\n| join max=1 host [| mstats avg(temperature) as avg_temp by host | eval weather_context_available=1]\n| stats avg(avg_temp) as sensor_temp, latest(external_air_temp_c) as api_air_temp by host\n| eventstats avg(sensor_temp) as s_mean, avg(api_air_temp) as a_mean by host\n| eval ds=sensor_temp-s_mean, da=api_air_temp-a_mean\n| eventstats sum(eval(ds*da)) as cov, sum(eval(ds*ds)) as v_s, sum(eval(da*da)) as v_a by host\n| eval correlation=if(v_s>0 AND v_a>0, round(cov/sqrt(v_s*v_a),3), null())\n| where correlation < 0.5\n| eval enrichment_anomaly=\"LOW_CORRELATION\"\n```\n\nUnderstanding this SPL\n\n**Custom Python Container for API Integration & Data Enrichment** — Integrates Edge Hub data with external APIs (weather, commodity prices, inventory systems) to enrich sensor context without cloud latency.\n\nDocumented **Data sources**: `index=edge-hub-data` enriched_sensor_metrics, `index=edge-hub-logs` enrichment_event. **App/TA** (typical add-on context): Splunk Edge Hub (custom container), gRPC SDK, HTTP client. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-data.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edge-hub-data. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **correlation** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where correlation < 0.5` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **enrichment_anomaly** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nNote: for mstats, confirm the metrics indexes in the search exist and your role can run mstats. This is separate from CIM data model acceleration.\n\nStep 3 — Validate\nConfirm metric or event volume in the time range, then compare trends and device status to the Splunk Edge Hub admin UI or the mobile app for the same devices. Verify metric names, hosts, and time skew.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Sensor vs API correlation scatter, enrichment success rate trend, external data staleness timeline.",
-  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with the situation around: custom python container for api integration & data enrichment before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with the situation around: custom python container for api integration & data enrichment before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

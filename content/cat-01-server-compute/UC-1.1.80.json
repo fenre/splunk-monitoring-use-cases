@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=syslog` (systemd journal forwarded or rsyslog facility lines)",
-  "app": "`Splunk_TA_nix`",
+  "exclusions": "Covers the detection logic documented for 'Systemd Unit Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_systemd_unit_failures` (UC-1.1.80), SOC dashboard panel \"Linux — Systemd Unit Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.80 positive (Systemd, Unit, Failures): ingest synthetic events into `index=os` sourcetype='syslog' where `count` grouped by `host`, `unit` satisfies `count` > 0 for 'Systemd Unit Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.80 negative (Unit Failures): ingest benign `os` / `syslog` events where `host`, `unit` stays below `count` > 0, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 0 confirms zero alert rows for 'Systemd Unit Failures'."
+  },
+  "dataSources": "`sourcetype=syslog` (systemd journal forwarded or rsyslog facility lines) Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=os sourcetype=syslog \"systemd\" (\"Failed\" OR \"ERROR\" OR \"not-found\")\n| stats count by host, unit\n| where count>0",
-  "description": "Counts **systemd** log lines that mention failure, error, or missing unit files, grouped by **host** and **unit** field (when extracted) or by **host** alone if **unit** is still in `_raw`.",
-  "value": "Service **active** state in **systemd** is the source of truth for many apps; log lines here are a quick backstop when you have not yet exported full **systemd** JSON to Splunk.",
+  "description": "Identifies 'Systemd Unit Failures' (UC-1.1.80) using `index=os` sourcetype `syslog` by aggregating `count` grouped by `host`, `unit` over `the scheduled window` and alerting when `count` > 0. Keywords: Systemd, Unit, Failures. Focuses on Unit Failures behaviour so linux teams can triage UC-1.1.80 without ad-hoc log review.",
+  "value": "UC-1.1.80 accelerates insight into Unit Failures ('Systemd Unit Failures') by tracking `activity` on `syslog` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
   "implementation": "Add `REX` for `unit=` or the **User=** / **Subject:** lines your OS prints. Remove `not-found` if **first boot** noise is too high in your cloud image factory.",
   "visualization": "Alert, Table",
   "cimModels": [
@@ -21,18 +27,40 @@
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during **package** upgrades; units that **restart** often and log `Failed` even when **systemd** eventually recovers—tighten with `| where count>5` in 15**m**; multi-line events split wrong in **props**.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Systemd Unit Failures'. Correlate with apt/yum logs in the same `syslog` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `syslog`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `count` > 0.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux",
     "syslog"
   ],
-  "detailedImplementation": "Prerequisites\n• Forward **journal** for **systemd** units of interest, or use the **UF** `journald` input where available on your OS version.\n\n**CIM** — Not applicable; these are **Availability** events, not **Authentication**.\n\n\nStep 3 — Validate\n`systemctl status unit` and `journalctl -u unit --since` on the host for the same minute you see in Splunk. Use `systemd-analyze blame` only for slow boot, not every **Failed** line.\n\nStep 4 — Operationalize\nPair with the **D-state** and **memory** use cases when a unit failure is just a symptom of resource exhaustion.\n\n",
-  "grandmaExplanation": "We help you know when the built-in service manager keeps saying it could not start or find an important service, so you can fix the app or the machine before users feel it."
+  "equipmentModels": [
+    "linux_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Forward **journal** for **systemd** units of interest, or use the **UF** `journald` input where available on your OS version.\n\n**CIM** — Not applicable; these are **Availability** events, not **Authentication**.\n\n\nStep 3 — Validate\n`systemctl status unit` and `journalctl -u unit --since` on the host for the same minute you see in Splunk. Use `systemd-analyze blame` only for slow boot, not every **Failed** line.\n\nStep 4 — Operationalize\nPair with the **D-state** and **memory** use cases when a unit failure is just a symptom of resource exhaustion.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_nix` — Splunk Add-on for Unix and Linux (Splunkbase 833)). Enable the modular input or HEC token that writes sourcetype=syslog into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, unit`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you know when the built-in service manager keeps saying it could not start or find an important service, so you can fix the app or the machine before users feel it.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

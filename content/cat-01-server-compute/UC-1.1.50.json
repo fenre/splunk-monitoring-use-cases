@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=syslog` (khugepaged / THP messages) and optional debug or metrics feeds if you enable them",
-  "app": "`Splunk_TA_nix`",
+  "exclusions": "Covers the detection logic documented for 'Transparent Hugepage Defragmentation Stalls' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_transparent_hugepage_defragmentation_stalls` (UC-1.1.50), SOC dashboard panel \"Linux — Transparent Hugepage Defragmentation Stalls\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.50 positive (Transparent, Hugepage, Defragmentation, Stalls): ingest synthetic events into `index=os` sourcetype='syslog' where `count` grouped by `host` satisfies `count` > 5 for 'Transparent Hugepage Defragmentation Stalls'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.50 negative (Defragmentation Stalls): ingest benign `os` / `syslog` events where `host` stays below `count` > 5, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 0 confirms zero alert rows for 'Transparent Hugepage Defragmentation Stalls'."
+  },
+  "dataSources": "`sourcetype=syslog` (khugepaged / THP messages) and optional debug or metrics feeds if you enable them Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=os sourcetype=syslog (\"thp_defrags\" OR \"khugepaged\" OR \"thp_collapse\")\n| stats count by host\n| where count > 5",
-  "description": "Counts kernel log lines tied to transparent huge page defragmentation, which often shows up as latency blips for latency-sensitive services on the same host.",
-  "value": "Knowing when a host is spending extra time in THP maintenance helps you decide whether to switch profiles (for example toward `madvise`) or to move jitter-sensitive apps.",
+  "description": "Monitors 'Transparent Hugepage Defragmentation Stalls' (UC-1.1.50) using `index=os` sourcetype `syslog` by aggregating `count` grouped by `host` over `the scheduled window` and alerting when `count` > 5. Keywords: Transparent, Hugepage, Defragmentation, Stalls. Focuses on Defragmentation Stalls behaviour so linux teams can triage UC-1.1.50 without ad-hoc log review.",
+  "value": "UC-1.1.50 accelerates insight into Defragmentation Stalls ('Transparent Hugepage Defragmentation Stalls') by tracking `activity` on `syslog` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
   "implementation": "Ingest the kernel or daemon logs that mention THP and khugepaged. Alert when more than a small number of lines appear in the window, then confirm on the host with THP settings and application guidance.",
   "visualization": "Alert, Table",
   "cimModels": [
@@ -21,18 +27,40 @@
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Noise from unrelated subsystems that share substrings; hosts where logging verbosity was turned up; legitimate one-off maintenance that still crosses a low count—tighten keywords or time bounds per environment.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Transparent Hugepage Defragmentation Stalls'. Correlate with apt/yum logs in the same `syslog` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `syslog`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `count` > 5.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux",
     "syslog"
   ],
-  "detailedImplementation": "Prerequisites\n• Forward security-relevant **syslog** from Linux hosts, including **kern**-priority lines where THP messages appear on your distribution.\n\nStep 1 — Configure data collection\nNo extra TA feature is required beyond reliable syslog forwarding. If messages never arrive, check rsyslog/journald forwarding rules and that Splunk is not dropping **kern** facilities.\n\nStep 2 — Create the search and alert\n\n```spl\nindex=os sourcetype=syslog (\"thp_defrags\" OR \"khugepaged\" OR \"thp_collapse\")\n| stats count by host\n| where count > 5\n```\n\nTune `>5` to your log volume. Consider adding `host=prod-*` style filters for scoped rollouts.\n\n**Understanding this SPL** — Simple frequency count of THP-related substrings by host, alerting when the pattern appears more than a few times in the chosen lookback.\n\n\nStep 3 — Validate\nOn a lab host, read current policy with your distribution’s ** sysfs** or ** sysctl** view of transparent hugepage settings, reproduce a low-rate pattern if safe, and confirm matching lines in Splunk. Use `top` or `htop` while testing to see user-visible latency, not to parse THP (THP is kernel-side).\n\nStep 4 — Operationalize\nDocument policy choices (`always` vs `madvise` vs `never`) in the runbook and pair each alert with owners of databases or real-time apps on the node.\n\n",
-  "grandmaExplanation": "We help you know when the operating system is busy reshuffling its large memory pages, which can make some programs stutter, so you can change settings or move fussy work elsewhere."
+  "equipmentModels": [
+    "linux_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Forward security-relevant **syslog** from Linux hosts, including **kern**-priority lines where THP messages appear on your distribution.\n\nStep 1 — Configure data collection\nNo extra TA feature is required beyond reliable syslog forwarding. If messages never arrive, check rsyslog/journald forwarding rules and that Splunk is not dropping **kern** facilities.\n\nStep 2 — Create the search and alert\n\n```spl\nindex=os sourcetype=syslog (\"thp_defrags\" OR \"khugepaged\" OR \"thp_collapse\")\n| stats count by host\n| where count > 5\n```\n\nTune `>5` to your log volume. Consider adding `host=prod-*` style filters for scoped rollouts.\n\n**Understanding this SPL** — Simple frequency count of THP-related substrings by host, alerting when the pattern appears more than a few times in the chosen lookback.\n\n\nStep 3 — Validate\nOn a lab host, read current policy with your distribution’s ** sysfs** or ** sysctl** view of transparent hugepage settings, reproduce a low-rate pattern if safe, and confirm matching lines in Splunk. Use `top` or `htop` while testing to see user-visible latency, not to parse THP (THP is kernel-side).\n\nStep 4 — Operationalize\nDocument policy choices (`always` vs `madvise` vs `never`) in the runbook and pair each alert with owners of databases or real-time apps on the node.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_nix` — Splunk Add-on for Unix and Linux (Splunkbase 833)). Enable the modular input or HEC token that writes sourcetype=syslog into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you know when the operating system is busy reshuffling its large memory pages, which can make some programs stutter, so you can change settings or move fussy work elsewhere.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

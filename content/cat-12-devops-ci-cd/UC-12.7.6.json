@@ -9,11 +9,17 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=iac` `sourcetype=ansible:callback` task-level results, or `sourcetype=ansible:result` with `task_action`",
-  "app": "Custom jsonlines callback to HEC, or `community.general.splunk` pattern",
+  "exclusions": "Covers the detection logic documented for 'Ansible Module Failure Rate by Module Type' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ansible_module_failure_rate_by_module_type` (UC-12.7.6), SOC dashboard panel \"Operations — Ansible Module Failure Rate by Module Type\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.7.6 positive (Ansible, Module, Failure, Rate, Module): ingest synthetic events into `index=iac` sourcetype='ansible:callback' where `fails` grouped by `mod_base`, `playbook` satisfies `failed` > 0, `fail_rate` > 3, or `tasks` >= 20 for 'Ansible Module Failure Rate by Module Type'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.7.6 negative (Module Type): ingest benign `iac` / `ansible:callback` events where `mod_base`, `playbook` stays below `failed` > 0, `fail_rate` > 3, or `tasks` >= 20, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Ansible Module Failure Rate by Module Type'."
+  },
+  "dataSources": "`index=iac` `sourcetype=ansible:callback` task-level results, or `sourcetype=ansible:result` with `task_action` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom jsonlines callback to HEC, or `community.general.splunk` pattern — Universal Forwarder (Splunkbase 617)",
   "spl": "index=iac sourcetype=\"ansible:callback\" OR sourcetype=\"ansible:result\"\n| eval mod=coalesce(task_action, module_name, action)\n| rex field=mod \"^(?P<mod_base>[a-zA-Z0-9._-]+)\"\n| eval failed_task=if(status=\"failed\" OR result=\"failed\" OR failed>0,1,0)\n| stats count as tasks, sum(failed_task) as fails by mod_base, playbook\n| eval fail_rate=round(100*fails/nullif(tasks,0),2)\n| where fail_rate > 3 AND tasks >= 20\n| sort -fail_rate",
-  "description": "Package managers, copy, and service modules fail for different root causes; aggregating failure rate by module family highlights brittle integrations (proxy repos, SELinux, Windows WinRM) before they become outage-sized playbook failures.",
-  "value": "Prioritizes engineering fixes on the modules that drive the most wasted operator time and rerun churn.",
+  "description": "Monitors Module Type anomalies for UC-12.7.6 with window `the scheduled window` on `index=iac` sourcetype `ansible:callback`. Combines `fails` by `mod_base`, `playbook` and compares against `failed` > 0, `fail_rate` > 3, or `tasks` >= 20. Mapped to keywords Ansible, Module, Failure, Rate, Module for dashboard routing.",
+  "value": "Alerting on Ansible, Module, Failure, Rate, Module through UC-12.7.6 reduces operational risk and delayed incident response by surfacing `fails` early.",
   "implementation": "Normalize `task_action` to strip arguments (`apt: name=foo` → `apt`). Exclude `debug` and `set_fact` from denominators if they inflate counts. Join to CMDB for OS family when correlating `yum` vs `apt` failures.",
   "visualization": "Bar chart (fail_rate by module), heatmap (module × playbook), pie of failure share.",
   "cimModels": [
@@ -23,17 +29,33 @@
   "references": [
     {
       "title": "Ansible — Module index",
-      "url": "https://docs.ansible.com/ansible/latest/collections/index_module.html"
+      "url": "https://docs.ansible.com/ansible/latest/collections/index_module.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Build failures spike during CI infrastructure issues, dependency registry outages, flaky test runs, or major framework upgrades.",
+  "knownFalsePositives": "1. **Maintenance window on `iac` (UC-12.7.6)** — Planned work for 'Ansible Module Failure Rate by Module Type' shifts `fails` over `span=1h` while `mod_base`, `playbook` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `ansible:callback`** — Scheduled automation elevates `playbook` without crossing `failed` > 0 for UC-12.7.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `mod_base`, `playbook`** — Health checks in `iac` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ansible:callback`** — First 48h baseline for UC-12.7.6 on `mod_base` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `mod_base`, `exception_reason`, `valid_until`.",
   "equipment": [
     "ansible",
     "dell_emc"
+  ],
+  "equipmentModels": [
+    "ansible_generic",
+    "dell_emc_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-01",
@@ -43,5 +65,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch infrastructure-as-code runs and policy so changes to systems stay visible and governed."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom jsonlines callback to HEC, or `community.general.splunk` pattern — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ansible:callback, ansible:result into iac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`fail_rate, failed, failed_task, mod_base`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch infrastructure-as-code runs and policy so changes to systems stay visible and governed.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

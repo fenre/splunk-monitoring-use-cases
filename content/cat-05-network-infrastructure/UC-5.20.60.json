@@ -9,28 +9,42 @@
     "Performance"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Covers the detection logic documented for 'IPv6 Segment Routing (SRv6) SID Validation and Policy Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ipv6_segment_routing_srv6_sid_validation_and_pol` (UC-5.20.60), SOC dashboard panel \"Operations — IPv6 Segment Routing (SRv6) SID Validation and Policy Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.60 positive (IPv6, Segment, Routing, (SRv6), SID): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `count` grouped by `host`, `srv6_event`, `severity` satisfies -24h for 'IPv6 Segment Routing (SRv6) SID Validation and Policy Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.60 negative (Policy Health): ingest benign `network` / `cisco:ios` events where `host`, `srv6_event`, `severity` stays below -24h, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'IPv6 Segment Routing (SRv6) SID Validation and Policy Health'."
+  },
   "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:xr` containing SRv6 policy events, SID (Segment Identifier) validation logs, and segment list status messages. Segment Routing over IPv6 (SRv6) encodes network instructions directly in IPv6 addresses using Segment Identifiers (SIDs). Each SID is a 128-bit IPv6 address that represents a network instruction (a segment). SRv6 replaces MPLS labels with IPv6 addresses, leveraging the IPv6 header's Segment Routing Header (SRH, routing header type 4) to carry ordered segment lists.\n\nKey SRv6 concepts:\n- **Locator** — The prefix portion of a SID that is routable via standard IPv6 routing (e.g., 2001:db8:cafe::/48)\n- **Function** — The suffix of the SID that encodes the specific operation (e.g., End, End.X, End.DT6, End.DX4)\n- **SID List** — An ordered list of SIDs in the SRH that defines the packet's path through the network\n- **SR Policy** — A headend-to-tailend intent-based traffic engineering path defined by colour and endpoint\n\nSRv6 functions:\n- **End** — Node SID (transit through this node)\n- **End.X** — Adjacency SID (use this specific link)\n- **End.DT6** — Decapsulate and lookup in IPv6 table (VPNv6 service)\n- **End.DT4** — Decapsulate and lookup in IPv4 table (VPNv4 over SRv6)\n- **End.DX6/DX4** — Decapsulate and cross-connect to specific next-hop\n- **H.Encaps** — Headend encapsulation\n- **H.Encaps.Red** — Headend reduced encapsulation (uSID)\n\nFailure modes:\n- SID validation failure (invalid function, unknown locator)\n- Segment list loop (SIDs creating a forwarding loop)\n- SR policy candidate path down (no valid segment list)\n- uSID container mismatch (micro-segment encoding error)",
   "app": "Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 2812).",
   "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:xr\") (\"%SRV6\" OR \"%SR_POLICY\" OR \"%SEGMENT_ROUTING\") earliest=-24h\n| eval srv6_event=case(\n    match(_raw, \"(?i)SID.*invalid|validation.*fail\"), \"SID_VALIDATION_FAILURE\",\n    match(_raw, \"(?i)policy.*down|candidate.*down\"), \"POLICY_DOWN\",\n    match(_raw, \"(?i)policy.*up|candidate.*active\"), \"POLICY_UP\",\n    match(_raw, \"(?i)SID.*install|SID.*allocated\"), \"SID_INSTALLED\",\n    match(_raw, \"(?i)locator.*unreachable\"), \"LOCATOR_UNREACHABLE\",\n    1=1, \"OTHER\")\n| eval severity=case(\n    srv6_event=\"SID_VALIDATION_FAILURE\", \"CRITICAL\",\n    srv6_event=\"POLICY_DOWN\", \"HIGH\",\n    srv6_event=\"LOCATOR_UNREACHABLE\", \"HIGH\",\n    srv6_event=\"POLICY_UP\", \"INFO\",\n    srv6_event=\"SID_INSTALLED\", \"INFO\",\n    1=1, \"LOW\")\n| stats count by host, srv6_event, severity\n| sort -severity",
-  "description": "Monitors SRv6 (Segment Routing over IPv6) infrastructure health including SID validation, SR policy state, locator reachability, and segment list integrity. SRv6 is the modern replacement for MPLS in service provider and data center networks — it uses IPv6 addresses as segment identifiers to program traffic paths. SRv6 failures cause traffic engineering paths to break, VPN services to fail, and traffic to take suboptimal paths or be black-holed.",
-  "value": "SRv6 is increasingly deployed in tier-1 service providers and large enterprises as the next-generation transport technology replacing MPLS. It carries L3VPN (VPNv4/VPNv6), EVPN, and traffic-engineered paths. A SID validation failure or SR policy going down can impact thousands of customer VPN services simultaneously. Monitoring SRv6 health is critical for service assurance in modern networks that have migrated from MPLS to SRv6.",
+  "description": "Alerts on UC-5.20.60 — IPv6, Segment, Routing, (SRv6), SID — using `index=network` sourcetype `cisco:ios`, grouped by `host`, `srv6_event`, `severity`. Outputs `count` each `the scheduled window`; alert when -24h. Primary focus: Policy Health. Purpose-built for 'IPv6 Segment Routing (SRv6) SID Validation and Policy Health' in Operations workflows.",
+  "value": "UC-5.20.60 gives Operations teams earlier visibility into Policy Health through `cisco:ios` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Collect SRv6 syslog events from all PE and P routers. Track SID validation status, SR policy state, and locator reachability. Alert on SID failures, policy down events, and locator unreachability.",
   "visualization": "(1) Table: SRv6 events by type and severity. (2) Single-value: active SR policies, policies DOWN, SID failures. (3) Timechart: SRv6 events over 24 hours. (4) Network diagram: SRv6 policy paths with health status.",
   "references": [
     {
       "title": "RFC 8986 — Segment Routing over IPv6 (SRv6) Network Programming",
-      "url": "https://www.rfc-editor.org/rfc/rfc8986"
+      "url": "https://www.rfc-editor.org/rfc/rfc8986",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 8754 — IPv6 Segment Routing Header (SRH)",
-      "url": "https://www.rfc-editor.org/rfc/rfc8754"
+      "url": "https://www.rfc-editor.org/rfc/rfc8754",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9252 — BGP Overlay Services Based on Segment Routing over IPv6 (SRv6)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9252"
+      "url": "https://www.rfc-editor.org/rfc/rfc9252",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**SR policy recalculation after topology change.** When a link fails, SR policies that use the failed link are recalculated to use alternative paths. The policy goes DOWN momentarily and then comes back UP on a new path. This is normal reconvergence.\n\n**SID installation during boot.** When a router boots, it installs its local SIDs. This generates SID_INSTALLED events that are normal.\n\n**Policy preference changes.** When a higher-preference candidate path becomes available, the lower-preference path goes down. This is normal SR policy behaviour.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.60)** — Planned work for 'IPv6 Segment Routing (SRv6) SID Validation and Policy Health' shifts `count` over `span=1h` while `host`, `srv6_event`, `severity` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ios`** — Scheduled automation elevates `srv6_event` without crossing configured threshold for UC-5.20.60. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `srv6_event`, `severity`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.20.60 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "juniper",

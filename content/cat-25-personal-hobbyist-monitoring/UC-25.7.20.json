@@ -9,50 +9,75 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Media and gaming telemetry (`jellyfin:activity`, `emby:session`, `steam:player`, `steamdeck:session`, `xbox:activity`, `nintendo:play`, `tautulli:play`, `antennapod:episode`, `retroarch:session`, `sonarr:event`).",
-  "app": "Jellyfin, Emby, Steam, Steam Deck logs, Xbox and Nintendo exports, Tautulli, AntennaPod, RetroArch, and the *arr stack via official APIs, local databases, webhook payloads, and Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Emby Library Scan Failure Count' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_emby_library_scan_failure_count` (UC-25.7.20), SOC dashboard panel \"Personal — Emby Library Scan Failure Count\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.7.20 positive (Emby, Library, Scan, Failure, Count): ingest synthetic events into `index=personal` sourcetype='emby:session' where `count` grouped by `library` satisfies `failures` > 0 for 'Emby Library Scan Failure Count'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.7.20 negative (Failure Count): ingest benign `personal` / `emby:session` events where `library` stays below `failures` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 7 confirms zero alert rows for 'Emby Library Scan Failure Count'."
+  },
+  "dataSources": "Media and gaming telemetry (`jellyfin:activity`, `emby:session`, `steam:player`, `steamdeck:session`, `xbox:activity`, `nintendo:play`, `tautulli:play`, `antennapod:episode`, `retroarch:session`, `sonarr:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Jellyfin, Emby, Steam, Steam Deck logs, Xbox and Nintendo exports, Tautulli, AntennaPod, RetroArch, and the *arr stack via official APIs, local databases, webhook payloads, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=emby:session event=library_scan\n| stats count(eval(result=\"error\")) as failures by library\n| where failures>0\n| sort - failures",
-  "description": "Uses Emby library scans telemetry to monitor which libraries are failing to scan cleanly in index=personal.",
-  "value": "Splunk turns the feed into an operational check for content sources that need repair before metadata goes stale, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Detects UC-25.7.20 — Emby, Library, Scan, Failure, Count — using `index=personal` sourcetype `emby:session`, grouped by `library`. Outputs `count` each `the scheduled window`; alert when `failures` > 0. Primary focus: Failure Count. Purpose-built for 'Emby Library Scan Failure Count' in Personal workflows.",
+  "value": "UC-25.7.20 operationalises 'Emby Library Scan Failure Count' against `emby:session` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Ingest Emby library scans data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Failure leaderboard by Emby library.",
   "cimModels": [],
   "references": [
     {
       "title": "Jellyfin documentation",
-      "url": "https://jellyfin.org/docs/"
+      "url": "https://jellyfin.org/docs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Emby support",
-      "url": "https://emby.media/support/"
+      "url": "https://emby.media/support/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Steam Web API",
-      "url": "https://developer.valvesoftware.com/wiki/Steam_Web_API"
+      "url": "https://developer.valvesoftware.com/wiki/Steam_Web_API",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Tautulli documentation",
-      "url": "https://docs.tautulli.com/"
+      "url": "https://docs.tautulli.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "AntennaPod",
-      "url": "https://github.com/AntennaPod/AntennaPod"
+      "url": "https://github.com/AntennaPod/AntennaPod",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "nxapi",
-      "url": "https://github.com/samuelthomas2774/nxapi"
+      "url": "https://github.com/samuelthomas2774/nxapi",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RetroArch docs",
-      "url": "https://docs.libretro.com/"
+      "url": "https://docs.libretro.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.7.20)** — Connector for 'Emby Library Scan Failure Count' stops polling `emby:session`; stale `count` on `library` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.7.20, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `emby:session`. Dedup with `stats latest(*) by library`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `failures` > 0 for 'Emby Library Scan Failure Count'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It records which libraries are failing to scan cleanly so you can spot content sources that need repair before metadata goes stale before it becomes annoying."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Media, Gaming & Entertainment — typical feeds: Tautulli/Plex playback (`tautulli:play`), Jellyfin activity (`jellyfin:activity`), Spotify recently-played (`spotify:play`), Steam player/achievements (`steam:player`), Sonarr/Radarr events (`sonarr:e.\n• **Sourcetypes in this search**: `emby:session`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=emby:session`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Plex / Jellyfin (Tautulli), Sonos, Spotify, Steam, Xbox/PSN, and *arr stack (Sonarr/Radarr) APIs and webhooks via HEC..\n\n**Author notes:** Ingest Emby library scans data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"emby:session\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=emby:session earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Emby Library Scan Failure Count** over `personal` data (primarily `sourcetype=emby:session`) across the full search range. It applies numeric thresholds on `failures` (> 0) after count — tune these constants to your household baseline.\n\n**Fields this search depends on:** `failures`, `library`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=emby:session event=library_scan\n| stats count(eval(result=\"error\")) as failures by library\n| where failures>0\n| sort - failures\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=emby:session earliest=-7d\n| head 50\n| table failures, library\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=emby:session earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `failures` before alerting:\n\n```spl\nindex=personal sourcetype=emby:session earliest=-30d\n| stats perc50(failures) AS p50 perc90(failures) AS p90 perc99(failures) AS p99 max(failures) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.7.20: Personal evidence` with the following panel layout:\n\n**Panel 1 — Failure Leaderboard By Emby Library (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `emby:session` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=emby:session | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It records which libraries are failing to scan cleanly so you can spot content sources that need repair before metadata goes stale before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

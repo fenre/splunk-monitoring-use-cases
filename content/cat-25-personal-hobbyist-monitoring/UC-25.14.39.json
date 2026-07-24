@@ -9,23 +9,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "ADS-B aircraft snapshots (`adsb:aircraft`), personal flight logbook (`flight:log`), commute trips (`commute:trip`), transit arrivals (`transit:arrival`), geofence events (`geofence:event`), travel documents (`travel:document`), fare quotes (`airprice:quote`).",
-  "app": "Home ADS-B receiver (dump1090/readsb/tar1090 JSON feed), personal flight logbook exports, commute/transit APIs, and phone geofence webhooks via Splunk HEC.",
-  "spl": "index=personal sourcetype=gasbuddy:price\neventstats avg(price_per_gal) as avg_price\nwhere price_per_gal>avg_price*1.1",
-  "description": "Alerts when nearby GasBuddy stations jump above local average.",
-  "value": "Surfacing gasbuddy price spike vs local average helps you act before small issues become habits.",
+  "exclusions": "Covers personal hobby monitoring for 'GasBuddy Price Spike vs Local Average' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_gasbuddy_price_spike_vs_local_average` (UC-25.14.39), SOC dashboard panel \"Personal — GasBuddy Price Spike vs Local Average\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.14.39 positive (GasBuddy, Price, Spike, Local, Average): ingest synthetic events into `index=personal` sourcetype='gasbuddy:price' where `avg_price` grouped by `entity` satisfies detection threshold for 'GasBuddy Price Spike vs Local Average'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.14.39 negative (Local Average): ingest benign `personal` / `gasbuddy:price` events where `entity` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'GasBuddy Price Spike vs Local Average'."
+  },
+  "dataSources": "ADS-B aircraft snapshots (`adsb:aircraft`), personal flight logbook (`flight:log`), commute trips (`commute:trip`), transit arrivals (`transit:arrival`), geofence events (`geofence:event`), travel documents (`travel:document`), fare quotes (`airprice:quote`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Home ADS-B receiver (dump1090/readsb/tar1090 JSON feed), personal flight logbook exports, commute/transit APIs, and phone geofence webhooks via Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=gasbuddy:price\n| eventstats avg(price_per_gal) as avg_price\n| where price_per_gal>avg_price*1.1",
+  "description": "Detects Local Average anomalies for UC-25.14.39 with window `the scheduled window` on `index=personal` sourcetype `gasbuddy:price`. Combines `avg_price` by `entity` and compares against configured threshold. Mapped to keywords GasBuddy, Price, Spike, Local, Average for dashboard routing.",
+  "value": "Alerting on GasBuddy, Price, Spike, Local, Average through UC-25.14.39 reduces missed training goals, stale hobby data, and connector failures by surfacing `avg_price` early.",
   "implementation": "Ingest the relevant travel, commute & flight-spotting export into `index=personal` and schedule this search weekly.",
   "visualization": "Table or chart of key fields.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk ES Content Management",
+      "url": "https://docs.splunk.com/Documentation/ES/latest/Admin/ContentManagement",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It tells you when gasbuddy price spike vs local average matters for your routine."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.14.39)** — Connector for 'GasBuddy Price Spike vs Local Average' stops polling `gasbuddy:price`; stale `avg_price` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_price` over `1w` is expected for UC-25.14.39, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `gasbuddy:price`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'GasBuddy Price Spike vs Local Average'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Travel, Commute & Flight-Spotting — typical feeds: ADS-B aircraft snapshots (`adsb:aircraft`), personal flight logbook (`flight:log`), commute trips (`commute:trip`), transit arrivals (`transit:arrival`), geofence events (`geofence:event`), travel doc.\n• **Sourcetypes in this search**: `gasbuddy:price`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=gasbuddy:price`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Home ADS-B receiver (dump1090/readsb/tar1090 JSON feed), personal flight logbook exports, commute/transit APIs, and phone geofence webhooks via Splunk HEC..\n\n**Author notes:** Ingest the relevant travel, commute & flight-spotting export into `index=personal` and schedule this search weekly.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"gasbuddy:price\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=gasbuddy:price earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **GasBuddy Price Spike vs Local Average** over `personal` data (primarily `sourcetype=gasbuddy:price`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n```spl\nindex=personal sourcetype=gasbuddy:price\n| eventstats avg(price_per_gal) as avg_price\n| where price_per_gal>avg_price*1.1\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=gasbuddy:price earliest=-7d\n| head 50\n| table _time, sourcetype, host\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=gasbuddy:price earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.14.39: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Or Chart Of Key Fields (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `gasbuddy:price` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=gasbuddy:price | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It tells you when gasbuddy price spike vs local average matters for your routine.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

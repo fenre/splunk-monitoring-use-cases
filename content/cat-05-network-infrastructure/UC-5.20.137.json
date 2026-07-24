@@ -8,24 +8,42 @@
     "Compliance"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "`index=network sourcetype=netflow` or `sourcetype=zeek:conn` — Verifies that endpoints are using IPv6 privacy extensions (temporary addresses per RFC 8981) where required by policy. Detects devices still using SLAAC addresses with embedded EUI-64 identifiers (MAC-derived IID), which enable device tracking across networks and are discouraged by RFC 8064.",
-  "app": "Splunk Enterprise",
+  "exclusions": "Covers the detection logic documented for 'IPv6 Address Randomization and Privacy Extensions Compliance (RFC 8981)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ipv6_address_randomization_and_privacy_extension` (UC-5.20.137), SOC dashboard panel \"Operations — IPv6 Address Randomization and Privacy Extensions Compliance (RFC 8981)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.137 positive (IPv6, Address, Randomization, and, Privacy): ingest synthetic events into `index=network` sourcetype='netflow' where `unique_addresses` grouped by `host`, `address_type` satisfies -24h for 'IPv6 Address Randomization and Privacy Extensions Compliance (RFC 8981)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.137 negative ((RFC 8981)): ingest benign `network` / `netflow` events where `host`, `address_type` stays below -24h, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'IPv6 Address Randomization and Privacy Extensions Compliance (RFC 8981)'."
+  },
+  "dataSources": "`index=network sourcetype=netflow` or `sourcetype=zeek:conn` — Verifies that endpoints are using IPv6 privacy extensions (temporary addresses per RFC 8981) where required by policy. Detects devices still using SLAAC addresses with embedded EUI-64 identifiers (MAC-derived IID), which enable device tracking across networks and are discouraged by RFC 8064. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network (sourcetype=\"netflow\" OR sourcetype=\"zeek:conn\") earliest=-24h\n| eval is_ipv6=if(match(src, \":\"), 1, 0)\n| where is_ipv6=1\n| rex field=src \"(?<prefix>[0-9a-fA-F:]+):(?<iid>[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4})$\"\n| eval has_eui64=if(match(iid, \"[0-9a-fA-F]{1,4}:..ff:fe..\"), 1, 0)\n| eval address_type=case(\n    has_eui64=1, \"EUI-64 (MAC-derived — trackable)\",\n    match(iid, \"^[0-9a-fA-F]{4}:[0-9a-fA-F]{4}:[0-9a-fA-F]{4}:[0-9a-fA-F]{4}$\"), \"Randomized (privacy extensions active)\",\n    1=1, \"Unknown\")\n| stats count as flows dc(src) as unique_addresses by host, address_type\n| where address_type=\"EUI-64 (MAC-derived — trackable)\"\n| sort -unique_addresses",
-  "description": "Verifies that endpoints use IPv6 privacy extensions (temporary addresses, RFC 8981) where required. Detects devices using SLAAC addresses with embedded EUI-64 identifiers (MAC-derived interface IDs), which enable cross-network device tracking. RFC 8064 recommends stable opaque identifiers instead of EUI-64.",
-  "value": "EUI-64 addresses embed the device's MAC address, creating a globally unique, persistent identifier that allows tracking across networks. Privacy extensions generate temporary randomized addresses that change over time, preventing device tracking. Enterprise compliance policies and GDPR (Breyer ruling — IPv6 as personal data) may require privacy extensions on user devices.",
+  "description": "Alerts on UC-5.20.137 — IPv6, Address, Randomization, and, Privacy — using `index=network` sourcetype `netflow`, grouped by `host`, `address_type`. Outputs `unique_addresses` each `the scheduled window`; alert when -24h. Primary focus: (RFC 8981). Purpose-built for 'IPv6 Address Randomization and Privacy Extensions Compliance (RFC 8981)' in Operations workflows.",
+  "value": "UC-5.20.137 operationalises 'IPv6 Address Randomization and Privacy Extensions Compliance (RFC 8981)' against `netflow` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Detect EUI-64 pattern (ff:fe in interface ID) in source addresses. Report devices not using privacy extensions.",
   "visualization": "(1) Pie chart: EUI-64 vs randomized. (2) Table: devices with EUI-64 addresses. (3) Trend: privacy adoption over time.",
   "references": [
     {
       "title": "RFC 8981 — Temporary Address Extensions for Stateless Address Autoconfiguration in IPv6",
-      "url": "https://www.rfc-editor.org/rfc/rfc8981"
+      "url": "https://www.rfc-editor.org/rfc/rfc8981",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 8064 — Recommendation on Stable IPv6 Interface Identifiers",
-      "url": "https://www.rfc-editor.org/rfc/rfc8064"
+      "url": "https://www.rfc-editor.org/rfc/rfc8064",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Infrastructure devices.** Routers, switches, and servers typically use stable addresses (not privacy extensions) by design. Only user endpoints should be checked.\n\n**Manually configured addresses.** Static addresses won't match EUI-64 or privacy patterns. These are acceptable for servers.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.137)** — Planned work for 'IPv6 Address Randomization and Privacy Extensions Compliance (RFC 8981)' shifts `unique_addresses` over `span=1h` while `host`, `address_type` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `netflow`** — Scheduled automation elevates `address_type` without crossing configured threshold for UC-5.20.137. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `address_type`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netflow`** — First 48h baseline for UC-5.20.137 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "juniper",
@@ -43,7 +61,7 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• NetFlow or Zeek with source IPv6 addresses.\n\nStep 1 — Detect EUI-64 pattern: Look for `ff:fe` in the interface ID portion of IPv6 addresses.\n\nStep 2 — Classify addresses as EUI-64, randomized, or static.\n\nStep 3 — Validate: Check a known Windows/macOS host — privacy extensions should be enabled by default since Windows Vista and macOS 10.12.\n\nStep 4 — Operationalize\n**Dashboard:** Privacy extensions adoption. **Report:** Devices with EUI-64 addresses.\n\nStep 5 — Troubleshooting\n• Enable privacy extensions:\nLinux: `sysctl -w net.ipv6.conf.all.use_tempaddr=2`\nWindows: `netsh interface ipv6 set privacy state=enabled`",
+  "detailedImplementation": "Prerequisites\n• NetFlow or Zeek with source IPv6 addresses.\n\nStep 1 — Detect EUI-64 pattern: Look for `ff:fe` in the interface ID portion of IPv6 addresses.\n\nStep 2 — Classify addresses as EUI-64, randomized, or static.\n\nStep 3 — Validate: Check a known Windows/macOS host — privacy extensions should be enabled by default since Windows Vista and macOS 10.12.\n\nStep 4 — Operationalize\n**Dashboard:** Privacy extensions adoption. **Report:** Devices with EUI-64 addresses.\n\nStep 5 — Troubleshooting\n• Enable privacy extensions:\nLinux: `sysctl -w net.ipv6.conf.all.use_tempaddr=2`\nWindows: `netsh interface ipv6 set privacy state=enabled`\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=netflow, zeek:conn into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`address_type, has_eui64, host, is_ipv6`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Your IPv6 address can contain your device's hardware serial number, which is like walking around with your name tag always visible. Privacy extensions give you a random name tag that changes regularly. We check that all devices are using random name tags so nobody can track them across different networks.",
   "prerequisiteUseCases": [
     "UC-5.20.5",

@@ -9,31 +9,55 @@
     "Quality"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Mobility-aid status (`mobilityaid:status`), wheelchair battery telemetry (`wheelchair:battery`), stairlift service records (`stairlift:service`), hearing-aid battery records (`hearingaid:battery`), pendant-alert tests (`pendant:test`).",
-  "app": "Wheelchair battery telemetry, stairlift service records, hearing-aid battery reminders, and pendant-alert test logs streamed to Splunk HEC via apps, service portals, and caregiver forms.",
+  "exclusions": "Covers personal hobby monitoring for 'Hearing Aid Battery Cycle Test Coverage' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_hearing_aid_battery_cycle_test_coverage` (UC-25.83.19), SOC dashboard panel \"Personal — Hearing Aid Battery Cycle Test Coverage\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.83.19 positive (Hearing, Aid, Battery, Cycle, Test): ingest synthetic events into `index=personal` sourcetype='hearingaid:battery' where `sum` grouped by `device` satisfies detection threshold for 'Hearing Aid Battery Cycle Test Coverage'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.83.19 negative (Test Coverage): ingest benign `personal` / `hearingaid:battery` events where `device` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 2 confirms zero alert rows for 'Hearing Aid Battery Cycle Test Coverage'."
+  },
+  "dataSources": "Mobility-aid status (`mobilityaid:status`), wheelchair battery telemetry (`wheelchair:battery`), stairlift service records (`stairlift:service`), hearing-aid battery records (`hearingaid:battery`), pendant-alert tests (`pendant:test`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Wheelchair battery telemetry, stairlift service records, hearing-aid battery reminders, and pendant-alert test logs streamed to Splunk HEC via apps, service portals, and caregiver forms. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=hearingaid:battery\n| stats sum(eval(if(test_result=\"pass\",1,0))) as passed count as tests by device\n| eval pass_pct=round(100*passed/tests,1)\n| sort - pass_pct",
-  "description": "Measures how consistently hearing aid battery cycle checks are being run and passing.",
-  "value": "Regular testing matters because safety and mobility aids often look fine right up until they are not.",
+  "description": "Detects UC-25.83.19 for Hearing, Aid, Battery, Cycle, Test over `index=personal` sourcetype `hearingaid:battery` with thresholds configured threshold. Groups `sum` by `device` each `the scheduled window`. Centered on Test Coverage indicators. Supports repeatable personal triage for 'Hearing Aid Battery Cycle Test Coverage'.",
+  "value": "For 'Hearing Aid Battery Cycle Test Coverage', UC-25.83.19 converts `activity` on `hearingaid:battery` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Write a simple `test_result=pass/fail` field whenever a manual or automatic test is recorded.",
   "visualization": "Table of devices with total tests and pass percentage.",
   "cimModels": [],
   "references": [
     {
       "title": "NIDCD - Hearing aids",
-      "url": "https://www.nidcd.nih.gov/health/hearing-aids"
+      "url": "https://www.nidcd.nih.gov/health/hearing-aids",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "MedlinePlus - Wheelchairs",
-      "url": "https://medlineplus.gov/wheelchairsandmobilityaids.html"
+      "url": "https://medlineplus.gov/wheelchairsandmobilityaids.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ADA National Network",
-      "url": "https://adata.org/"
+      "url": "https://adata.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It reveals whether hearing aid battery cycle checks are happening regularly and passing cleanly."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.83.19)** — Connector for 'Hearing Aid Battery Cycle Test Coverage' stops polling `hearingaid:battery`; stale `sum` on `device` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected for UC-25.83.19, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `hearingaid:battery`. Dedup with `stats latest(*) by device`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Hearing Aid Battery Cycle Test Coverage'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Mobility & Accessibility Aids — typical feeds: Mobility-aid status (`mobilityaid:status`), wheelchair battery telemetry (`wheelchair:battery`), stairlift service records (`stairlift:service`), hearing-aid battery records (`hearingaid:battery`), pe.\n• **Sourcetypes in this search**: `hearingaid:battery`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=hearingaid:battery`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Wheelchair battery telemetry, stairlift service records, hearing-aid battery reminders, and pendant-alert test logs streamed to Splunk HEC via apps, service portals, and caregiver forms..\n\n**Author notes:** Write a simple `test_result=pass/fail` field whenever a manual or automatic test is recorded.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"hearingaid:battery\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=hearingaid:battery earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Hearing Aid Battery Cycle Test Coverage** over `personal` data (primarily `sourcetype=hearingaid:battery`) across the full search range. The `sum` aggregation groups by `device`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `device`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=hearingaid:battery\n| stats sum(eval(if(test_result=\"pass\",1,0))) as passed count as tests by device\n| eval pass_pct=round(100*passed/tests,1)\n| sort - pass_pct\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=hearingaid:battery earliest=-7d\n| head 50\n| table device\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=hearingaid:battery earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.83.19: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Devices With Total Tests And Pass Percentage (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `hearingaid:battery` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=hearingaid:battery | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It reveals whether hearing aid battery cycle checks are happening regularly and passing cleanly.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

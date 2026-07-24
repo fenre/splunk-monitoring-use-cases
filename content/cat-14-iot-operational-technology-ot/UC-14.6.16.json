@@ -11,11 +11,17 @@
   ],
   "splunkPillar": "Security",
   "industry": "Energy and Utilities",
+  "exclusions": "Covers the detection logic documented for 'IEC 104 Clock Synchronization Deviation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_iec_104_clock_synchronization_deviation` (UC-14.6.16), SOC dashboard panel \"Operations — IEC 104 Clock Synchronization Deviation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.6.16 positive (IEC, 104, Clock, Synchronization, Deviation): ingest synthetic events into `index=ot` sourcetype='zeek:iec104:json' where `max_skew`, `avg_skew` grouped by `source_h`, `destination_h` satisfies `skew_sec` > 2, or `max_skew` > 5 for 'IEC 104 Clock Synchronization Deviation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.6.16 negative (Synchronization Deviation): ingest benign `ot` / `zeek:iec104:json` events where `source_h`, `destination_h` stays below `skew_sec` > 2, or `max_skew` > 5, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'IEC 104 Clock Synchronization Deviation'."
+  },
   "dataSources": "`index=ot` `sourcetype=\"zeek:iec104:json\"` (`asdu_type`, `cp56_minutes`, `cp56_hours`, `cp56_day`, `cp56_month`, `cp56_year`, `source_h`, `destination_h`)",
   "app": "TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)",
   "spl": "index=ot sourcetype=\"zeek:iec104:json\" asdu_type=103\n| eval wall=strptime(cp56_year.\"-\".cp56_month.\"-\".cp56_day.\" \".cp56_hours.\":\".cp56_minutes.\":00\",\"%Y-%m-%d %H:%M:%S\")\n| eval skew_sec=abs(_time-wall)\n| where skew_sec>2 AND isnotnull(wall)\n| stats max(skew_sec) as max_skew avg(skew_sec) as avg_skew by source_h destination_h\n| where max_skew>5\n| table source_h destination_h max_skew avg_skew",
-  "description": "Time drift between master and outstation complicates event ordering and SOE correlation; detecting skew supports NERC-style evidence of synchronized operations.",
-  "value": "Time drift between master and outstation complicates event ordering and SOE correlation; detecting skew supports NERC-style evidence of synchronized operations.",
+  "description": "Alerts on UC-14.6.16 — IEC, 104, Clock, Synchronization, Deviation — using `index=ot` sourcetype `zeek:iec104:json`, grouped by `source_h`, `destination_h`. Outputs `max_skew`, `avg_skew` each `the scheduled window`; alert when `skew_sec` > 2, or `max_skew` > 5. Primary focus: Synchronization Deviation. Purpose-built for 'IEC 104 Clock Synchronization Deviation' in Operations workflows.",
+  "value": "UC-14.6.16 gives Operations teams earlier visibility into Synchronization Deviation through `zeek:iec104:json` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Capture C_CS_NA_1 clock sync ASDUs on OT taps; confirm `cp56_*` field population in your Zeek build. Alert when wire-time `_time` diverges from embedded CP56 time beyond policy (e.g., 2–5 seconds).",
   "visualization": "Single value (max skew), Line chart (skew over time), Table (endpoints, skew stats).",
   "cimModels": [
@@ -25,14 +31,38 @@
   "references": [
     {
       "title": "TA for Zeek",
-      "url": "https://splunkbase.splunk.com/app/5466"
+      "url": "https://splunkbase.splunk.com/app/5466",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Corelight App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3884"
+      "url": "https://splunkbase.splunk.com/app/3884",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Clock sync offsets during GPS antenna work, NTP source changes, or leap-second handling.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-14.6.16)** — Planned work for 'IEC 104 Clock Synchronization Deviation' shifts `max_skew`, `avg_skew` over `span=1h` while `source_h`, `destination_h` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `zeek:iec104:json`** — Scheduled automation elevates `destination_h` without crossing `skew_sec` > 2 for UC-14.6.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `source_h`, `destination_h`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zeek:iec104:json`** — First 48h baseline for UC-14.6.16 on `source_h` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `source_h`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884).\n• Ensure the following data sources are available: `index=ot` `sourcetype=\"zeek:iec104:json\"` (`asdu_type`, `cp56_minutes`, `cp56_hours`, `cp56_day`, `cp56_month`, `cp56_year`, `source_h`, `destination_h`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCapture C_CS_NA_1 clock sync ASDUs on OT taps; confirm `cp56_*` field population in your Zeek build. Alert when wire-time `_time` diverges from embedded CP56 time beyond policy (e.g., 2–5 seconds).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"zeek:iec104:json\" asdu_type=103\n| eval wall=strptime(cp56_year.\"-\".cp56_month.\"-\".cp56_day.\" \".cp56_hours.\":\".cp56_minutes.\":00\",\"%Y-%m-%d %H:%M:%S\")\n| eval skew_sec=abs(_time-wall)\n| where skew_sec>2 AND isnotnull(wall)\n| stats max(skew_sec) as max_skew avg(skew_sec) as avg_skew by source_h destination_h\n| where max_skew>5\n| table source_h destination_h max_skew avg_skew\n```\n\nUnderstanding this SPL\n\n**IEC 104 Clock Synchronization Deviation** — Time drift between master and outstation complicates event ordering and SOE correlation; detecting skew supports NERC-style evidence of synchronized operations.\n\nDocumented **Data sources**: `index=ot` `sourcetype=\"zeek:iec104:json\"` (`asdu_type`, `cp56_minutes`, `cp56_hours`, `cp56_day`, `cp56_month`, `cp56_year`, `source_h`, `destination_h`). **App/TA** (typical add-on context): TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: zeek:iec104:json. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"zeek:iec104:json\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **wall** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **skew_sec** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where skew_sec>2 AND isnotnull(wall)` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by source_h destination_h** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where max_skew>5` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **IEC 104 Clock Synchronization Deviation**): table source_h destination_h max_skew avg_skew\n\nStep 3 — Validate\nRun the search for a short window and compare key fields with Zeek or Corelight protocol logs on the sensor for the same flow. Reconcile function codes, endpoints, and time order against a small known-good capture if needed.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (max skew), Line chart (skew over time), Table (endpoints, skew stats).",
-  "grandmaExplanation": "We use deep packet inspection to compare time sync on IEC-104 so clock drift does not break sequence and event trust."
+  "grandmaExplanation": "We use deep packet inspection to compare time sync on IEC-104 so clock drift does not break sequence and event trust.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

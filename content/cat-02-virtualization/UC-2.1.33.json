@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=vmware:inv:hostsystem`",
-  "app": "`Splunk_TA_vmware`",
+  "exclusions": "Covers the detection logic documented for 'ESXi Host Lockdown Mode Compliance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_esxi_host_lockdown_mode_compliance` (UC-2.1.33), SOC dashboard panel \"Linux — ESXi Host Lockdown Mode Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.1.33 positive (ESXi, Host, Lockdown, Mode, Compliance): ingest synthetic events into `index=vmware` sourcetype='vmware:inv:hostsystem' where `count` grouped by `host`, `cluster` satisfies detection threshold for 'ESXi Host Lockdown Mode Compliance'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.1.33 negative (Mode Compliance): ingest benign `vmware` / `vmware:inv:hostsystem` events where `host`, `cluster` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 6 confirms zero alert rows for 'ESXi Host Lockdown Mode Compliance'."
+  },
+  "dataSources": "`sourcetype=vmware:inv:hostsystem` Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_vmware` — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
   "spl": "index=vmware sourcetype=\"vmware:inv:hostsystem\"\n| stats latest(lockdownMode) as lockdown, latest(sshEnabled) as ssh by host, cluster\n| where lockdown!=\"lockdownNormal\" OR ssh=\"true\"\n| table host, cluster, lockdown, ssh",
-  "description": "Lockdown mode restricts direct ESXi access, forcing all management through vCenter. Hosts not in lockdown mode can be accessed directly via SSH or the DCUI, bypassing vCenter audit trails and RBAC. Required by security frameworks like CIS, DISA STIG, and PCI DSS.",
-  "value": "Lockdown mode restricts direct ESXi access, forcing all management through vCenter. Hosts not in lockdown mode can be accessed directly via SSH or the DCUI, bypassing vCenter audit trails and RBAC. Required by security frameworks like CIS, DISA STIG, and PCI DSS.",
+  "description": "Identifies Mode Compliance anomalies for UC-2.1.33 with window `the scheduled window` on `index=vmware` sourcetype `vmware:inv:hostsystem`. Combines `count` by `host`, `cluster` and compares against configured threshold. Mapped to keywords ESXi, Host, Lockdown, Mode, Compliance for dashboard routing.",
+  "value": "Alerting on ESXi, Host, Lockdown, Mode, Compliance through UC-2.1.33 reduces capacity incidents, patch regressions, and service outages by surfacing `activity` early.",
   "implementation": "Collect host inventory via Splunk_TA_vmware. Define expected lockdown mode per cluster (lockdownNormal or lockdownStrict). Alert when any production host has lockdown disabled or SSH enabled outside a maintenance window. Generate weekly compliance reports for security audits.",
   "visualization": "Status grid (lockdown compliance), Table (non-compliant hosts), Pie chart (compliance rate).",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 3684",
+      "url": "https://splunkbase.splunk.com/app/3684",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Baseline and patch compliance lag expected during large maintenance windows, staged image rollout, or when hosts are in remediation queues.",
+  "knownFalsePositives": "1. **Patch Tuesday on `vmware`** — Package managers spike `host` metrics for 'ESXi Host Lockdown Mode Compliance'. Correlate with apt/yum logs in the same `vmware:inv:hostsystem` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vmware:inv:hostsystem`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "vmware"
   ],
@@ -34,6 +56,12 @@
     "vmware_ta_vmware",
     "vmware_vcenter"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_vmware`.\n• Ensure the following data sources are available: `sourcetype=vmware:inv:hostsystem`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect host inventory via Splunk_TA_vmware. Define expected lockdown mode per cluster (lockdownNormal or lockdownStrict). Alert when any production host has lockdown disabled or SSH enabled outside a maintenance window. Generate weekly compliance reports for security audits.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vmware sourcetype=\"vmware:inv:hostsystem\"\n| stats latest(lockdownMode) as lockdown, latest(sshEnabled) as ssh by host, cluster\n| where lockdown!=\"lockdownNormal\" OR ssh=\"true\"\n| table host, cluster, lockdown, ssh\n```\n\nUnderstanding this SPL\n\n**ESXi Host Lockdown Mode Compliance** — Lockdown mode restricts direct ESXi access, forcing all management through vCenter. Hosts not in lockdown mode can be accessed directly via SSH or the DCUI, bypassing vCenter audit trails and RBAC. Required by security frameworks like CIS, DISA STIG, and PCI DSS.\n\nDocumented **Data sources**: `sourcetype=vmware:inv:hostsystem`. **App/TA** (typical add-on context): `Splunk_TA_vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vmware; **sourcetype**: vmware:inv:hostsystem. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vmware, sourcetype=\"vmware:inv:hostsystem\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, cluster** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where lockdown!=\"lockdownNormal\" OR ssh=\"true\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **ESXi Host Lockdown Mode Compliance**): table host, cluster, lockdown, ssh\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (lockdown compliance), Table (non-compliant hosts), Pie chart (compliance rate).",
-  "grandmaExplanation": "We keep an eye on host Lockdown Mode and raise the alarm before it drags down real work or real outages start."
+  "grandmaExplanation": "We keep an eye on host Lockdown Mode and raise the alarm before it drags down real work or real outages start.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Entra ID device objects (`trustType`, `isCompliant`, `profileType`), Intune compliance reports",
-  "app": "`Splunk_TA_microsoft-cloudservices`, Microsoft Intune / Graph scripted input",
+  "exclusions": "Covers the detection logic documented for 'Hybrid Join Device Compliance' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `iam_hybrid_join_device_compliance` (UC-9.1.18), SOC dashboard panel \"IAM — Hybrid Join Device Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-9.1.18 positive (Hybrid, Join, Device, Compliance): ingest synthetic events into `index=azure` sourcetype='azure:intune:devices' where `count` grouped by `deviceId`, `displayName`, `managementType`, `isCompliant` satisfies detection threshold for 'Hybrid Join Device Compliance'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.1.18 negative (Device Compliance): ingest benign `azure` / `azure:intune:devices` events where `deviceId`, `displayName`, `managementType`, `isCompliant` stays below detection threshold, or exclude the test entity via `iam_exception_register.csv`. Variant 11 confirms zero alert rows for 'Hybrid Join Device Compliance'."
+  },
+  "dataSources": "Entra ID device objects (`trustType`, `isCompliant`, `profileType`), Intune compliance reports Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_microsoft-cloudservices`, Microsoft Intune / Graph scripted input — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
   "spl": "index=azure sourcetype=\"azure:intune:devices\" OR sourcetype=\"azure:aad:devices\"\n| where trustType=\"ServerAd\" AND (isCompliant=\"false\" OR isCompliant=\"False\")\n| stats latest(_time) as last_seen by deviceId, displayName, managementType, isCompliant\n| sort -last_seen",
-  "description": "Hybrid Azure AD join state and Intune compliance gate access; drift from compliant blocks users and signals stale or tampered endpoints.",
-  "value": "Hybrid Azure AD join state and Intune compliance gate access; drift from compliant blocks users and signals stale or tampered endpoints.",
+  "description": "Identifies UC-9.1.18 — Hybrid, Join, Device, Compliance — using `index=azure` sourcetype `azure:intune:devices`, grouped by `deviceId`, `displayName`, `managementType`, `isCompliant`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Device Compliance. Purpose-built for 'Hybrid Join Device Compliance' in IAM workflows.",
+  "value": "UC-9.1.18 helps teams contain Hybrid, Join, Device, Compliance scenarios and reduce account takeover risk, help-desk load, and audit findings before incidents compound.",
   "implementation": "Ingest device inventory from Graph/Intune on a schedule. Join with sign-in logs for non-compliant hybrid devices. Alert on compliance flip from true to false or long-running non-compliance.",
   "visualization": "Table (non-compliant hybrid devices), Pie chart (compliant vs not), Line chart (non-compliance trend).",
   "cimModels": [
@@ -23,14 +29,26 @@
   "references": [
     {
       "title": "Splunk_TA_microsoft-cloudservices",
-      "url": "https://splunkbase.splunk.com/app/3110"
+      "url": "https://splunkbase.splunk.com/app/3110",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Microsoft Entra device management",
-      "url": "https://learn.microsoft.com/entra/identity/devices/"
+      "url": "https://learn.microsoft.com/entra/identity/devices/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Intune or policy sync delay after patches, device wipe/repair cycles, and grace windows for new builds can show as non-compliance briefly.",
+  "knownFalsePositives": "1. **Maintenance window on `azure` (UC-9.1.18)** — Planned work for 'Hybrid Join Device Compliance' shifts `count` over `span=1h` while `deviceId`, `displayName`, `managementType`, `isCompliant` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `azure:intune:devices`** — Scheduled automation elevates `displayName` without crossing configured threshold for UC-9.1.18. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `deviceId`, `displayName`, `managementType`, `isCompliant`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `azure:intune:devices`** — First 48h baseline for UC-9.1.18 on `deviceId` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `deviceId`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1078"
   ],
@@ -38,6 +56,16 @@
     "azure",
     "m365"
   ],
+  "equipmentModels": [
+    "azure_generic",
+    "m365_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_microsoft-cloudservices`, Microsoft Intune / Graph scripted input.\n• Ensure the following data sources are available: Entra ID device objects (`trustType`, `isCompliant`, `profileType`), Intune compliance reports.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest device inventory from Graph/Intune on a schedule. Join with sign-in logs for non-compliant hybrid devices. Alert on compliance flip from true to false or long-running non-compliance.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=azure sourcetype=\"azure:intune:devices\" OR sourcetype=\"azure:aad:devices\"\n| where trustType=\"ServerAd\" AND (isCompliant=\"false\" OR isCompliant=\"False\")\n| stats latest(_time) as last_seen by deviceId, displayName, managementType, isCompliant\n| sort -last_seen\n```\n\nUnderstanding this SPL\n\n**Hybrid Join Device Compliance** — Hybrid Azure AD join state and Intune compliance gate access; drift from compliant blocks users and signals stale or tampered endpoints.\n\nDocumented **Data sources**: Entra ID device objects (`trustType`, `isCompliant`, `profileType`), Intune compliance reports. **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices`, Microsoft Intune / Graph scripted input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: azure; **sourcetype**: azure:intune:devices, azure:aad:devices. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=azure, sourcetype=\"azure:intune:devices\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where trustType=\"ServerAd\" AND (isCompliant=\"false\" OR isCompliant=\"False\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by deviceId, displayName, managementType, isCompliant** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nCompare with Entra ID and Intune device inventory in the Microsoft Entra admin center (device list and compliance) for the same device IDs and time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (non-compliant hybrid devices), Pie chart (compliant vs not), Line chart (non-compliance trend).",
-  "grandmaExplanation": "We list hybrid-joined devices that are out of policy so you can fix them before they block people or let risky devices stay on the network."
+  "grandmaExplanation": "We list hybrid-joined devices that are out of policy so you can fix them before they block people or let risky devices stay on the network.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

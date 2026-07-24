@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Guardicore agent status events",
+  "exclusions": "Covers the detection logic documented for 'Akamai Guardicore Agent Health' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_akamai_guardicore_agent_health` (UC-17.3.51), SOC dashboard panel \"Network — Akamai Guardicore Agent Health\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.51 positive (Akamai, Guardicore, Agent, Health): ingest synthetic events into `index=microseg` sourcetype='guardicore:agent' where `count` grouped by `agent_id`, `hostname`, `os` satisfies -4h for 'Akamai Guardicore Agent Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.51 negative (Agent Health): ingest benign `microseg` / `guardicore:agent` events where `agent_id`, `hostname`, `os` stays below -4h, or exclude the test entity via `network_exception_register.csv`. Variant 13 confirms zero alert rows for 'Akamai Guardicore Agent Health'."
+  },
+  "dataSources": "Guardicore agent status events Indexes: microseg. Sourcetypes: guardicore:agent. Key fields: agent_id, healthy, hostname, os. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Akamai Guardicore Add-on for Splunk (Splunkbase 7426)",
   "spl": "index=microseg sourcetype=\"guardicore:agent\" earliest=-4h\n| eval healthy=if(match(lower(status),\"(?i)active|running|connected\"),1,0)\n| stats latest(healthy) as current_status latest(_time) as last_seen by agent_id, hostname, os\n| where current_status=0 OR last_seen < relative_time(now(), \"-2h\")\n| sort last_seen",
-  "description": "Guardicore agents on workloads enforce segmentation policies. Offline or degraded agents leave workloads unprotected — effectively disabling zero trust enforcement on that asset.",
-  "value": "Security operations teams monitor Guardicore agent health across all workloads, detecting disconnected agents that create segmentation gaps, tracking version compliance, and ensuring every workload maintains active microsegmentation enforcement.",
+  "description": "Surfaces UC-17.3.51 — Akamai, Guardicore, Agent, Health — using `index=microseg` sourcetype `guardicore:agent`, grouped by `agent_id`, `hostname`, `os`. Outputs `count` each `the scheduled window`; alert when -4h. Primary focus: Agent Health. Purpose-built for 'Akamai Guardicore Agent Health' in Network workflows.",
+  "value": "UC-17.3.51 gives Network teams earlier visibility into Agent Health through `guardicore:agent` feeds, lowering unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Alert when agents go offline for >30 minutes on critical assets. Report on agent coverage (% of assets with active agents). Track agent version compliance.",
   "visualization": "Single value (offline agents), Table (unhealthy agents), Pie chart (agent status), Line chart (coverage trend).",
   "cimModels": [],
@@ -21,14 +27,39 @@
   "references": [
     {
       "title": "Akamai Guardicore Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/7426"
+      "url": "https://splunkbase.splunk.com/app/7426",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Microseg blocks from new app deployments, missing exception rules, or planned segmentation rollouts.",
+  "knownFalsePositives": "1. **Maintenance window on `microseg` (UC-17.3.51)** — Planned work for 'Akamai Guardicore Agent Health' shifts `count` over `span=1h` while `agent_id`, `hostname`, `os` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `guardicore:agent`** — Scheduled automation elevates `hostname` without crossing configured threshold for UC-17.3.51. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `agent_id`, `hostname`, `os`** — Health checks in `microseg` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `guardicore:agent`** — First 48h baseline for UC-17.3.51 on `agent_id` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `agent_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "guardicore"
   ],
-  "detailedImplementation": "Prerequisites\n• Guardicore agent status events in `index=microseg` with `sourcetype=guardicore:syslog` or `sourcetype=guardicore:agent`. Key fields: `agent_id`, `agent_status` (Active/Inactive/Disconnected), `agent_version`, `hostname`, `os`, `label`, `last_communication`.\n• Guardicore agents are installed on every workload to enforce microsegmentation. If an agent goes offline, that workload loses segmentation protection — it can communicate freely, bypassing all policies.\n\nStep 1 — Configure data collection\nVerify agent status:\n```spl\nindex=microseg earliest=-24h\n| where isnotnull(agent_status)\n| dedup hostname sortby -_time\n| stats count by agent_status\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Agent health overview:\n```spl\nindex=microseg earliest=-24h\n| where isnotnull(agent_status)\n| dedup hostname sortby -_time\n| eval health=case(agent_status=\"Active\", \"Healthy\", agent_status=\"Inactive\", \"WARNING\", 1==1, \"CRITICAL\")\n| stats count by health, os\n```\n\nUnderstanding this SPL: Shows agent health distribution by OS. Inactive agents may have stopped communicating (host powered off, agent crashed). Disconnected agents are a security gap — the workload is on the network without segmentation enforcement.\n\nAgent version compliance:\n```spl\nindex=microseg earliest=-24h\n| where isnotnull(agent_version)\n| dedup hostname sortby -_time\n| stats count by agent_version\n| sort agent_version\n```\n\nStep 3 — Validate\n(a) In Guardicore Centra: Assets tab > filter by agent status.\n(b) Stop the Guardicore agent on a test host. Verify the status change.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Agent status distribution. Row 2 — Disconnected agents. Row 3 — Version distribution.\nAlert: When agent on a critical workload goes inactive.\n\nRunbook:\n1. **Agent disconnected** — Check host. Restart agent service.\n2. **Outdated agent** — Schedule update. Check compatibility.\n3. **Many inactive** — May be a batch of VMs powered off. Verify with ops.\n\nStep 5 — Troubleshooting\n• **No agent status events** — Agent health may need to be enabled in Centra settings.\n• **All agents show same version** — Auto-update may be enabled (good) or disabled (all stuck).",
+  "equipmentModels": [
+    "guardicore_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Guardicore agent status events in `index=microseg` with `sourcetype=guardicore:syslog` or `sourcetype=guardicore:agent`. Key fields: `agent_id`, `agent_status` (Active/Inactive/Disconnected), `agent_version`, `hostname`, `os`, `label`, `last_communication`.\n• Guardicore agents are installed on every workload to enforce microsegmentation. If an agent goes offline, that workload loses segmentation protection — it can communicate freely, bypassing all policies.\n\nStep 1 — Configure data collection\nVerify agent status:\n```spl\nindex=microseg earliest=-24h\n| where isnotnull(agent_status)\n| dedup hostname sortby -_time\n| stats count by agent_status\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Agent health overview:\n```spl\nindex=microseg earliest=-24h\n| where isnotnull(agent_status)\n| dedup hostname sortby -_time\n| eval health=case(agent_status=\"Active\", \"Healthy\", agent_status=\"Inactive\", \"WARNING\", 1==1, \"CRITICAL\")\n| stats count by health, os\n```\n\nUnderstanding this SPL: Shows agent health distribution by OS. Inactive agents may have stopped communicating (host powered off, agent crashed). Disconnected agents are a security gap — the workload is on the network without segmentation enforcement.\n\nAgent version compliance:\n```spl\nindex=microseg earliest=-24h\n| where isnotnull(agent_version)\n| dedup hostname sortby -_time\n| stats count by agent_version\n| sort agent_version\n```\n\nStep 3 — Validate\n(a) In Guardicore Centra: Assets tab > filter by agent status.\n(b) Stop the Guardicore agent on a test host. Verify the status change.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Agent status distribution. Row 2 — Disconnected agents. Row 3 — Version distribution.\nAlert: When agent on a critical workload goes inactive.\n\nRunbook:\n1. **Agent disconnected** — Check host. Restart agent service.\n2. **Outdated agent** — Schedule update. Check compatibility.\n3. **Many inactive** — May be a batch of VMs powered off. Verify with ops.\n\nStep 5 — Troubleshooting\n• **No agent status events** — Agent health may need to be enabled in Centra settings.\n• **All agents show same version** — Auto-update may be enabled (good) or disabled (all stuck).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Akamai Guardicore Add-on for Splunk (Splunkbase 7426)). Enable the modular input or HEC token that writes sourcetype=guardicore:agent into microseg. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`agent_id, healthy, hostname, os`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Guardicore puts a tiny security agent on every server to enforce our network walls. If that agent stops working, the server loses its protection. We monitor every agent to make sure they are all running, because a single unprotected server can be the weak link an attacker exploits.",
-  "hardware": "Akamai Guardicore Centra, Guardicore Agents (Linux/Windows/containers)"
+  "hardware": "Akamai Guardicore Centra, Guardicore Agents (Linux/Windows/containers)",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

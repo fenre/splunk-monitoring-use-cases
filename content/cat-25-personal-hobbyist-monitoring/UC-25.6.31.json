@@ -9,50 +9,75 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Home energy telemetry (`powerwall:aggregate`, `enphase:production`, `solaredge:power`, `sense:device`, `emporia:circuit`, `dsmr:telegram`, `utilityrate:tariff`).",
-  "app": "Tesla Powerwall, Enphase IQ, SolarEdge, Sense, Emporia Vue, DSMR / P1 smart meters, and utility tariff exports collected via vendor APIs, Home Assistant, MQTT, and Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Utility Tariff Season Rollover Missing' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_utility_tariff_season_rollover_missing` (UC-25.6.31), SOC dashboard panel \"Personal — Utility Tariff Season Rollover Missing\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.6.31 positive (Utility, Tariff, Season, Rollover, Missing): ingest synthetic events into `index=personal` sourcetype='utilityrate:tariff' where `last_update` grouped by `provider`, `season_name` satisfies `days_since` > 45 for 'Utility Tariff Season Rollover Missing'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.6.31 negative (Rollover Missing): ingest benign `personal` / `utilityrate:tariff` events where `provider`, `season_name` stays below `days_since` > 45, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 10 confirms zero alert rows for 'Utility Tariff Season Rollover Missing'."
+  },
+  "dataSources": "Home energy telemetry (`powerwall:aggregate`, `enphase:production`, `solaredge:power`, `sense:device`, `emporia:circuit`, `dsmr:telegram`, `utilityrate:tariff`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Tesla Powerwall, Enphase IQ, SolarEdge, Sense, Emporia Vue, DSMR / P1 smart meters, and utility tariff exports collected via vendor APIs, Home Assistant, MQTT, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=utilityrate:tariff\n| stats max(_time) as last_update by provider season_name\n| eval days_since=round((now()-last_update)/86400,1)\n| where days_since>45\n| sort - days_since",
-  "description": "Uses Utility tariff exports telemetry to monitor whether seasonal tariff tables have been refreshed recently in index=personal.",
-  "value": "Splunk turns the feed into an operational check for stale rate schedules before cost reporting drifts, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Identifies UC-25.6.31 — Utility, Tariff, Season, Rollover, Missing — using `index=personal` sourcetype `utilityrate:tariff`, grouped by `provider`, `season_name`. Outputs `last_update` each `the scheduled window`; alert when `days_since` > 45. Primary focus: Rollover Missing. Purpose-built for 'Utility Tariff Season Rollover Missing' in Personal workflows.",
+  "value": "For 'Utility Tariff Season Rollover Missing', UC-25.6.31 converts `last_update` on `utilityrate:tariff` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest Utility tariff exports data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Provider table of days since tariff update.",
   "cimModels": [],
   "references": [
     {
       "title": "Tesla Powerwall",
-      "url": "https://www.tesla.com/support/energy/powerwall"
+      "url": "https://www.tesla.com/support/energy/powerwall",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Enphase API",
-      "url": "https://developer-v4.enphase.com/"
+      "url": "https://developer-v4.enphase.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "SolarEdge Monitoring API",
-      "url": "https://developers.solaredge.com/docs/monitoring-api/"
+      "url": "https://developers.solaredge.com/docs/monitoring-api/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Home Assistant Sense integration",
-      "url": "https://www.home-assistant.io/integrations/sense/"
+      "url": "https://www.home-assistant.io/integrations/sense/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Emporia Vue integration",
-      "url": "https://github.com/magico13/ha-emporia-vue"
+      "url": "https://github.com/magico13/ha-emporia-vue",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "DSMR Reader docs",
-      "url": "https://dsmr-reader.readthedocs.io/"
+      "url": "https://dsmr-reader.readthedocs.io/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Home Assistant utility meter",
-      "url": "https://www.home-assistant.io/integrations/utility_meter/"
+      "url": "https://www.home-assistant.io/integrations/utility_meter/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.6.31)** — Connector for 'Utility Tariff Season Rollover Missing' stops polling `utilityrate:tariff`; stale `last_update` on `provider`, `season_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_update` over `1w` is expected for UC-25.6.31, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `utilityrate:tariff`. Dedup with `stats latest(*) by provider`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_since` > 45 for 'Utility Tariff Season Rollover Missing'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It turns whether seasonal tariff tables have been refreshed recently so you can spot stale rate schedules before cost reporting drifts before it becomes annoying."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Home Energy & Solar — typical feeds: SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Tesla Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue circuits (`emporia:circuit`), Sense .\n• **Sourcetypes in this search**: `utilityrate:tariff`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=utilityrate:tariff`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC..\n\n**Author notes:** Ingest Utility tariff exports data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"utilityrate:tariff\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=utilityrate:tariff earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Utility Tariff Season Rollover Missing** over `personal` data (primarily `sourcetype=utilityrate:tariff`) across the full search range. It applies numeric thresholds on `days_since` (> 45) after max — tune these constants to your household baseline.\n\n**Fields this search depends on:** `days_since`, `provider`, `season_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=utilityrate:tariff\n| stats max(_time) as last_update by provider season_name\n| eval days_since=round((now()-last_update)/86400,1)\n| where days_since>45\n| sort - days_since\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=utilityrate:tariff earliest=-7d\n| head 50\n| table days_since, provider, season_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=utilityrate:tariff earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `days_since` before alerting:\n\n```spl\nindex=personal sourcetype=utilityrate:tariff earliest=-30d\n| stats perc50(days_since) AS p50 perc90(days_since) AS p90 perc99(days_since) AS p99 max(days_since) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.6.31: Personal evidence` with the following panel layout:\n\n**Panel 1 — Provider Table Of Days Since Tariff Update (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `utilityrate:tariff` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=utilityrate:tariff | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It turns whether seasonal tariff tables have been refreshed recently so you can spot stale rate schedules before cost reporting drifts before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

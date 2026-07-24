@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`fault` policy, `developer_app`, `response_status_code`",
-  "app": "Apigee export (BigQuery/Splunk), `apigee:analytics`",
+  "exclusions": "Covers the detection logic documented for 'Apigee Policy Violations' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_apigee_policy_violations` (UC-8.4.12), SOC dashboard panel \"Operations — Apigee Policy Violations\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.4.12 positive (Apigee, Policy, Violations): ingest synthetic events into `index=api` sourcetype='apigee:analytics' where `count` grouped by `fault_policy`, `proxy_name`, `developer_app` satisfies detection threshold for 'Apigee Policy Violations'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.4.12 negative (Policy Violations): ingest benign `api` / `apigee:analytics` events where `fault_policy`, `proxy_name`, `developer_app` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Apigee Policy Violations'."
+  },
+  "dataSources": "`fault` policy, `developer_app`, `response_status_code` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Apigee export (BigQuery/Splunk), `apigee:analytics` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=api sourcetype=\"apigee:analytics\"\n| where isnotnull(fault_policy) OR response_status_code=\"429\"\n| stats count by fault_policy, proxy_name, developer_app\n| sort -count",
-  "description": "Apigee analytics API or syslog with `fault` policy name (SOAPThreat, JSONThreat, Quota, SpikeArrest) for blocked requests.",
-  "value": "Apigee analytics API or syslog with `fault` policy name (SOAPThreat, JSONThreat, Quota, SpikeArrest) for blocked requests.",
+  "description": "Identifies UC-8.4.12 — Apigee, Policy, Violations — using `index=api` sourcetype `apigee:analytics`, grouped by `fault_policy`, `proxy_name`, `developer_app`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Policy Violations. Purpose-built for 'Apigee Policy Violations' in Operations workflows.",
+  "value": "UC-8.4.12 operationalises 'Apigee Policy Violations' against `apigee:analytics` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ingest nightly or hourly analytics. Alert on new fault_policy or high `SpikeArrest` counts. Tune policies vs false positives.",
   "visualization": "Bar chart (faults by policy), Table (proxy, policy, count), Line chart (policy violations over time).",
   "cimModels": [
@@ -23,13 +29,38 @@
   "references": [
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
+  "knownFalsePositives": "1. **Maintenance window on `api` (UC-8.4.12)** — Planned work for 'Apigee Policy Violations' shifts `count` over `span=1h` while `fault_policy`, `proxy_name`, `developer_app` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `apigee:analytics`** — Scheduled automation elevates `proxy_name` without crossing configured threshold for UC-8.4.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `fault_policy`, `proxy_name`, `developer_app`** — Health checks in `api` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `apigee:analytics`** — First 48h baseline for UC-8.4.12 on `fault_policy` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `fault_policy`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Apigee export (BigQuery/Splunk), `apigee:analytics`.\n• Ensure the following data sources are available: `fault` policy, `developer_app`, `response_status_code`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest nightly or hourly analytics. Alert on new fault_policy or high `SpikeArrest` counts. Tune policies vs false positives.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=api sourcetype=\"apigee:analytics\"\n| where isnotnull(fault_policy) OR response_status_code=\"429\"\n| stats count by fault_policy, proxy_name, developer_app\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Apigee Policy Violations** — Apigee analytics API or syslog with `fault` policy name (SOAPThreat, JSONThreat, Quota, SpikeArrest) for blocked requests.\n\nDocumented **Data sources**: `fault` policy, `developer_app`, `response_status_code`. **App/TA** (typical add-on context): Apigee export (BigQuery/Splunk), `apigee:analytics`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: api; **sourcetype**: apigee:analytics. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=api, sourcetype=\"apigee:analytics\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where isnotnull(fault_policy) OR response_status_code=\"429\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by fault_policy, proxy_name, developer_app** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare with the API gateway or mesh admin (Kong, Apigee, AWS API Gateway, etc.) and a raw log tail for the same time range.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (faults by policy), Table (proxy, policy, count), Line chart (policy violations over time).",
-  "grandmaExplanation": "We watch for signs that apigee analytics or syslog with policy name (SOAPThreat, JSONThreat, Quota, SpikeArrest) for blocked requests."
+  "equipmentModels": [
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Apigee export (BigQuery/Splunk), `apigee:analytics`.\n• Ensure the following data sources are available: `fault` policy, `developer_app`, `response_status_code`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest nightly or hourly analytics. Alert on new fault_policy or high `SpikeArrest` counts. Tune policies vs false positives.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=api sourcetype=\"apigee:analytics\"\n| where isnotnull(fault_policy) OR response_status_code=\"429\"\n| stats count by fault_policy, proxy_name, developer_app\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Apigee Policy Violations** — Apigee analytics API or syslog with `fault` policy name (SOAPThreat, JSONThreat, Quota, SpikeArrest) for blocked requests.\n\nDocumented **Data sources**: `fault` policy, `developer_app`, `response_status_code`. **App/TA** (typical add-on context): Apigee export (BigQuery/Splunk), `apigee:analytics`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: api; **sourcetype**: apigee:analytics. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=api, sourcetype=\"apigee:analytics\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where isnotnull(fault_policy) OR response_status_code=\"429\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by fault_policy, proxy_name, developer_app** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare with the API gateway or mesh admin (Kong, Apigee, AWS API Gateway, etc.) and a raw log tail for the same time range.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (faults by policy), Table (proxy, policy, count), Line chart (policy violations over time).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Apigee export (BigQuery/Splunk), `apigee:analytics` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=apigee:analytics into api. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`developer_app, fault_policy, proxy_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch for signs that apigee analytics or syslog with policy name (SOAPThreat, JSONThreat, Quota, SpikeArrest) for blocked requests.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

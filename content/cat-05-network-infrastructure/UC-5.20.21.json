@@ -8,32 +8,42 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Router Advertisement Anomaly Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_router_advertisement_anomaly_detection` (UC-5.20.21), SOC dashboard panel \"Operations — Router Advertisement Anomaly Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.21 positive (Router, Advertisement, Anomaly, Detection): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `unique_sources` grouped by `host`, `detection_type` satisfies detection threshold for 'Router Advertisement Anomaly Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.21 negative (Anomaly Detection): ingest benign `network` / `cisco:ios` events where `host`, `detection_type` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'Router Advertisement Anomaly Detection'."
+  },
   "dataSources": "`index=network sourcetype=cisco:ios` containing `%SISF-4-PAK_DROP` with `Reason:RA guard` for blocked rogue RAs, and `%SISF-6-ENTRY_CREATED` for legitimate RAs. Additionally, `sourcetype=corelight_zeek` from Zeek/Corelight decoding ICMPv6 Type 134 packets on SPAN/TAP ports. On Juniper, RA Guard events appear in `syslog` with `ND_RA_BLOCKED` or `RTADV_GUARD_BLOCKED`.\n\nRouter Advertisements (RAs) are ICMPv6 Type 134 messages sent by routers to ff02::1 (all-nodes multicast). They announce the network prefix, default gateway, DNS servers, and address configuration method (M/O/A flags). A rogue RA — whether from a misconfigured device (laptop with IPv6 forwarding enabled, rogue access point) or a deliberate attack (THC-IPv6 `fake_router6`) — can redirect all host traffic to the attacker, assign wrong prefixes, or break connectivity entirely.\n\nNormal RA rate: 1 RA per 200 seconds per router per VLAN (default `ipv6 nd ra-interval 200`). >5 RAs/second from any single source is anomalous. RAs from non-router ports (access layer switchports) should never occur if RA Guard is deployed correctly.",
   "app": "Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 2812) for SISF/RA Guard syslog. Zeek (`corelight_zeek`) for ICMPv6 Type 134 decode.",
   "spl": "index=network (sourcetype=\"cisco:ios\" \"%SISF-4-PAK_DROP\" \"RA guard\")\n  OR (sourcetype=\"cisco:ios\" \"SISF\" \"router-advertisement\")\n  OR (sourcetype=\"corelight_zeek\" icmpv6_type=134)\n| eval detection_type=case(\n    match(_raw, \"PAK_DROP.*RA guard\"), \"ROGUE_RA_BLOCKED\",\n    match(_raw, \"icmpv6_type=134\") AND NOT match(src_mac, \"^(00:00:5e|00:01:00)\"), \"UNVERIFIED_RA\",\n    1=1, \"LEGITIMATE_RA\")\n| stats count as ra_count dc(src_ip) as unique_sources values(src_ip) as sources values(src_mac) as macs by host, detection_type\n| where detection_type!=\"LEGITIMATE_RA\"\n| sort -ra_count",
-  "description": "Detects rogue Router Advertisements on the network — the single most dangerous IPv6-specific attack. A rogue RA can redirect all host traffic to an attacker-controlled 'router', assign a malicious prefix that routes through the attacker, change DNS servers to point to a malicious resolver, or set address configuration flags that disrupt connectivity. Unlike IPv4 where DHCP snooping protects against rogue DHCP, IPv6 RA protection (RA Guard, RFC 6105) is frequently not deployed, leaving networks vulnerable. This use case detects rogue RAs through two independent signals: RA Guard violation logs (SISF PAK_DROP with Reason:RA guard) on switches where RA Guard is deployed, and network TAP/SPAN analysis (Zeek) for networks without RA Guard. It also detects excessive RA rates that may indicate a flooding attack designed to overwhelm host RA processing (each RA triggers prefix evaluation, address generation, and potentially DHCPv6 queries).",
-  "value": "A single rogue RA can compromise an entire VLAN. Unlike DHCP-based attacks in IPv4 where hosts must actively request an address, IPv6 RAs are unsolicited — all hosts on the VLAN automatically process them. An attacker can redirect default gateways, inject malicious prefixes, and change DNS servers with a single multicast packet. The THC-IPv6 toolkit includes `fake_router6` which automates this attack. Without monitoring, rogue RAs can persist for hours or days, especially when they come from misconfigured devices rather than deliberate attacks. This use case provides both prevention (RA Guard) and detection (monitoring) layers.",
+  "description": "Identifies UC-5.20.21 — Router, Advertisement, Anomaly, Detection — using `index=network` sourcetype `cisco:ios`, grouped by `host`, `detection_type`. Outputs `unique_sources` each `the scheduled window`; alert when configured threshold. Primary focus: Anomaly Detection. Purpose-built for 'Router Advertisement Anomaly Detection' in Operations workflows.",
+  "value": "Tracking `unique_sources` via UC-5.20.21 on `cisco:ios` feeds improves response to 'Router Advertisement Anomaly Detection' and reduces operational risk and delayed incident response.",
   "implementation": "Deploy RA Guard on all access-facing switch ports (UC-5.20.29). Monitor RA Guard violation events (PAK_DROP with RA guard reason) in Splunk. Deploy Zeek or Suricata on network TAPs to decode ICMPv6 Type 134 as a secondary detection layer. Alert on any RA from non-whitelisted sources, excessive RA rates, or RA content anomalies (unexpected prefix, changed flags).",
   "visualization": "(1) Single-value: rogue RA events in the last 24 hours — should be zero in a properly secured network. (2) Table: rogue RA details — source MAC, source IP, switch/interface, timestamp. (3) Timechart: RA events over time — a burst indicates an active attack or new rogue device. (4) Network map: which VLANs/switches are seeing rogue RAs — helps localise the source.",
   "references": [
     {
       "title": "RFC 6105 — IPv6 Router Advertisement Guard (RA Guard specification)",
-      "url": "https://www.rfc-editor.org/rfc/rfc6105"
+      "url": "https://www.rfc-editor.org/rfc/rfc6105",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 7113 — Implementation Advice for IPv6 Router Advertisement Guard (RA-Guard bypass mitigations)",
-      "url": "https://www.rfc-editor.org/rfc/rfc7113"
+      "url": "https://www.rfc-editor.org/rfc/rfc7113",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.3.2 — RA security)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "THC-IPv6 Attack Toolkit — fake_router6 rogue RA tool",
-      "url": "https://github.com/vanhauser-thc/thc-ipv6"
+      "url": "https://github.com/vanhauser-thc/thc-ipv6",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Windows Internet Connection Sharing (ICS).** When a Windows laptop enables ICS or mobile hotspot, it enables IPv6 forwarding and starts sending RAs on its connected interface. This is the #1 source of accidental rogue RAs in enterprise networks. The RAs typically advertise the laptop's self-assigned ULA prefix (fd00::/64). RA Guard blocks them, but the PAK_DROP events fire. This is a genuine misconfiguration that should be investigated, even though it is not malicious.\n\n**Docker/Podman/LXC containers.** Container runtimes on hosts with IPv6 forwarding enabled may send RAs on the host network interface. These are typically link-local only and confined to the container bridge, but misconfigured bridge networking can leak RAs onto the physical LAN.\n\n**Network equipment during configuration.** When a new router or layer-3 switch is being configured, it may briefly send RAs with incorrect or test prefixes before final configuration is applied. These should be time-limited to the maintenance window.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.21)** — Planned work for 'Router Advertisement Anomaly Detection' shifts `unique_sources` over `span=1h` while `host`, `detection_type` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `cisco:ios`** — Scheduled automation elevates `detection_type` without crossing configured threshold for UC-5.20.21. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `detection_type`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.20.21 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "arista",
     "cisco",

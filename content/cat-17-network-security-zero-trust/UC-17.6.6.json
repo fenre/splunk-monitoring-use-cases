@@ -9,11 +9,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Akamai Guardicore Process-Level Communication Map Changes (`guardicore:network`)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_akamai_guardicore_process_level_communication_ma` (UC-17.6.6), SOC dashboard panel \"Network — Akamai Guardicore Process-Level Communication Map Changes (`guardicore:network`)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.6.6 positive (Akamai, Guardicore, Process, Level, Communication): ingest synthetic events into `index=microseg` sourcetype='guardicore:network' where `count` grouped by `edge` satisfies -24h for 'Akamai Guardicore Process-Level Communication Map Changes (`guardicore:network`)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.6.6 negative (Changes (`guardicore:network`)): ingest benign `microseg` / `guardicore:network` events where `edge` stays below -24h, or exclude the test entity via `network_exception_register.csv`. Variant 7 confirms zero alert rows for 'Akamai Guardicore Process-Level Communication Map Changes (`guardicore:network`)'."
+  },
   "dataSources": "Guardicore Centra exports: `guardicore:network`, `guardicore:agent`, `guardicore:incident`, `guardicore:policy`, `guardicore:deception`",
   "app": "Akamai Guardicore Add-on for Splunk (Splunkbase 7426)",
   "spl": "index=microseg sourcetype=\"guardicore:network\" earliest=-24h\n| eval edge=src_asset.\"::\".process_name.\"->\".dst_asset.\"::\".tostring(dst_port)\n| stats earliest(_time) as first_seen by edge\n| where first_seen > relative_time(now(),\"-1d\")",
-  "description": "New edges after code freeze windows often mean shadow IT or malware.",
-  "value": "Security analysts detect new process-level communication patterns that appear after code-freeze windows, identifying shadow IT, newly deployed applications, or attacker tools communicating across network segments.",
+  "description": "Monitors UC-17.6.6 — Akamai, Guardicore, Process, Level, Communication — using `index=microseg` sourcetype `guardicore:network`, grouped by `edge`. Outputs `count` each `the scheduled window`; alert when -24h. Primary focus: Changes (`guardicore:network`). Purpose-built for 'Akamai Guardicore Process-Level Communication Map Changes (`guardicore:network`)' in Network workflows.",
+  "value": "UC-17.6.6 operationalises 'Akamai Guardicore Process-Level Communication Map Changes (`guardicore:network`)' against `guardicore:network` feeds so operators reduce unauthorized access, segmentation drift, and NAC policy failures without manual correlation.",
   "implementation": "Install the add-on, configure API polling intervals appropriate to API limits, and map assets to CMDB for enrichment lookups.",
   "visualization": "Network graph export, table.",
   "cimModels": [],
@@ -22,18 +28,34 @@
   "references": [
     {
       "title": "Splunkbase — Akamai Guardicore Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/7426"
+      "url": "https://splunkbase.splunk.com/app/7426",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Akamai Guardicore documentation",
-      "url": "https://www.akamai.com/products/guardicore"
+      "url": "https://www.akamai.com/products/guardicore",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Microseg blocks from new app deployments, missing exception rules, or planned segmentation rollouts.",
+  "knownFalsePositives": "1. **Maintenance window on `microseg` (UC-17.6.6)** — Planned work for 'Akamai Guardicore Process-Level Communication Map Changes (`guardicore:network`)' shifts `count` over `span=1h` while `edge` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `guardicore:network`** — Scheduled automation elevates `edge` without crossing configured threshold for UC-17.6.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `edge`** — Health checks in `microseg` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `guardicore:network`** — First 48h baseline for UC-17.6.6 on `edge` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `edge`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "guardicore",
     "m365"
+  ],
+  "equipmentModels": [
+    "guardicore_generic",
+    "m365_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -43,5 +65,7 @@
   ],
   "reviewer": "catalog-team",
   "detailedImplementation": "Prerequisites\n• Akamai Guardicore Add-on for Splunk (Splunkbase 7426) v3.x. Guardicore agents with process-level visibility enabled (default on supported OSes). This captures not just network flows but the specific process on each endpoint responsible for the communication.\n• Data in `index=microseg` with `sourcetype=guardicore:network`. Key fields: `src_asset`, `dst_asset`, `process_name`, `process_path`, `process_user`, `dst_port`, `src_segment`, `dst_segment`.\n• At least 7 days of historical data to build a process-level communication baseline.\n• Process-level visibility is a key differentiator of Guardicore — it turns 'IP A talked to IP B on port 443' into 'Chrome on Workstation-A talked to nginx on WebServer-B on port 443', dramatically reducing false positives.\n\nStep 1 — Configure data collection\nVerify process-level fields are populated:\n```spl\nindex=microseg sourcetype=\"guardicore:network\" earliest=-24h\n| where isnotnull(process_name) AND process_name!=\"\"\n| stats count dc(process_name) as unique_processes by src_segment\n| sort - unique_processes\n```\nIf `process_name` is null for most events, process visibility may be disabled in the Centra agent configuration, or the agent version may not support it.\n\nStep 2 — Create the search and alert\n\nPrimary search — New process-level communication edges:\n```spl\nindex=microseg sourcetype=\"guardicore:network\" earliest=-24h\n| where isnotnull(process_name)\n| eval edge=src_asset.\"::\".process_name.\"→\".dst_asset.\":\".dst_port\n| stats count by edge, src_asset, process_name, process_path, dst_asset, dst_port, src_segment, dst_segment\n| join type=left edge [\n    search index=microseg sourcetype=\"guardicore:network\" earliest=-31d latest=-1d\n    | where isnotnull(process_name)\n    | eval edge=src_asset.\"::\".process_name.\"→\".dst_asset.\":\".dst_port\n    | stats count as hist_count by edge\n]\n| where isnull(hist_count)\n| eval risk=case(\n    match(process_name, \"(?i)cmd|powershell|bash|sh|wscript|cscript|mshta|certutil|bitsadmin\"), \"HIGH\",\n    match(process_name, \"(?i)python|perl|ruby|java|node\"), \"MEDIUM\",\n    1==1, \"LOW\"\n)\n| sort - risk, - count\n```\n\nUnderstanding this SPL: Finds process-communication edges that never appeared in the previous 30 days. The risk classification flags known LOLBins (living-off-the-land binaries) that attackers frequently abuse: cmd, powershell, certutil (used for file downloads), bitsadmin (used for data staging). Scripting interpreters (Python, Perl) are medium risk.\n\nStep 3 — Validate\n(a) In Guardicore Centra: Reveal > select an asset > Process Communication Map. Compare the processes and connections with Splunk results.\n(b) Pick a new edge from the search results. Verify whether the process and destination make business sense (e.g., a new monitoring agent connecting to its server = expected; cmd connecting to an external IP = suspicious).\n(c) Verify process paths: `process_path` should show the full binary path. A known binary running from an unexpected directory is a strong compromise indicator.\n\nStep 4 — Operationalize\nDashboard (\"Guardicore — Process Communication Changes\"):\n• Row 1 — Single-value: \"New process edges (24h)\", \"High-risk new edges\".\n• Row 2 — Table: source asset, process, destination, port, risk level, count.\n• Row 3 — Timechart: new edges per day over 30 days.\n\nAlert: Trigger immediately for any HIGH-risk new edge (LOLBin communicating to a new destination). MEDIUM-risk edges: daily digest to the security team.\n\nRunbook:\n1. **LOLBin new connection** — powershell or cmd connecting to a new external or cross-segment destination. Investigate the parent process tree. If spawned by a user session: check for phishing compromise. If spawned by a service: check for service account abuse.\n2. **New legitimate application deployed** — After validation, the edge will naturally age into the 30-day history. Optionally add an explicit allow rule in Centra.\n3. **Shadow IT application** — An unapproved application communicating from a production segment. Escalate to the asset owner.\n\nStep 5 — Troubleshooting\n• **`process_name` always null** — Process visibility requires agent version 4.x+ and is not supported on all OS versions. Check Centra > Agent Configuration > Process Visibility setting.\n• **Too many new edges** — The baseline period may be too short. Extend the historical search from 30 to 60 days. Also exclude known noisy processes (e.g., browser processes) that legitimately connect to new destinations frequently.\n• **Process path shows a legitimate name but wrong location** — Binary masquerading. High-severity indicator. Compare the hash of the binary against VirusTotal.",
-  "grandmaExplanation": "We track which specific programs on each computer are talking to other systems, and when a program starts a new conversation it has never had before, we check to make sure it is not something harmful."
+  "grandmaExplanation": "We track which specific programs on each computer are talking to other systems, and when a program starts a new conversation it has never had before, we check to make sure it is not something harmful.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

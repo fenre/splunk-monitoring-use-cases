@@ -9,46 +9,70 @@
     "Anomaly"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Endurance activities (`strava:activity`, `garmin:activity`, `coros:activity`, `wahoo:workout`, `trainerroad:workout`, `applefitness:workout`, `concept2:workout`, `zwift:activity`).",
-  "app": "COROS, Wahoo ELEMNT, TrainerRoad, Apple Fitness / HealthKit exports, Concept2 Logbook, Strava, Garmin Connect, and Zwift activity feeds via official APIs, FIT/CSV exports, and Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Strava Segment PR Drought on Favorite Climb' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_strava_segment_pr_drought_on_favorite_climb` (UC-25.1.33), SOC dashboard panel \"Personal — Strava Segment PR Drought on Favorite Climb\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.1.33 positive (Strava, Segment, Drought, Favorite, Climb): ingest synthetic events into `index=personal` sourcetype='strava:activity' where `pr_count`, `days_since_last_pr` grouped by `athlete`, `segment_name` satisfies `days_since_last_pr` > 90 for 'Strava Segment PR Drought on Favorite Climb'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.1.33 negative (Favorite Climb): ingest benign `personal` / `strava:activity` events where `athlete`, `segment_name` stays below `days_since_last_pr` > 90, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 1 confirms zero alert rows for 'Strava Segment PR Drought on Favorite Climb'."
+  },
+  "dataSources": "Endurance activities (`strava:activity`, `garmin:activity`, `coros:activity`, `wahoo:workout`, `trainerroad:workout`, `applefitness:workout`, `concept2:workout`, `zwift:activity`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "COROS, Wahoo ELEMNT, TrainerRoad, Apple Fitness / HealthKit exports, Concept2 Logbook, Strava, Garmin Connect, and Zwift activity feeds via official APIs, FIT/CSV exports, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=strava:activity\n| stats max(pr_count) as pr_count, max(days_since_last_pr) as days_since_last_pr by athlete segment_name\n| where pr_count=0 AND days_since_last_pr>90\n| sort - days_since_last_pr",
-  "description": "Uses Strava segment data telemetry to monitor how long favorite segments have gone without a new personal record in index=personal.",
-  "value": "Splunk turns the feed into an operational check for stale benchmarks that might signal a change in training focus, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Surfaces Favorite Climb activity in UC-25.1.33 ('Strava Segment PR Drought on Favorite Climb') from `index=personal` sourcetype `strava:activity`. Rolls up `pr_count`, `days_since_last_pr` by `athlete`, `segment_name` across `the scheduled window` and pages when `days_since_last_pr` > 90. Covers Strava, Segment, Drought, Favorite, Climb. Personal operators treat UC-25.1.33 as the canonical signal.",
+  "value": "Operators running UC-25.1.33 on `strava:activity` feeds shorten triage for Favorite Climb tied to 'Strava Segment PR Drought on Favorite Climb', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest Strava segment data data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a weekly cadence.",
   "visualization": "Ranked segment list by days since the last PR.",
   "cimModels": [],
   "references": [
     {
       "title": "Strava - API reference",
-      "url": "https://developers.strava.com/docs/reference/"
+      "url": "https://developers.strava.com/docs/reference/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "COROS support",
-      "url": "https://support.coros.com/hc/en-us"
+      "url": "https://support.coros.com/hc/en-us",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Wahoo support",
-      "url": "https://support.wahoofitness.com/hc/en-us"
+      "url": "https://support.wahoofitness.com/hc/en-us",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TrainerRoad support",
-      "url": "https://support.trainerroad.com/hc/en-us"
+      "url": "https://support.trainerroad.com/hc/en-us",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Apple HealthKit",
-      "url": "https://developer.apple.com/documentation/healthkit"
+      "url": "https://developer.apple.com/documentation/healthkit",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Concept2 Logbook API",
-      "url": "https://log.concept2.com/developers/documentation"
+      "url": "https://log.concept2.com/developers/documentation",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.1.33)** — Connector for 'Strava Segment PR Drought on Favorite Climb' stops polling `strava:activity`; stale `pr_count`, `days_since_last_pr` on `athlete`, `segment_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `pr_count`, `days_since_last_pr` over `1w` is expected for UC-25.1.33, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `strava:activity`. Dedup with `stats latest(*) by athlete`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_since_last_pr` > 90 for 'Strava Segment PR Drought on Favorite Climb'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It frames how long favorite segments have gone without a new personal record so you can spot stale benchmarks that might signal a change in training focus before it becomes annoying."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Strava — REST API or webhook → Splunk HEC scripted input.\n• **Subcategory context**: Fitness & Activity Tracking — typical feeds: Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`), Zwift/TrainingPeaks exports..\n• **Sourcetypes in this search**: `strava:activity`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Strava** events into `index=personal` with `sourcetype=strava:activity`.\n\n**Collection method:** REST API or webhook → Splunk HEC scripted input.\n\n**Reference endpoint / path:** `GET https://www.strava.com/api/v3/athlete/activities`.\n\n**Suggested poll interval:** 900s (or push via Strava webhook subscription).\n\n**Key fields to extract:** `type, distance_km, moving_time_s, start_date, athlete_id`.\n\n**Typical connector stack:** Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as files..\n\n**Author notes:** Ingest Strava segment data data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a weekly cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"strava:activity\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=strava:activity earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Strava Segment PR Drought on Favorite Climb** over `personal` data (primarily `sourcetype=strava:activity`) across the full search range. It applies numeric thresholds on `days_since_last_pr` (> 90) after max — tune these constants to your household baseline.\n\n**Fields this search depends on:** `athlete`, `days_since_last_pr`, `segment_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=strava:activity\n| stats max(pr_count) as pr_count, max(days_since_last_pr) as days_since_last_pr by athlete segment_name\n| where pr_count=0 AND days_since_last_pr>90\n| sort - days_since_last_pr\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Strava app → You → Activities list for the same week totals. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=strava:activity earliest=-7d\n| head 50\n| table athlete, days_since_last_pr, segment_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=strava:activity earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `days_since_last_pr` before alerting:\n\n```spl\nindex=personal sourcetype=strava:activity earliest=-30d\n| stats perc50(days_since_last_pr) AS p50 perc90(days_since_last_pr) AS p90 perc99(days_since_last_pr) AS p99 max(days_since_last_pr) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.1.33: Personal evidence` with the following panel layout:\n\n**Panel 1 — Ranked Segment List By Days Since The Last Pr (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Strava — no Strava events / missing fields:** If `strava:activity` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Strava connector script is still running (`systemctl status` or cron log).\n\n**Strava — NULL values in extracted fields:** The Strava JSON export shape drifted — compare a raw event (`index=personal sourcetype=strava:activity | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Strava — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Strava — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Strava APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It frames how long favorite segments have gone without a new personal record so you can spot stale benchmarks that might signal a change in training focus before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

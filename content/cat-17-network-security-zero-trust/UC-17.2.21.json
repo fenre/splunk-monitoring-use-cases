@@ -10,11 +10,17 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "SSL/TLS syslog, management logs",
-  "app": "`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto`",
+  "exclusions": "Covers the detection logic documented for 'SSL VPN Certificate Compliance' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_ssl_vpn_certificate_compliance` (UC-17.2.21), SOC dashboard panel \"Network — SSL VPN Certificate Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.2.21 positive (SSL, VPN, Certificate, Compliance): ingest synthetic events into `index=vpn` sourcetype='cisco:asa' where `count` grouped by `host`, `cert_cn`, `message` satisfies -30d for 'SSL VPN Certificate Compliance'. Validate filter `\"certificate\" AND (\"expired\" OR \"not trusted\" OR \"invalid\")`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.2.21 negative (Certificate Compliance): ingest benign `vpn` / `cisco:asa` events where `host`, `cert_cn`, `message` stays below -30d, or exclude the test entity via `network_exception_register.csv`. Variant 5 confirms zero alert rows for 'SSL VPN Certificate Compliance'."
+  },
+  "dataSources": "SSL/TLS syslog, management logs Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=vpn (sourcetype=\"cisco:asa\" OR sourcetype=\"pan:system\") earliest=-30d\n| search \"certificate\" AND (\"expired\" OR \"not trusted\" OR \"invalid\")\n| stats count by host, cert_cn, message\n| sort -count",
-  "description": "Tracks server certificate expiry and chain errors on SSL VPN / GlobalProtect portals from TLS handshake logs.",
-  "value": "PKI and network teams monitor SSL/TLS certificate health on VPN gateways, catching expired or untrusted certificates that cause user connection failures and security warnings.",
+  "description": "Detects 'SSL VPN Certificate Compliance' patterns (UC-17.2.21) sourced from `index=vpn` sourcetype `cisco:asa`. Threshold bundle: -30d; aggregation grain: `host`, `cert_cn`, `message`; metrics: `count`. Enrichment path: filter `\"certificate\" AND (\"expired\" OR \"not trusted\" OR \"invalid\")`.",
+  "value": "UC-17.2.21 gives Network teams earlier visibility into Certificate Compliance through `cisco:asa` feeds, lowering unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Prefer proactive cert inventory from PKI; this search catches client-reported errors. Alert on any `expired` match on production gateways.",
   "visualization": "Table (cert errors), Single value (error count), Timeline.",
   "cimModels": [],
@@ -23,10 +29,26 @@
   "references": [
     {
       "title": "Splunk_TA_paloalto",
-      "url": "https://splunkbase.splunk.com/app/2757"
+      "url": "https://splunkbase.splunk.com/app/2757",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Palo Alto Networks documentation",
+      "url": "https://docs.paloaltonetworks.com/",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Vulnerability scanner signature matches** — Qualys/Tenable traffic triggers IPS/threat signatures for 'SSL VPN Certificate Compliance'. Compare `src` against `scanner_ips` lookup.\n\n2. **Policy push during change window** — New deny rule generates expected blocks. Match firewall commit timestamp in change calendar.\n\n3. **Encrypted traffic inspection gap** — TLS-heavy apps bypass deep inspection; volume drop is operational, not a sensor failure.\n\n4. **Red-team C2 simulation** — Approved exercise from `pen_test_hosts.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `src`, `signature_id`, `valid_until`.",
   "mitreAttack": [
     "T1573"
   ],
@@ -40,7 +62,13 @@
     "paloalto_globalprotect",
     "paloalto_pan_firewall"
   ],
-  "detailedImplementation": "Prerequisites\n• Splunk Add-on for Cisco ASA and/or Palo Alto Networks Add-on. Data in `index=vpn`.\n• Key fields: certificate-related syslog messages. Cisco ASA message IDs: 725002 (certificate validation), 725003 (certificate accepted), 725006 (certificate rejected).\n• SSL VPN (WebVPN/AnyConnect SSL) uses server certificates for the VPN gateway and optionally client certificates for user authentication.\n\nStep 1 — Configure data collection\nVerify certificate events:\n```spl\nindex=vpn (sourcetype=\"cisco:asa\" OR sourcetype=\"pan:system\") earliest=-30d\n| search \"certificate\" AND (\"expired\" OR \"not trusted\" OR \"invalid\" OR \"rejected\")\n| stats count by host\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Certificate compliance issues:\n```spl\nindex=vpn (sourcetype=\"cisco:asa\" OR sourcetype=\"pan:system\") earliest=-30d\n| search \"certificate\" AND (\"expired\" OR \"not trusted\" OR \"invalid\" OR \"rejected\" OR \"revoked\")\n| rex field=_raw \"certificate.*?(?:subject|cn)=(?<cert_subject>[^,;]+)\"\n| rex field=_raw \"(?:reason|error)[:=]\\s*(?<cert_error>[^,;]+)\"\n| stats count as events dc(src) as affected_clients values(cert_error) as errors by cert_subject, host\n| sort - events\n```\n\nUnderstanding this SPL: Identifies certificate issues from VPN gateway logs. 'Expired' certificates need immediate renewal. 'Not trusted' means the CA chain is incomplete on the client or the server cert is self-signed. 'Revoked' certificates are actively blacklisted. High `affected_clients` for a server certificate issue means all users see the warning.\n\nStep 3 — Validate\n(a) Check the VPN gateway certificate: `openssl s_client -connect <vpn_host>:443 | openssl x509 -noout -dates -subject`.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Certificate issues count. Row 2 — Table: subject, errors, affected clients.\nAlert: Immediate for expired server certificates. Weekly for client cert issues.\n\nRunbook:\n1. **Server cert expired** — Emergency renewal. Until renewed, users see certificate warnings and may not be able to connect.\n2. **Client cert not trusted** — Deploy the CA certificate to the client trust store via GPO/MDM.\n\nStep 5 — Troubleshooting\n• **No certificate events** — Certificate validation logging may not be at the right level. On ASA: ensure `logging trap informational`.\n• **False positives from self-signed certs in lab** — Filter out known lab hostnames.",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Splunk Add-on for Cisco ASA and/or Palo Alto Networks Add-on. Data in `index=vpn`.\n• Key fields: certificate-related syslog messages. Cisco ASA message IDs: 725002 (certificate validation), 725003 (certificate accepted), 725006 (certificate rejected).\n• SSL VPN (WebVPN/AnyConnect SSL) uses server certificates for the VPN gateway and optionally client certificates for user authentication.\n\nStep 1 — Configure data collection\nVerify certificate events:\n```spl\nindex=vpn (sourcetype=\"cisco:asa\" OR sourcetype=\"pan:system\") earliest=-30d\n| search \"certificate\" AND (\"expired\" OR \"not trusted\" OR \"invalid\" OR \"rejected\")\n| stats count by host\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Certificate compliance issues:\n```spl\nindex=vpn (sourcetype=\"cisco:asa\" OR sourcetype=\"pan:system\") earliest=-30d\n| search \"certificate\" AND (\"expired\" OR \"not trusted\" OR \"invalid\" OR \"rejected\" OR \"revoked\")\n| rex field=_raw \"certificate.*?(?:subject|cn)=(?<cert_subject>[^,;]+)\"\n| rex field=_raw \"(?:reason|error)[:=]\\s*(?<cert_error>[^,;]+)\"\n| stats count as events dc(src) as affected_clients values(cert_error) as errors by cert_subject, host\n| sort - events\n```\n\nUnderstanding this SPL: Identifies certificate issues from VPN gateway logs. 'Expired' certificates need immediate renewal. 'Not trusted' means the CA chain is incomplete on the client or the server cert is self-signed. 'Revoked' certificates are actively blacklisted. High `affected_clients` for a server certificate issue means all users see the warning.\n\nStep 3 — Validate\n(a) Check the VPN gateway certificate: `openssl s_client -connect <vpn_host>:443 | openssl x509 -noout -dates -subject`.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Certificate issues count. Row 2 — Table: subject, errors, affected clients.\nAlert: Immediate for expired server certificates. Weekly for client cert issues.\n\nRunbook:\n1. **Server cert expired** — Emergency renewal. Until renewed, users see certificate warnings and may not be able to connect.\n2. **Client cert not trusted** — Deploy the CA certificate to the client trust store via GPO/MDM.\n\nStep 5 — Troubleshooting\n• **No certificate events** — Certificate validation logging may not be at the right level. On ASA: ensure `logging trap informational`.\n• **False positives from self-signed certs in lab** — Filter out known lab hostnames.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:asa, pan:system into vpn. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cert_cn, host, message`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We watch the digital certificates on our VPN servers to make sure they are valid and trusted, because expired certificates make it impossible for people to connect securely.",
-  "hardware": "ASA, Palo Alto"
+  "hardware": "ASA, Palo Alto",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

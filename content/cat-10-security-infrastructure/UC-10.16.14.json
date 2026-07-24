@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "SEPM client scan logs via `sourcetype=symantec:ep:scan:file`",
+  "exclusions": "Covers the detection logic documented for 'Symantec Endpoint Protection Client Scan Threat Findings' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_symantec_endpoint_protection_client_scan_threat_` (UC-10.16.14), SOC dashboard panel \"Security Infra — Symantec Endpoint Protection Client Scan Threat Findings\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.16.14 positive (Symantec, Endpoint, Protection, Client, Scan): ingest synthetic events into `index=endpoint` sourcetype='symantec:ep:scan:file' where `count` grouped by `host`, `scan_type` satisfies -7d for 'Symantec Endpoint Protection Client Scan Threat Findings'. Validate filter `infect* OR threat* OR virus*`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.16.14 negative (Threat Findings): ingest benign `endpoint` / `symantec:ep:scan:file` events where `host`, `scan_type` stays below -7d, or exclude the test entity via `soc_exception_register.csv`. Variant 8 confirms zero alert rows for 'Symantec Endpoint Protection Client Scan Threat Findings'."
+  },
+  "dataSources": "SEPM client scan logs via `sourcetype=symantec:ep:scan:file` Indexes: endpoint. Sourcetypes: symantec:ep:scan:file. Key fields: host, scan_type. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Splunk Add-on for Symantec Endpoint Protection (Splunkbase 2772)",
   "spl": "index=endpoint sourcetype=\"symantec:ep:scan:file\" earliest=-7d\n| eval host=coalesce(Computer_Name, computer_name, host)\n| eval scan_type=coalesce(Scan_Type, scan_type, \"unknown\")\n| search infect* OR threat* OR virus*\n| stats count by host, scan_type\n| sort -count",
-  "description": "Client scan logs that mention infections or threats reveal endpoints where on-demand or scheduled scans are still finding malware after real-time protection, often due to dormant files or policy gaps.",
-  "value": "Prioritizes hosts needing deeper investigation when scans—not just real-time engines—report malicious content, supporting hunt and vulnerability management handoffs.",
+  "description": "Monitors UC-10.16.14 — Symantec, Endpoint, Protection, Client, Scan — using `index=endpoint` sourcetype `symantec:ep:scan:file`, grouped by `host`, `scan_type`. Outputs `count` each `the scheduled window`; alert when -7d. Filter chain includes filter `infect* OR threat* OR virus*`. Purpose-built for 'Symantec Endpoint Protection Client Scan Threat Findings' in Security Infra workflows.",
+  "value": "UC-10.16.14 accelerates insight into Threat Findings ('Symantec Endpoint Protection Client Scan Threat Findings') by tracking `activity` on `symantec:ep:scan:file` feeds, reducing missed threat campaigns, control regressions, and SOC SLA breaches before spreadsheet checks hide regressions.",
   "implementation": "Ingest Client Scan log dumps into the SEP TA. Because scan log field names vary by SEPM version, validate extracted fields (`Scan_Type`, threat counters) in Search before production alerts; replace the inline `search` filter with explicit field thresholds when available. Exclude backup admin paths that routinely flag quarantine archives.",
   "visualization": "Table (host × scan type), timechart of matching scan events, single value (distinct hosts).",
   "cimModels": [
@@ -22,16 +28,31 @@
   "references": [
     {
       "title": "Splunk Add-on for Symantec Endpoint Protection",
-      "url": "https://splunkbase.splunk.com/app/2772"
+      "url": "https://splunkbase.splunk.com/app/2772",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Symantec Endpoint Protection (SEPM) — SC4S sourcetype reference",
-      "url": "https://splunk.github.io/splunk-connect-for-syslog/main/sources/vendor/Broadcom/ep/"
+      "url": "https://splunk.github.io/splunk-connect-for-syslog/main/sources/vendor/Broadcom/ep/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Scan findings can spike on patch Tuesdays or after quarantine moves files — the trend should pair with the vendor console, not just Splunk lines.",
+  "knownFalsePositives": "1. **Approved vulnerability scanner** — Scanner `src` triggers high-severity signatures for 'Symantec Endpoint Protection Client Scan Threat Findings'. Join `scanner_ips` before threshold.\n\n2. **Signature definition update** — Vendor content push reclassifies benign traffic. Compare threat_id first_seen with content release date.\n\n3. **Red-team emulation** — Atomic test traffic from approved exercise hosts.\n\n4. **Backup replication traffic** — Off-hours bulk transfer matches lateral-movement heuristics.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `src`, `threat_id`, `valid_until`.",
   "equipment": [
     "broadcom_symantec"
+  ],
+  "equipmentModels": [
+    "broadcom_symantec_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -40,6 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We see what full scans and threat hunts turn up in Symantec so we catch persistence or low-noise bad files that real-time alone might miss."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Symantec Endpoint Protection (Splunkbase 2772)). Enable the modular input or HEC token that writes sourcetype=symantec:ep:scan:file into endpoint. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, scan_type`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We see what full scans and threat hunts turn up in Symantec so we catch persistence or low-noise bad files that real-time alone might miss.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

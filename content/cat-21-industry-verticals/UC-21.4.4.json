@@ -9,17 +9,17 @@
   ],
   "splunkPillar": "Observability",
   "industry": "Transportation and Logistics",
-  "exclusions": "Exclude planned maintenance windows, DR exercises, vendor pack updates, and seasonal demand patterns via asset/schedule lookup.",
-  "evidence": "Saved search `21_4_4_evidence` archived to restricted audit index.",
+  "exclusions": "Covers the detection logic documented for 'Vehicle Diagnostic Trouble Code Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_vehicle_diagnostic_trouble_code_monitoring` (UC-21.4.4), SOC dashboard panel \"Operations — Vehicle Diagnostic Trouble Code Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Replay sample `obd2:dtc` events into `index=logistics`. Confirm UC-21.4.4 search returns >=1 row.",
-    "negativeScenario": "Replay benign `obd2:dtc` traffic without alert markers. Confirm the search returns zero rows."
+    "positiveScenario": "UC-21.4.4 positive (Vehicle, Diagnostic, Trouble, Code, Monitoring): ingest synthetic events into `index=logistics` sourcetype='obd2:dtc' where `values` grouped by `vehicle_id`, `dtc_code`, `severity` satisfies detection threshold for 'Vehicle Diagnostic Trouble Code Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-21.4.4 negative (Code Monitoring): ingest benign `logistics` / `obd2:dtc` events where `vehicle_id`, `dtc_code`, `severity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Vehicle Diagnostic Trouble Code Monitoring'."
   },
-  "dataSources": "`index=logistics` `sourcetype=\"obd2:dtc\"` fields `vehicle_id`, `dtc_code`, `dtc_description`, `severity`",
-  "app": "OBD-II / telematics via HEC",
-  "spl": "index=logistics sourcetype=\"obd2:dtc\"\n| stats count as event_count dc(host) as distinct_assets by host\n| where event_count > 0\n| table _time host source severity message",
-  "description": "OBD-II diagnostic trouble codes provide early warning of mechanical and emissions issues. Monitoring enables proactive maintenance and prevents roadside failures.",
-  "value": "Service and risk leaders use signals from Vehicle Diagnostic Trouble Code Monitoring to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
+  "dataSources": "`index=logistics` `sourcetype=\"obd2:dtc\"` fields `vehicle_id`, `dtc_code`, `dtc_description`, `severity` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "OBD-II / telematics via HEC — Universal Forwarder (Splunkbase 617)",
+  "spl": "index=logistics sourcetype=\"obd2:dtc\"\n| stats count, latest(_time) as last_seen, values(dtc_description) as descriptions by vehicle_id, dtc_code, severity\n| where severity IN (\"critical\", \"warning\")\n| sort - count\n| table vehicle_id, dtc_code, descriptions, severity, count, last_seen",
+  "description": "Detects 'Vehicle Diagnostic Trouble Code Monitoring' patterns (UC-21.4.4) sourced from `index=logistics` sourcetype `obd2:dtc`. Threshold bundle: configured threshold; aggregation grain: `vehicle_id`, `dtc_code`, `severity`; metrics: `values`. Watch terms: Vehicle, Diagnostic, Trouble, Code, Monitoring.",
+  "value": "Operations and risk leaders in Transportation and Logistics use signals from Vehicle Diagnostic Trouble Code Monitoring to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Ingest DTC codes from fleet telematics. Prioritize by severity. Generate automated maintenance work orders for critical codes. Track recurring DTCs by vehicle and fleet-wide. **Domain context:** SAE J2012 defines OBD-II DTC formats; emissions-related codes may have regulatory implications—map `dtc_code` to OEM descriptions via lookup. **Splunk:** DTCs can latch until cleared—dedupe by `vehicle_id`+`dtc_code` with `latest(_time)` for active fault panels.",
   "visualization": "Table (active DTCs), Bar chart (DTCs by code), Timeline (DTC occurrences).",
   "cimModels": [
@@ -29,28 +29,41 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
     },
     {
-      "title": "Splunk Lantern — Industry use cases",
-      "url": "https://lantern.splunk.com/"
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "DTC bursts after emissions-related recalls, OBD port scans at inspection lanes, or telematics firmware that clears after a key cycle the driver performed.",
+  "knownFalsePositives": "1. **Maintenance window on `logistics` (UC-21.4.4)** — Planned work for 'Vehicle Diagnostic Trouble Code Monitoring' shifts `values` over `span=1h` while `vehicle_id`, `dtc_code`, `severity` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `obd2:dtc`** — Scheduled automation elevates `dtc_code` without crossing configured threshold for UC-21.4.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `vehicle_id`, `dtc_code`, `severity`** — Health checks in `logistics` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `obd2:dtc`** — First 48h baseline for UC-21.4.4 on `vehicle_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `vehicle_id`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1078"
   ],
   "equipment": [
-    "fleet"
+    "splunk"
   ],
   "equipmentModels": [
-    "fleet_dtc"
+    "splunk_platform"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: OBD-II / telematics via HEC.\n• Ensure the following data sources are available: `index=logistics` `sourcetype=\"obd2:dtc\"` fields `vehicle_id`, `dtc_code`, `dtc_description`, `severity`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest DTC codes from fleet telematics. Prioritize by severity. Generate automated maintenance work orders for critical codes. Track recurring DTCs by vehicle and fleet-wide. **Domain context:** SAE J2012 defines OBD-II DTC formats; emissions-related codes may have regulatory implications—map `dtc_code` to OEM descriptions via lookup. **Splunk:** DTCs can latch until cleared—dedupe by `vehicle_id`+`dtc_code` with `latest(_time)` for active fault panels.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=logistics sourcetype=\"obd2:dtc\"\n| stats count, latest(_time) as last_seen, values(dtc_description) as descriptions by vehicle_id, dtc_code, severity\n| where severity IN (\"critical\", \"warning\")\n| sort - count\n| table vehicle_id, dtc_code, descriptions, severity, count, last_seen\n```\n\nUnderstanding this SPL\n\n**Vehicle Diagnostic Trouble Code Monitoring** — OBD-II diagnostic trouble codes provide early warning of mechanical and emissions issues. Monitoring enables proactive maintenance and prevents roadside failures.\n\nDocumented **Data sources**: `index=logistics` `sourcetype=\"obd2:dtc\"` fields `vehicle_id`, `dtc_code`, `dtc_description`, `severity`. **App/TA** (typical add-on context): OBD-II / telematics via HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: logistics; **sourcetype**: obd2:dtc. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=logistics, sourcetype=\"obd2:dtc\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by vehicle_id, dtc_code, severity** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where severity IN (\"critical\", \"warning\")` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Vehicle Diagnostic Trouble Code Monitoring**): table vehicle_id, dtc_code, descriptions, severity, count, last_seen\n\n\nStep 3 — Validate\nCompare with the fleet telematics or TMS portal and, for warehouse or port flows, the WMS or terminal operations screen for the same vehicle, container, or order window. Align GPS time zones and odometer units with the source system.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (active DTCs), Bar chart (DTCs by code), Timeline (DTC occurrences).",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: OBD-II / telematics via HEC.\n• Ensure the following data sources are available: `index=logistics` `sourcetype=\"obd2:dtc\"` fields `vehicle_id`, `dtc_code`, `dtc_description`, `severity`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest DTC codes from fleet telematics. Prioritize by severity. Generate automated maintenance work orders for critical codes. Track recurring DTCs by vehicle and fleet-wide. **Domain context:** SAE J2012 defines OBD-II DTC formats; emissions-related codes may have regulatory implications—map `dtc_code` to OEM descriptions via lookup. **Splunk:** DTCs can latch until cleared—dedupe by `vehicle_id`+`dtc_code` with `latest(_time)` for active fault panels.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=logistics sourcetype=\"obd2:dtc\"\n| stats count, latest(_time) as last_seen, values(dtc_description) as descriptions by vehicle_id, dtc_code, severity\n| where severity IN (\"critical\", \"warning\")\n| sort - count\n| table vehicle_id, dtc_code, descriptions, severity, count, last_seen\n```\n\nUnderstanding this SPL\n\n**Vehicle Diagnostic Trouble Code Monitoring** — OBD-II diagnostic trouble codes provide early warning of mechanical and emissions issues. Monitoring enables proactive maintenance and prevents roadside failures.\n\nDocumented **Data sources**: `index=logistics` `sourcetype=\"obd2:dtc\"` fields `vehicle_id`, `dtc_code`, `dtc_description`, `severity`. **App/TA** (typical add-on context): OBD-II / telematics via HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: logistics; **sourcetype**: obd2:dtc. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=logistics, sourcetype=\"obd2:dtc\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by vehicle_id, dtc_code, severity** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where severity IN (\"critical\", \"warning\")` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Vehicle Diagnostic Trouble Code Monitoring**): table vehicle_id, dtc_code, descriptions, severity, count, last_seen\n\n\nStep 3 — Validate\nCompare with the fleet telematics or TMS portal and, for warehouse or port flows, the WMS or terminal operations screen for the same vehicle, container, or order window. Align GPS time zones and odometer units with the source system.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (active DTCs), Bar chart (DTCs by code), Timeline (DTC occurrences).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (OBD-II / telematics via HEC — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=obd2:dtc into logistics. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`dtc_code, severity, vehicle_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We watch engine and chassis fault codes. We help you catch maintenance needs before a roadside failure.",
-  "wave": "walk"
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

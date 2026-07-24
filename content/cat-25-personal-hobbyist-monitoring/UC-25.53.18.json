@@ -9,27 +9,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Planning tasks (`event:task`), budget lines (`event:budget`), RSVPs (`event:rsvp`), vendor bookings (`event:vendor`), countdown milestones (`event:countdown`).",
-  "app": "Wedding and event planning — task and budget spreadsheets, RSVP platforms (Zola, The Knot), vendor contracts, and seating tools — streamed to Splunk HEC via CSV exports and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Post-Wedding Expense Reconciliation' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_post_wedding_expense_reconciliation` (UC-25.53.18), SOC dashboard panel \"Personal — Post-Wedding Expense Reconciliation\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.53.18 positive (Post, Wedding, Expense, Reconciliation): ingest synthetic events into `index=personal` sourcetype='event:budget' where `planned`, `actual` grouped by `category` satisfies detection threshold for 'Post-Wedding Expense Reconciliation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.53.18 negative (Expense Reconciliation): ingest benign `personal` / `event:budget` events where `category` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 9 confirms zero alert rows for 'Post-Wedding Expense Reconciliation'."
+  },
+  "dataSources": "Planning tasks (`event:task`), budget lines (`event:budget`), RSVPs (`event:rsvp`), vendor bookings (`event:vendor`), countdown milestones (`event:countdown`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Wedding and event planning — task and budget spreadsheets, RSVP platforms (Zola, The Knot), vendor contracts, and seating tools — streamed to Splunk HEC via CSV exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=event:budget phase=post_event\n| stats sum(planned_cost) as planned, sum(actual_cost) as actual by category\n| eval variance=round(actual-planned,2)\n| sort - variance",
-  "description": "Reconciles planned versus actual spend for final event closeout after invoices and extras settle.",
-  "value": "Final cost truth usually arrives after the event; reconciliation turns fuzzy memory into a clean ledger.",
+  "description": "Alerts on UC-25.53.18 — Post, Wedding, Expense, Reconciliation — using `index=personal` sourcetype `event:budget`, grouped by `category`. Outputs `planned`, `actual` each `the scheduled window`; alert when configured threshold. Primary focus: Expense Reconciliation. Purpose-built for 'Post-Wedding Expense Reconciliation' in Personal workflows.",
+  "value": "Operators running UC-25.53.18 on `event:budget` feeds shorten triage for Expense Reconciliation tied to 'Post-Wedding Expense Reconciliation', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Label post-event budget rows and compare planned versus actual costs by category.",
   "visualization": "Table of post-event budget variance by category.",
   "cimModels": [],
   "references": [
     {
       "title": "Project Management Institute — planning basics",
-      "url": "https://www.pmi.org/about/what-is-project-management"
+      "url": "https://www.pmi.org/about/what-is-project-management",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Zola — wedding planning",
-      "url": "https://www.zola.com/wedding-planning"
+      "url": "https://www.zola.com/wedding-planning",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It surfaces where the final costs ended up higher or lower than the plan after everything was over."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.53.18)** — Connector for 'Post-Wedding Expense Reconciliation' stops polling `event:budget`; stale `planned`, `actual` on `category` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `planned`, `actual` over `1w` is expected for UC-25.53.18, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `event:budget`. Dedup with `stats latest(*) by category`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Post-Wedding Expense Reconciliation'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Wedding & Event Planning — typical feeds: Planning tasks (`event:task`), budget lines (`event:budget`), RSVPs (`event:rsvp`), vendor bookings (`event:vendor`), countdown milestones (`event:countdown`)..\n• **Sourcetypes in this search**: `event:budget`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=event:budget`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Wedding and event planning — task and budget spreadsheets, RSVP platforms (Zola, The Knot), vendor contracts, and seating tools — streamed to Splunk HEC via CSV exports and scripted inputs..\n\n**Author notes:** Label post-event budget rows and compare planned versus actual costs by category.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"event:budget\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=event:budget earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Post-Wedding Expense Reconciliation** over `personal` data (primarily `sourcetype=event:budget`) across the full search range. The `sum` aggregation groups by `category`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `category`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=event:budget phase=post_event\n| stats sum(planned_cost) as planned, sum(actual_cost) as actual by category\n| eval variance=round(actual-planned,2)\n| sort - variance\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=event:budget earliest=-7d\n| head 50\n| table category\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=event:budget earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.53.18: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Post-Event Budget Variance By Category (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `event:budget` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=event:budget | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It surfaces where the final costs ended up higher or lower than the plan after everything was over.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

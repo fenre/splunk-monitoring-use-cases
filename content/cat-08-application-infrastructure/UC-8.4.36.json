@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Tail latency from FPM access log isolates application slowness independent of status snapshots.",
-  "app": "Splunk Universal Forwarder; optional Splunk Add-on for Unix and Linux (`Splunk_TA_nix`); custom `props.conf`/`transforms.conf` for `phpfpm:*` sourcetypes",
+  "exclusions": "Covers the detection logic documented for 'PHP-FPM Request Duration P95/P99 from Access Log' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_php_fpm_request_duration_p95_p99_from_access_log` (UC-8.4.36), SOC dashboard panel \"Operations — PHP-FPM Request Duration P95/P99 from Access Log\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.4.36 positive (PHP, FPM, Request, Duration, P95): ingest synthetic events into `index=web` sourcetype='phpfpm:access' where `count` grouped by `pool` satisfies detection threshold for 'PHP-FPM Request Duration P95/P99 from Access Log'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.4.36 negative (Access Log): ingest benign `web` / `phpfpm:access` events where `pool` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'PHP-FPM Request Duration P95/P99 from Access Log'."
+  },
+  "dataSources": "Tail latency from FPM access log isolates application slowness independent of status snapshots. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder; optional Splunk Add-on for Unix and Linux (`Splunk_TA_nix`); custom `props.conf`/`transforms.conf` for `phpfpm:*` sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"phpfpm:access\"\n| eval dur_ms=tonumber(coalesce(request_time, request_duration, duration_ms))\n| where isnotnull(dur_ms)\n| timechart span=5m perc95(dur_ms) as p95_ms perc99(dur_ms) as p99_ms by pool",
-  "description": "Percentiles from the FPM access log quantify user-visible latency better than averages alone. P95/P99 spikes often precede saturation on status metrics.",
-  "value": "Supports SLO dashboards and error-budget discussions tied to real request timing.",
+  "description": "Identifies risk tied to PHP, FPM, Request, Duration, P95 through UC-8.4.36 on `index=web` sourcetype `phpfpm:access`. Summarises `count` grouped by `pool` across `5m` before applying configured threshold. Operators tune 'PHP-FPM Request Duration P95/P99 from Access Log' using UC-8.4.36 runbook steps.",
+  "value": "Tracking `activity` via UC-8.4.36 on `phpfpm:access` feeds improves response to 'PHP-FPM Request Duration P95/P99 from Access Log' and reduces operational risk and delayed incident response.",
   "implementation": "Configure `access.log` with `%d` duration; ingest as `phpfpm:access`. Map `request_time` in `props.conf`.",
   "visualization": "Time series (pool utilization, queue, latency percentiles), single value alerts, top charts for scripts and methods.",
   "cimModels": [
@@ -23,17 +29,33 @@
   "references": [
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "PHP-FPM configuration",
-      "url": "https://www.php.net/manual/en/"
+      "url": "https://www.php.net/manual/en/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Response time spikes during JVM garbage collection, connection pool exhaustion, or backend dependency degradation. Load tests, campaigns, and cold caches also move percentiles.",
+  "knownFalsePositives": "1. **Maintenance window on `web` (UC-8.4.36)** — Planned work for 'PHP-FPM Request Duration P95/P99 from Access Log' shifts `count` over `span=5m` while `pool` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `phpfpm:access`** — Scheduled automation elevates `dur_ms` without crossing configured threshold for UC-8.4.36. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pool`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `phpfpm:access`** — First 48h baseline for UC-8.4.36 on `pool` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pool`, `exception_reason`, `valid_until`.",
   "equipment": [
     "linux",
     "phpfpm"
+  ],
+  "equipmentModels": [
+    "linux_generic",
+    "phpfpm_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -42,6 +64,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We use this to support service goals dashboards and error-budget discussions tied to real request timing."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Universal Forwarder; optional Splunk Add-on for Unix and Linux (`Splunk_TA_nix`); custom `props.conf`/`transforms.conf` for `phpfpm:*` sourcetypes — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=phpfpm:access into web. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`pool`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to support service goals dashboards and error-budget discussions tied to real request timing.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

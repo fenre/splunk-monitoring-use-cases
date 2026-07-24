@@ -9,30 +9,55 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Step Functions executions (`aws:states:execution`).",
-  "app": "AWS Step Functions execution events via CloudWatch/EventBridge to the Splunk Add-on for AWS.",
+  "exclusions": "Covers the detection logic documented for 'AWS Step Functions State Machine Freshness SLA' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_aws_step_functions_state_machine_freshness_sla` (UC-24.7.53), SOC dashboard panel \"Operations — AWS Step Functions State Machine Freshness SLA\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.7.53 positive (AWS, Step, Functions, State, Machine): ingest synthetic events into `index=bi` sourcetype='aws:states:execution' where `count` grouped by `stateMachineName` satisfies `hours_stale` > 12 for 'AWS Step Functions State Machine Freshness SLA'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.53 negative (Freshness SLA): ingest benign `bi` / `aws:states:execution` events where `stateMachineName` stays below `hours_stale` > 12, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'AWS Step Functions State Machine Freshness SLA'."
+  },
+  "dataSources": "Step Functions executions (`aws:states:execution`). Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "AWS Step Functions execution events via CloudWatch/EventBridge to the Splunk Add-on for AWS. — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=bi sourcetype=aws:states:execution status=\"SUCCEEDED\"\n| stats latest(_time) as last_success by stateMachineName\n| eval hours_stale=round((now()-last_success)/3600,1)\n| where hours_stale>12\n| sort - hours_stale",
-  "description": "Tracks the last successful update of each AWS Step Functions state machine and flags those that have not refreshed within their freshness window, catching stale data even when no job reports a failure.",
-  "value": "A state machine can go stale without any error (a paused schedule, a missed trigger); freshness-SLA monitoring closes that blind spot for AWS Step Functions.",
+  "description": "Alerts on UC-24.7.53 — AWS, Step, Functions, State, Machine — using `index=bi` sourcetype `aws:states:execution`, grouped by `stateMachineName`. Outputs `count` each `the scheduled window`; alert when `hours_stale` > 12. Primary focus: Freshness SLA. Purpose-built for 'AWS Step Functions State Machine Freshness SLA' in Operations workflows.",
+  "value": "For 'AWS Step Functions State Machine Freshness SLA', UC-24.7.53 converts `activity` on `aws:states:execution` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Ingest AWS Step Functions success events; schedule hourly and alert when a critical state machine exceeds its freshness window.",
   "visualization": "Table of state machine by hours stale, freshness heat map.",
   "cimModels": [],
   "references": [
     {
       "title": "AWS Step Functions — Monitoring with CloudWatch",
-      "url": "https://docs.aws.amazon.com/step-functions/latest/dg/monitoring-logging.html"
+      "url": "https://docs.aws.amazon.com/step-functions/latest/dg/monitoring-logging.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for AWS",
-      "url": "https://splunkbase.splunk.com/app/1876"
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.7.53)** — Planned work for 'AWS Step Functions State Machine Freshness SLA' shifts `count` over `span=1h` while `stateMachineName` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:states:execution`** — Scheduled automation elevates `hours_stale` without crossing `hours_stale` > 12 for UC-24.7.53. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `stateMachineName`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:states:execution`** — First 48h baseline for UC-24.7.53 on `stateMachineName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `stateMachineName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],
-  "grandmaExplanation": "We check that each part of AWS Step Functions has updated recently so nobody relies on old data."
+  "equipmentModels": [
+    "aws_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (AWS Step Functions execution events via CloudWatch/EventBridge to the Splunk Add-on for AWS. — Splunk Add-on for Amazon Web Services (Splunkbase 1876)). Enable the modular input or HEC token that writes sourcetype=aws:states:execution into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`hours_stale, stateMachineName`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We check that each part of AWS Step Functions has updated recently so nobody relies on old data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

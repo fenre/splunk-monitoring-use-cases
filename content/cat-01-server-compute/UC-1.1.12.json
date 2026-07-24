@@ -8,11 +8,17 @@
     "Configuration"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=ntp` (scripted input via `ntpq -p` or `chronyc tracking`)",
-  "app": "`Splunk_TA_nix`",
+  "exclusions": "Covers the detection logic documented for 'NTP Time Sync Drift (Linux)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_ntp_time_sync_drift_linux` (UC-1.1.12), SOC dashboard panel \"Linux — NTP Time Sync Drift (Linux)\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.12 positive (NTP, Time, Sync, Drift, (Linux)): ingest synthetic events into `index=os` sourcetype='ntp' where `count` grouped by `host` satisfies `drift_ms` > 100, or `stratum` > 5 for 'NTP Time Sync Drift (Linux)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.12 negative (Drift (Linux)): ingest benign `os` / `ntp` events where `host` stays below `drift_ms` > 100, or `stratum` > 5, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 7 confirms zero alert rows for 'NTP Time Sync Drift (Linux)'."
+  },
+  "dataSources": "`sourcetype=ntp` (scripted input via `ntpq -p` or `chronyc tracking`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=ntp host=*\n| eval offset_ms = abs(offset)\n| stats latest(offset_ms) as drift_ms, latest(stratum) as stratum by host\n| where drift_ms > 100 OR stratum > 5\n| sort -drift_ms",
-  "description": "Clock drift causes authentication failures (Kerberos), log correlation issues, transaction ordering problems, and certificate validation failures.",
-  "value": "Clock drift causes authentication failures (Kerberos), log correlation issues, transaction ordering problems, and certificate validation failures.",
+  "description": "Monitors UC-1.1.12 — NTP, Time, Sync, Drift, (Linux) — using `index=os` sourcetype `ntp`, grouped by `host`. Outputs `count` each `the scheduled window`; alert when `drift_ms` > 100, or `stratum` > 5. Primary focus: Drift (Linux). Purpose-built for 'NTP Time Sync Drift (Linux)' in Linux workflows.",
+  "value": "UC-1.1.12 operationalises 'NTP Time Sync Drift (Linux)' against `ntp` feeds so operators reduce capacity incidents, patch regressions, and service outages without manual correlation.",
   "implementation": "Enable the `ntp` scripted input in Splunk_TA_nix (interval=300). It runs `ntpq -pn` and outputs peer data. The `offset` field is in milliseconds. Alert when offset exceeds 100ms or stratum exceeds 5.",
   "visualization": "Line chart (drift over time by host), Table of hosts with excessive drift.",
   "cimModels": [
@@ -21,13 +27,38 @@
   "references": [
     {
       "title": "Splunk_TA_nix",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "NTP or chrony can step the clock and change stratum briefly during source changes, VM moves, or maintenance. Alert on persistent drift, not a single sample.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'NTP Time Sync Drift (Linux)'. Correlate with apt/yum logs in the same `ntp` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `ntp`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `drift_ms` > 100.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix`.\n• Ensure the following data sources are available: `sourcetype=ntp` (scripted input via `ntpq -p` or `chronyc tracking`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable the `ntp` scripted input in Splunk_TA_nix (interval=300). It runs `ntpq -pn` and outputs peer data. The `offset` field is in milliseconds. Alert when offset exceeds 100ms or stratum exceeds 5.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=ntp host=*\n| eval offset_ms = abs(offset)\n| stats latest(offset_ms) as drift_ms, latest(stratum) as stratum by host\n| where drift_ms > 100 OR stratum > 5\n| sort -drift_ms\n```\n\nUnderstanding this SPL\n\n**NTP Time Sync Drift (Linux)** — Clock drift causes authentication failures (Kerberos), log correlation issues, transaction ordering problems, and certificate validation failures.\n\nDocumented **Data sources**: `sourcetype=ntp` (scripted input via `ntpq -p` or `chronyc tracking`). **App/TA** (typical add-on context): `Splunk_TA_nix`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: ntp. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=ntp. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **offset_ms** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where drift_ms > 100 OR stratum > 5` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nOn the host, compare with `top`, `htop`, `vmstat`, `iostat`, or `sar` as appropriate to this use case. For log-only detections, compare with the relevant file under `/var/log` (or `journalctl`) on a test host. Confirm that indexed event counts and field values line up with what you see on the system and that your role can search the right indexes and fields.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (drift over time by host), Table of hosts with excessive drift.\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "Clock drift causes authentication failures (Kerberos), log correlation issues, transaction ordering problems, and certificate validation failures — so you find out before users do when something is slowing down or breaking."
+  "grandmaExplanation": "Clock drift causes authentication failures (Kerberos), log correlation issues, transaction ordering problems, and certificate validation failures — so you find out before users do when something is slowing down or breaking.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

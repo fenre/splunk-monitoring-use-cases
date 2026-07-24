@@ -8,6 +8,8 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'NIST 800-53 Control Validation' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_nist_800_53_control_validation` (UC-10.12.41), SOC dashboard panel \"Security Infra — NIST 800-53 Control Validation\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "compliance": [
     {
       "regulation": "nist-800-53",
@@ -23,11 +25,15 @@
       "provenance": "maintainer"
     }
   ],
-  "dataSources": "Mixed — auth, change, vuln indexes tagged `control_id`",
-  "app": "Splunk ES, compliance frameworks",
+  "controlTest": {
+    "positiveScenario": "UC-10.12.41 positive (NIST, 800, Control, Validation): ingest synthetic events into `index=security` sourcetype='target_sourcetype' where `count` grouped by `control_id`, `host` satisfies detection threshold for 'NIST 800-53 Control Validation'. Validate lookup `nist_controls`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.12.41 negative (Control Validation): ingest benign `security` / `target_sourcetype` events where `control_id`, `host` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv`. Variant 14 confirms zero alert rows for 'NIST 800-53 Control Validation'."
+  },
+  "dataSources": "Mixed — auth, change, vuln indexes tagged `control_id` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk ES, compliance frameworks — Universal Forwarder (Splunkbase 617)",
   "spl": "index=security tag=nist_800_53\n| lookup nist_controls control_id OUTPUT family automated\n| where automated=\"true\" AND result=\"fail\"\n| stats latest(_time) as last_fail by control_id, host\n| sort control_id",
-  "description": "Operationalizes AU, AC, SI, and IR families via automated checks against ingested security telemetry.",
-  "value": "Operationalizes AU, AC, SI, and IR families via automated checks against ingested security telemetry.",
+  "description": "Alerts on UC-10.12.41 — NIST, 800, Control, Validation — using `index=security` sourcetype `configured sourcetype`, grouped by `control_id`, `host`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes lookup `nist_controls`. Purpose-built for 'NIST 800-53 Control Validation' in Security Infra workflows.",
+  "value": "Alerting on NIST, 800, Control, Validation through UC-10.12.41 reduces missed threat campaigns, control regressions, and SOC SLA breaches by surfacing `activity` early.",
   "implementation": "Map each control to correlation searches; feed failures into GRC; annual assessor exports.",
   "visualization": "Matrix (control × system), Trend (fail rate), Table (open findings).",
   "cimModels": [
@@ -37,10 +43,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "NIST Cybersecurity Framework",
+      "url": "https://www.nist.gov/cyberframework",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "NIST control checks that fail briefly during large patch waves, emergency changes, and compensating-control documentation refresh cycles; use the POA process.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ES, compliance frameworks.\n• Ensure the following data sources are available: Mixed — auth, change, vuln indexes tagged `control_id`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap each control to correlation searches; feed failures into GRC; annual assessor exports.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=security tag=nist_800_53\n| lookup nist_controls control_id OUTPUT family automated\n| where automated=\"true\" AND result=\"fail\"\n| stats latest(_time) as last_fail by control_id, host\n| sort control_id\n```\n\nUnderstanding this SPL\n\n**NIST 800-53 Control Validation** — Operationalizes AU, AC, SI, and IR families via automated checks against ingested security telemetry.\n\nDocumented **Data sources**: Mixed — auth, change, vuln indexes tagged `control_id`. **App/TA** (typical add-on context): Splunk ES, compliance frameworks. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: security.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=security, tags. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where automated=\"true\" AND result=\"fail\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by control_id, host** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nRun the search on recent production data, spot-check a handful of results against the source system or operational runbooks (cash operations, EHR, payment gateway, etc.), and adjust thresholds to match your seasonal patterns and test windows so teams are not flooded with noise.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Matrix (control × system), Trend (fail rate), Table (open findings).",
-  "grandmaExplanation": "In our line of business, we pay close attention to \"NIST 800-53 Control Validation\" in our day-to-day work so that fraud, waste, and compliance issues do not slip by quietly. We help teams focus on the few situations that need a person, not every routine blip in the data."
+  "knownFalsePositives": "1. **Maintenance window on `security` (UC-10.12.41)** — Planned work for 'NIST 800-53 Control Validation' shifts `count` over `span=1h` while `control_id`, `host` remains in-scope. Applies lookup `nist_controls`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `host` without crossing configured threshold for UC-10.12.41. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `control_id`, `host`** — Health checks in `security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-10.12.41 on `control_id` is unstable; join `nist_controls` prior to threshold.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `control_id`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ES, compliance frameworks.\n• Ensure the following data sources are available: Mixed — auth, change, vuln indexes tagged `control_id`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap each control to correlation searches; feed failures into GRC; annual assessor exports.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=security tag=nist_800_53\n| lookup nist_controls control_id OUTPUT family automated\n| where automated=\"true\" AND result=\"fail\"\n| stats latest(_time) as last_fail by control_id, host\n| sort control_id\n```\n\nUnderstanding this SPL\n\n**NIST 800-53 Control Validation** — Operationalizes AU, AC, SI, and IR families via automated checks against ingested security telemetry.\n\nDocumented **Data sources**: Mixed — auth, change, vuln indexes tagged `control_id`. **App/TA** (typical add-on context): Splunk ES, compliance frameworks. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: security.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=security, tags. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where automated=\"true\" AND result=\"fail\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by control_id, host** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nRun the search on recent production data, spot-check a handful of results against the source system or operational runbooks (cash operations, EHR, payment gateway, etc.), and adjust thresholds to match your seasonal patterns and test windows so teams are not flooded with noise.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Matrix (control × system), Trend (fail rate), Table (open findings).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk ES, compliance frameworks — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=see SPL into security. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`control_id, family automated, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "In our line of business, we pay close attention to \"NIST 800-53 Control Validation\" in our day-to-day work so that fraud, waste, and compliance issues do not slip by quietly. We help teams focus on the few situations that need a person, not every routine blip in the data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

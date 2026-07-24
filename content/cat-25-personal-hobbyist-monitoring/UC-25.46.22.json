@@ -8,31 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Character sheets (`rpg:character`), VTT sessions (`rpg:session`), initiative rounds (`rpg:initiative`), encounters (`rpg:combat`), campaign ops (`rpg:ops`).",
-  "app": "Tabletop campaign telemetry — D&D Beyond character exports, Roll20 session logs, initiative trackers, and campaign asset checklists — streamed to Splunk HEC via APIs, exports, and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Roll20 Handout Review Completion Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_roll20_handout_review_completion_rate` (UC-25.46.22), SOC dashboard panel \"Personal — Roll20 Handout Review Completion Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.46.22 positive (Roll20, Handout, Review, Completion, Rate): ingest synthetic events into `index=personal` sourcetype='rpg:session' where `sum` grouped by `handout_type` satisfies detection threshold for 'Roll20 Handout Review Completion Rate'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.46.22 negative (Completion Rate): ingest benign `personal` / `rpg:session` events where `handout_type` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 3 confirms zero alert rows for 'Roll20 Handout Review Completion Rate'."
+  },
+  "dataSources": "Character sheets (`rpg:character`), VTT sessions (`rpg:session`), initiative rounds (`rpg:initiative`), encounters (`rpg:combat`), campaign ops (`rpg:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Tabletop campaign telemetry — D&D Beyond character exports, Roll20 session logs, initiative trackers, and campaign asset checklists — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=rpg:session handout_type=* reviewed_before_session=*\n| stats count as total, sum(eval(if(reviewed_before_session=\"yes\",1,0))) as matched by handout_type\n| eval pre_session_review_pct=round(100*matched/total,1)\n| sort - pre_session_review_pct",
-  "description": "Measures the percentage of Roll20 handouts that end with pre-session review by handout type.",
-  "value": "Completion and exception percentages make it easier to spot which handout type are helping or hurting Roll20 handouts.",
+  "description": "Identifies when Completion Rate criteria fire for 'Roll20 Handout Review Completion Rate' (UC-25.46.22) in `index=personal` sourcetype `rpg:session`. Pipeline aggregates `sum` by `handout_type` over `the scheduled window`. Alert logic enforces configured threshold. Title terms: Roll20, Handout, Review, Completion, Rate. Eliminates manual hunting for UC-25.46.22 conditions.",
+  "value": "UC-25.46.22 helps teams contain Roll20, Handout, Review, Completion, Rate scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Store a normalized flag for `pre-session review` on `rpg:session` events and summarize the hit rate by `handout_type`.",
   "visualization": "Table of handout type with percentage of Roll20 handouts ending with pre-session review.",
   "cimModels": [],
   "references": [
     {
       "title": "D&D Beyond — digital tools",
-      "url": "https://www.dndbeyond.com/"
+      "url": "https://www.dndbeyond.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Roll20 — virtual tabletop",
-      "url": "https://roll20.net/"
+      "url": "https://roll20.net/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Improved Initiative — encounter tracker",
-      "url": "https://www.improved-initiative.com/"
+      "url": "https://www.improved-initiative.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It lists how often pre-session review happens for each handout type so you can see where Roll20 handouts go smoothly or get stuck."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.46.22)** — Connector for 'Roll20 Handout Review Completion Rate' stops polling `rpg:session`; stale `sum` on `handout_type` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected for UC-25.46.22, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `rpg:session`. Dedup with `stats latest(*) by handout_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Roll20 Handout Review Completion Rate'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Tabletop RPG Campaigns — typical feeds: Campaign sessions (`campaign:session`), NPC ledger (`npc:ledger`), loot drops (`loot:drop`), XP awards (`xp:award`)..\n• **Sourcetypes in this search**: `rpg:session`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=rpg:session`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Tabletop RPG telemetry — virtual-tabletop session logs (Roll20, Foundry VTT), campaign trackers (World Anvil), and XP / loot / NPC ledgers — streamed to Splunk HEC via scripted inputs..\n\n**Author notes:** Store a normalized flag for `pre-session review` on `rpg:session` events and summarize the hit rate by `handout_type`.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"rpg:session\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=rpg:session earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Roll20 Handout Review Completion Rate** over `personal` data (primarily `sourcetype=rpg:session`) across the full search range. The `sum` aggregation groups by `handout_type`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `handout_type`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=rpg:session handout_type=* reviewed_before_session=*\n| stats count as total, sum(eval(if(reviewed_before_session=\"yes\",1,0))) as matched by handout_type\n| eval pre_session_review_pct=round(100*matched/total,1)\n| sort - pre_session_review_pct\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=rpg:session earliest=-7d\n| head 50\n| table handout_type\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=rpg:session earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.46.22: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Handout Type With Percentage Of Roll20 Handouts Ending With Pre-Session Review (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `rpg:session` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=rpg:session | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It lists how often pre-session review happens for each handout type so you can see where Roll20 handouts go smoothly or get stuck.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

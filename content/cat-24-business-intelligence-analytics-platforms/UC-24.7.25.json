@@ -9,30 +9,55 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Prefect logs (`prefect:worker`, `prefect:agent`), REST API flow-run and work-pool queries (`prefect:api`).",
-  "app": "Prefect worker/agent logs via Universal Forwarder; Prefect REST API (`/api/flow_runs`, `/api/work_pools`) via HEC scripted inputs; Prefect server database via Splunk DB Connect where self-hosted.",
+  "exclusions": "Covers the detection logic documented for 'Prefect Work Pool Late Runs' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_prefect_work_pool_late_runs` (UC-24.7.25), SOC dashboard panel \"Operations — Prefect Work Pool Late Runs\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.7.25 positive (Prefect, Work, Pool, Late, Runs): ingest synthetic events into `index=bi` sourcetype='prefect:api' where `flows` grouped by `work_pool_name` satisfies `late_runs` > 0 for 'Prefect Work Pool Late Runs'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.25 negative (Late Runs): ingest benign `bi` / `prefect:api` events where `work_pool_name` stays below `late_runs` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Prefect Work Pool Late Runs'."
+  },
+  "dataSources": "Prefect logs (`prefect:worker`, `prefect:agent`), REST API flow-run and work-pool queries (`prefect:api`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Prefect worker/agent logs via Universal Forwarder; Prefect REST API (`/api/flow_runs`, `/api/work_pools`) via HEC scripted inputs; Prefect server database via Splunk DB Connect where self-hosted. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=prefect:api endpoint=\"flow_runs\" state_name=\"Late\"\n| stats count as late_runs, dc(flow_name) as flows by work_pool_name\n| where late_runs>0\n| sort - late_runs",
-  "description": "Surfaces flow runs stuck in the Late state per work pool, which means no worker polled the pool in time to start scheduled work.",
-  "value": "Late runs indicate a starved or offline work pool; catching them prevents whole schedules from silently stalling.",
+  "description": "Identifies UC-24.7.25 — Prefect, Work, Pool, Late, Runs — using `index=bi` sourcetype `prefect:api`, grouped by `work_pool_name`. Outputs `flows` each `the scheduled window`; alert when `late_runs` > 0. Primary focus: Late Runs. Purpose-built for 'Prefect Work Pool Late Runs' in Operations workflows.",
+  "value": "UC-24.7.25 operationalises 'Prefect Work Pool Late Runs' against `prefect:api` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Query flow runs filtered to Late state; schedule every 10 minutes and alert when late runs accumulate for a pool.",
   "visualization": "Table of work pool by late runs, timechart.",
   "cimModels": [],
   "references": [
     {
       "title": "Prefect — REST API reference",
-      "url": "https://docs.prefect.io/v3/api-ref/rest-api"
+      "url": "https://docs.prefect.io/v3/api-ref/rest-api",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Prefect — Automations & alerts",
-      "url": "https://docs.prefect.io/v3/automate/events/automations-triggers"
+      "url": "https://docs.prefect.io/v3/automate/events/automations-triggers",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.7.25)** — Planned work for 'Prefect Work Pool Late Runs' shifts `flows` over `span=1h` while `work_pool_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `prefect:api`** — Scheduled automation elevates `src` without crossing `late_runs` > 0 for UC-24.7.25. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `work_pool_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `prefect:api`** — First 48h baseline for UC-24.7.25 on `work_pool_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `work_pool_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect"
   ],
-  "grandmaExplanation": "We notice when Prefect jobs are stuck waiting because no worker is available, so you can bring capacity back before they miss their slot."
+  "equipmentModels": [
+    "db_connect_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Prefect worker/agent logs via Universal Forwarder; Prefect REST API (`/api/flow_runs`, `/api/work_pools`) via HEC scripted inputs; Prefect server database via Splunk DB Connect where self-hosted. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=prefect:api into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`late_runs, work_pool_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We notice when Prefect jobs are stuck waiting because no worker is available, so you can bring capacity back before they miss their slot.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

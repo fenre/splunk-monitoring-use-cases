@@ -8,21 +8,43 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Cellular Modem Failover Activation and Usage (Meraki MX)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_cellular_modem_failover_activation_and_usage_mer` (UC-5.2.35), SOC dashboard panel \"Operations — Cellular Modem Failover Activation and Usage (Meraki MX)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.2.35 positive (Cellular, Modem, Failover, Activation, and): ingest synthetic events into `index=meraki` sourcetype='meraki' where `values` grouped by `host`, `serial`, `]`, `cellular_device` satisfies -7d for 'Cellular Modem Failover Activation and Usage (Meraki MX)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.2.35 negative ((Meraki MX)): ingest benign `meraki` / `meraki` events where `host`, `serial`, `]`, `cellular_device` stays below -7d, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Cellular Modem Failover Activation and Usage (Meraki MX)'."
+  },
   "dataSources": "SC4S Meraki vendor pack (sourcetype=meraki) for cellular failover events plus Splunk_TA_cisco_meraki Summary Top Devices by Usage and Devices inputs for cellular-device-specific data volume. NOTE: per-SIM data plan consumption is NOT available from Meraki; pull billing data from the carrier (AT&T, Verizon) directly.",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype=\"meraki\" (does not require the API TA).",
   "spl": "index=meraki sourcetype=\"meraki\" type=events\n    (\"Cellular\" OR \"cellular\" OR \"LTE\" OR \"5G\")\n    earliest=-7d\n| rex \"Cellular connection (?<state>up|down)\"\n| stats count as cellular_events,\n        values(state) as states,\n        earliest(_time) as first_seen,\n        latest(_time) as last_seen\n         by host\n| eval span_hours = round((last_seen - first_seen)/3600, 1)\n| append [\n    search index=meraki sourcetype=\"meraki:summarytopdevicesbyusage\" earliest=-30d\n    | join type=left serial [\n        search index=meraki sourcetype=\"meraki:devices\" productType=\"cellularGateway\"\n        | stats latest(name) as cellular_device by serial\n      ]\n    | where isnotnull(cellular_device)\n    | stats latest(usage.total) as total_kb by cellular_device\n    | eval total_gb = round(total_kb/1024/1024, 2)\n  ]",
-  "description": "Tracks cellular backup activation to monitor failover effectiveness and cellular data usage.",
-  "value": "NOC teams track Meraki MX cellular modem failover activations and usage duration to monitor backup connectivity effectiveness and manage cellular data costs.",
+  "description": "Identifies UC-5.2.35 — Cellular, Modem, Failover, Activation, and — using `index=meraki` sourcetype `meraki`, grouped by `host`, `serial`, `]`, `cellular_device`. Outputs `values` each `the scheduled window`; alert when -7d. Primary focus: (Meraki MX). Purpose-built for 'Cellular Modem Failover Activation and Usage (Meraki MX)' in Operations workflows.",
+  "value": "UC-5.2.35 operationalises 'Cellular Modem Failover Activation and Usage (Meraki MX)' against `meraki` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "1. Configure SC4S for MX/MG syslog. 2. Cellular up/down transitions appear as type=events. 3. For 30-day cellular data totals join meraki:summarytopdevicesbyusage with meraki:devices filtered to productType=cellularGateway. 4. For per-SIM monthly billing breakdown integrate with the carrier API (out of Meraki TA scope).",
   "visualization": "Cellular usage timeline; failover event table; data usage gauge.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Meraki (Splunkbase 5631)",
+      "url": "https://splunkbase.splunk.com/app/5631",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Carriers, signal checks, and planned tests can make cellular backup logs busy without a site-down situation.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki` (UC-5.2.35)** — Planned work for 'Cellular Modem Failover Activation and Usage (Meraki MX)' shifts `values` over `span=1h` while `host`, `serial`, `]`, `cellular_device` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `meraki`** — Scheduled automation elevates `serial` without crossing configured threshold for UC-5.2.35. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `serial`, `]`, `cellular_device`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `meraki`** — First 48h baseline for UC-5.2.35 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
@@ -30,6 +52,12 @@
   "equipmentModels": [
     "cisco_meraki"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype=\"meraki\" (does not require the API TA)..\n• Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki) for cellular failover events plus Splunk_TA_cisco_meraki Summary Top Devices by Usage and Devices inputs for cellular-device-specific data volume. NOTE: per-SIM data plan consumption is NOT available from Meraki; pull billing data from the carrier (AT&T, Verizon) directly..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n1. Configure SC4S for MX/MG syslog. 2. Cellular up/down transitions appear as type=events. 3. For 30-day cellular data totals join meraki:summarytopdevicesbyusage with meraki:devices filtered to productType=cellularGateway. 4. For per-SIM monthly billing breakdown integrate with the carrier API (out of Meraki TA scope).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=meraki sourcetype=\"meraki\" type=events\n    (\"Cellular\" OR \"cellular\" OR \"LTE\" OR \"5G\")\n    earliest=-7d\n| rex \"Cellular connection (?<state>up|down)\"\n| stats count as cellular_events,\n        values(state) as states,\n        earliest(_time) as first_seen,\n        latest(_time) as last_seen\n         by host\n| eval span_hours = round((last_seen - first_seen)/3600, 1)\n| append [\n    search index=meraki sourcetype=\"meraki:summarytopdevicesbyusage\" earliest=-30d\n    | join type=left serial [\n        search index=meraki sourcetype=\"meraki:devices\" productType=\"cellularGateway\"\n        | stats latest(name) as cellular_device by serial\n      ]\n    | where isnotnull(cellular_device)\n    | stats latest(usage.total) as total_kb by cellular_device\n    | eval total_gb = round(total_kb/1024/1024, 2)\n  ]\n```\n\nUnderstanding this SPL\n\n**Cellular Modem Failover Activation and Usage (Meraki MX)** — NOC teams track Meraki MX cellular modem failover activations and usage duration to monitor backup connectivity effectiveness and manage cellular data costs.\n\nDocumented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) for cellular failover events plus Splunk_TA_cisco_meraki Summary Top Devices by Usage and Devices inputs for cellular-device-specific data volume. NOTE: per-SIM data plan consumption is NOT available from Meraki; pull billing data from the carrier (AT&T, Verizon) directly. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype=\"meraki\" (does not require the API TA). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=meraki, sourcetype=\"meraki\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts fields with `rex` (regular expression).\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **span_hours** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Appends rows from a subsearch with `append`.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Cellular usage timeline; failover event table; data usage gauge.",
-  "grandmaExplanation": "We mark when a site leans on cellular backup so you know who is on expensive paths and can fix the main line with less guesswork."
+  "grandmaExplanation": "We mark when a site leans on cellular backup so you know who is on expensive paths and can fix the main line with less guesswork.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

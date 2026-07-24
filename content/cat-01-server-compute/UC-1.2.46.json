@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=WinEventLog:DFS Replication` (EventCode 4012, 4302, 4304, 5002, 5008)",
-  "app": "`Splunk_TA_windows`",
+  "exclusions": "Covers the detection logic documented for 'DFS-R Replication Backlog' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_dfs_r_replication_backlog` (UC-1.2.46), SOC dashboard panel \"Linux — DFS-R Replication Backlog\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.2.46 positive (DFS, Replication, Backlog): ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=4012 where `count` grouped by `entity` satisfies detection threshold for 'DFS-R Replication Backlog'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.2.46 negative (Replication Backlog): ingest benign `wineventlog` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 7 confirms zero alert rows for 'DFS-R Replication Backlog'."
+  },
+  "dataSources": "`sourcetype=WinEventLog:DFS Replication` (EventCode 4012, 4302, 4304, 5002, 5008) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog source=\"WinEventLog:DFS Replication\" EventCode IN (4012, 4302, 4304, 5002, 5008)\n| eval issue=case(EventCode=4012,\"Auto-recovery started\",EventCode=4302,\"Staging quota exceeded\",EventCode=4304,\"Backlog exceeded limit\",EventCode=5002,\"Initial sync unexpected\",EventCode=5008,\"Connection failed\")\n| table _time, host, issue, ReplicationGroupName, PartnerName\n| sort -_time",
-  "description": "DFS-R replication backlogs mean file servers are out of sync. Users may access stale data, and a prolonged backlog can trigger an initial sync (full re-replication).",
-  "value": "Replication backlog is a data-loss and recovery-time problem—if you only notice during an outage, you are late.",
+  "description": "Identifies UC-1.2.46 — DFS, Replication, Backlog — using `index=wineventlog` sourcetype `configured sourcetype`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Replication Backlog. Purpose-built for 'DFS-R Replication Backlog' in Linux workflows.",
+  "value": "UC-1.2.46 operationalises 'DFS-R Replication Backlog' against UC-1.2.46 search results so operators reduce capacity incidents, patch regressions, and service outages without manual correlation.",
   "implementation": "Forward DFS Replication event logs from all DFS members. EventCode 4304=backlog exceeds threshold (default 100 files), 5008=connection failure between partners. Alert on backlog thresholds and connection failures. Monitor EventCode 4012 (auto-recovery) — frequent occurrences indicate unstable replication. Use `dfsrdiag backlog` via scripted input for precise backlog counts.",
   "visualization": "Table (replication issues), Line chart (backlog trend), Status grid (partner × status).",
   "cimModels": [
@@ -24,13 +30,38 @@
   "references": [
     {
       "title": "Splunk_TA_windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "First sync, WAN throttling, and staging size tuning create churn. A backlog during initial build is not the same as a permanent split-brain—check replication health in DFS UI.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'DFS-R Replication Backlog'. Correlate with apt/yum logs in the same `cpu` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `cpu`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],
+  "equipmentModels": [
+    "windows_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:DFS Replication` (EventCode 4012, 4302, 4304, 5002, 5008).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward DFS Replication event logs from all DFS members. EventCode 4304=backlog exceeds threshold (default 100 files), 5008=connection failure between partners. Alert on backlog thresholds and connection failures. Monitor EventCode 4012 (auto-recovery) — frequent occurrences indicate unstable replication. Use `dfsrdiag backlog` via scripted input for precise backlog counts.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog source=\"WinEventLog:DFS Replication\" EventCode IN (4012, 4302, 4304, 5002, 5008)\n| eval issue=case(EventCode=4012,\"Auto-recovery started\",EventCode=4302,\"Staging quota exceeded\",EventCode=4304,\"Backlog exceeded limit\",EventCode=5002,\"Initial sync unexpected\",EventCode=5008,\"Connection failed\")\n| table _time, host, issue, ReplicationGroupName, PartnerName\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**DFS-R Replication Backlog** — DFS-R replication backlogs mean file servers are out of sync. Users may access stale data, and a prolonged backlog can trigger an initial sync (full re-replication).\n\nDocumented **Data sources**: `sourcetype=WinEventLog:DFS Replication` (EventCode 4012, 4302, 4304, 5002, 5008). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **issue** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **DFS-R Replication Backlog**): table _time, host, issue, ReplicationGroupName, PartnerName\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Change where nodename=Change.All_Changes\n  by All_Changes.dest All_Changes.object span=1h\n| where count>0\n```\n\nUnderstanding this CIM / accelerated SPL\n\nCIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.\n\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (replication issues), Line chart (backlog trend), Status grid (partner × status).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We help you know when file copies between sites are piling up, which can make different offices see different versions of the same data."
+  "grandmaExplanation": "We help you know when file copies between sites are piling up, which can make different offices see different versions of the same data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

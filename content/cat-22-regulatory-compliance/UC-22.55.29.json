@@ -1,0 +1,125 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.55.29",
+  "title": "CLC/TS 50701 maintenance cybersecurity — depot and on-board system hardening evidence",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Rail",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes patches to formally decommissioned assets. Excludes purely cosmetic patches with no safety relevance. Excludes patches deployed during commissioning (those follow new-build acceptance, not patch-management).",
+  "evidence": "Saved search `UC-22.55.29` archived every 6 hours to `audit_evidence` with `clc_clause=\"CLC-TS-50701-c12-1\"`. Every row pins (patch_id, asset_id, patch_vendor_release_at, safety_review_signed_at, safety_review_signed_by, change_window_id, patch_deployed_at, patch_status). Dashboard `CLC/TS 50701 — Patch with Safety Coordination` shows patch posture.",
+  "compliance": [
+    {
+      "regulation": "clc-ts-50701",
+      "version": "2021-with-iec63452-alignment",
+      "clause": "CLC-TS-50701-c12-1",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Clause 8.2 requires patch management coordinated with the safety case under EN 50126/8/9. Patches to safety-significant systems must be reviewed against the safety case before deployment. UC-22.55.29 instruments the safety-review gate.",
+      "controlObjective": "Proves every patch to a safety-significant asset is reviewed against the safety case, signed by the Head of Safety, deployed within an approved change window, and verified post-deployment.",
+      "evidenceArtifact": "Saved search `UC-22.55.29` archived to `audit_evidence`, the `CLC/TS 50701 — Patch with Safety Coordination` dashboard, and the safety-review document.",
+      "obligationRef": "clc-ts-50701@2021-with-iec63452-alignment#CLC-TS-50701-c12-1",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Mark a patch as deployed (`patch_deployed_at=now`) on a safety-significant asset without `safety_review_signed_at` set. UC-22.55.29 MUST flag `patch_status=\"safety_review_missing\"` immediately.",
+    "negativeScenario": "Sign safety review, deploy within change window, verify post-deployment; UC-22.55.29 MUST record `patch_status=\"compliant\"`."
+  },
+  "dataSources": "KV Store `rail50701_c12_1_lookup`. KV Store `rail_change_window_lookup`. ServiceNow Change Management (`snow:change_request`). Cross-reference to `rail_asset_inventory_lookup` (UC-22.55.3).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "| inputlookup rail50701_c12_1_lookup\n| where patch_status_in_register=\"deployed\" OR patch_status_in_register=\"in_progress\"\n| lookup rail_asset_inventory_lookup asset_id OUTPUT asset_safety_level\n| eval safety_significant = if(asset_safety_level IN (\"SIL-1\",\"SIL-2\",\"SIL-3\",\"SIL-4\"), 1, 0)\n| eval patch_status = case(\n    isnotnull(patch_deployed_at) AND safety_significant=1 AND isnull(safety_review_signed_at), \"safety_review_missing\",\n    isnotnull(patch_deployed_at) AND isnull(change_window_id), \"no_change_window\",\n    isnotnull(patch_deployed_at) AND isnull(post_deployment_verified_at), \"post_deploy_unverified\",\n    isnotnull(patch_deployed_at) AND isnotnull(safety_review_signed_at) AND isnotnull(change_window_id) AND isnotnull(post_deployment_verified_at), \"compliant\",\n    isnull(patch_deployed_at) AND patch_due_at < now() AND safety_significant=1 AND isnotnull(safety_review_signed_at), \"deploy_ready\",\n    1=1, \"in_progress\")\n| where patch_status IN (\"safety_review_missing\",\"no_change_window\",\"post_deploy_unverified\")\n| table patch_id asset_id asset_safety_level patch_vendor_release_at safety_review_signed_at safety_review_signed_by change_window_id patch_deployed_at post_deployment_verified_at patch_status",
+  "description": "CLC/TS 50701 maintenance cybersecurity — Splunk continuously validates CLC-TS-50701-c12-1 using the saved search in this UC, routes gaps to Enterprise Security notables, and archives proof rows to `audit_evidence`.",
+  "value": "Inspectors ask for proof that «CLC/TS 50701 maintenance cybersecurity» is operational today, not at last audit. Missing live evidence for CLC-TS-50701-c12-1 is a direct regulatory deficiency with enforcement exposure.",
+  "implementation": "(1) Maintain `rail50701_c12_1_lookup`. (2) Head of Safety signs each safety review in ServiceNow GRC. (3) Engineering deploys in approved change window. (4) Schedule UC-22.55.29 every 6 hours.",
+  "visualization": "(Panel 1) Patch posture by asset class. (Panel 2) Safety-review queue. (Panel 3) Change-window calendar. (Panel 4) Post-deploy verification.",
+  "cimModels": [
+    "Alerts",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "EN 50126:2017 — Railway applications - RAMS",
+      "url": "https://www.cenelec.eu/dyn/www/f?p=104:110:0::::FSP_PROJECT,FSP_LANG_ID:62049,25"
+    },
+    {
+      "title": "CLC/TS 50701:2021 clause 8.2",
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+    },
+    {
+      "title": "CLC/TS 50701:2021 Railway cybersecurity",
+      "url": "https://www.cenelec.eu/"
+    },
+    {
+      "title": "ENISA Rail Threat Landscape",
+      "url": "https://www.enisa.europa.eu/"
+    }
+  ],
+  "knownFalsePositives": "1. **Planned maintenance window** — documented change windows in lookup `rail50701_22_55_29_exceptions` suppress benign activity during approved work.\n\n2. **Pen-test / red-team activity** — engagements with agreed rules-of-engagement marker excluded via lookup `rail50701_22_55_29_exceptions`.\n\n3. **Vendor remote-access sessions** — authorised vendor PAM sessions cross-reference lookup `rail50701_22_55_29_exceptions` before alerting.\n\n4. **Regulatory transition / grace period** — time-bound exception register entry in lookup `rail50701_22_55_29_exceptions` with documented approver and expiry.\n\n**Suppression mechanism**: filter results with lookup `rail50701_22_55_29_exceptions` (time-bound exception register); rows must carry `approved_by` and `valid_until` epoch fields.",
+  "mitreAttack": [
+    "N/A (patch-deployment governance)"
+  ],
+  "requiredFields": [
+    "patch_id",
+    "asset_id",
+    "safety_review_signed_at",
+    "patch_status"
+  ],
+  "equipment": [
+    "servicenow",
+    "splunk-es",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "ServiceNow Change Management",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
+    "Splunk SOAR 6.x (Splunkbase 4413, rail-patch-safety-gate playbook)"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-07-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Compliance SME Panel (finalized; pending verification)",
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail50701_c12_1_lookup`.\n\n## Step 1 — Patch register collection\n\n```ini\n[rail50701_c12_1_lookup]\nenforceTypes = true\nfield.patch_id = string\nfield.asset_id = string\nfield.patch_vendor_release_at = number\nfield.safety_review_signed_at = number\nfield.safety_review_signed_by = string\nfield.change_window_id = string\nfield.patch_deployed_at = number\nfield.post_deployment_verified_at = number\nfield.patch_status_in_register = string\n```\n\n## Step 2 — Safety-review gate\n\nSOAR `rail-patch-safety-gate` blocks deployment until `safety_review_signed_at` is set for safety-significant assets.\n\n## Step 3 — Search and alert\n\n```ini\n[UC-22.55.29: CLC/TS 50701 Patch + Safety]\ncron_schedule = 0 */6 * * *\ndispatch.earliest_time = -90d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.29,reg=CLC-TS-50701,clause=CLC-TS-50701-c12-1\naction.notable.param.rule_title = Rail safety-significant patch without safety review\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\n## Step 4 — Operationalize\n\n**Runbook for `safety_review_missing`** (owner: Head of Safety, severity P1): immediately rollback or run expedited review.\n\n## Step 5 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Inter-system patch dependencies**: a patch to one signal system may require coordinated patching of adjacent systems.\n- **Notified Body review of patch process**: NB inspects patch records.\n- **Vendor patch cycles**: many rail vendors batch patches quarterly; tracking via `patch_due_at`.\n\n## Step 5 — Troubleshooting\n\n**Product-specific failure modes**:\n\n- **ServiceNow SIR custom-field drift** — if `csa_awareness_time` or `tsa_awareness_time` is NULL, verify the Security Incident Response workflow still writes the field on state transition to `In Progress`; compare against the vendor UI on the open ticket.\n- **KV Store sync lag** — if the lookup row updates but the saved search still surfaces stale status, confirm the `outputlookup` command completed (`| rest /services/data/transforms/lookup-table-files` shows matching row count).\n- **HEC token / modular-input silence** — run `index=_internal sourcetype=splunkd component=AggregatorMiningProcessor` for the source; no events for >2× the expected poll interval indicates an API or forwarder failure.\n- **Summary-index routing gaps** — validate `action.summary_index._name = audit_evidence` and RBAC role `compliance-analyst` retains write on the destination index.",
+  "grandmaExplanation": "When we install a software update on signal boxes or train brains, the head of safety must check it doesn't make trains less safe. We track every update; if anyone tries to install without that safety check, the alarm rings loudly.",
+  "prerequisiteUseCases": [
+    "UC-22.55.1"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "optional",
+      "requiresSmeReview": false
+    }
+  ],
+  "wave": "run"
+}

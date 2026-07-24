@@ -9,11 +9,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Prometheus self-metrics via remote write (`prometheus_rule_evaluation_misses_total`)",
-  "app": "Prometheus 2.x with process metrics scraped or remote-written",
+  "exclusions": "Covers the detection logic documented for 'Prometheus Rule Evaluation Missed or Skipped Evaluations' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_prometheus_rule_evaluation_missed_or_skipped_eva` (UC-13.1.54), SOC dashboard panel \"Operations — Prometheus Rule Evaluation Missed or Skipped Evaluations\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-13.1.54 positive (Prometheus, Rule, Evaluation, Missed, Skipped): ingest synthetic events into `index=prometheus` sourcetype='target_sourcetype' where `misses` grouped by `rule_group`, `job` satisfies `misses` > 0 for 'Prometheus Rule Evaluation Missed or Skipped Evaluations'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-13.1.54 negative (Skipped Evaluations): ingest benign `prometheus` / `target_sourcetype` events where `rule_group`, `job` stays below `misses` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Prometheus Rule Evaluation Missed or Skipped Evaluations'."
+  },
+  "dataSources": "Prometheus self-metrics via remote write (`prometheus_rule_evaluation_misses_total`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Prometheus 2.x with process metrics scraped or remote-written — Universal Forwarder (Splunkbase 617)",
   "spl": "| mstats sum(_value) AS misses WHERE index=prometheus metric_name=\"prometheus_rule_evaluation_misses_total\" span=1h BY rule_group, job\n| where misses > 0\n| sort - misses",
-  "description": "Missed evaluations delay alerting on critical SLO and security rules.",
-  "value": "Surfaces overloaded Prometheus or slow queries blocking rule groups.",
+  "description": "Alerts on UC-13.1.54 for Prometheus, Rule, Evaluation, Missed, Skipped over `index=prometheus` sourcetype `configured sourcetype` with thresholds `misses` > 0. Groups `misses` by `rule_group`, `job` each `1h`. Centered on Skipped Evaluations indicators. Supports repeatable operations triage for 'Prometheus Rule Evaluation Missed or Skipped Evaluations'.",
+  "value": "For 'Prometheus Rule Evaluation Missed or Skipped Evaluations', UC-13.1.54 converts `misses` on UC-13.1.54 search results into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Join with `prometheus_rule_group_duration_seconds` if ingested.",
   "visualization": "Bar chart (misses by group), Single value (total misses).",
   "cimModels": [
@@ -23,16 +29,31 @@
   "references": [
     {
       "title": "Prometheus documentation — monitoring Prometheus",
-      "url": "https://prometheus.io/docs/prometheus/"
+      "url": "https://prometheus.io/docs/prometheus/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk OpenTelemetry Collector",
-      "url": "https://docs.splunk.com/observability/en/gdi/opentelemetry/opentelemetry.html"
+      "url": "https://docs.splunk.com/observability/en/gdi/opentelemetry/opentelemetry.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Skips during scheduler load spikes, after restart catch-up, or during upgrade windows. We check activity and change windows before we call it a fault.",
+  "knownFalsePositives": "1. **Maintenance window on `prometheus` (UC-13.1.54)** — Planned work for 'Prometheus Rule Evaluation Missed or Skipped Evaluations' shifts `misses` over `span=1h` while `rule_group`, `job` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `configured_sourcetype`** — Scheduled automation elevates `job` without crossing `misses` > 0 for UC-13.1.54. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `rule_group`, `job`** — Health checks in `prometheus` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-13.1.54 on `rule_group` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `rule_group`, `exception_reason`, `valid_until`.",
   "equipment": [
     "prometheus"
+  ],
+  "equipmentModels": [
+    "prometheus_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch when scheduled work is skipped or delayed so we are not blind to what alerts and reports were supposed to do."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Prometheus 2.x with process metrics scraped or remote-written — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=see SPL into prometheus. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`job, misses, rule_group`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch when scheduled work is skipped or delayed so we are not blind to what alerts and reports were supposed to do.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=iap:access`, `zscaler:zpa`",
+  "exclusions": "Covers the detection logic documented for 'Identity-Aware Proxy Access Anomalies' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_identity_aware_proxy_access_anomalies` (UC-17.3.16), SOC dashboard panel \"Network — Identity-Aware Proxy Access Anomalies\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.16 positive (Identity, Aware, Proxy, Access, Anomalies): ingest synthetic events into `index=zt` sourcetype='zscaler:zpa' where `apps_today`, `baseline` grouped by `user`, `day` satisfies `apps_today` > 5 for 'Identity-Aware Proxy Access Anomalies'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.16 negative (Access Anomalies): ingest benign `zt` / `zscaler:zpa` events where `user`, `day` stays below `apps_today` > 5, or exclude the test entity via `network_exception_register.csv`. Variant 13 confirms zero alert rows for 'Identity-Aware Proxy Access Anomalies'."
+  },
+  "dataSources": "`sourcetype=iap:access`, `zscaler:zpa` Indexes: zt. Sourcetypes: zscaler:zpa. Key fields: apps_today, day, user. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Google IAP, `Splunk_TA_microsoft-cloudservices` (Azure AD App Proxy), `Splunk_TA_zscaler` (ZPA), Cloudflare App for Splunk (Splunkbase 4501), Netskope Add-on for Splunk (Splunkbase 3808)",
   "spl": "index=zt sourcetype=\"zscaler:zpa\" earliest=-30d\n| eval day=strftime(_time,\"%Y-%m-%d\")\n| stats dc(application) as apps_today by user, day\n| eventstats avg(apps_today) as baseline by user\n| where apps_today > baseline*3 AND apps_today>5\n| table user, day, apps_today, baseline",
-  "description": "Baselines per-user access to internal apps via IAP/ZTNA; flags new apps, odd hours, or geos.",
-  "value": "Security analysts detect anomalous access patterns through identity-aware proxies — users accessing more applications than peers, accessing from multiple countries, or operating outside normal hours — as indicators of credential compromise or insider threat.",
+  "description": "Alerts on UC-17.3.16 — Identity, Aware, Proxy, Access, Anomalies — using `index=zt` sourcetype `zscaler:zpa`, grouped by `user`, `day`. Outputs `apps_today`, `baseline` each `the scheduled window`; alert when `apps_today` > 5. Primary focus: Access Anomalies. Purpose-built for 'Identity-Aware Proxy Access Anomalies' in Network workflows.",
+  "value": "UC-17.3.16 gives Network teams earlier visibility into Access Anomalies through `zscaler:zpa` feeds, lowering unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Adapt to Google IAP JSON logs. Whitelist break-glass accounts.",
   "visualization": "Table (anomalies), Line chart (apps accessed per user), Heatmap (user × app).",
   "cimModels": [
@@ -23,22 +29,26 @@
   "references": [
     {
       "title": "Cloudflare App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/4501"
+      "url": "https://splunkbase.splunk.com/app/4501",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Netskope Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3808"
+      "url": "https://splunkbase.splunk.com/app/3808",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk_TA_microsoft-cloudservices",
-      "url": "https://splunkbase.splunk.com/app/3110"
+      "url": "https://splunkbase.splunk.com/app/3110",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Remote workforce login storm** — Morning VPN/ZTNA session spike for 'Identity-Aware Proxy Access Anomalies'. Compare with historical same-hour baseline.\n\n2. **IdP or SAML metadata refresh** — Brief auth failures during federation cert rotation.\n\n3. **Split-tunnel policy change** — New route advertisements shift traffic patterns.\n\n4. **Synthetic ZTNA health checks** — Monitoring probes from known appliance IPs.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `user`, `src`, `valid_until`.",
   "mitreAttack": [
     "T1090",
     "T1071.001",
@@ -51,6 +61,17 @@
     "netskope",
     "zscaler"
   ],
-  "detailedImplementation": "Prerequisites\n• Identity-Aware Proxy (IAP) logs from Google BeyondCorp, Cloudflare Access, or Zscaler ZPA. Data in `index=ztna`. Cloudflare Access: `sourcetype=cloudflare:access`. Key fields: `user_email`, `app_name`, `allowed` (true/false), `ip_address`, `country`, `device_posture`, `session_duration`.\n• IAP authenticates every request, not just the initial connection. Anomalies include: access from unusual locations, unusual times, accessing applications outside the user's normal pattern, or rapid application switching that suggests automated reconnaissance.\n\nStep 1 — Configure data collection\nVerify IAP data:\n```spl\nindex=ztna sourcetype=\"cloudflare:access\" earliest=-24h\n| stats count by allowed\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Access pattern anomalies:\n```spl\nindex=ztna earliest=-24h\n| stats dc(app_name) as apps_accessed dc(country) as countries count as requests earliest(_time) as first_access latest(_time) as last_access by user_email\n| eventstats avg(apps_accessed) as avg_apps stdev(apps_accessed) as stdev_apps\n| eval app_zscore=round((apps_accessed - avg_apps) / if(stdev_apps>0, stdev_apps, 1), 2)\n| where app_zscore > 2 OR countries > 1\n| sort - app_zscore\n```\n\nUnderstanding this SPL: Flags users who access significantly more applications than their peers or access from multiple countries in one day. An unusually high application count from one user suggests either a compromised account (attacker enumerating accessible resources) or an admin doing legitimate work. Multi-country access in 24h is a strong indicator of credential compromise.\n\nOff-hours access:\n```spl\nindex=ztna earliest=-7d\n| eval hour=strftime(_time, \"%H\")\n| where hour<\"06\" OR hour>\"22\"\n| stats count by user_email, app_name\n| sort - count\n```\n\nStep 3 — Validate\n(a) Access multiple applications from a test account. Verify the anomaly triggers.\n(b) Verify normal single-app access does not trigger.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Anomalous users. Row 2 — Multi-country access. Row 3 — Off-hours access.\nAlert: Immediate on multi-country access for same user.\n\nRunbook:\n1. **Multi-country** — Likely credential compromise or VPN. Force re-authentication.\n2. **App enumeration** — Check if user role justifies breadth. If not, investigate.\n3. **Off-hours** — Compare with on-call schedules. If unexpected, verify with user.\n\nStep 5 — Troubleshooting\n• **Country always same** — Users may be behind a corporate proxy. Check for proxy IP.\n• **No anomalies detected** — Lower the z-score threshold or extend the lookback.",
-  "grandmaExplanation": "Our identity-aware proxy checks who you are every time you access an application. We look for unusual patterns — like someone suddenly accessing ten different applications when they normally use two, or logging in from two different countries on the same day — because these patterns often mean someone stole their password."
+  "equipmentModels": [
+    "azure_generic",
+    "cloudflare_generic",
+    "m365_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Identity-Aware Proxy (IAP) logs from Google BeyondCorp, Cloudflare Access, or Zscaler ZPA. Data in `index=ztna`. Cloudflare Access: `sourcetype=cloudflare:access`. Key fields: `user_email`, `app_name`, `allowed` (true/false), `ip_address`, `country`, `device_posture`, `session_duration`.\n• IAP authenticates every request, not just the initial connection. Anomalies include: access from unusual locations, unusual times, accessing applications outside the user's normal pattern, or rapid application switching that suggests automated reconnaissance.\n\nStep 1 — Configure data collection\nVerify IAP data:\n```spl\nindex=ztna sourcetype=\"cloudflare:access\" earliest=-24h\n| stats count by allowed\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Access pattern anomalies:\n```spl\nindex=ztna earliest=-24h\n| stats dc(app_name) as apps_accessed dc(country) as countries count as requests earliest(_time) as first_access latest(_time) as last_access by user_email\n| eventstats avg(apps_accessed) as avg_apps stdev(apps_accessed) as stdev_apps\n| eval app_zscore=round((apps_accessed - avg_apps) / if(stdev_apps>0, stdev_apps, 1), 2)\n| where app_zscore > 2 OR countries > 1\n| sort - app_zscore\n```\n\nUnderstanding this SPL: Flags users who access significantly more applications than their peers or access from multiple countries in one day. An unusually high application count from one user suggests either a compromised account (attacker enumerating accessible resources) or an admin doing legitimate work. Multi-country access in 24h is a strong indicator of credential compromise.\n\nOff-hours access:\n```spl\nindex=ztna earliest=-7d\n| eval hour=strftime(_time, \"%H\")\n| where hour<\"06\" OR hour>\"22\"\n| stats count by user_email, app_name\n| sort - count\n```\n\nStep 3 — Validate\n(a) Access multiple applications from a test account. Verify the anomaly triggers.\n(b) Verify normal single-app access does not trigger.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Anomalous users. Row 2 — Multi-country access. Row 3 — Off-hours access.\nAlert: Immediate on multi-country access for same user.\n\nRunbook:\n1. **Multi-country** — Likely credential compromise or VPN. Force re-authentication.\n2. **App enumeration** — Check if user role justifies breadth. If not, investigate.\n3. **Off-hours** — Compare with on-call schedules. If unexpected, verify with user.\n\nStep 5 — Troubleshooting\n• **Country always same** — Users may be behind a corporate proxy. Check for proxy IP.\n• **No anomalies detected** — Lower the z-score threshold or extend the lookback.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Google IAP, `Splunk_TA_microsoft-cloudservices` (Azure AD App Proxy), `Splunk_TA_zscaler` (ZPA), Cloudflare App for Splunk (Splunkbase 4501), Netskope Add-on for Splunk (Splunkbase 3808)). Enable the modular input or HEC token that writes sourcetype=zscaler:zpa into zt. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`apps_today, day, user`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "Our identity-aware proxy checks who you are every time you access an application. We look for unusual patterns — like someone suddenly accessing ten different applications when they normally use two, or logging in from two different countries on the same day — because these patterns often mean someone stole their password.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

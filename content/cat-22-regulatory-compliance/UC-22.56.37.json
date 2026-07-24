@@ -1,0 +1,144 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.56.37",
+  "title": "TSA-SD Passenger Rail CIP control family 3 — continuous monitoring and detection coverage",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Passenger Rail",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes dev / lab / test environments. Excludes detection content explicitly marked `tsa_56_5_scope=false` (e.g. content for non-TSA-regulated cloud SaaS).",
+  "evidence": "Saved search `UC-22.56.37` archived every hour to `audit_evidence` with `tsa_sd_clause=\"TSA-SD-1582-2022-01-cf-3\"`. Every row pins (facility_id, threat_category, detection_rule_count, ioc_actionable_lag_minutes_p95, alerts_24h, suppressed_pct, last_tuning_date, coverage_status).",
+  "compliance": [
+    {
+      "regulation": "tsa-surface",
+      "version": "2024-consolidated-pipeline-rail",
+      "clause": "TSA-SD-1582-2022-01-cf-3",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "TSA-SD Pipeline CIP control family 3 requires continuous monitoring + detection producing timely, actionable alerts. This UC measures: (a) detection-content presence per threat-category, (b) IOC-to-alert lag, (c) alert volume + suppression rates, (d) tuning currency. Marked 'full' because all four facets are operationalised.",
+      "controlObjective": "Proves continuous OT + IT monitoring produces actionable, timely detections aligned to documented threat categories.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `TSA-SD Pipeline Detection Coverage` dashboard, and the detection-content inventory exported to the TSA CSAS package.",
+      "obligationRef": "tsa-surface@2024-consolidated-pipeline-rail#TSA-SD-1582-2022-01-cf-3",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Disable the entire OT-detection content set for a test facility (e.g. simulate by removing all enabled rules tagged `tsa_passenger_facility=<test_facility_id>`). Within 1 hour UC-22.56.37 MUST flag `coverage_status=\"insufficient\"` and notify the Detection Engineering Lead.",
+    "negativeScenario": "With ≥5 enabled rules per documented threat category, p95 IOC-actionable-lag <30 minutes, and last_tuning_date within 90 days, UC-22.56.37 MUST record `coverage_status=\"current\"`."
+  },
+  "dataSources": "Splunk ES correlation-search inventory via `| rest /servicesNS/-/SA-AccessProtection/saved/searches` (or equivalent). Notable index for alert volume and tuning measurements (`index=notable`). Cisco Cyber Vision / Claroty / Nozomi / Dragos detections (`cisco:cybervision:event`, `claroty:ctd:event`, `nozomi:guardian:event`, `dragos:platform:event`). CISA Known Exploited Vulnerabilities feed (`ta_cisa_kev:kev`). Pipeline threat-category register (KV Store `tsa_passenger_monitoring_lookup`).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Cisco Cyber Vision (Splunkbase 6071), Splunk Add-on for Claroty (Splunkbase 5018), Splunk Add-on for Nozomi Networks (Splunkbase 4894), Splunk Add-on for Dragos (Splunkbase 5048), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "| rest /servicesNS/-/SA-AccessProtection/saved/searches\n| search action.correlationsearch.enabled=1 action.correlationsearch.annotations=*tsa_passenger*\n| eval threat_category = mvfilter(match(action.correlationsearch.annotations, \"threat_category\"))\n| stats count as detection_rule_count list(title) as enabled_rules max(updated) as last_tuning_epoch by threat_category\n| eval last_tuning_date = strftime(last_tuning_epoch, \"%Y-%m-%d\")\n| eval last_tuning_days = round((now() - last_tuning_epoch) / 86400, 0)\n| append [search `notable` action.correlationsearch.annotations=*tsa_passenger* earliest=-24h\n  | eval ioc_actionable_lag_minutes = round((_time - alert_first_seen_time) / 60, 2)\n  | stats count as alerts_24h p95(ioc_actionable_lag_minutes) as ioc_actionable_lag_minutes_p95 by threat_category]\n| stats values(*) as * by threat_category\n| eval coverage_status = case(\n    detection_rule_count < 5, \"insufficient\",\n    last_tuning_days > 90, \"stale\",\n    ioc_actionable_lag_minutes_p95 > 30, \"slow\",\n    1=1, \"current\")\n| table threat_category detection_rule_count last_tuning_date last_tuning_days alerts_24h ioc_actionable_lag_minutes_p95 coverage_status",
+  "description": "TSA-SD Passenger Rail CIP control family 3 — Splunk continuously validates TSA-SD-1582-2022-01-cf-3 using the saved search in this UC, routes gaps to Enterprise Security notables, and archives proof rows to `audit_evidence`.",
+  "value": "Inspectors ask for proof that «TSA-SD Passenger Rail CIP control family 3» is operational today, not at last audit. Missing live evidence for TSA-SD-1582-2022-01-cf-3 is a direct regulatory deficiency with enforcement exposure.",
+  "implementation": "(1) Populate `tsa_passenger_monitoring_lookup` with the documented threat categories (e.g. ransomware, supply-chain, IT/OT lateral, ICS-specific attacks). (2) Annotate every enabled correlation search with `tsa_passenger_threat_category=<category>`. (3) Schedule UC-22.56.37 hourly; route `coverage_status=insufficient` severity=critical. (4) Build the `TSA-SD Pipeline Detection Coverage` dashboard.",
+  "visualization": "(Panel 1) Detection-content count by threat category. (Panel 2) IOC-actionable-lag p95 trend. (Panel 3) Tuning currency heat-map. (Panel 4) Coverage-status by facility. (Panel 5) 90-day alert-volume trend.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "TSA SD Pipeline-2021-02D §3.3 (Continuous Monitoring)",
+      "url": "https://www.tsa.gov/sites/default/files/sd-pipeline-2021-02d.pdf"
+    },
+    {
+      "title": "Splunk ES Use Case Library and ESCU",
+      "url": "https://docs.splunk.com/Documentation/ES"
+    },
+    {
+      "title": "CISA Known Exploited Vulnerabilities Catalog",
+      "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog"
+    },
+    {
+      "title": "TSA Surface Cybersecurity Requirements (June 2024 reissue)",
+      "url": "https://www.tsa.gov/news/press/releases/2024/06/07/tsa-reissues-cybersecurity-requirements-pipeline-industry"
+    }
+  ],
+  "knownFalsePositives": "1. **Planned maintenance window** — documented change windows in lookup `tsa_22_56_37_exceptions` suppress benign activity during approved work.\n\n2. **Pen-test / red-team activity** — engagements with agreed rules-of-engagement marker excluded via lookup `tsa_22_56_37_exceptions`.\n\n3. **Vendor remote-access sessions** — authorised vendor PAM sessions cross-reference lookup `tsa_22_56_37_exceptions` before alerting.\n\n4. **Regulatory transition / grace period** — time-bound exception register entry in lookup `tsa_22_56_37_exceptions` with documented approver and expiry.\n\n**Suppression mechanism**: filter results with lookup `tsa_22_56_37_exceptions` (time-bound exception register); rows must carry `approved_by` and `valid_until` epoch fields.",
+  "mitreAttack": [
+    "T1055",
+    "T1027",
+    "T1190",
+    "T0817"
+  ],
+  "requiredFields": [
+    "threat_category",
+    "detection_rule_count",
+    "coverage_status"
+  ],
+  "equipment": [
+    "cisco",
+    "cisco-cybervision",
+    "claroty",
+    "dragos",
+    "nozomi-networks",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Cisco Cyber Vision 4.x",
+    "Claroty xDome / CTD 4.x",
+    "Dragos Platform 1.9.x",
+    "Nozomi Networks Guardian 22.x",
+    "Splunk Enterprise Security 7.x (correlation-search REST API)"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-07-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Compliance SME Panel (finalized; pending verification)",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk ES with correlation-search annotation discipline.\n- Indexed OT detections from Cyber Vision / Claroty / Nozomi / Dragos.\n- KV Store `tsa_passenger_monitoring_lookup`.\n- ES notable framework + audit_evidence.\n\n## Step 1 — Define threat-category register\n\n```ini\n[tsa_passenger_monitoring_lookup]\nenforceTypes = true\nfield.threat_category = string\nfield.description = string\nfield.minimum_rule_count = number\nfield.target_p95_lag_minutes = number\nfield.priority = string\n```\n\nPopulate with categories: `it_ot_lateral`, `ransomware`, `ics_specific_attack`, `supply_chain`, `phishing_to_ot`, `volt_typhoon_prepositioning`, `data_exfiltration`, `dos_attack`.\n\n## Step 2 — Annotate correlation searches\n\nEvery enabled correlation search relevant to TSA-SD scope must carry an annotation:\n\n```\naction.correlationsearch.annotations = {\"threat_category\": \"it_ot_lateral\", \"tsa_passenger\": true, \"tsa_passenger_facility\": \"all\"}\n```\n\n## Step 3 — Schedule and route\n\n```ini\n[UC-22.56.37: TSA-SD Pipeline CIP Continuous Monitoring Coverage]\ncron_schedule = 23 * * * *\ndispatch.earliest_time = -1h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.37,reg=TSA-Surface,clause=TSA-SD-1582-2022-01-cf-3\nalert.severity = 5\n```\n\n## Step 4 — Operationalize\n\n**Dashboard**: detection-content count, IOC-actionable-lag p95, tuning currency, coverage-status by facility, alert-volume trend.\n\n**Runbook for `coverage_status=insufficient`** (owner: Detection Engineering Lead, severity P1):\n1. Within 7 days: review the threat category; deploy at least 5 enabled rules tagged with the category.\n2. Within 30 days: certify that the coverage gap is closed.\n\n**Runbook for `coverage_status=slow`** (owner: Detection Engineering Lead, severity P2):\n1. Within 14 days: investigate the IOC-actionable-lag root cause (data ingestion delay, search performance, suppression mis-tuning).\n2. Within 30 days: close the lag below 30 minutes p95.\n\n## Step 5 — Troubleshooting\n\n- **Annotation drift** — if correlation-searches are deployed without the `tsa_passenger_threat_category` annotation, they are invisible to this UC. Enforce annotations in the detection-engineering PR process.\n- **REST API quota** — large ES installs may rate-limit the saved-search REST; consider caching the inventory into a daily summary index.\n- **Mixed scope** — content that applies to TSA + non-TSA scope should be annotated with both; tag the TSA scope explicitly.\n\n**TSA-specific failure modes**:\n- **CSAS detection-coverage attestation**: TSA may ask for the detection-content inventory at CSAS time; ensure the inventory is exportable as a coherent attestation.\n- **Pre-Final-Rule expectations**: the Final Rule may add specific detection requirements (e.g. mandatory Volt Typhoon coverage). Track CISA advisories and update the threat-category register accordingly.\n\n## Step 5 — Troubleshooting\n\n**Product-specific failure modes**:\n\n- **ServiceNow SIR custom-field drift** — if `csa_awareness_time` or `tsa_awareness_time` is NULL, verify the Security Incident Response workflow still writes the field on state transition to `In Progress`; compare against the vendor UI on the open ticket.\n- **KV Store sync lag** — if the lookup row updates but the saved search still surfaces stale status, confirm the `outputlookup` command completed (`| rest /services/data/transforms/lookup-table-files` shows matching row count).\n- **HEC token / modular-input silence** — run `index=_internal sourcetype=splunkd component=AggregatorMiningProcessor` for the source; no events for >2× the expected poll interval indicates an API or forwarder failure.\n- **Summary-index routing gaps** — validate `action.summary_index._name = audit_evidence` and RBAC role `compliance-analyst` retains write on the destination index.",
+  "grandmaExplanation": "We measure how well our pipeline is watched for cyber threats: how many alarms we have for each kind of attack, how fast they fire, and whether they're tuned recently. If a watching gap opens up, we hear about it within the hour.",
+  "prerequisiteUseCases": [
+    "UC-22.56.1"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 6071,
+      "name": "Splunk Add-on for Cisco Cyber Vision",
+      "url": "https://splunkbase.splunk.com/app/6071",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 5018,
+      "name": "Splunk Add-on for Claroty",
+      "url": "https://splunkbase.splunk.com/app/5018",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4894,
+      "name": "Splunk Add-on for Nozomi Networks",
+      "url": "https://splunkbase.splunk.com/app/4894",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 5048,
+      "name": "Splunk Add-on for Dragos",
+      "url": "https://splunkbase.splunk.com/app/5048",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
+}

@@ -9,26 +9,55 @@
     "Analytics"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Catalog audit events (`collibra:audit`, `atlan:audit`, `datahub:audit`), OpenLineage run events (`openlineage:event`), Unity Catalog audit logs, Purview scan/classification results, stewardship and access-policy change events.",
-  "app": "Collibra / Alation / Atlan / DataHub / Microsoft Purview / Databricks Unity Catalog audit logs and REST APIs via HEC scripted inputs; OpenLineage/Marquez events via HEC.",
+  "exclusions": "Covers the detection logic documented for 'Data Asset Stewardship Coverage' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_data_asset_stewardship_coverage` (UC-24.10.6), SOC dashboard panel \"Operations — Data Asset Stewardship Coverage\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.10.6 positive (Data, Asset, Stewardship, Coverage): ingest synthetic events into `index=dataops` sourcetype='atlan:audit' where `documented` grouped by `asset_qualified_name` satisfies detection threshold for 'Data Asset Stewardship Coverage'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.10.6 negative (Stewardship Coverage): ingest benign `dataops` / `atlan:audit` events where `asset_qualified_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Data Asset Stewardship Coverage'."
+  },
+  "dataSources": "Catalog audit events (`collibra:audit`, `atlan:audit`, `datahub:audit`), OpenLineage run events (`openlineage:event`), Unity Catalog audit logs, Purview scan/classification results, stewardship and access-policy change events. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Collibra / Alation / Atlan / DataHub / Microsoft Purview / Databricks Unity Catalog audit logs and REST APIs via HEC scripted inputs; OpenLineage/Marquez events via HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dataops sourcetype=atlan:audit action=asset_updated\n| stats latest(has_owner) as has_owner, latest(has_description) as has_desc by asset_qualified_name\n| eval documented=if(has_owner=\"true\" AND has_desc=\"true\",1,0)\n| stats sum(documented) as documented, count as total\n| eval coverage_pct=round(100*documented/total,1)",
-  "description": "Measures the share of catalogued data assets that have both an owner and a description, a headline governance KPI for catalog completeness.",
-  "value": "Undocumented, unowned data is ungoverned data; tracking stewardship coverage turns a vague governance goal into a measurable KPI.",
+  "description": "Monitors Stewardship Coverage activity in UC-24.10.6 ('Data Asset Stewardship Coverage') from `index=dataops` sourcetype `atlan:audit`. Rolls up `documented` by `asset_qualified_name` across `the scheduled window` and pages when configured threshold. Covers Data, Asset, Stewardship, Coverage. Operations operators treat UC-24.10.6 as the canonical signal.",
+  "value": "Operators running UC-24.10.6 on `atlan:audit` feeds shorten triage for Stewardship Coverage tied to 'Data Asset Stewardship Coverage', lowering operational risk and delayed incident response.",
   "implementation": "Ingest catalog asset metadata; schedule weekly; chart coverage and set improvement targets with data owners.",
   "visualization": "Single-value coverage gauge, coverage trend, table of undocumented assets.",
   "cimModels": [],
   "references": [
     {
       "title": "Atlan — documentation",
-      "url": "https://docs.atlan.com/"
+      "url": "https://docs.atlan.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `dataops` (UC-24.10.6)** — Planned work for 'Data Asset Stewardship Coverage' shifts `documented` over `span=1h` while `asset_qualified_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `atlan:audit`** — Scheduled automation elevates `documented` without crossing configured threshold for UC-24.10.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `asset_qualified_name`** — Health checks in `dataops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `atlan:audit`** — First 48h baseline for UC-24.10.6 on `asset_qualified_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `asset_qualified_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "dell_emc"
   ],
-  "grandmaExplanation": "We measure how much of your data has a clear owner and description, so nothing important is left unmanaged."
+  "equipmentModels": [
+    "dell_emc_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Collibra / Alation / Atlan / DataHub / Microsoft Purview / Databricks Unity Catalog audit logs and REST APIs via HEC scripted inputs; OpenLineage/Marquez events via HEC. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=atlan:audit into dataops. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`asset_qualified_name, documented`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We measure how much of your data has a clear owner and description, so nothing important is left unmanaged.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

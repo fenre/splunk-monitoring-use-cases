@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=beyondtrust:command` keystroke or command transcripts",
-  "app": "BeyondTrust PAM telemetry with Splunk parsing (org TA)",
+  "exclusions": "Covers the detection logic documented for 'BeyondTrust Privileged Command Channel High-Risk Keywords' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `iam_beyondtrust_privileged_command_channel_high_risk` (UC-9.4.26), SOC dashboard panel \"IAM — BeyondTrust Privileged Command Channel High-Risk Keywords\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-9.4.26 positive (BeyondTrust, Privileged, Command, Channel, High): ingest synthetic events into `index=pam` sourcetype='beyondtrust:command' where `values` grouped by `user`, `target` satisfies -4h for 'BeyondTrust Privileged Command Channel High-Risk Keywords'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.4.26 negative (Risk Keywords): ingest benign `pam` / `beyondtrust:command` events where `user`, `target` stays below -4h, or exclude the test entity via `iam_exception_register.csv`. Variant 1 confirms zero alert rows for 'BeyondTrust Privileged Command Channel High-Risk Keywords'."
+  },
+  "dataSources": "`sourcetype=beyondtrust:command` keystroke or command transcripts Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "BeyondTrust PAM telemetry with Splunk parsing (org TA) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=pam sourcetype=\"beyondtrust:command\" earliest=-4h\n| eval cmd=coalesce(command, Command, CommandLine, _raw)\n| where match(lower(cmd), \"(?i)net user|invoke-mimikatz|sekurlsa|vssadmin.*delete shadows|bcdedit.*recoveryenabled no|format\\s|diskpart\")\n| eval user=coalesce(user, UserName, \"\")\n| eval target=coalesce(target_host, TargetHost, dest, \"\")\n| stats count values(cmd) as commands by user, target\n| sort -count",
-  "description": "Command-line patterns associated with credential dumping, shadow copy destruction, or destructive disk operations during a BeyondTrust session warrant immediate response.",
-  "value": "Compresses hours of session video review into a narrow Splunk alert aligned with common ransomware and lateral movement TTPs.",
+  "description": "Monitors Risk Keywords activity in UC-9.4.26 ('BeyondTrust Privileged Command Channel High-Risk Keywords') from `index=pam` sourcetype `beyondtrust:command`. Rolls up `values` by `user`, `target` across `the scheduled window` and pages when -4h. Covers BeyondTrust, Privileged, Command, Channel, High. IAM operators treat UC-9.4.26 as the canonical signal.",
+  "value": "Operators running UC-9.4.26 on `beyondtrust:command` feeds shorten triage for Risk Keywords tied to 'BeyondTrust Privileged Command Channel High-Risk Keywords', lowering account takeover risk, help-desk load, and audit findings.",
   "implementation": "Maintain a lookup of regex patterns approved by your IR team instead of hard-coding in SPL long term. Ensure command logging complies with privacy and works council agreements. Integrate with SOAR to terminate sessions automatically only after legal review.",
   "visualization": "Table (user × target × commands), timeline, single value (distinct sessions).",
   "cimModels": [
@@ -22,16 +28,31 @@
   "references": [
     {
       "title": "BeyondTrust Password Safe / Cloud Dashboard for Splunk",
-      "url": "https://splunkbase.splunk.com/app/5574"
+      "url": "https://splunkbase.splunk.com/app/5574",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "MITRE ATT&CK — Impact / Credential Access",
-      "url": "https://attack.mitre.org/"
+      "url": "https://attack.mitre.org/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Admins running legitimate `diskpart` or recovery commands during incidents, false regex matches in transcripts, and lab environments; validate against session owner and change ticket before automated session cut-off.",
+  "knownFalsePositives": "1. **Maintenance window on `pam` (UC-9.4.26)** — Planned work for 'BeyondTrust Privileged Command Channel High-Risk Keywords' shifts `values` over `span=1h` while `user`, `target` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `beyondtrust:command`** — Scheduled automation elevates `target` without crossing configured threshold for UC-9.4.26. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user`, `target`** — Health checks in `pam` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `beyondtrust:command`** — First 48h baseline for UC-9.4.26 on `user` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`.",
   "equipment": [
     "beyondtrust"
+  ],
+  "equipmentModels": [
+    "beyondtrust_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -40,6 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure: BeyondTrust PAM telemetry with Splunk parsing (org TA).\n• Data sources: `sourcetype=beyondtrust:command` keystroke or command transcripts.\n\nStep 1 — Configure data collection\nMaintain a lookup of regex patterns approved by your IR team instead of hard-coding in SPL long term. Ensure command logging complies with privacy and works council agreements. Integrate with SOAR to terminate sessions automatically only after legal review.\n\nStep 2 — Create the search and alert\n\n```spl\nindex=pam sourcetype=\"beyondtrust:command\" earliest=-4h\n| eval cmd=coalesce(command, Command, CommandLine, _raw)\n| where match(lower(cmd), \"(?i)net user|invoke-mimikatz|sekurlsa|vssadmin.*delete shadows|bcdedit.*recoveryenabled no|format\\s|diskpart\")\n| eval user=coalesce(user, UserName, \"\")\n| eval target=coalesce(target_host, TargetHost, dest, \"\")\n| stats count values(cmd) as commands by user, target\n| sort -count\n```\n\nStep 3 — Validate\nCompare with BeyondTrust session replay or command detail in the PAM console for the same user, target, and session time range.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document the owner. Table (user × target × commands), timeline, single value (distinct sessions).",
-  "grandmaExplanation": "We search typed commands in privileged remote sessions for dangerous patterns so analysts see risky behavior without watching hours of video."
+  "detailedImplementation": "Prerequisites\n• Install and configure: BeyondTrust PAM telemetry with Splunk parsing (org TA).\n• Data sources: `sourcetype=beyondtrust:command` keystroke or command transcripts.\n\nStep 1 — Configure data collection\nMaintain a lookup of regex patterns approved by your IR team instead of hard-coding in SPL long term. Ensure command logging complies with privacy and works council agreements. Integrate with SOAR to terminate sessions automatically only after legal review.\n\nStep 2 — Create the search and alert\n\n```spl\nindex=pam sourcetype=\"beyondtrust:command\" earliest=-4h\n| eval cmd=coalesce(command, Command, CommandLine, _raw)\n| where match(lower(cmd), \"(?i)net user|invoke-mimikatz|sekurlsa|vssadmin.*delete shadows|bcdedit.*recoveryenabled no|format\\s|diskpart\")\n| eval user=coalesce(user, UserName, \"\")\n| eval target=coalesce(target_host, TargetHost, dest, \"\")\n| stats count values(cmd) as commands by user, target\n| sort -count\n```\n\nStep 3 — Validate\nCompare with BeyondTrust session replay or command detail in the PAM console for the same user, target, and session time range.\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document the owner. Table (user × target × commands), timeline, single value (distinct sessions).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (BeyondTrust PAM telemetry with Splunk parsing (org TA) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=beyondtrust:command into pam. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`target, user`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We search typed commands in privileged remote sessions for dangerous patterns so analysts see risky behavior without watching hours of video.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

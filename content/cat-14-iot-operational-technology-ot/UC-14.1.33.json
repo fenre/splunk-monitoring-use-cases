@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=bms:energy`, `sourcetype=bms:hvac`",
-  "app": "Smart utility meters via Modbus, BMS schedule integration",
+  "exclusions": "Covers the detection logic documented for 'After-Hours Energy Waste Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_after_hours_energy_waste_detection` (UC-14.1.33), SOC dashboard panel \"Operations — After-Hours Energy Waste Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.1.33 positive (After, Hours, Energy, Waste, Detection): ingest synthetic events into `index=building` sourcetype='bms:energy' where `hourly_kwh` grouped by `building_name`, `is_after_hours`, `_time` satisfies `hour` < 7, `hour` > 19, `dow` > 5, or `hourly_kwh` > 0 for 'After-Hours Energy Waste Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.1.33 negative (Waste Detection): ingest benign `building` / `bms:energy` events where `building_name`, `is_after_hours`, `_time` stays below `hour` < 7, `hour` > 19, `dow` > 5, or `hourly_kwh` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'After-Hours Energy Waste Detection'."
+  },
+  "dataSources": "`sourcetype=bms:energy`, `sourcetype=bms:hvac` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Smart utility meters via Modbus, BMS schedule integration — Universal Forwarder (Splunkbase 617)",
   "spl": "index=building sourcetype=\"bms:energy\" meter_type=\"electricity\"\n| eval hour=strftime(_time, \"%H\"), dow=strftime(_time, \"%u\")\n| eval is_after_hours=if((hour<7 OR hour>19) OR dow>5, 1, 0)\n| bin _time span=1h\n| stats sum(kwh_consumed) as hourly_kwh by building_name, is_after_hours, _time\n| where is_after_hours=1 AND hourly_kwh > 0\n| eventstats perc25(hourly_kwh) as baseline_kwh by building_name\n| eval waste_kwh=if(hourly_kwh > baseline_kwh*1.5, hourly_kwh - baseline_kwh, 0)\n| where waste_kwh > 0\n| table _time, building_name, hourly_kwh, baseline_kwh, waste_kwh",
-  "description": "Buildings typically waste 20-30% of energy outside occupied hours from HVAC systems running on override, lights left on, or equipment not in unoccupied mode. Detecting after-hours energy above baseline enables quick wins with minimal investment.",
-  "value": "Buildings typically waste 20-30% of energy outside occupied hours from HVAC systems running on override, lights left on, or equipment not in unoccupied mode. Detecting after-hours energy above baseline enables quick wins with minimal investment.",
+  "description": "Detects Waste Detection anomalies for UC-14.1.33 with window `1h` on `index=building` sourcetype `bms:energy`. Combines `hourly_kwh` by `building_name`, `is_after_hours`, `_time` and compares against `hour` < 7, `hour` > 19, `dow` > 5, or `hourly_kwh` > 0. Mapped to keywords After, Hours, Energy, Waste, Detection for dashboard routing.",
+  "value": "Alerting on After, Hours, Energy, Waste, Detection through UC-14.1.33 reduces operational risk and delayed incident response by surfacing `hourly_kwh` early.",
   "implementation": "Compare after-hours energy consumption to baseline (minimum observed usage). Flag hours where consumption exceeds 150% of baseline. Cross-reference with BMS schedules and override events to identify root cause.",
   "visualization": "After-hours vs occupied hours comparison chart; waste energy trending; building ranking by waste percentage.",
   "cimModels": [
@@ -22,13 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Demand or load factor shifts during building tests, new tenant fit-outs, or holiday schedules.",
+  "knownFalsePositives": "1. **Maintenance window on `building` (UC-14.1.33)** — Planned work for 'After-Hours Energy Waste Detection' shifts `hourly_kwh` over `span=1h` while `building_name`, `is_after_hours`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `bms:energy`** — Scheduled automation elevates `is_after_hours` without crossing `hour` < 7 for UC-14.1.33. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `building_name`, `is_after_hours`, `_time`** — Health checks in `building` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `bms:energy`** — First 48h baseline for UC-14.1.33 on `building_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `building_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "modbus"
   ],
+  "equipmentModels": [
+    "modbus_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Smart utility meters via Modbus, BMS schedule integration.\n• Ensure the following data sources are available: `sourcetype=bms:energy`, `sourcetype=bms:hvac`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCompare after-hours energy consumption to baseline (minimum observed usage). Flag hours where consumption exceeds 150% of baseline. Cross-reference with BMS schedules and override events to identify root cause.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=building sourcetype=\"bms:energy\" meter_type=\"electricity\"\n| eval hour=strftime(_time, \"%H\"), dow=strftime(_time, \"%u\")\n| eval is_after_hours=if((hour<7 OR hour>19) OR dow>5, 1, 0)\n| bin _time span=1h\n| stats sum(kwh_consumed) as hourly_kwh by building_name, is_after_hours, _time\n| where is_after_hours=1 AND hourly_kwh > 0\n| eventstats perc25(hourly_kwh) as baseline_kwh by building_name\n| eval waste_kwh=if(hourly_kwh > baseline_kwh*1.5, hourly_kwh - baseline_kwh, 0)\n| where waste_kwh > 0\n| table _time, building_name, hourly_kwh, baseline_kwh, waste_kwh\n```\n\nUnderstanding this SPL\n\n**After-Hours Energy Waste Detection** — Buildings typically waste 20-30% of energy outside occupied hours from HVAC systems running on override, lights left on, or equipment not in unoccupied mode. Detecting after-hours energy above baseline enables quick wins with minimal investment.\n\nDocumented **Data sources**: `sourcetype=bms:energy`, `sourcetype=bms:hvac`. **App/TA** (typical add-on context): Smart utility meters via Modbus, BMS schedule integration. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: building; **sourcetype**: bms:energy. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=building, sourcetype=\"bms:energy\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **hour** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **is_after_hours** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by building_name, is_after_hours, _time** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where is_after_hours=1 AND hourly_kwh > 0` — typically the threshold or rule expression for this monitoring goal.\n• `eventstats` rolls up events into metrics; results are split **by building_name** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **waste_kwh** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where waste_kwh > 0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **After-Hours Energy Waste Detection**): table _time, building_name, hourly_kwh, baseline_kwh, waste_kwh\n\n\nStep 3 — Validate\nRun the search in a known window. Spot-check a few events against the BMS console (for example Niagara, Tridium, or Honeywell) and confirm zones, values, and alarms line up. Verify field names and that the right roles can search the index.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: After-hours vs occupied hours comparison chart; waste energy trending; building ranking by waste percentage.",
-  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with how hard the building is working against its power budget before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with how hard the building is working against its power budget before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

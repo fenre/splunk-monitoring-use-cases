@@ -8,30 +8,55 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Step Functions executions (`aws:states:execution`).",
-  "app": "AWS Step Functions execution events via CloudWatch/EventBridge to the Splunk Add-on for AWS.",
+  "exclusions": "Covers the detection logic documented for 'AWS Step Functions State Machine Execution Duration p95' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_aws_step_functions_state_machine_execution_durat` (UC-24.7.52), SOC dashboard panel \"Operations — AWS Step Functions State Machine Execution Duration p95\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.7.52 positive (AWS, Step, Functions, State, Machine): ingest synthetic events into `index=bi` sourcetype='aws:states:execution' where `avg_min` grouped by `stateMachineName` satisfies `p95_min` > 30 for 'AWS Step Functions State Machine Execution Duration p95'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.52 negative (Duration p95): ingest benign `bi` / `aws:states:execution` events where `stateMachineName` stays below `p95_min` > 30, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'AWS Step Functions State Machine Execution Duration p95'."
+  },
+  "dataSources": "Step Functions executions (`aws:states:execution`). Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "AWS Step Functions execution events via CloudWatch/EventBridge to the Splunk Add-on for AWS. — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=bi sourcetype=aws:states:execution status=\"SUCCEEDED\"\n| eval dur_min=round(duration_ms/60000,2)\n| stats avg(dur_min) as avg_min, p95(dur_min) as p95_min, count as runs by stateMachineName\n| where p95_min>30\n| sort - p95_min",
-  "description": "Computes the 95th-percentile execution duration for each state machine in AWS Step Functions and flags the slowest, pointing owners at the specific content or jobs that need optimisation.",
-  "value": "Tail latency, not the average, is what users feel; ranking AWS Step Functions state machines by p95 focuses tuning effort where it removes the most pain.",
+  "description": "Alerts on Duration p95 anomalies for UC-24.7.52 with window `the scheduled window` on `index=bi` sourcetype `aws:states:execution`. Combines `avg_min` by `stateMachineName` and compares against `p95_min` > 30. Mapped to keywords AWS, Step, Functions, State, Machine for dashboard routing.",
+  "value": "Alerting on AWS, Step, Functions, State, Machine through UC-24.7.52 reduces operational risk and delayed incident response by surfacing `avg_min` early.",
   "implementation": "Ingest AWS Step Functions timing data; schedule daily over a trailing week and review the slowest state machines with their owners.",
   "visualization": "Table of state machine by p95 execution duration, trend line.",
   "cimModels": [],
   "references": [
     {
       "title": "AWS Step Functions — Monitoring with CloudWatch",
-      "url": "https://docs.aws.amazon.com/step-functions/latest/dg/monitoring-logging.html"
+      "url": "https://docs.aws.amazon.com/step-functions/latest/dg/monitoring-logging.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for AWS",
-      "url": "https://splunkbase.splunk.com/app/1876"
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.7.52)** — Planned work for 'AWS Step Functions State Machine Execution Duration p95' shifts `avg_min` over `span=1h` while `stateMachineName` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `aws:states:execution`** — Scheduled automation elevates `dur_min` without crossing `p95_min` > 30 for UC-24.7.52. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `stateMachineName`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:states:execution`** — First 48h baseline for UC-24.7.52 on `stateMachineName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `stateMachineName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],
-  "grandmaExplanation": "We measure how slow the worst cases are in AWS Step Functions so the sluggish ones get fixed before people give up on them."
+  "equipmentModels": [
+    "aws_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (AWS Step Functions execution events via CloudWatch/EventBridge to the Splunk Add-on for AWS. — Splunk Add-on for Amazon Web Services (Splunkbase 1876)). Enable the modular input or HEC token that writes sourcetype=aws:states:execution into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`p95_min, stateMachineName`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We measure how slow the worst cases are in AWS Step Functions so the sluggish ones get fixed before people give up on them.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

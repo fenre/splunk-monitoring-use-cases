@@ -9,50 +9,75 @@
     "Risk"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Recovery and biometrics (`apple:health`, `oura:daily`, `whoop:cycle`, `dexcom:egv`, `levels:glucose`, `libre:glucose`, `eightsleep:sleep`, `withings:measure`, `garmin:bodybattery`).",
-  "app": "Apple Health / Apple Watch exports, Oura, WHOOP, Dexcom, Levels, LibreView, Eight Sleep, Withings, and Garmin Body Battery feeds via vendor APIs, exports, Home Assistant bridges, and Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Long Nap Recovery Tradeoff' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_long_nap_recovery_tradeoff` (UC-25.2.27), SOC dashboard panel \"Personal — Long Nap Recovery Tradeoff\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.2.27 positive (Long, Nap, Recovery, Tradeoff): ingest synthetic events into `index=personal` sourcetype='apple:health' where `nap_min`, `next_day_hrv` grouped by `person`, `_time` satisfies `nap_min` > 90 for 'Long Nap Recovery Tradeoff'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.2.27 negative (Recovery Tradeoff): ingest benign `personal` / `apple:health` events where `person`, `_time` stays below `nap_min` > 90, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 14 confirms zero alert rows for 'Long Nap Recovery Tradeoff'."
+  },
+  "dataSources": "Recovery and biometrics (`apple:health`, `oura:daily`, `whoop:cycle`, `dexcom:egv`, `levels:glucose`, `libre:glucose`, `eightsleep:sleep`, `withings:measure`, `garmin:bodybattery`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Apple Health / Apple Watch exports, Oura, WHOOP, Dexcom, Levels, LibreView, Eight Sleep, Withings, and Garmin Body Battery feeds via vendor APIs, exports, Home Assistant bridges, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=apple:health metric=nap\n| bin _time span=1d\n| stats sum(nap_min) as nap_min, max(next_day_hrv) as next_day_hrv by person _time\n| where nap_min>90\n| sort - nap_min",
-  "description": "Uses Apple Health nap exports telemetry to monitor very long daytime naps and the next-day recovery context in index=personal.",
-  "value": "Splunk turns the feed into an operational check for patterns where long naps may be compensating for poor overnight rest, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Identifies UC-25.2.27 — Long, Nap, Recovery, Tradeoff — using `index=personal` sourcetype `apple:health`, grouped by `person`, `_time`. Outputs `nap_min`, `next_day_hrv` each `1d`; alert when `nap_min` > 90. Primary focus: Recovery Tradeoff. Purpose-built for 'Long Nap Recovery Tradeoff' in Personal workflows.",
+  "value": "Alerting on Long, Nap, Recovery, Tradeoff through UC-25.2.27 reduces missed training goals, stale hobby data, and connector failures by surfacing `nap_min`, `next_day_hrv` early.",
   "implementation": "Ingest Apple Health nap exports data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Daily table of nap duration and next-day HRV.",
   "cimModels": [],
   "references": [
     {
       "title": "Apple HealthKit",
-      "url": "https://developer.apple.com/documentation/healthkit"
+      "url": "https://developer.apple.com/documentation/healthkit",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Oura API v2",
-      "url": "https://cloud.ouraring.com/v2/docs"
+      "url": "https://cloud.ouraring.com/v2/docs",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "WHOOP developer platform",
-      "url": "https://developer.whoop.com/"
+      "url": "https://developer.whoop.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Dexcom developer portal",
-      "url": "https://developer.dexcom.com/"
+      "url": "https://developer.dexcom.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Eight Sleep",
-      "url": "https://www.eightsleep.com/"
+      "url": "https://www.eightsleep.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "LibreView",
-      "url": "https://www.libreview.com/"
+      "url": "https://www.libreview.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Levels",
-      "url": "https://www.levelshealth.com/"
+      "url": "https://www.levelshealth.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.2.27)** — Connector for 'Long Nap Recovery Tradeoff' stops polling `apple:health`; stale `nap_min`, `next_day_hrv` on `person`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `nap_min`, `next_day_hrv` over `1d` is expected for UC-25.2.27, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `apple:health`. Dedup with `stats latest(*) by person`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `nap_min` > 90 for 'Long Nap Recovery Tradeoff'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It lists very long daytime naps and the next-day recovery context so you can spot patterns where long naps may be compensating for poor overnight rest before it becomes annoying."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Apple Health — Health Auto Export app or Shortcuts automation → HEC.\n• **Subcategory context**: Health, Sleep & Wearables — typical feeds: Apple Health metrics (`apple:health`), Oura Ring daily readiness/sleep (`oura:daily`), Whoop recovery/strain (`whoop:cycle`), Withings body/blood-pressure (`withings:measure`), Dexcom CGM glucose (`de.\n• **Sourcetypes in this search**: `apple:health`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Apple Health** events into `index=personal` with `sourcetype=apple:health`.\n\n**Collection method:** Health Auto Export app or Shortcuts automation → HEC.\n\n**Reference endpoint / path:** `iOS shortcut POST JSON batch nightly`.\n\n**Suggested poll interval:** 86400s.\n\n**Key fields to extract:** `metric, value, unit, sourceName, startDate`.\n\n**Typical connector stack:** Apple Health / Apple Watch exports (Health Auto Export, Shortcuts) via HEC; Oura, Whoop, Withings, Dexcom APIs via scripted REST inputs..\n\n**Author notes:** Ingest Apple Health nap exports data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"apple:health\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=apple:health earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Long Nap Recovery Tradeoff** over `personal` data (primarily `sourcetype=apple:health`) across the full search range. It applies numeric thresholds on `nap_min` (> 90) after sum, max — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `nap_min`, `person`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=apple:health metric=nap\n| bin _time span=1d\n| stats sum(nap_min) as nap_min, max(next_day_hrv) as next_day_hrv by person _time\n| where nap_min>90\n| sort - nap_min\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Apple Health app → Browse → metric category. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=apple:health earliest=-7d\n| head 50\n| table _time, nap_min, person\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=apple:health earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `nap_min` before alerting:\n\n```spl\nindex=personal sourcetype=apple:health earliest=-30d\n| stats perc50(nap_min) AS p50 perc90(nap_min) AS p90 perc99(nap_min) AS p99 max(nap_min) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.2.27: Personal evidence` with the following panel layout:\n\n**Panel 1 — Daily Table Of Nap Duration And Next-Day Hrv (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Apple Health — no Apple Health events / missing fields:** If `apple:health` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Apple Health connector script is still running (`systemctl status` or cron log).\n\n**Apple Health — NULL values in extracted fields:** The Apple Health JSON export shape drifted — compare a raw event (`index=personal sourcetype=apple:health | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Apple Health — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Apple Health — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Apple Health APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It lists very long daytime naps and the next-day recovery context so you can spot patterns where long naps may be compensating for poor overnight rest before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

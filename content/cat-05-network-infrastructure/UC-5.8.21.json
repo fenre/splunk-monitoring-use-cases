@@ -8,21 +8,43 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Webhook Delivery Failure Tracking (Meraki)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_webhook_delivery_failure_tracking_meraki` (UC-5.8.21), SOC dashboard panel \"Operations — Webhook Delivery Failure Tracking (Meraki)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.8.21 positive (Webhook, Delivery, Failure, Tracking, (Meraki)): ingest synthetic events into `index=meraki` sourcetype='meraki:webhook' where `count` grouped by `webhook_id`, `organization` satisfies `failure_count` > 5 for 'Webhook Delivery Failure Tracking (Meraki)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.8.21 negative (Tracking (Meraki)): ingest benign `meraki` / `meraki:webhook` events where `webhook_id`, `organization` stays below `failure_count` > 5, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'Webhook Delivery Failure Tracking (Meraki)'."
+  },
   "dataSources": "`sourcetype=meraki:webhook status=\"failure\" OR status=\"error\"`; Meraki API (`meraki:devices` etc.) and optional organization syslog/HTTPS",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580, webhooks)",
   "spl": "index=meraki sourcetype=\"meraki:webhook\" (status=\"failure\" OR status=\"error\")\n| stats count as failure_count, latest(error_message) as last_error by webhook_id, organization\n| where failure_count > 5",
-  "description": "Ensures webhook notifications reach integrations and alerts don't get lost.",
-  "value": "Network operations teams monitor Meraki webhook delivery health to Splunk, detecting failed deliveries that create gaps in real-time alerting and diagnosing HEC endpoint or authentication issues.",
+  "description": "Identifies UC-5.8.21 — Webhook, Delivery, Failure, Tracking, (Meraki) — using `index=meraki` sourcetype `meraki:webhook`, grouped by `webhook_id`, `organization`. Outputs `count` each `the scheduled window`; alert when `failure_count` > 5. Primary focus: Tracking (Meraki). Purpose-built for 'Webhook Delivery Failure Tracking (Meraki)' in Operations workflows.",
+  "value": "Operators running UC-5.8.21 on `meraki:webhook` feeds shorten triage for Tracking (Meraki) tied to 'Webhook Delivery Failure Tracking (Meraki)', lowering operational risk and delayed incident response.",
   "implementation": "Log webhook delivery attempts. Alert on sustained failures.",
   "visualization": "Webhook failure timeline; failure cause breakdown; affected org list.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Meraki (Splunkbase 5631)",
+      "url": "https://splunkbase.splunk.com/app/5631",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Meraki and your receiver can retry webhooks; dedup by `id` and avoid paging on the first single failure without context.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki` (UC-5.8.21)** — Planned work for 'Webhook Delivery Failure Tracking (Meraki)' shifts `count` over `span=1h` while `webhook_id`, `organization` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `meraki:webhook`** — Scheduled automation elevates `organization` without crossing `failure_count` > 5 for UC-5.8.21. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `webhook_id`, `organization`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `meraki:webhook`** — First 48h baseline for UC-5.8.21 on `webhook_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `webhook_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
@@ -30,6 +52,12 @@
   "equipmentModels": [
     "cisco_meraki"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Meraki webhooks configured to send alerts to Splunk HEC. Webhooks provide near-real-time notification of events (device offline, VPN down, etc.). Data in `index=meraki` with `sourcetype=meraki:webhook`. Key fields: `alertType`, `networkName`, `deviceSerial`, `alertData`, `sentAt`.\n• Webhook delivery failures occur when: (1) the Splunk HEC endpoint is unreachable, (2) HEC returns errors (token invalid, index disabled), (3) network issues between Meraki cloud and Splunk. Meraki retries failed webhooks but eventually drops them.\n• Additionally, monitor the Meraki webhook logs via the Dashboard API: `GET /organizations/{orgId}/webhooks/logs`.\n\nStep 1 — Configure data collection\nVerify webhook data:\n```spl\nindex=meraki sourcetype=\"meraki:webhook\" earliest=-24h\n| stats count by alertType, networkName\n```\nIf empty: webhooks may not be configured, or they're failing to deliver.\n\nStep 2 — Create the search and alert\n\n**Primary search — Webhook delivery health:**\n```spl\nindex=meraki sourcetype=\"meraki:webhooklogs:api\" earliest=-24h\n| eval delivery_status=if(responseCode >= 200 AND responseCode < 300, \"SUCCESS\", \"FAILED\")\n| stats count as total count(eval(delivery_status=\"SUCCESS\")) as success count(eval(delivery_status=\"FAILED\")) as failed by url, networkName\n| eval success_rate=round(100*success/total, 1)\n| where failed > 0\n| sort -failed\n```\n\nUnderstanding this SPL: Webhook failures mean real-time alerts aren't reaching Splunk. If the webhook to Splunk HEC fails, critical events (site down, VPN failure) are only detected during the next API poll cycle — potentially 5-15 minutes later. For time-sensitive incidents, this delay can be significant.\n\n**Webhook gap detection (expected vs. actual):**\n```spl\nindex=meraki sourcetype=\"meraki:webhook\" earliest=-24h\n| bin _time span=1h\n| stats count as webhooks by _time\n| eventstats avg(webhooks) as avg_hourly\n| eval gap=if(webhooks < avg_hourly * 0.3, \"POSSIBLE_GAP\", \"OK\")\n| where gap=\"POSSIBLE_GAP\"\n```\n\n**Failed delivery error analysis:**\n```spl\nindex=meraki sourcetype=\"meraki:webhooklogs:api\" responseCode >= 400 earliest=-24h\n| stats count by responseCode, url\n| eval error_type=case(responseCode=401, \"Auth failure\", responseCode=403, \"Forbidden\", responseCode=404, \"Endpoint not found\", responseCode=429, \"Rate limited\", responseCode >= 500, \"Server error\", 1==1, \"Other\")\n| sort -count\n```\n\nStep 3 — Validate\n(a) Trigger a webhook event (e.g., disconnect a device) and verify it arrives in Splunk within seconds.\n(b) Temporarily misconfigure the webhook URL and verify the failure is logged.\n(c) Compare webhook logs from Meraki Dashboard with Splunk data to identify any missed events.\n\nStep 4 — Operationalize\nDashboard (\"Meraki Webhook Health\"):\n• Row 1 — Single-value tiles: \"Webhooks received (24h)\", \"Failed deliveries\", \"Success rate %\", \"Webhook gaps\".\n• Row 2 — Delivery failure table: URL, network, failed count, response code, error type.\n• Row 3 — Webhook volume trending with gap detection.\n\nAlerting:\n• Critical (webhook success rate < 80%): real-time alerting is broken.\n• Warning (any failed webhook delivery): investigate HEC endpoint health.\n\nStep 5 — Troubleshooting\n\n• **No webhook data at all** — Check Meraki Dashboard: Network > Alerts > Webhooks. Verify the webhook URL points to your Splunk HEC endpoint with the correct token.\n\n• **401/403 errors** — HEC token is invalid or the index specified in the token is disabled. Verify the HEC token and index configuration.\n\n• **Webhook data arrives but is unparsed** — The sourcetype may not be set correctly. Configure props.conf for `meraki:webhook` to handle the JSON payload.",
-  "grandmaExplanation": "We help you see when webhooks from Meraki fail, so automations and tickets still fire when something important happens."
+  "grandmaExplanation": "We help you see when webhooks from Meraki fail, so automations and tickets still fire when something important happens.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

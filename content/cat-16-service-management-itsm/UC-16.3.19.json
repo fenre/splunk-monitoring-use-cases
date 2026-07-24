@@ -9,11 +9,17 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Jira issue snapshots with `priority`, `created_epoch`, `status_category`",
-  "app": "Splunk Add-on for Jira Cloud (6211)",
+  "exclusions": "Covers the detection logic documented for 'Jira High-Priority Queue Time-to-First-Response Risk' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_jira_high_priority_queue_time_to_first_response_` (UC-16.3.19), SOC dashboard panel \"Operations — Jira High-Priority Queue Time-to-First-Response Risk\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-16.3.19 positive (Jira, High, Priority, Queue, Time): ingest synthetic events into `index=itsm` sourcetype='jira:cloud:issues' where `count` grouped by `project`, `component` satisfies `wait_h` > 4 for 'Jira High-Priority Queue Time-to-First-Response Risk'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.3.19 negative (Response Risk): ingest benign `itsm` / `jira:cloud:issues` events where `project`, `component` stays below `wait_h` > 4, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Jira High-Priority Queue Time-to-First-Response Risk'."
+  },
+  "dataSources": "Jira issue snapshots with `priority`, `created_epoch`, `status_category` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for Jira Cloud (6211) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"jira:cloud:issues\" OR sourcetype=\"jira:issue\"\n| where priority IN (\"Highest\",\"High\",\"P1\",\"P2\") AND status_category=\"To Do\"\n| eval wait_h=(now()-created_epoch)/3600\n| where wait_h > 4\n| stats count by project, component\n| sort -count",
-  "description": "Critical issues sitting untouched breach executive incident SLAs.",
-  "value": "Protects customer-facing severity queues before escalation triggers.",
+  "description": "Monitors risk tied to Jira, High, Priority, Queue, Time through UC-16.3.19 on `index=itsm` sourcetype `jira:cloud:issues`. Summarises `count` grouped by `project`, `component` across `the scheduled window` before applying `wait_h` > 4. Operators tune 'Jira High-Priority Queue Time-to-First-Response Risk' using UC-16.3.19 runbook steps.",
+  "value": "Tracking `activity` via UC-16.3.19 on `jira:cloud:issues` feeds improves response to 'Jira High-Priority Queue Time-to-First-Response Risk' and reduces operational risk and delayed incident response.",
   "implementation": "Align priorities with org naming; join to on-call roster if ingested.",
   "visualization": "Single value (count), Heatmap (project × hour).",
   "cimModels": [
@@ -23,16 +29,31 @@
   "references": [
     {
       "title": "Splunk Add-on for Jira Cloud",
-      "url": "https://splunkbase.splunk.com/app/6211"
+      "url": "https://splunkbase.splunk.com/app/6211",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Source types — Splunk Add-on for Jira Cloud",
-      "url": "https://docs.splunk.com/Documentation/AddOns/released/JiraCloud/Sourcetypes"
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/JiraCloud/Sourcetypes",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Queue and response stress at sprint starts, with new triage members, or when owners split time across many fires.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm` (UC-16.3.19)** — Planned work for 'Jira High-Priority Queue Time-to-First-Response Risk' shifts `count` over `span=1h` while `project`, `component` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `jira:cloud:issues`** — Scheduled automation elevates `component` without crossing `wait_h` > 4 for UC-16.3.19. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `project`, `component`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `jira:cloud:issues`** — First 48h baseline for UC-16.3.19 on `project` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `project`, `exception_reason`, `valid_until`.",
   "equipment": [
     "jira"
+  ],
+  "equipmentModels": [
+    "jira_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,6 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure: Splunk Add-on for Jira Cloud (6211).\n• Data: Jira issue snapshots with `priority`, `created_epoch`, `status_category`.\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nAlign priorities with org naming; join to on-call roster if ingested.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=itsm sourcetype=\"jira:cloud:issues\" OR sourcetype=\"jira:issue\"\n| where priority IN (\"Highest\",\"High\",\"P1\",\"P2\") AND status_category=\"To Do\"\n| eval wait_h=(now()-created_epoch)/3600\n| where wait_h > 4\n| stats count by project, component\n| sort -count\n```\n\nUnderstanding this search\nCritical issues sitting untouched breach executive incident SLAs.\n\nStep 3 — Validate\nCompare with the Jira issue page, board, or service project view for the same dates. Confirm issue keys, status, and assignment fields; reconcile timestamp fields you use in the report.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Single value (count), Heatmap (project × hour).",
-  "grandmaExplanation": "We watch how long the most urgent work waits for a first real reply, so the hot queue is not a dark hole."
+  "detailedImplementation": "Prerequisites\n• Install and configure: Splunk Add-on for Jira Cloud (6211).\n• Data: Jira issue snapshots with `priority`, `created_epoch`, `status_category`.\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nAlign priorities with org naming; join to on-call roster if ingested.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=itsm sourcetype=\"jira:cloud:issues\" OR sourcetype=\"jira:issue\"\n| where priority IN (\"Highest\",\"High\",\"P1\",\"P2\") AND status_category=\"To Do\"\n| eval wait_h=(now()-created_epoch)/3600\n| where wait_h > 4\n| stats count by project, component\n| sort -count\n```\n\nUnderstanding this search\nCritical issues sitting untouched breach executive incident SLAs.\n\nStep 3 — Validate\nCompare with the Jira issue page, board, or service project view for the same dates. Confirm issue keys, status, and assignment fields; reconcile timestamp fields you use in the report.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Single value (count), Heatmap (project × hour).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Jira Cloud (6211) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=jira:cloud:issues, jira:issue into itsm. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`component, project, wait_h`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch how long the most urgent work waits for a first real reply, so the hot queue is not a dark hole.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

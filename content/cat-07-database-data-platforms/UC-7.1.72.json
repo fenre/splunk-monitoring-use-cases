@@ -9,11 +9,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`nodetool cfstats` / `tablestats` `SSTable count` ingested as `cassandra:nodetool_cfstats`",
-  "app": "Scheduled nodetool collector per node",
+  "exclusions": "Covers the detection logic documented for 'Cassandra SSTable Count per Table' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_cassandra_sstable_count_per_table` (UC-7.1.72), SOC dashboard panel \"Operations — Cassandra SSTable Count per Table\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.1.72 positive (Cassandra, SSTable, Count, per, Table): ingest synthetic events into `index=database` sourcetype='cassandra:nodetool_cfstats' where `max_sstables`, `cluster_median` grouped by `keyspace_name`, `table_name`, `host` satisfies `sstables` > 100 for 'Cassandra SSTable Count per Table'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.72 negative (per Table): ingest benign `database` / `cassandra:nodetool_cfstats` events where `keyspace_name`, `table_name`, `host` stays below `sstables` > 100, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'Cassandra SSTable Count per Table'."
+  },
+  "dataSources": "`nodetool cfstats` / `tablestats` `SSTable count` ingested as `cassandra:nodetool_cfstats` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Scheduled nodetool collector per node — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"cassandra:nodetool_cfstats\"\n| eval sstables=tonumber(sstable_count)\n| where sstables > 100\n| stats max(sstables) as max_sstables by keyspace_name, table_name, host\n| eventstats median(max_sstables) as cluster_median by keyspace_name, table_name\n| where max_sstables > cluster_median*2\n| sort -max_sstables",
-  "description": "An unusually high live SSTable count increases read amplification and slows compactions on LCS/STCS tables. Finding outliers versus peer median isolates nodes needing repair, cleanup, or compaction tuning.",
-  "value": "Prevents gradual read latency erosion on wide partitions and large tables without waiting for user-facing timeouts.",
+  "description": "Alerts on UC-7.1.72 — Cassandra, SSTable, Count, per, Table — using `index=database` sourcetype `cassandra:nodetool_cfstats`, grouped by `keyspace_name`, `table_name`, `host`. Outputs `max_sstables`, `cluster_median` each `the scheduled window`; alert when `sstables` > 100. Primary focus: per Table. Purpose-built for 'Cassandra SSTable Count per Table' in Operations workflows.",
+  "value": "Tracking `max_sstables`, `cluster_median` via UC-7.1.72 on `cassandra:nodetool_cfstats` feeds improves response to 'Cassandra SSTable Count per Table' and reduces operational risk and delayed incident response.",
   "implementation": "Map `SSTable count` (or `Live SSTables`) to `sstable_count` in your parser. Run weekly full snapshots and hourly for top-N tables. Exclude secondary index tables via lookup. When alerting, include `nodetool compactionstats` link in runbook.",
   "visualization": "Bar chart (max_sstables by table), Table (host outliers).",
   "cimModels": [
@@ -22,12 +28,31 @@
   "references": [
     {
       "title": "Apache Cassandra — SSTables",
-      "url": "https://cassandra.apache.org/doc/latest/cassandra/architecture/storage-engine.html"
+      "url": "https://cassandra.apache.org/doc/latest/cassandra/architecture/storage-engine.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Repairs, bootstraps, and heavy write bursts increase compaction and hinted-handoff backlog as part of normal Cassandra self-healing — alert on stuck or growing queues outside known batch jobs.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.1.72)** — Planned work for 'Cassandra SSTable Count per Table' shifts `max_sstables`, `cluster_median` over `span=1h` while `keyspace_name`, `table_name`, `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `cassandra:nodetool_cfstats`** — Scheduled automation elevates `table_name` without crossing `sstables` > 100 for UC-7.1.72. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `keyspace_name`, `table_name`, `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cassandra:nodetool_cfstats`** — First 48h baseline for UC-7.1.72 on `keyspace_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `keyspace_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cassandra"
+  ],
+  "equipmentModels": [
+    "cassandra_generic"
   ],
   "status": "draft",
   "lastReviewed": "2025-06-01",
@@ -36,5 +61,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We surface slow and blocking queries so we can fix the worst offenders first and keep applications and batch jobs within the response times we promise."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Scheduled nodetool collector per node — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=cassandra:nodetool_cfstats into database. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, keyspace_name, sstables, table_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We surface slow and blocking queries so we can fix the worst offenders first and keep applications and batch jobs within the response times we promise.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

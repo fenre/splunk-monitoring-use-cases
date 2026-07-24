@@ -9,11 +9,17 @@
   ],
   "splunkPillar": "Security",
   "industry": "Healthcare",
-  "dataSources": "`sourcetype=\"casb:activity\"`, `sourcetype=\"pan:traffic\"`",
-  "app": "Cloud app security, firewall",
+  "exclusions": "Covers the detection logic documented for 'BAA Compliance Monitoring' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_baa_compliance_monitoring` (UC-10.12.21), SOC dashboard panel \"Security Infra — BAA Compliance Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.12.21 positive (BAA, Compliance, Monitoring): ingest synthetic events into `index=cloud` sourcetype='casb:activity' where `count` grouped by `vendor`, `app`, `user` satisfies detection threshold for 'BAA Compliance Monitoring'. Validate lookup `baa_vendors`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.12.21 negative (Compliance Monitoring): ingest benign `cloud` / `casb:activity` events where `vendor`, `app`, `user` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv`. Variant 12 confirms zero alert rows for 'BAA Compliance Monitoring'."
+  },
+  "dataSources": "`sourcetype=\"casb:activity\"`, `sourcetype=\"pan:traffic\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Cloud app security, firewall — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cloud sourcetype=\"casb:activity\" tag=phi\n| lookup baa_vendors vendor OUTPUT baa_signed subprocessor_ok\n| where isnull(baa_signed) OR baa_signed=\"false\"\n| stats count by vendor, app, user\n| sort -count",
-  "description": "Ensures business associates' systems sending PHI are authorized and logged per contract.",
-  "value": "Ensures business associates' systems sending PHI are authorized and logged per contract.",
+  "description": "Identifies UC-10.12.21 — BAA, Compliance, Monitoring — using `index=cloud` sourcetype `casb:activity`, grouped by `vendor`, `app`, `user`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes lookup `baa_vendors`. Purpose-built for 'BAA Compliance Monitoring' in Security Infra workflows.",
+  "value": "Tracking `activity` via UC-10.12.21 on `casb:activity` feeds improves response to 'BAA Compliance Monitoring' and reduces missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Maintain vendor inventory with BAA dates; block or proxy unsanctioned apps with PHI.",
   "visualization": "Table (non-BAA usage), Bar chart (vendors), Status (BAA coverage %).",
   "cimModels": [
@@ -23,10 +29,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "BAA monitoring noise when SaaS metadata lags, vendors rotate IPs, or new connectors come online; refresh vendor inventory in the workflow.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Cloud app security, firewall.\n• Ensure the following data sources are available: `sourcetype=\"casb:activity\"`, `sourcetype=\"pan:traffic\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMaintain vendor inventory with BAA dates; block or proxy unsanctioned apps with PHI.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud sourcetype=\"casb:activity\" tag=phi\n| lookup baa_vendors vendor OUTPUT baa_signed subprocessor_ok\n| where isnull(baa_signed) OR baa_signed=\"false\"\n| stats count by vendor, app, user\n| sort -count\n```\n\nUnderstanding this SPL\n\n**BAA Compliance Monitoring** — Ensures business associates' systems sending PHI are authorized and logged per contract.\n\nDocumented **Data sources**: `sourcetype=\"casb:activity\"`, `sourcetype=\"pan:traffic\"`. **App/TA** (typical add-on context): Cloud app security, firewall. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud; **sourcetype**: casb:activity. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud, sourcetype=\"casb:activity\", tags. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnull(baa_signed) OR baa_signed=\"false\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by vendor, app, user** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nRun the search on recent production data, spot-check a handful of results against the source system or operational runbooks (cash operations, EHR, payment gateway, etc.), and adjust thresholds to match your seasonal patterns and test windows so teams are not flooded with noise.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (non-BAA usage), Bar chart (vendors), Status (BAA coverage %).",
-  "grandmaExplanation": "In Healthcare, we pay close attention to \"BAA Compliance Monitoring\" in our day-to-day work so that fraud, waste, and compliance issues do not slip by quietly. We help teams focus on the few situations that need a person, not every routine blip in the data."
+  "knownFalsePositives": "1. **Maintenance window on `cloud` (UC-10.12.21)** — Planned work for 'BAA Compliance Monitoring' shifts `count` over `span=1h` while `vendor`, `app`, `user` remains in-scope. Applies lookup `baa_vendors`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `casb:activity`** — Scheduled automation elevates `app` without crossing configured threshold for UC-10.12.21. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `vendor`, `app`, `user`** — Health checks in `cloud` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `casb:activity`** — First 48h baseline for UC-10.12.21 on `vendor` is unstable; join `baa_vendors` prior to threshold.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `vendor`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Cloud app security, firewall.\n• Ensure the following data sources are available: `sourcetype=\"casb:activity\"`, `sourcetype=\"pan:traffic\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMaintain vendor inventory with BAA dates; block or proxy unsanctioned apps with PHI.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud sourcetype=\"casb:activity\" tag=phi\n| lookup baa_vendors vendor OUTPUT baa_signed subprocessor_ok\n| where isnull(baa_signed) OR baa_signed=\"false\"\n| stats count by vendor, app, user\n| sort -count\n```\n\nUnderstanding this SPL\n\n**BAA Compliance Monitoring** — Ensures business associates' systems sending PHI are authorized and logged per contract.\n\nDocumented **Data sources**: `sourcetype=\"casb:activity\"`, `sourcetype=\"pan:traffic\"`. **App/TA** (typical add-on context): Cloud app security, firewall. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud; **sourcetype**: casb:activity. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud, sourcetype=\"casb:activity\", tags. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnull(baa_signed) OR baa_signed=\"false\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by vendor, app, user** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nRun the search on recent production data, spot-check a handful of results against the source system or operational runbooks (cash operations, EHR, payment gateway, etc.), and adjust thresholds to match your seasonal patterns and test windows so teams are not flooded with noise.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (non-BAA usage), Bar chart (vendors), Status (BAA coverage %).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Cloud app security, firewall — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=casb:activity into cloud. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`app, baa_signed subprocessor_ok, user, vendor`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "In Healthcare, we pay close attention to \"BAA Compliance Monitoring\" in our day-to-day work so that fraud, waste, and compliance issues do not slip by quietly. We help teams focus on the few situations that need a person, not every routine blip in the data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

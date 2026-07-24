@@ -9,32 +9,42 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'IPv6 vs IPv4 Traffic Ratio Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ipv6_vs_ipv4_traffic_ratio_trending` (UC-5.20.1), SOC dashboard panel \"Operations — IPv6 vs IPv4 Traffic Ratio Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.1 positive (IPv6, IPv4, Traffic, Ratio, Trending): ingest synthetic events into `index=netflow` sourcetype='netflow' where `total_bytes` grouped by `ip_version` satisfies detection threshold for 'IPv6 vs IPv4 Traffic Ratio Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.1 negative (Ratio Trending): ingest benign `netflow` / `netflow` events where `ip_version` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'IPv6 vs IPv4 Traffic Ratio Trending'."
+  },
   "dataSources": "`index=netflow sourcetype=netflow OR sourcetype=ipfix` from NetFlow v9 or IPFIX exporters. NetFlow v5 is IPv4-only and will NOT export IPv6 flows — if all your exporters run v5, this UC will show 0% IPv6 and that itself is a finding. For firewall-based measurement, use `index=firewall sourcetype=pan:traffic` (Palo Alto) or `index=firewall sourcetype=cisco:asa` (ASA). IPFIX Information Elements: sourceIPv4Address (IE 8), sourceIPv6Address (IE 27), destinationIPv4Address (IE 12), destinationIPv6Address (IE 28), octetDeltaCount (IE 1). Key fields: `src_ip`, `dest_ip`, `bytes`, `packets`. Volume: depends on flow export rate; typical campus = 50–500k flows/hour.",
   "app": "Splunk Add-on for NetFlow (`splunk-add-on-for-netflow`, Splunkbase 1658) for IPFIX/NetFlow v9 ingestion, or Palo Alto Networks Add-on for Splunk (`Splunk_TA_paloalto`, Splunkbase 7523) for PAN firewall traffic logs, or Cisco Networks Add-on (`TA-cisco_ios`, Splunkbase 1352) for ASA syslog. Install on the Search Head for field extractions and on the Heavy Forwarder or data collection tier for data inputs.",
   "spl": "index=netflow sourcetype=netflow OR sourcetype=ipfix\n| eval ip_version=case(\n    match(src_ip, \":\"), \"IPv6\",\n    match(dest_ip, \":\"), \"IPv6\",\n    isnotnull(sourceIPv6Address), \"IPv6\",\n    1==1, \"IPv4\")\n| timechart span=1h count as flows sum(bytes) as total_bytes by ip_version\n| eval ipv6_pct_flows=round(('IPv6' / ('IPv4' + 'IPv6')) * 100, 2)\n| eval ipv6_pct_bytes=round(('IPv6' / ('IPv4' + 'IPv6')) * 100, 2)",
-  "description": "Measures the ratio of IPv6 to IPv4 traffic across the network using flow data (NetFlow v9, IPFIX, or firewall logs), trended over time. This is the foundational adoption metric — without it, you cannot answer 'how much of our traffic is IPv6?' or track whether a dual-stack rollout is progressing. The search classifies flows by IP version using the presence of a colon in the source or destination address, then computes hourly percentages by both flow count and byte volume.",
-  "value": "IPv6 adoption is a board-level metric for organisations subject to OMB M-21-07 (US federal: 80% IPv6-only by FY2025), and a planning input for every enterprise running dual-stack. Without a traffic ratio baseline, you cannot measure rollout progress, detect regression (e.g., a firewall change that blocks IPv6 and forces fallback), or identify subnets where IPv6 was deployed but nobody is using it. The byte-weighted ratio also reveals whether IPv6 is carrying real application traffic or just NDP and link-local noise — an IPv6 flow percentage of 15% but byte percentage of 2% means your biggest applications are still IPv4-only.",
+  "description": "Detects UC-5.20.1 — IPv6, IPv4, Traffic, Ratio, Trending — using `index=netflow` sourcetype `netflow`, grouped by `ip_version`. Outputs `total_bytes` each `1h`; alert when configured threshold. Primary focus: Ratio Trending. Purpose-built for 'IPv6 vs IPv4 Traffic Ratio Trending' in Operations workflows.",
+  "value": "UC-5.20.1 accelerates insight into Ratio Trending ('IPv6 vs IPv4 Traffic Ratio Trending') by tracking `total_bytes` on `netflow` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Deploy NetFlow v9 or IPFIX on routers and switches — NetFlow v5 cannot export IPv6 flows and will produce a false 0% reading. Point exporters at the Splunk NetFlow collector (Heavy Forwarder with the NetFlow TA). Alternatively, use firewall traffic logs from Palo Alto or Cisco ASA, which log both IPv4 and IPv6 sessions natively. Schedule the search as a report (daily, over the last 7 days, sliding window) and save to a summary index for long-term trending.",
   "visualization": "(1) Dual-axis timechart: line for IPv6 flow percentage (left axis, 0–100%) overlaid with area chart for total flows (right axis). (2) Single-value tile: current IPv6 traffic percentage (last 24h), with trend arrow showing week-over-week change. Green ≥ target (e.g., 50%), yellow 20–49%, red < 20%. (3) Stacked area chart: IPv4 vs IPv6 byte volumes over 30 days for executive reporting. (4) Table: top 10 subnets by IPv6 flow percentage to identify adoption leaders and laggards.",
   "references": [
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.6.1.2 — Traffic monitoring)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "NIST SP 800-119 — Guidelines for the Secure Deployment of IPv6 (§5.1 — Transition planning metrics)",
-      "url": "https://csrc.nist.gov/publications/detail/sp/800-119/final"
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-119/final",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "OMB M-21-07 — Completing the Transition to Internet Protocol Version 6 (IPv6)",
-      "url": "https://whitehouse.gov/wp-content/uploads/2020/11/M-21-07.pdf"
+      "url": "https://whitehouse.gov/wp-content/uploads/2020/11/M-21-07.pdf",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for NetFlow (Splunkbase 1658)",
-      "url": "https://splunkbase.splunk.com/app/1658"
+      "url": "https://splunkbase.splunk.com/app/1658",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Link-local NDP inflates IPv6 flow count.** Neighbor Discovery Protocol (NDP) generates IPv6 multicast traffic (ff02::1, ff02::2, ff02::1:ff00::/104) on every VLAN, even where no application uses IPv6. This inflates the IPv6 flow percentage without representing real user traffic. Distinguish by filtering out link-local source addresses (`| where NOT match(src_ip, \"^fe80:\")`) and well-known multicast destinations. The byte-weighted metric is less affected because NDP packets are small (72–128 bytes each).\n\n**NetFlow v5 exporters produce false 0% IPv6.** NetFlow v5 is structurally incapable of exporting IPv6 flows. If some routers export v5 and others export v9/IPFIX, the blended ratio understates IPv6 adoption. Identify v5-only exporters with `index=netflow | stats values(sourcetype) by exporter_ip` and upgrade them to v9/IPFIX or exclude them from the ratio calculation.\n\n**Firewall NAT64 translation masks IPv6 origin.** If a NAT64 gateway translates IPv6-originated traffic to IPv4 before the flow exporter, the resulting flow appears as IPv4. This understates IPv6 adoption. Measure upstream of the translator, or separately track NAT64 state table volume (see UC-5.20.71).",
+  "knownFalsePositives": "1. **Maintenance window on `netflow` (UC-5.20.1)** — Planned work for 'IPv6 vs IPv4 Traffic Ratio Trending' shifts `total_bytes` over `span=1h` while `ip_version` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `netflow`** — Scheduled automation elevates `ip_version` without crossing configured threshold for UC-5.20.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ip_version`** — Health checks in `netflow` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netflow`** — First 48h baseline for UC-5.20.1 on `ip_version` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ip_version`, `exception_reason`, `valid_until`.",
   "equipment": [
     "arista",
     "cisco",

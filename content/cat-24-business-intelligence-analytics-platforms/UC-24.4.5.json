@@ -9,27 +9,55 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Qlik Sense logs (`qlik:scheduler`, `qlik:engine`, `qlik:proxy`), reload task history, section access audit, Qlik Cloud events (`com.qlik.v1.*`) and app/reload metrics via REST.",
-  "app": "Qlik Sense Enterprise logs (Scheduler/Engine/Proxy/Repository) via Universal Forwarder; Qlik Cloud events via the Qlik Cloud REST API through HEC scripted inputs.",
+  "exclusions": "Covers the detection logic documented for 'Qlik Reload Duration SLA' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_qlik_reload_duration_sla` (UC-24.4.5), SOC dashboard panel \"Operations — Qlik Reload Duration SLA\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.4.5 positive (Qlik, Reload, Duration, SLA): ingest synthetic events into `index=bi` sourcetype='qlik:scheduler' where `avg_min` grouped by `task_name` satisfies `p95_min` > 45 for 'Qlik Reload Duration SLA'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.4.5 negative (Duration SLA): ingest benign `bi` / `qlik:scheduler` events where `task_name` stays below `p95_min` > 45, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Qlik Reload Duration SLA'."
+  },
+  "dataSources": "Qlik Sense logs (`qlik:scheduler`, `qlik:engine`, `qlik:proxy`), reload task history, section access audit, Qlik Cloud events (`com.qlik.v1.*`) and app/reload metrics via REST. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Qlik Sense Enterprise logs (Scheduler/Engine/Proxy/Repository) via Universal Forwarder; Qlik Cloud events via the Qlik Cloud REST API through HEC scripted inputs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=qlik:scheduler task_type=reload result=Success\n| eval duration_min=round(duration_seconds/60,1)\n| stats avg(duration_min) as avg_min, p95(duration_min) as p95_min by task_name\n| where p95_min>45\n| sort - p95_min",
-  "description": "Measures Qlik reload durations and flags tasks whose 95th-percentile time breaches an SLA, identifying scripts and sources that need optimisation.",
-  "value": "Long reloads crowd the scheduler and risk overrunning the nightly window; the slowest tasks are the ones to optimise first.",
+  "description": "Surfaces when Duration SLA criteria fire for 'Qlik Reload Duration SLA' (UC-24.4.5) in `index=bi` sourcetype `qlik:scheduler`. Pipeline aggregates `avg_min` by `task_name` over `the scheduled window`. Alert logic enforces `p95_min` > 45. Title terms: Qlik, Reload, Duration, SLA. Eliminates manual hunting for UC-24.4.5 conditions.",
+  "value": "UC-24.4.5 helps teams contain Qlik, Reload, Duration, SLA scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Ingest scheduler logs; schedule daily; tune threshold to your window. Optimise load scripts or incremental reload for offenders.",
   "visualization": "Table by p95 duration, reload-duration trend.",
   "cimModels": [],
   "references": [
     {
       "title": "Qlik Sense — Monitoring logs",
-      "url": "https://help.qlik.com/en-US/sense-admin/Subsystems/DeployAdminister/Content/Sense_DeployAdminister/Monitoring/monitor-logs.htm"
+      "url": "https://help.qlik.com/en-US/sense-admin/Subsystems/DeployAdminister/Content/Sense_DeployAdminister/Monitoring/monitor-logs.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Qlik Cloud — Events",
-      "url": "https://qlik.dev/apis/rest/audits/"
+      "url": "https://qlik.dev/apis/rest/audits/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "We measure how long Qlik apps take to reload so the slow ones get fixed before they run late."
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.4.5)** — Planned work for 'Qlik Reload Duration SLA' shifts `avg_min` over `span=1h` while `task_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `qlik:scheduler`** — Scheduled automation elevates `duration_min` without crossing `p95_min` > 45 for UC-24.4.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `task_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `qlik:scheduler`** — First 48h baseline for UC-24.4.5 on `task_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `task_name`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Qlik Sense Enterprise logs (Scheduler/Engine/Proxy/Repository) via Universal Forwarder; Qlik Cloud events via the Qlik Cloud REST API through HEC scripted inputs. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=qlik:scheduler into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`p95_min, task_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We measure how long Qlik apps take to reload so the slow ones get fixed before they run late.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

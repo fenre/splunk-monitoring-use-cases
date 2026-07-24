@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "RabbitMQ management API (message age), custom consumer timestamp comparison",
-  "app": "Queue management API",
+  "exclusions": "Covers the detection logic documented for 'Message Age Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_message_age_monitoring` (UC-8.3.10), SOC dashboard panel \"Operations — Message Age Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.3.10 positive (Message, Age, Monitoring): ingest synthetic events into `index=messaging` sourcetype='rabbitmq:queue' where `count` grouped by `entity` satisfies `message_age_sec` > 300 for 'Message Age Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.3.10 negative (Age Monitoring): ingest benign `messaging` / `rabbitmq:queue` events where `entity` stays below `message_age_sec` > 300, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'Message Age Monitoring'."
+  },
+  "dataSources": "RabbitMQ management API (message age), custom consumer timestamp comparison Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Queue management API — Universal Forwarder (Splunkbase 617)",
   "spl": "index=messaging sourcetype=\"rabbitmq:queue\"\n| eval message_age_sec=now()-oldest_message_timestamp\n| where message_age_sec > 300\n| table queue_name, vhost, messages, message_age_sec\n| sort -message_age_sec",
-  "description": "Old messages in queues indicate processing delays that may violate SLAs. Age tracking provides a business-relevant metric beyond raw queue depth.",
-  "value": "Old messages in queues indicate processing delays that may violate SLAs. Age tracking provides a business-relevant metric beyond raw queue depth.",
+  "description": "Alerts on UC-8.3.10 — Message, Age, Monitoring — using `index=messaging` sourcetype `rabbitmq:queue`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `message_age_sec` > 300. Primary focus: Age Monitoring. Purpose-built for 'Message Age Monitoring' in Operations workflows.",
+  "value": "Tracking `activity` via UC-8.3.10 on `rabbitmq:queue` feeds improves response to 'Message Age Monitoring' and reduces operational risk and delayed incident response.",
   "implementation": "Poll message age metrics from queue management APIs. For Kafka, compare consumer offset timestamp with current time. Alert when message age exceeds SLA (e.g., >5 minutes for real-time queues). Differentiate by queue priority.",
   "visualization": "Table (queues with old messages), Bar chart (message age by queue), Single value (max message age).",
   "cimModels": [
@@ -22,14 +28,40 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
+  "knownFalsePositives": "1. **Maintenance window on `messaging` (UC-8.3.10)** — Planned work for 'Message Age Monitoring' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `rabbitmq:queue`** — Scheduled automation elevates `message_age_sec` without crossing `message_age_sec` > 300 for UC-8.3.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `messaging` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `rabbitmq:queue`** — First 48h baseline for UC-8.3.10 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kafka",
     "rabbitmq"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Queue management API.\n• Ensure the following data sources are available: RabbitMQ management API (message age), custom consumer timestamp comparison.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll message age metrics from queue management APIs. For Kafka, compare consumer offset timestamp with current time. Alert when message age exceeds SLA (e.g., >5 minutes for real-time queues). Differentiate by queue priority.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=messaging sourcetype=\"rabbitmq:queue\"\n| eval message_age_sec=now()-oldest_message_timestamp\n| where message_age_sec > 300\n| table queue_name, vhost, messages, message_age_sec\n| sort -message_age_sec\n```\n\nUnderstanding this SPL\n\n**Message Age Monitoring** — Old messages in queues indicate processing delays that may violate SLAs. Age tracking provides a business-relevant metric beyond raw queue depth.\n\nDocumented **Data sources**: RabbitMQ management API (message age), custom consumer timestamp comparison. **App/TA** (typical add-on context): Queue management API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: messaging; **sourcetype**: rabbitmq:queue. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=messaging, sourcetype=\"rabbitmq:queue\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **message_age_sec** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where message_age_sec > 300` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Message Age Monitoring**): table queue_name, vhost, messages, message_age_sec\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare with the broker or gateway’s own UI or CLI (`kafka-consumer-groups`, RabbitMQ management, ActiveMQ console, or Traefik/Envoy access log on the node) for the same period.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (queues with old messages), Bar chart (message age by queue), Single value (max message age).",
-  "grandmaExplanation": "We watch for signs that old messages in queues indicate processing delays that may violate service promises."
+  "equipmentModels": [
+    "kafka_generic",
+    "rabbitmq_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Queue management API.\n• Ensure the following data sources are available: RabbitMQ management API (message age), custom consumer timestamp comparison.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll message age metrics from queue management APIs. For Kafka, compare consumer offset timestamp with current time. Alert when message age exceeds SLA (e.g., >5 minutes for real-time queues). Differentiate by queue priority.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=messaging sourcetype=\"rabbitmq:queue\"\n| eval message_age_sec=now()-oldest_message_timestamp\n| where message_age_sec > 300\n| table queue_name, vhost, messages, message_age_sec\n| sort -message_age_sec\n```\n\nUnderstanding this SPL\n\n**Message Age Monitoring** — Old messages in queues indicate processing delays that may violate SLAs. Age tracking provides a business-relevant metric beyond raw queue depth.\n\nDocumented **Data sources**: RabbitMQ management API (message age), custom consumer timestamp comparison. **App/TA** (typical add-on context): Queue management API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: messaging; **sourcetype**: rabbitmq:queue. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=messaging, sourcetype=\"rabbitmq:queue\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **message_age_sec** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where message_age_sec > 300` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Message Age Monitoring**): table queue_name, vhost, messages, message_age_sec\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare with the broker or gateway’s own UI or CLI (`kafka-consumer-groups`, RabbitMQ management, ActiveMQ console, or Traefik/Envoy access log on the node) for the same period.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (queues with old messages), Bar chart (message age by queue), Single value (max message age).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Queue management API — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=rabbitmq:queue into messaging. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`message_age_sec`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch for signs that old messages in queues indicate processing delays that may violate service promises.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,26 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Video-game sessions (`game:session`), achievement unlocks (`achievement:unlock`), board-game plays (`boardgame:play`), chess games (`chess:game`), dice rolls (`dice:roll`).",
-  "app": "Gaming and tabletop telemetry — Steam / PSN / Xbox playtime and achievement APIs, BoardGameGeek plays export, Lichess / Chess.com game archives, and tabletop dice-roller logs — streamed to Splunk HEC via scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Achievement Completion Rate by Game' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_achievement_completion_rate_by_game` (UC-25.29.3), SOC dashboard panel \"Personal — Achievement Completion Rate by Game\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.29.3 positive (Achievement, Completion, Rate, Game): ingest synthetic events into `index=personal` sourcetype='achievement:unlock' where `earned`, `total` grouped by `title` satisfies detection threshold for 'Achievement Completion Rate by Game'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.29.3 negative (by Game): ingest benign `personal` / `achievement:unlock` events where `title` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 15 confirms zero alert rows for 'Achievement Completion Rate by Game'."
+  },
+  "dataSources": "Video-game sessions (`game:session`), achievement unlocks (`achievement:unlock`), board-game plays (`boardgame:play`), chess games (`chess:game`), dice rolls (`dice:roll`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Gaming and tabletop telemetry — Steam / PSN / Xbox playtime and achievement APIs, BoardGameGeek plays export, Lichess / Chess.com game archives, and tabletop dice-roller logs — streamed to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=achievement:unlock\n| stats dc(achievement) as earned, max(total_achievements) as total by title\n| eval pct=round(100*earned/total,1)\n| sort - pct",
-  "description": "Tracks what share of each game's achievements you have unlocked, gamifying your own completionism.",
-  "value": "A per-game completion percentage turns a scattered trophy list into a satisfying progress bar you can chase.",
+  "description": "Alerts on UC-25.29.3 — Achievement, Completion, Rate, Game — using `index=personal` sourcetype `achievement:unlock`, grouped by `title`. Outputs `earned`, `total` each `the scheduled window`; alert when configured threshold. Primary focus: by Game. Purpose-built for 'Achievement Completion Rate by Game' in Personal workflows.",
+  "value": "UC-25.29.3 operationalises 'Achievement Completion Rate by Game' against `achievement:unlock` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Ingest achievement unlocks into `index=personal`; review completion percentage per title.",
   "visualization": "Bar chart of achievement completion percentage by game.",
   "cimModels": [],
   "references": [
     {
       "title": "Steam — Web API",
-      "url": "https://steamcommunity.com/dev"
+      "url": "https://steamcommunity.com/dev",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.29.3)** — Connector for 'Achievement Completion Rate by Game' stops polling `achievement:unlock`; stale `earned`, `total` on `title` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `earned`, `total` over `1w` is expected for UC-25.29.3, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `achievement:unlock`. Dedup with `stats latest(*) by title`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Achievement Completion Rate by Game'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],
-  "grandmaExplanation": "It shows how many of each game's rewards you have unlocked, which is fun if you like completing everything."
+  "equipmentModels": [
+    "asterisk_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Games & Tabletop — typical feeds: Video-game sessions (`game:session`), achievement unlocks (`achievement:unlock`), board-game plays (`boardgame:play`), chess games (`chess:game`), dice rolls (`dice:roll`)..\n• **Sourcetypes in this search**: `achievement:unlock`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=achievement:unlock`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Gaming and tabletop telemetry — Steam / PSN / Xbox playtime and achievement APIs, BoardGameGeek plays export, Lichess / Chess.com game archives, and tabletop dice-roller logs — streamed to Splunk HEC via scripted inputs..\n\n**Author notes:** Ingest achievement unlocks into `index=personal`; review completion percentage per title.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"achievement:unlock\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=achievement:unlock earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Achievement Completion Rate by Game** over `personal` data (primarily `sourcetype=achievement:unlock`) across the full search range. The `dc, max` aggregation groups by `title`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `title`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=achievement:unlock\n| stats dc(achievement) as earned, max(total_achievements) as total by title\n| eval pct=round(100*earned/total,1)\n| sort - pct\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=achievement:unlock earliest=-7d\n| head 50\n| table title\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=achievement:unlock earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.29.3: Personal evidence` with the following panel layout:\n\n**Panel 1 — Bar Chart Of Achievement Completion Percentage By Game (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `achievement:unlock` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=achievement:unlock | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It shows how many of each game's rewards you have unlocked, which is fun if you like completing everything.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

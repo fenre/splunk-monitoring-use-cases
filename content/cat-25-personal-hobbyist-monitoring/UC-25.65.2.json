@@ -9,35 +9,60 @@
     "Safety"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Victron telemetry (`victron:telemetry`), iOverlander place logs (`ioverlander:place`), Garmin inReach messages (`inreach:message`), and Mopeka propane readings (`mopeka:tank`).",
-  "app": "Victron Cerbo GX telemetry, iOverlander place exports, Garmin inReach check-ins, and Mopeka propane sensors streamed into Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Camp Spot Arrival After Dark Risk' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_camp_spot_arrival_after_dark_risk` (UC-25.65.2), SOC dashboard panel \"Personal — Camp Spot Arrival After Dark Risk\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.65.2 positive (Camp, Spot, Arrival, After, Dark): ingest synthetic events into `index=personal` sourcetype='ioverlander:place' where `dark_arrivals` grouped by `place_name` satisfies `arrival_hour` >= 20, or `arrival_hour` < 6 for 'Camp Spot Arrival After Dark Risk'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.65.2 negative (Dark Risk): ingest benign `personal` / `ioverlander:place` events where `place_name` stays below `arrival_hour` >= 20, or `arrival_hour` < 6, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 8 confirms zero alert rows for 'Camp Spot Arrival After Dark Risk'."
+  },
+  "dataSources": "Victron telemetry (`victron:telemetry`), iOverlander place logs (`ioverlander:place`), Garmin inReach messages (`inreach:message`), and Mopeka propane readings (`mopeka:tank`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Victron Cerbo GX telemetry, iOverlander place exports, Garmin inReach check-ins, and Mopeka propane sensors streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=ioverlander:place arrival_hour=* place_name=*\n| eval after_dark=if(arrival_hour>=20 OR arrival_hour<6,1,0)\n| stats sum(after_dark) as dark_arrivals, count as stays by place_name\n| eval dark_arrival_pct=round(100*dark_arrivals/stays,1)\n| sort - dark_arrival_pct",
-  "description": "Shows which kinds of camp stops are most often reached after dark, when setup and situational awareness are harder.",
-  "value": "Late arrivals add stress, reduce camp quality, and can hide site or safety issues until it is too late to adjust.",
+  "description": "Detects UC-25.65.2 — Camp, Spot, Arrival, After, Dark — using `index=personal` sourcetype `ioverlander:place`, grouped by `place_name`. Outputs `dark_arrivals` each `the scheduled window`; alert when `arrival_hour` >= 20, or `arrival_hour` < 6. Primary focus: Dark Risk. Purpose-built for 'Camp Spot Arrival After Dark Risk' in Personal workflows.",
+  "value": "UC-25.65.2 accelerates insight into Dark Risk ('Camp Spot Arrival After Dark Risk') by tracking `dark_arrivals` on `ioverlander:place` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Add an `arrival_hour` field when logging each stop and review the after-dark percentage by place or trip type.",
   "visualization": "Table of camp spots by after-dark arrival percentage.",
   "cimModels": [],
   "references": [
     {
       "title": "Victron Cerbo GX",
-      "url": "https://www.victronenergy.com/panel-systems-remote-monitoring/cerbo-gx"
+      "url": "https://www.victronenergy.com/panel-systems-remote-monitoring/cerbo-gx",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "iOverlander",
-      "url": "https://ioverlander.com/"
+      "url": "https://ioverlander.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Garmin inReach",
-      "url": "https://www.garmin.com/en-US/c/outdoor-recreation/satellite-communicators/"
+      "url": "https://www.garmin.com/en-US/c/outdoor-recreation/satellite-communicators/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Mopeka Tank Monitoring",
-      "url": "https://www.mopeka.com/"
+      "url": "https://www.mopeka.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It watches which camp stops you keep reaching too late to set up comfortably."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.65.2)** — Connector for 'Camp Spot Arrival After Dark Risk' stops polling `ioverlander:place`; stale `dark_arrivals` on `place_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `dark_arrivals` over `1w` is expected for UC-25.65.2, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ioverlander:place`. Dedup with `stats latest(*) by place_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `arrival_hour` >= 20 for 'Camp Spot Arrival After Dark Risk'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Camping, Overlanding & RV — typical feeds: Victron telemetry (`victron:telemetry`), iOverlander place logs (`ioverlander:place`), Garmin inReach messages (`inreach:message`), and Mopeka propane readings (`mopeka:tank`)..\n• **Sourcetypes in this search**: `ioverlander:place`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=ioverlander:place`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Victron Cerbo GX telemetry, iOverlander place exports, Garmin inReach check-ins, and Mopeka propane sensors streamed into Splunk HEC..\n\n**Author notes:** Add an `arrival_hour` field when logging each stop and review the after-dark percentage by place or trip type.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"ioverlander:place\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=ioverlander:place earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Camp Spot Arrival After Dark Risk** over `personal` data (primarily `sourcetype=ioverlander:place`) across the full search range. It applies numeric thresholds on `arrival_hour` (>= 20) after sum — tune these constants to your household baseline.\n\n**Fields this search depends on:** `after_dark`, `arrival_hour`, `place_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=ioverlander:place arrival_hour=* place_name=*\n| eval after_dark=if(arrival_hour>=20 OR arrival_hour<6,1,0)\n| stats sum(after_dark) as dark_arrivals, count as stays by place_name\n| eval dark_arrival_pct=round(100*dark_arrivals/stays,1)\n| sort - dark_arrival_pct\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=ioverlander:place earliest=-7d\n| head 50\n| table after_dark, arrival_hour, place_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=ioverlander:place earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `arrival_hour` before alerting:\n\n```spl\nindex=personal sourcetype=ioverlander:place earliest=-30d\n| stats perc50(arrival_hour) AS p50 perc90(arrival_hour) AS p90 perc99(arrival_hour) AS p99 max(arrival_hour) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.65.2: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Camp Spots By After-Dark Arrival Percentage (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `ioverlander:place` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=ioverlander:place | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It watches which camp stops you keep reaching too late to set up comfortably.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

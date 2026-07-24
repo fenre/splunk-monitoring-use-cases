@@ -9,28 +9,42 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'ThousandEyes ITSI Service Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_thousandeyes_itsi_service_health` (UC-5.9.50), SOC dashboard panel \"Operations — ThousandEyes ITSI Service Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.9.50 positive (ThousandEyes, ITSI, Service, Health): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `avg_latency`, `avg_loss`, `avg_jitter` grouped by `thousandeyes.test.name` satisfies `avg_latency_ms` < 50, `avg_loss` < 0.5, `avg_latency_ms` < 100, or `avg_loss` < 1 for 'ThousandEyes ITSI Service Health'. Validate macro `stream_index`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.9.50 negative (Service Health): ingest benign `target_index` / `target_sourcetype` events where `thousandeyes.test.name` stays below `avg_latency_ms` < 50, `avg_loss` < 0.5, `avg_latency_ms` < 100, or `avg_loss` < 1, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'ThousandEyes ITSI Service Health'."
+  },
   "dataSources": "`index=thousandeyes_metrics sourcetype=cisco:thousandeyes:metric` feeding into Splunk ITSI KPIs. This UC bridges ThousandEyes OTel v2 metrics into ITSI's service modeling framework, creating KPIs and services from ThousandEyes data. The `ta_cisco_thousandeyes` app includes built-in ITSI content (KPI base searches, service templates) for ThousandEyes integration.",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported. **Also requires:** Splunk IT Service Intelligence (ITSI).",
   "spl": "`stream_index` thousandeyes.test.type=\"agent-to-server\"\n| stats avg(network.latency) as avg_latency avg(network.loss) as avg_loss avg(network.jitter) as avg_jitter by thousandeyes.test.name\n| eval avg_latency_ms=round(avg_latency*1000,1)\n| eval health=case(avg_latency_ms<50 AND avg_loss<0.5, \"Normal\", avg_latency_ms<100 AND avg_loss<1, \"Warning\", 1=1, \"Critical\")\n| table thousandeyes.test.name, avg_latency_ms, avg_loss, avg_jitter, health",
-  "description": "Integrates ThousandEyes network performance metrics into Splunk ITSI services and KPIs, providing a service-level health view that aggregates individual ThousandEyes test results into business-meaningful service health scores. This enables ThousandEyes data to participate in ITSI's service dependency trees, glass tables, and episode analytics.",
-  "value": "ITSI provides service-level monitoring that individual ThousandEyes tests cannot. A service like \"Customer Portal\" depends on: network connectivity (ThousandEyes), application health (APM), server health (infrastructure monitoring), and database performance (DB monitoring). By feeding ThousandEyes data into ITSI, the network health component appears alongside all other health indicators in a unified service health score. When the \"Customer Portal\" health score drops, ITSI can immediately show that the network component (from ThousandEyes) is the degraded contributor — enabling faster root cause identification.",
+  "description": "Detects UC-5.9.50 — ThousandEyes, ITSI, Service, Health — using `index=target_index` sourcetype `configured sourcetype`, grouped by `thousandeyes.test.name`. Outputs `avg_latency`, `avg_loss`, `avg_jitter` each `the scheduled window`; alert when `avg_latency_ms` < 50, `avg_loss` < 0.5, `avg_latency_ms` < 100, or `avg_loss` < 1. Filter chain includes macro `stream_index`. Purpose-built for 'ThousandEyes ITSI Service Health' in Operations workflows.",
+  "value": "Tracking `avg_latency`, `avg_loss`, `avg_jitter` via UC-5.9.50 on macro `stream_index` improves response to 'ThousandEyes ITSI Service Health' and reduces operational risk and delayed incident response.",
   "implementation": "The `ta_cisco_thousandeyes` app includes ITSI integration content. Configure ITSI services with ThousandEyes KPIs using the built-in KPI base searches. Map ThousandEyes tests to ITSI services based on business context.",
   "visualization": "(1) ITSI Glass Table: service health with ThousandEyes network KPIs. (2) ITSI Service Analyzer: deep-dive into ThousandEyes-fed KPIs. (3) ITSI Notable Events: ThousandEyes-triggered notable events correlated with other data sources.",
   "references": [
     {
       "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
-      "url": "https://splunkbase.splunk.com/app/7719"
+      "url": "https://splunkbase.splunk.com/app/7719",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk ITSI documentation",
-      "url": "https://docs.splunk.com/Documentation/ITSI"
+      "url": "https://docs.splunk.com/Documentation/ITSI",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes ITSI integration guide",
-      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/custom-built-integrations/splunk-app"
+      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/custom-built-integrations/splunk-app",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**ITSI threshold misconfiguration.** If ITSI KPI thresholds are set too aggressively, ThousandEyes-fed KPIs may show \"Critical\" for normal network fluctuations. Use ITSI's adaptive thresholding or calibrate thresholds based on UC-5.9.1 baseline data.\n\n**KPI data lag.** If the KPI base search schedule doesn't align with ThousandEyes data arrival, KPIs may show stale data. Ensure KPI search frequency matches or exceeds test frequency.\n\n**Entity mapping issues.** If ITSI entities don't correctly map to ThousandEyes agents or tests, KPI calculations may include or exclude wrong data.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index` (UC-5.9.50)** — Planned work for 'ThousandEyes ITSI Service Health' shifts `avg_latency`, `avg_loss`, `avg_jitter` over `span=1h` while `thousandeyes.test.name` remains in-scope. Applies macro `stream_index`. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `avg_latency_ms` without crossing `avg_latency_ms` < 50 for UC-5.9.50. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `thousandeyes.test.name`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.9.50 on `thousandeyes.test.name` is unstable; join `stream_index` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `thousandeyes.test.name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "itsi"

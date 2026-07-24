@@ -9,26 +9,55 @@
     "Risk"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Whole-home water flow (`watermeter:flow`), sump pump (`sumppump:event`), well pump (`wellpump:event`), pool/spa chemistry (`pool:chemistry`), water softener (`watersoftener:status`), irrigation zones (`irrigation:zone`).",
-  "app": "Smart water meters (Flume/Flo/HomeWizard), sump- and well-pump sensors, pool/spa controllers, water-softener and irrigation controllers via vendor APIs, MQTT, and HEC.",
-  "spl": "index=personal sourcetype=leaksmart:sensor moisture_pct>80\nstats count as alerts by sensor_name\nwhere alerts>3",
-  "description": "Finds LeakSmart sensors triggering repeated moisture alerts.",
-  "value": "Surfacing leaksmart sensor repeated moisture alerts helps you act before small issues become habits.",
+  "exclusions": "Covers personal hobby monitoring for 'LeakSmart Sensor Repeated Moisture Alerts' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_leaksmart_sensor_repeated_moisture_alerts` (UC-25.19.36), SOC dashboard panel \"Personal — LeakSmart Sensor Repeated Moisture Alerts\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.19.36 positive (LeakSmart, Sensor, Repeated, Moisture, Alerts): ingest synthetic events into `index=personal` sourcetype='leaksmart:sensor' where `count` grouped by `sensor_name` satisfies `moisture_pct` > 80, or `alerts` > 3 for 'LeakSmart Sensor Repeated Moisture Alerts'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.19.36 negative (Moisture Alerts): ingest benign `personal` / `leaksmart:sensor` events where `sensor_name` stays below `moisture_pct` > 80, or `alerts` > 3, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 15 confirms zero alert rows for 'LeakSmart Sensor Repeated Moisture Alerts'."
+  },
+  "dataSources": "Whole-home water flow (`watermeter:flow`), sump pump (`sumppump:event`), well pump (`wellpump:event`), pool/spa chemistry (`pool:chemistry`), water softener (`watersoftener:status`), irrigation zones (`irrigation:zone`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Smart water meters (Flume/Flo/HomeWizard), sump- and well-pump sensors, pool/spa controllers, water-softener and irrigation controllers via vendor APIs, MQTT, and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=leaksmart:sensor moisture_pct>80\n| stats count as alerts by sensor_name\n| where alerts>3",
+  "description": "Monitors UC-25.19.36 — LeakSmart, Sensor, Repeated, Moisture, Alerts — using `index=personal` sourcetype `leaksmart:sensor`, grouped by `sensor_name`. Outputs `count` each `the scheduled window`; alert when `moisture_pct` > 80, or `alerts` > 3. Primary focus: Moisture Alerts. Purpose-built for 'LeakSmart Sensor Repeated Moisture Alerts' in Personal workflows.",
+  "value": "UC-25.19.36 operationalises 'LeakSmart Sensor Repeated Moisture Alerts' against `leaksmart:sensor` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Ingest the relevant water, plumbing & utilities export into `index=personal` and schedule this search weekly.",
   "visualization": "Table or chart of key fields.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk ES Content Management",
+      "url": "https://docs.splunk.com/Documentation/ES/latest/Admin/ContentManagement",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.19.36)** — Connector for 'LeakSmart Sensor Repeated Moisture Alerts' stops polling `leaksmart:sensor`; stale `count` on `sensor_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.19.36, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `leaksmart:sensor`. Dedup with `stats latest(*) by sensor_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `moisture_pct` > 80 for 'LeakSmart Sensor Repeated Moisture Alerts'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It tells you when leaksmart sensor repeated moisture alerts matters for your routine."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Water, Plumbing & Utilities — typical feeds: Whole-home water flow (`watermeter:flow`), sump pump (`sumppump:event`), well pump (`wellpump:event`), pool/spa chemistry (`pool:chemistry`), water softener (`watersoftener:status`), irrigation zones .\n• **Sourcetypes in this search**: `leaksmart:sensor`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=leaksmart:sensor`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Smart water meters (Flume/Flo/HomeWizard), sump- and well-pump sensors, pool/spa controllers, water-softener and irrigation controllers via vendor APIs, MQTT, and HEC..\n\n**Author notes:** Ingest the relevant water, plumbing & utilities export into `index=personal` and schedule this search weekly.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"leaksmart:sensor\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=leaksmart:sensor earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **LeakSmart Sensor Repeated Moisture Alerts** over `personal` data (primarily `sourcetype=leaksmart:sensor`) across the full search range. It applies numeric thresholds on `moisture_pct` (> 80) after aggregation — tune these constants to your household baseline.\n\n**Fields this search depends on:** `alerts`, `moisture_pct`, `sensor_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=leaksmart:sensor moisture_pct>80\n| stats count as alerts by sensor_name\n| where alerts>3\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=leaksmart:sensor earliest=-7d\n| head 50\n| table alerts, moisture_pct, sensor_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=leaksmart:sensor earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `moisture_pct` before alerting:\n\n```spl\nindex=personal sourcetype=leaksmart:sensor earliest=-30d\n| stats perc50(moisture_pct) AS p50 perc90(moisture_pct) AS p90 perc99(moisture_pct) AS p99 max(moisture_pct) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.19.36: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Or Chart Of Key Fields (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `leaksmart:sensor` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=leaksmart:sensor | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It tells you when leaksmart sensor repeated moisture alerts matters for your routine.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

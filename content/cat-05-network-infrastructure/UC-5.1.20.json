@@ -9,27 +9,53 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=cisco:ios`",
-  "app": "`TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog",
+  "exclusions": "Covers the detection logic documented for 'EIGRP Neighbor Flapping' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_eigrp_neighbor_flapping` (UC-5.1.20), SOC dashboard panel \"Operations — EIGRP Neighbor Flapping\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.1.20 positive (EIGRP, Neighbor, Flapping): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `count` grouped by `_time`, `host`, `neighbor_ip`, `interface` satisfies `downs` > 2 for 'EIGRP Neighbor Flapping'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.1.20 negative (Neighbor Flapping): ingest benign `network` / `cisco:ios` events where `_time`, `host`, `neighbor_ip`, `interface` stays below `downs` > 2, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'EIGRP Neighbor Flapping'."
+  },
+  "dataSources": "`sourcetype=cisco:ios` Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network sourcetype=\"cisco:ios\" \"%DUAL-5-NBRCHANGE\"\n| rex \"EIGRP-(?<protocol>IPv4|IPv6) (?<as_number>\\d+).*Neighbor (?<neighbor_ip>\\S+) \\((?<interface>\\S+)\\) is (?<state>up|down)\"\n| bin _time span=15m | stats count(eval(state=\"down\")) as downs, count(eval(state=\"up\")) as ups by _time, host, neighbor_ip, interface\n| where downs > 2",
-  "description": "EIGRP neighbor instability causes route recalculation, increased CPU load, and traffic blackholing during convergence.",
-  "value": "NOC teams detect EIGRP neighbor flapping on Cisco routers, identifying hold timer expirations and adjacency instability that cause routing reconvergence and traffic disruption.",
+  "description": "Surfaces UC-5.1.20 — EIGRP, Neighbor, Flapping — using `index=network` sourcetype `cisco:ios`, grouped by `_time`, `host`, `neighbor_ip`, `interface`. Outputs `count` each `15m`; alert when `downs` > 2. Primary focus: Neighbor Flapping. Purpose-built for 'EIGRP Neighbor Flapping' in Operations workflows.",
+  "value": "For 'EIGRP Neighbor Flapping', UC-5.1.20 converts `activity` on `cisco:ios` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Collect syslog from Cisco routers. Alert on >2 EIGRP neighbor down events in 15 minutes. Correlate with interface flaps and CPU utilization.",
   "visualization": "Timeline (up/down events), Table (neighbor, interface, flap count), Status grid.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "EIGRP neighbor churn can follow redistribution changes, serial link clocking work, or lab reruns—compare to change records before treating as a fault.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.1.20)** — Planned work for 'EIGRP Neighbor Flapping' shifts `count` over `span=15m` while `_time`, `host`, `neighbor_ip`, `interface` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ios`** — Scheduled automation elevates `host` without crossing `downs` > 2 for UC-5.1.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `host`, `neighbor_ip`, `interface`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.1.20 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
   ],
   "equipmentModels": [
     "cisco_ios"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     {
@@ -38,7 +64,9 @@
       "note": "UBA"
     }
   ],
-  "detailedImplementation": "Prerequisites\n* EIGRP neighbor flapping syslog messages. Data in `index=network` with `sourcetype=cisco:ios`. Key mnemonics: `%DUAL-5-NBRCHANGE` (neighbor up/down), `%EIGRP-5-NBRCHANGE`.\n* EIGRP neighbors: routers in the same EIGRP AS form adjacencies via Hello packets (multicast 224.0.0.10). Neighbor loss triggers DUAL recalculation and potentially route recalculation. Flapping causes constant reconvergence, increased CPU, and traffic disruption.\n\nStep 1 -- Configure data collection\n```\n# Cisco IOS -- EIGRP neighbor changes are logged by default\n# Ensure syslog includes informational level\nlogging host <splunk-syslog-ip>\nlogging trap informational\n\n# Optional: EIGRP event logging\nrouter eigrp <asn>\n eigrp log-neighbor-changes\n```\nVerify:\n```spl\nindex=network earliest=-24h\n| where match(_raw, \"(?i)DUAL.*NBRCHANGE|EIGRP.*NBRCHANGE|eigrp.*neighbor|eigrp.*down|eigrp.*up\")\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- EIGRP neighbor flapping detection:**\n```spl\nindex=network earliest=-24h\n| where match(_raw, \"(?i)DUAL.*NBRCHANGE|EIGRP.*NBRCHANGE|eigrp.*neighbor\")\n| rex field=_raw \"(?i)(?:neighbor|Neighbor|Nbr)\\s+(?<neighbor_ip>\\d+\\.\\d+\\.\\d+\\.\\d+)\"\n| rex field=_raw \"(?i)(?<eigrp_state>is\\s+(?:up|down))\"\n| eval neighbor=coalesce(neighbor_ip, eigrp_neighbor)\n| eval state=if(match(_raw, \"(?i)is\\s+down|went.*down|lost|dead\"), \"down\", \"up\")\n| eval device=coalesce(host, device_name)\n| sort device, neighbor, _time\n| stats count as events count(eval(state=\"down\")) as down_events count(eval(state=\"up\")) as up_events latest(state) as current_state by device, neighbor\n| eval flapping=if(events > 4, \"YES\", \"NO\")\n| eval severity=case(\n    current_state=\"down\" AND flapping=\"YES\", \"CRITICAL -- EIGRP neighbor DOWN and flapping\",\n    current_state=\"down\", \"WARNING -- EIGRP neighbor DOWN\",\n    flapping=\"YES\", \"WARNING -- EIGRP neighbor flapping\",\n    1==1, \"OK\")\n| where severity != \"OK\"\n| sort severity, -events\n```\n\nStep 3 -- Validate\n(a) CLI: `show eigrp neighbors` -- verify current neighbor states.\n(b) CLI: `show eigrp topology` -- check route status.\n(c) CLI: `show ip eigrp interfaces detail` -- check hello/hold timers.\n\nStep 4 -- Operationalize\nDashboard (\"Network -- EIGRP Neighbors\"):\n* Row 1 -- Single-value: \"Neighbors DOWN\", \"Flapping neighbors\".\n* Row 2 -- EIGRP neighbor event timeline.\n\nAlert: Critical (EIGRP neighbor DOWN on WAN link): routing impact.\n\nStep 5 -- Troubleshooting\n\n* **Hold timer expired** -- Hello packets not received. Check: interface status, ACLs blocking multicast 224.0.0.10, K-value mismatch between neighbors.\n\n* **Stuck in Active (SIA)** -- DUAL query not answered in time. Check downstream neighbor CPU and convergence. Adjust: `timers active-time`.\n\n* **K-value mismatch** -- All EIGRP neighbors must have matching K-values. Check: `show ip eigrp interfaces detail | include K-value`. Mismatch prevents adjacency formation.",
+  "detailedImplementation": "Prerequisites\n* EIGRP neighbor flapping syslog messages. Data in `index=network` with `sourcetype=cisco:ios`. Key mnemonics: `%DUAL-5-NBRCHANGE` (neighbor up/down), `%EIGRP-5-NBRCHANGE`.\n* EIGRP neighbors: routers in the same EIGRP AS form adjacencies via Hello packets (multicast 224.0.0.10). Neighbor loss triggers DUAL recalculation and potentially route recalculation. Flapping causes constant reconvergence, increased CPU, and traffic disruption.\n\nStep 1 -- Configure data collection\n```\n# Cisco IOS -- EIGRP neighbor changes are logged by default\n# Ensure syslog includes informational level\nlogging host <splunk-syslog-ip>\nlogging trap informational\n\n# Optional: EIGRP event logging\nrouter eigrp <asn>\n eigrp log-neighbor-changes\n```\nVerify:\n```spl\nindex=network earliest=-24h\n| where match(_raw, \"(?i)DUAL.*NBRCHANGE|EIGRP.*NBRCHANGE|eigrp.*neighbor|eigrp.*down|eigrp.*up\")\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- EIGRP neighbor flapping detection:**\n```spl\nindex=network earliest=-24h\n| where match(_raw, \"(?i)DUAL.*NBRCHANGE|EIGRP.*NBRCHANGE|eigrp.*neighbor\")\n| rex field=_raw \"(?i)(?:neighbor|Neighbor|Nbr)\\s+(?<neighbor_ip>\\d+\\.\\d+\\.\\d+\\.\\d+)\"\n| rex field=_raw \"(?i)(?<eigrp_state>is\\s+(?:up|down))\"\n| eval neighbor=coalesce(neighbor_ip, eigrp_neighbor)\n| eval state=if(match(_raw, \"(?i)is\\s+down|went.*down|lost|dead\"), \"down\", \"up\")\n| eval device=coalesce(host, device_name)\n| sort device, neighbor, _time\n| stats count as events count(eval(state=\"down\")) as down_events count(eval(state=\"up\")) as up_events latest(state) as current_state by device, neighbor\n| eval flapping=if(events > 4, \"YES\", \"NO\")\n| eval severity=case(\n    current_state=\"down\" AND flapping=\"YES\", \"CRITICAL -- EIGRP neighbor DOWN and flapping\",\n    current_state=\"down\", \"WARNING -- EIGRP neighbor DOWN\",\n    flapping=\"YES\", \"WARNING -- EIGRP neighbor flapping\",\n    1==1, \"OK\")\n| where severity != \"OK\"\n| sort severity, -events\n```\n\nStep 3 -- Validate\n(a) CLI: `show eigrp neighbors` -- verify current neighbor states.\n(b) CLI: `show eigrp topology` -- check route status.\n(c) CLI: `show ip eigrp interfaces detail` -- check hello/hold timers.\n\nStep 4 -- Operationalize\nDashboard (\"Network -- EIGRP Neighbors\"):\n* Row 1 -- Single-value: \"Neighbors DOWN\", \"Flapping neighbors\".\n* Row 2 -- EIGRP neighbor event timeline.\n\nAlert: Critical (EIGRP neighbor DOWN on WAN link): routing impact.\n\nStep 5 -- Troubleshooting\n\n* **Hold timer expired** -- Hello packets not received. Check: interface status, ACLs blocking multicast 224.0.0.10, K-value mismatch between neighbors.\n\n* **Stuck in Active (SIA)** -- DUAL query not answered in time. Check downstream neighbor CPU and convergence. Adjust: `timers active-time`.\n\n* **K-value mismatch** -- All EIGRP neighbors must have matching K-values. Check: `show ip eigrp interfaces detail | include K-value`. Mismatch prevents adjacency formation.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ios into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, downs, host, interface`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We help you know early when something looks wrong with eigrp neighbor flapping so the team can act before it grows into a bigger outage.",
-  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360"
+  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

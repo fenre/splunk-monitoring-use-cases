@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=pve` `sourcetype=\"proxmox:task\"` — QEMU migrate UPID tasks: `type`, `vmid`, `src_node`, `dst_node`, `duration_sec`, `status`",
-  "app": "UF shipping `pvedaemon` / `pvestatd` task transcripts; map `qmigrate` operations to fields",
+  "exclusions": "Covers the detection logic documented for 'Proxmox VE Live Migration Completion Time and Error Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_proxmox_ve_live_migration_completion_time_and_er` (UC-2.7.4), SOC dashboard panel \"Linux — Proxmox VE Live Migration Completion Time and Error Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.7.4 positive (Proxmox, Live, Migration, Completion, Time): ingest synthetic events into `index=pve` sourcetype='proxmox:task' where `med_dur` grouped by `src_node`, `dst_node` satisfies `failed` > 0, or `p95_dur` > 600 for 'Proxmox VE Live Migration Completion Time and Error Rate'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.7.4 negative (Error Rate): ingest benign `pve` / `proxmox:task` events where `src_node`, `dst_node` stays below `failed` > 0, or `p95_dur` > 600, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 10 confirms zero alert rows for 'Proxmox VE Live Migration Completion Time and Error Rate'."
+  },
+  "dataSources": "`index=pve` `sourcetype=\"proxmox:task\"` — QEMU migrate UPID tasks: `type`, `vmid`, `src_node`, `dst_node`, `duration_sec`, `status` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "UF shipping `pvedaemon` / `pvestatd` task transcripts; map `qmigrate` operations to fields — Universal Forwarder (Splunkbase 617)",
   "spl": "index=pve sourcetype=\"proxmox:task\" earliest=-24h\n| eval t=lower(coalesce(type, task_type, operation))\n| where match(t, \"(?i)qmigrate|migrate\")\n| eval dur=tonumber(coalesce(duration_sec, duration))\n| eval ok=if(match(lower(coalesce(status, result)), \"(?i)ok|success\"),1,0)\n| stats count as migrations, median(dur) as med_dur, perc95(dur) as p95_dur,\n    sum(eval(if(ok==0,1,0))) as failed by src_node, dst_node\n| where failed>0 OR p95_dur>600",
-  "description": "Live migrations should finish quickly and without errors during host maintenance. Long tail durations or failures highlight inadequate migration network bandwidth, storage latency, or pinned CPU configurations.",
-  "value": "Keeps host evacuation and hardware refresh projects on schedule while avoiding hidden guest impact.",
+  "description": "Identifies UC-2.7.4 — Proxmox, Live, Migration, Completion, Time — using `index=pve` sourcetype `proxmox:task`, grouped by `src_node`, `dst_node`. Outputs `med_dur` each `the scheduled window`; alert when `failed` > 0, or `p95_dur` > 600. Primary focus: Error Rate. Purpose-built for 'Proxmox VE Live Migration Completion Time and Error Rate' in Linux workflows.",
+  "value": "For 'Proxmox VE Live Migration Completion Time and Error Rate', UC-2.7.4 converts `med_dur` on `proxmox:task` feeds into actionable rows and reduces capacity incidents, patch regressions, and service outages.",
   "implementation": "Filter only migration task types to reduce noise. Establish per–node-pair baselines. Alert on failures immediately; warn on p95 above your SLO. Compare with `proxmox:pveproxy` latency and `proxmox:storage` latency in the same window.",
   "visualization": "Heat map of p95 duration by node pair; timechart median migration time; table of failed vmid samples.",
   "cimModels": [
@@ -22,12 +28,31 @@
   "references": [
     {
       "title": "QEMU/KVM Migration on Proxmox",
-      "url": "https://pve.proxmox.com/wiki/"
+      "url": "https://pve.proxmox.com/wiki/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Nutanix Prism alerts and jobs can line up with disk rebuilds, rolling upgrades, or RF changes; wait for the cluster task list to show completion before over-reacting to transient counters.",
+  "knownFalsePositives": "1. **Patch Tuesday on `pve`** — Package managers spike `src_node` metrics for 'Proxmox VE Live Migration Completion Time and Error Rate'. Correlate with apt/yum logs in the same `proxmox:task` window.\n\n2. **Nightly backup I/O on `src_node`** — Predictable `median` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `proxmox:task`** — Nagios/Zabbix polls `src_node` and mimics sustained load without crossing `failed` > 0.\n\n4. **New host onboarding** — `src_node` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `src_node`, `valid_until`.",
   "equipment": [
     "proxmox"
+  ],
+  "equipmentModels": [
+    "proxmox_generic"
   ],
   "status": "verified",
   "lastReviewed": "2025-06-01",
@@ -36,5 +61,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We time how long it takes to move a running computer from one physical machine to another, and flag when those moves fail or drag on."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (UF shipping `pvedaemon` / `pvestatd` task transcripts; map `qmigrate` operations to fields — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=proxmox:task into pve. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`dst_node, failed, ok, p95_dur`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We time how long it takes to move a running computer from one physical machine to another, and flag when those moves fail or drag on.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

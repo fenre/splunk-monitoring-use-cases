@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "ITSI entity overview, entity health scores",
-  "app": "Splunk ITSI",
+  "exclusions": "Covers the detection logic documented for 'Entity Status Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_entity_status_monitoring` (UC-13.2.4), SOC dashboard panel \"Operations — Entity Status Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-13.2.4 positive (Entity, Status, Monitoring): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `count` grouped by `entity` satisfies detection threshold for 'Entity Status Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-13.2.4 negative (Status Monitoring): ingest benign `target_index` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Entity Status Monitoring'."
+  },
+  "dataSources": "ITSI entity overview, entity health scores Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk ITSI — Universal Forwarder (Splunkbase 617)",
   "spl": "| inputlookup itsi_entities\n| where entity_status!=\"active\"\n| table title, entity_type, entity_status, last_seen",
-  "description": "Entity health provides granular visibility into individual infrastructure components feeding services. Unstable entities degrade service health.",
-  "value": "Entity health provides granular visibility into individual infrastructure components feeding services. Unstable entities degrade service health.",
+  "description": "Surfaces UC-13.2.4 — Entity, Status, Monitoring — using `index=target_index` sourcetype `configured sourcetype`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Status Monitoring. Purpose-built for 'Entity Status Monitoring' in Operations workflows.",
+  "value": "UC-13.2.4 gives Operations teams earlier visibility into Status Monitoring through UC-13.2.4 search results, lowering operational risk and delayed incident response.",
   "implementation": "Configure entity discovery (AD, CMDB, cloud APIs). Monitor entity states (active, inactive, unstable). Alert when critical entities become inactive. Track entity population for coverage analysis.",
   "visualization": "Status grid (entities by type × status), Table (inactive entities), Single value (active entity count).",
   "cimModels": [
@@ -22,12 +28,35 @@
   "references": [
     {
       "title": "Splunk ITSI",
-      "url": "https://splunkbase.splunk.com/app/1841"
+      "url": "https://splunkbase.splunk.com/app/1841",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Episode and score noise from content changes, seasonality, and who is in scope. We check maintenance and drill paths before we escalate.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index` (UC-13.2.4)** — Planned work for 'Entity Status Monitoring' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `src` without crossing configured threshold for UC-13.2.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-13.2.4 on `host` is unstable; join `itsi_entities` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "itsi"
+  ],
+  "equipmentModels": [
+    "itsi_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     {
@@ -36,6 +65,8 @@
       "note": "ITSI"
     }
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ITSI.\n• Ensure the following data sources are available: ITSI entity overview, entity health scores.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure entity discovery (AD, CMDB, cloud APIs). Monitor entity states (active, inactive, unstable). Alert when critical entities become inactive. Track entity population for coverage analysis.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup itsi_entities\n| where entity_status!=\"active\"\n| table title, entity_type, entity_status, last_seen\n```\n\nUnderstanding this SPL\n\n**Entity Status Monitoring** — Entity health provides granular visibility into individual infrastructure components feeding services. Unstable entities degrade service health.\n\nDocumented **Data sources**: ITSI entity overview, entity health scores. **App/TA** (typical add-on context): Splunk ITSI. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Filters the current rows with `where entity_status!=\"active\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Entity Status Monitoring**): table title, entity_type, entity_status, last_seen\n\n\nStep 3 — Validate\nRun the search when you know the service or episode context. Compare with the ITSI Service Analyzer, episode or notable views, and Glass Tables or drill-downs for the same time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (entities by type × status), Table (inactive entities), Single value (active entity count).",
-  "grandmaExplanation": "We track how healthy our services look over time so we can report, prioritize, and catch a slide before it becomes a major incident."
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ITSI.\n• Ensure the following data sources are available: ITSI entity overview, entity health scores.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure entity discovery (AD, CMDB, cloud APIs). Monitor entity states (active, inactive, unstable). Alert when critical entities become inactive. Track entity population for coverage analysis.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup itsi_entities\n| where entity_status!=\"active\"\n| table title, entity_type, entity_status, last_seen\n```\n\nUnderstanding this SPL\n\n**Entity Status Monitoring** — Entity health provides granular visibility into individual infrastructure components feeding services. Unstable entities degrade service health.\n\nDocumented **Data sources**: ITSI entity overview, entity health scores. **App/TA** (typical add-on context): Splunk ITSI. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Filters the current rows with `where entity_status!=\"active\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Entity Status Monitoring**): table title, entity_type, entity_status, last_seen\n\n\nStep 3 — Validate\nRun the search when you know the service or episode context. Compare with the ITSI Service Analyzer, episode or notable views, and Glass Tables or drill-downs for the same time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (entities by type × status), Table (inactive entities), Single value (active entity count).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk ITSI — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user, action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We track how healthy our services look over time so we can report, prioritize, and catch a slide before it becomes a major incident.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

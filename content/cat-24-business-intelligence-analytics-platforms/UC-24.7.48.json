@@ -9,30 +9,55 @@
     "Anomaly"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Databricks job runs (`databricks:jobs`).",
-  "app": "Databricks Jobs API and system.lakeflow tables via HEC/DB Connect.",
+  "exclusions": "Covers the detection logic documented for 'Databricks Workflows Consumption Cost Anomaly' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_databricks_workflows_consumption_cost_anomaly` (UC-24.7.48), SOC dashboard panel \"Operations — Databricks Workflows Consumption Cost Anomaly\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.7.48 positive (Databricks, Workflows, Consumption, Cost, Anomaly): ingest synthetic events into `index=bi` sourcetype='databricks:jobs' where `consumption`, `avg_c`, `sd_c` grouped by `job_name` satisfies detection threshold for 'Databricks Workflows Consumption Cost Anomaly'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.48 negative (Cost Anomaly): ingest benign `bi` / `databricks:jobs` events where `job_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Databricks Workflows Consumption Cost Anomaly'."
+  },
+  "dataSources": "Databricks job runs (`databricks:jobs`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Databricks Jobs API and system.lakeflow tables via HEC/DB Connect. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=databricks:jobs\n| timechart span=1d sum(dbu) as consumption by job_name\n| untable _time job_name consumption\n| eventstats avg(consumption) as avg_c, stdev(consumption) as sd_c by job_name\n| where consumption>avg_c+3*sd_c\n| sort - consumption",
-  "description": "Baselines daily Databricks Workflows consumption per job and flags spikes far above normal, the main early-warning signal for a runaway bill.",
-  "value": "Databricks Workflows cost is usage-driven and can spike overnight from a bad job or backfill; per-job anomaly detection catches overruns within a day rather than at invoice time.",
+  "description": "Detects UC-24.7.48 — Databricks, Workflows, Consumption, Cost, Anomaly — using `index=bi` sourcetype `databricks:jobs`, grouped by `job_name`. Outputs `consumption`, `avg_c`, `sd_c` each `1d`; alert when configured threshold. Primary focus: Cost Anomaly. Purpose-built for 'Databricks Workflows Consumption Cost Anomaly' in Operations workflows.",
+  "value": "UC-24.7.48 gives Operations teams earlier visibility into Cost Anomaly through `databricks:jobs` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Ingest Databricks Workflows consumption metrics; schedule daily and alert on 3-sigma consumption spikes per job.",
   "visualization": "Timechart of consumption per job, anomaly table, cost projection.",
   "cimModels": [],
   "references": [
     {
       "title": "Databricks — Jobs & orchestration",
-      "url": "https://docs.databricks.com/aws/en/jobs/"
+      "url": "https://docs.databricks.com/aws/en/jobs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Databricks — Monitor jobs",
-      "url": "https://docs.databricks.com/aws/en/jobs/monitor"
+      "url": "https://docs.databricks.com/aws/en/jobs/monitor",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.7.48)** — Planned work for 'Databricks Workflows Consumption Cost Anomaly' shifts `consumption`, `avg_c`, `sd_c` over `span=1d` while `job_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `databricks:jobs`** — Scheduled automation elevates `src` without crossing configured threshold for UC-24.7.48. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `job_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `databricks:jobs`** — First 48h baseline for UC-24.7.48 on `job_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `job_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect"
   ],
-  "grandmaExplanation": "We watch what Databricks Workflows costs to run each day so a surprise spike is caught before the bill arrives."
+  "equipmentModels": [
+    "db_connect_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Databricks Jobs API and system.lakeflow tables via HEC/DB Connect. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=databricks:jobs into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`job_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch what Databricks Workflows costs to run each day so a surprise spike is caught before the bill arrives.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

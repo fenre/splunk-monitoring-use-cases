@@ -9,6 +9,8 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Deploy Approval Bypass Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_deploy_approval_bypass_detection` (UC-12.2.17), SOC dashboard panel \"Operations — Deploy Approval Bypass Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "compliance": [
     {
       "regulation": "BAIT/KAIT",
@@ -66,11 +68,15 @@
       "evidenceArtifact": "Saved search 'UC-12.2.17' running on Deployment events with approval_id, change_ticket, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
     }
   ],
-  "dataSources": "Deployment events with `approval_id`, `change_ticket`",
-  "app": "CD platform audit logs",
+  "controlTest": {
+    "positiveScenario": "UC-12.2.17 positive (Deploy, Approval, Bypass, Detection): ingest synthetic events into `index=cicd` sourcetype='deployment_event' where `count` grouped by `entity` satisfies detection threshold for 'Deploy Approval Bypass Detection'. Validate filter `user!=\"svc_cd_bot\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.2.17 negative (Bypass Detection): ingest benign `cicd` / `deployment_event` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Deploy Approval Bypass Detection'."
+  },
+  "dataSources": "Deployment events with `approval_id`, `change_ticket` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "CD platform audit logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cicd sourcetype=\"deployment_event\" environment=\"production\"\n| where isnull(approval_id) OR isnull(change_ticket)\n| search user!=\"svc_cd_bot\"\n| table _time, application, user, version, environment",
-  "description": "Production deploys without change ticket or approval group in CD system (Spinnaker, Argo Rollouts, Harness).",
-  "value": "Production deploys without change ticket or approval group in CD system (Spinnaker, Argo Rollouts, Harness).",
+  "description": "Alerts on when Bypass Detection criteria fire for 'Deploy Approval Bypass Detection' (UC-12.2.17) in `index=cicd` sourcetype `deployment_event`. Pipeline aggregates `count` by `entity` over `the scheduled window`. Alert logic enforces configured threshold. SPL signature: filter `user!=\"svc_cd_bot\"`. Eliminates manual hunting for UC-12.2.17 conditions.",
+  "value": "UC-12.2.17 helps teams contain Deploy, Approval, Bypass, Detection scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Enforce required fields in CD templates. Alert on nulls. Correlate with Entra/Okta for human actors.",
   "visualization": "Table (unapproved deploys), Timeline, Single value (violations 30d).",
   "cimModels": [
@@ -81,15 +87,41 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Pipeline noise during blue/green cutovers, dependency cache cold-starts, or scheduled maintenance windows.",
+  "knownFalsePositives": "1. **Maintenance window on `cicd` (UC-12.2.17)** — Planned work for 'Deploy Approval Bypass Detection' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `user!=\"svc_cd_bot\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `deployment_event`** — Scheduled automation elevates `src` without crossing configured threshold for UC-12.2.17. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cicd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `deployment_event`** — First 48h baseline for UC-12.2.17 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "m365",
     "okta"
   ],
+  "equipmentModels": [
+    "m365_generic",
+    "okta_generic"
+  ],
   "status": "verified",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: CD platform audit logs.\n• Ensure the following data sources are available: Deployment events with `approval_id`, `change_ticket`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnforce required fields in CD templates. Alert on nulls. Correlate with Entra/Okta for human actors.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cicd sourcetype=\"deployment_event\" environment=\"production\"\n| where isnull(approval_id) OR isnull(change_ticket)\n| search user!=\"svc_cd_bot\"\n| table _time, application, user, version, environment\n```\n\nUnderstanding this SPL\n\n**Deploy Approval Bypass Detection** — Production deploys without change ticket or approval group in CD system (Spinnaker, Argo Rollouts, Harness).\n\nDocumented **Data sources**: Deployment events with `approval_id`, `change_ticket`. **App/TA** (typical add-on context): CD platform audit logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cicd; **sourcetype**: deployment_event. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cicd, sourcetype=\"deployment_event\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where isnull(approval_id) OR isnull(change_ticket)` — typically the threshold or rule expression for this monitoring goal.\n• Applies an explicit `search` filter to narrow the current result set.\n• Pipeline stage (see **Deploy Approval Bypass Detection**): table _time, application, user, version, environment\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with the vendor console or native job history for that tool. Verify field extractions and index permissions.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (unapproved deploys), Timeline, Single value (violations 30d).",
-  "grandmaExplanation": "We watch this part of your delivery chain for risks and reliability so issues show up before they hit customers."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: CD platform audit logs.\n• Ensure the following data sources are available: Deployment events with `approval_id`, `change_ticket`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnforce required fields in CD templates. Alert on nulls. Correlate with Entra/Okta for human actors.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cicd sourcetype=\"deployment_event\" environment=\"production\"\n| where isnull(approval_id) OR isnull(change_ticket)\n| search user!=\"svc_cd_bot\"\n| table _time, application, user, version, environment\n```\n\nUnderstanding this SPL\n\n**Deploy Approval Bypass Detection** — Production deploys without change ticket or approval group in CD system (Spinnaker, Argo Rollouts, Harness).\n\nDocumented **Data sources**: Deployment events with `approval_id`, `change_ticket`. **App/TA** (typical add-on context): CD platform audit logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cicd; **sourcetype**: deployment_event. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cicd, sourcetype=\"deployment_event\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where isnull(approval_id) OR isnull(change_ticket)` — typically the threshold or rule expression for this monitoring goal.\n• Applies an explicit `search` filter to narrow the current result set.\n• Pipeline stage (see **Deploy Approval Bypass Detection**): table _time, application, user, version, environment\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with the vendor console or native job history for that tool. Verify field extractions and index permissions.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (unapproved deploys), Timeline, Single value (violations 30d).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (CD platform audit logs — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=deployment_event into cicd. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user, action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch this part of your delivery chain for risks and reliability so issues show up before they hit customers.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

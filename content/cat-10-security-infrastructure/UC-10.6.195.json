@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=xd` `sourcetype=\"citrix:hdx:clipboard\"`, `sourcetype=\"citrix:hdx:filetransfer\"` (copy, paste, upload, download policy results); fields `direction`, `policy_result` (allowed|blocked|warned), `bytes`, `session_id`, `user` Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
-  "app": "No official Splunk TA for HDX policy telemetry. Ingest via Windows Event Logs from VDAs (Session Recording event detection policies log clipboard and file transfer actions), or use Citrix Analytics for Security which surfaces DLP-related risk indicators. Splunk Add-on for Microsoft Windows for event log collection.",
+  "exclusions": "Covers the detection logic documented for 'Citrix Clipboard and File Transfer Data Exfiltration' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_citrix_clipboard_and_file_transfer_data_exfiltra` (UC-10.6.195), SOC dashboard panel \"Security Infra — Citrix Clipboard and File Transfer Data Exfiltration\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.6.195 positive (Citrix, Clipboard, and, File, Transfer): ingest synthetic events into `index=xd` sourcetype='citrix:hdx:clipboard' where `tot_bytes`, `blocks`, `allows` grouped by `_time`, `user`, `direction` satisfies `tot_bytes` > 50000000, `blocks` > 10, `allows` > 100, or `tot_bytes` > 100000000 for 'Citrix Clipboard and File Transfer Data Exfiltration'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.6.195 negative (Data Exfiltration): ingest benign `xd` / `citrix:hdx:clipboard` events where `_time`, `user`, `direction` stays below `tot_bytes` > 50000000, `blocks` > 10, `allows` > 100, or `tot_bytes` > 100000000, or exclude the test entity via `soc_exception_register.csv`. Variant 0 confirms zero alert rows for 'Citrix Clipboard and File Transfer Data Exfiltration'."
+  },
+  "dataSources": "`index=xd` `sourcetype=\"citrix:hdx:clipboard\"`, `sourcetype=\"citrix:hdx:filetransfer\"` (copy, paste, upload, download policy results); fields `direction`, `policy_result` (allowed|blocked|warned), `bytes`, `session_id`, `user` Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "No official Splunk TA for HDX policy telemetry. Ingest via Windows Event Logs from VDAs (Session Recording event detection policies log clipboard and file transfer actions), or use Citrix Analytics for Security which surfaces DLP-related risk indicators. Splunk Add-on for Microsoft Windows for event log collection. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=xd (sourcetype=\"citrix:hdx:clipboard\" OR sourcetype=\"citrix:hdx:filetransfer\") earliest=-24h\n| eval ok=if(match(lower(policy_result),\"(?i)allow|permit|pass\"),1,0), blk=if(match(lower(policy_result),\"(?i)block|deny\"),1,0), b=tonumber(bytes)\n| bin _time span=1h\n| stats sum(b) as tot_bytes, sum(blk) as blocks, sum(ok) as allows, count as ops by _time, user, direction\n| where tot_bytes>50000000 OR blocks>10 OR (allows>100 AND tot_bytes>100000000)\n| table _time, user, direction, tot_bytes, blocks, allows, ops",
-  "description": "Clipboard and client drive file transfer are common exfiltration paths from virtual apps and desktops. Tracking bulk bytes, blocked versus allowed actions, and repeated policy denials highlights both policy enforcement health and potential abuse of allowed channels. Large allowed transfers on sensitive groups warrant follow-up even when not blocked.",
-  "value": "Clipboard and client drive file transfer are common exfiltration paths from virtual apps and desktops. Tracking bulk bytes, blocked versus allowed actions, and repeated policy denials highlights both policy enforcement health and potential abuse of allowed channels. Large allowed transfers on sensitive groups warrant follow-up even when not blocked.",
+  "description": "Surfaces 'Citrix Clipboard and File Transfer Data Exfiltration' (UC-10.6.195) using `index=xd` sourcetype `citrix:hdx:clipboard` by aggregating `tot_bytes`, `blocks`, `allows` grouped by `_time`, `user`, `direction` over `1h` and alerting when `tot_bytes` > 50000000, `blocks` > 10, `allows` > 100, or `tot_bytes` > 100000000. Keywords: Citrix, Clipboard, and, File, Transfer. Focuses on Data Exfiltration behaviour so security infra teams can triage UC-10.6.195 without ad-hoc log review.",
+  "value": "UC-10.6.195 accelerates insight into Data Exfiltration ('Citrix Clipboard and File Transfer Data Exfiltration') by tracking `tot_bytes`, `blocks`, `allows` on `citrix:hdx:clipboard` feeds, reducing missed threat campaigns, control regressions, and SOC SLA breaches before spreadsheet checks hide regressions.",
   "implementation": "Ingest HDX session agent or endpoint management logs with policy outcome. Map users to data-sensitivity tiers. Alert on blocked surge (misconfig or attack), or allowed bytes over threshold for protected groups. Pair with DLP from the guest OS if available. Never log full clipboard text; use size and direction only where required by policy.",
   "visualization": "Timechart: blocked vs allowed by direction; table: top users by bytes; pie: policy outcomes.",
   "cimModels": [
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "Citrix — HDX client drive and clipboard redirection policy",
-      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/policies/reference/"
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/policies/reference/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Help desk remote support, vendor assists, and power users with clipboard and drive mapping in policy for troubleshooting can look like exfil. Restrict high alerts to DLP-tagged data classes, sensitive file extensions, and destinations outside the approved exfil list.",
+  "knownFalsePositives": "1. **Maintenance window on `xd` (UC-10.6.195)** — Planned work for 'Citrix Clipboard and File Transfer Data Exfiltration' shifts `tot_bytes`, `blocks`, `allows` over `span=1h` while `_time`, `user`, `direction` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `citrix:hdx:clipboard`** — Scheduled automation elevates `user` without crossing `tot_bytes` > 50000000 for UC-10.6.195. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `user`, `direction`** — Health checks in `xd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `citrix:hdx:clipboard`** — First 48h baseline for UC-10.6.195 on `_time` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1115",
     "T1039"
@@ -32,7 +54,16 @@
   "equipment": [
     "citrix"
   ],
+  "equipmentModels": [
+    "citrix_generic"
+  ],
   "lastReviewed": "2026-04-24",
-  "detailedImplementation": "Prerequisites: HDX clipboard and file transfer events with policy_result and direction; data_classification_by_user or group lookup. Step 1: Configure data collection — Use a restricted index; props [citrix:hdx:clipboard] and [citrix:hdx:filetransfer] with FIELDALIAS for user, session_id, bytes; do not log clipboard text, only size bands if policy demands. Step 2: Create the search and alert — Two tracks: security (blocks, large allows on sensitive users) and ops (global block spike after policy push); start hourly tot_bytes>50M or blocks>10, tune. Step 3: Validate — In a non-prod group run `index=xd (sourcetype=\"citrix:hdx:clipboard\" OR sourcetype=\"citrix:hdx:filetransfer\") earliest=-1h | stats sum(bytes) by user, direction, policy_result` after a controlled file copy. Step 4: Operationalize — Insider-risk review under privacy policy; if sustained high-volume exfil pattern, escalate to security operations and Citrix EUC policy owners.",
-  "grandmaExplanation": "We watch copy-paste and file moves between the office desktop in the cloud and the local machine — so you see when someone tries to sneak data out or when the safety rules trip a lot at once."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites: HDX clipboard and file transfer events with policy_result and direction; data_classification_by_user or group lookup. Step 1: Configure data collection — Use a restricted index; props [citrix:hdx:clipboard] and [citrix:hdx:filetransfer] with FIELDALIAS for user, session_id, bytes; do not log clipboard text, only size bands if policy demands. Step 2: Create the search and alert — Two tracks: security (blocks, large allows on sensitive users) and ops (global block spike after policy push); start hourly tot_bytes>50M or blocks>10, tune. Step 3: Validate — In a non-prod group run `index=xd (sourcetype=\"citrix:hdx:clipboard\" OR sourcetype=\"citrix:hdx:filetransfer\") earliest=-1h | stats sum(bytes) by user, direction, policy_result` after a controlled file copy. Step 4: Operationalize — Insider-risk review under privacy policy; if sustained high-volume exfil pattern, escalate to security operations and Citrix EUC policy owners.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (No official Splunk TA for HDX policy telemetry. Ingest via Windows Event Logs from VDAs (Session Recording event detection policies log clipboard and file transfer actions), or use Citrix Analytics for Security which surfaces DLP-related risk indicators. Splunk Add-on for Microsoft Windows for event log collection. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=citrix:hdx:clipboard, citrix:hdx:filetransfer into xd. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, allows, blocks, direction`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch copy-paste and file moves between the office desktop in the cloud and the local machine — so you see when someone tries to sneak data out or when the safety rules trip a lot at once.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

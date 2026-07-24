@@ -8,35 +8,60 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Photo archives (`memory:takeout`), journal OCR (`memory:journal`), postcard records (`memory:postcard`), memory linking (`memory:photo`), archive checks (`memory:ops`).",
-  "app": "Life-logging and memory telemetry — Google Photos Takeout archives, journal OCR queues, and postcard collection logs — streamed to Splunk HEC via exports and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Handwritten Entry Transcription Throughput' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_handwritten_entry_transcription_throughput` (UC-25.58.29), SOC dashboard panel \"Personal — Handwritten Entry Transcription Throughput\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.58.29 positive (Handwritten, Entry, Transcription, Throughput): ingest synthetic events into `index=personal` sourcetype='memory:journal' where `metric` grouped by `_time`, `journal_name` satisfies detection threshold for 'Handwritten Entry Transcription Throughput'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.58.29 negative (Transcription Throughput): ingest benign `personal` / `memory:journal` events where `_time`, `journal_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 8 confirms zero alert rows for 'Handwritten Entry Transcription Throughput'."
+  },
+  "dataSources": "Photo archives (`memory:takeout`), journal OCR (`memory:journal`), postcard records (`memory:postcard`), memory linking (`memory:photo`), archive checks (`memory:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Life-logging and memory telemetry — Google Photos Takeout archives, journal OCR queues, and postcard collection logs — streamed to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=memory:journal journal_name=* pages_transcribed=*\n| bin _time span=1mon\n| stats sum(pages_transcribed) as metric by _time journal_name\n| sort 0 _time journal_name",
-  "description": "Trends monthly pages transcribed by journal for handwritten-journal transcription.",
-  "value": "Monthly trend lines show whether handwritten-journal transcription are improving, stalling, or becoming unbalanced over time.",
+  "description": "Identifies UC-25.58.29 — Handwritten, Entry, Transcription, Throughput — using `index=personal` sourcetype `memory:journal`, grouped by `_time`, `journal_name`. Outputs `metric` each `1m`; alert when configured threshold. Primary focus: Transcription Throughput. Purpose-built for 'Handwritten Entry Transcription Throughput' in Personal workflows.",
+  "value": "UC-25.58.29 accelerates insight into Transcription Throughput ('Handwritten Entry Transcription Throughput') by tracking `metric` on `memory:journal` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Normalize `journal_name` on `memory:journal` events and store the fields needed to calculate monthly pages transcribed.",
   "visualization": "Line chart of monthly pages transcribed by journal.",
   "cimModels": [],
   "references": [
     {
       "title": "Google Photos",
-      "url": "https://photos.google.com/"
+      "url": "https://photos.google.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Google Takeout",
-      "url": "https://takeout.google.com/"
+      "url": "https://takeout.google.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Day One",
-      "url": "https://dayoneapp.com/"
+      "url": "https://dayoneapp.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Tesseract OCR",
-      "url": "https://tesseract-ocr.github.io/"
+      "url": "https://tesseract-ocr.github.io/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It blends how pages transcribed changes month by month for each journal so you can see whether handwritten-journal transcription are heading the right way."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.58.29)** — Connector for 'Handwritten Entry Transcription Throughput' stops polling `memory:journal`; stale `metric` on `_time`, `journal_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `metric` over `1m` is expected for UC-25.58.29, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `memory:journal`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew goal threshold for 'Handwritten Entry Transcription Throughput'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Life-Logging & Memories — typical feeds: Photos (`photo:capture`), places visited (`location:visit`), voice memos (`voicememo:note`), logged moments (`lifelog:moment`), timeline events (`timeline:event`)..\n• **Sourcetypes in this search**: `memory:journal`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=memory:journal`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Life-logging and memory telemetry — photo libraries (Google Photos, Immich), location history, voice memos, and daily-moment journals — streamed to Splunk HEC via APIs and scripted inputs..\n\n**Author notes:** Normalize `journal_name` on `memory:journal` events and store the fields needed to calculate monthly pages transcribed.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"memory:journal\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=memory:journal earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Handwritten Entry Transcription Throughput** over `personal` data (primarily `sourcetype=memory:journal`) across the full search range. The `sum` aggregation groups by `_time`, `journal_name`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `_time`, `journal_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=memory:journal journal_name=* pages_transcribed=*\n| bin _time span=1mon\n| stats sum(pages_transcribed) as metric by _time journal_name\n| sort 0 _time journal_name\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=memory:journal earliest=-7d\n| head 50\n| table _time, journal_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=memory:journal earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.58.29: Personal evidence` with the following panel layout:\n\n**Panel 1 — Line Chart Of Monthly Pages Transcribed By Journal (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `memory:journal` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=memory:journal | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1m` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1m` buckets.",
+  "grandmaExplanation": "It blends how pages transcribed changes month by month for each journal so you can see whether handwritten-journal transcription are heading the right way.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

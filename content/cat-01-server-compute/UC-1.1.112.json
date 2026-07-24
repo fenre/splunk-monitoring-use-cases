@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=custom:unowned_files`",
-  "app": "`Splunk_TA_nix, custom scripted input`",
+  "exclusions": "Covers the detection logic documented for 'Unowned File Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_unowned_file_detection` (UC-1.1.112), SOC dashboard panel \"Linux — Unowned File Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.112 positive (Unowned, File, Detection): ingest synthetic events into `index=os` sourcetype='custom:unowned_files' where `count` grouped by `host`, `directory` satisfies `count` > 0 for 'Unowned File Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.112 negative (File Detection): ingest benign `os` / `custom:unowned_files` events where `host`, `directory` stays below `count` > 0, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 9 confirms zero alert rows for 'Unowned File Detection'."
+  },
+  "dataSources": "`sourcetype=custom:unowned_files` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix, custom scripted input` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=custom:unowned_files host=*\n| stats count by host, directory\n| where count > 0",
-  "description": "Unowned files indicate potential file system corruption or security issue requiring investigation.",
-  "value": "Unowned files indicate potential file system corruption or security issue requiring investigation.",
+  "description": "Surfaces UC-1.1.112 — Unowned, File, Detection — using `index=os` sourcetype `custom:unowned_files`, grouped by `host`, `directory`. Outputs `count` each `the scheduled window`; alert when `count` > 0. Primary focus: File Detection. Purpose-built for 'Unowned File Detection' in Linux workflows.",
+  "value": "Operators running UC-1.1.112 on `custom:unowned_files` feeds shorten triage for File Detection tied to 'Unowned File Detection', lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Create a scripted input running 'find / -nouser -o -nogroup' to identify unowned files. Alert on any findings. Include recommendations to investigate origin and correct ownership.",
   "visualization": "Table, Alert",
   "cimModels": [
@@ -21,13 +27,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "NFS, overlayfs, and unpacked tarballs can surface `nouser` files during migrations without an attack. Excluding `/proc` and ephemeral mounts in the `find` keeps noise down—mirror those excludes in the alert.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Unowned File Detection'. Correlate with apt/yum logs in the same `custom:unowned_files` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `custom:unowned_files`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `count` > 0.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=custom:unowned_files`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate a scripted input running 'find / -nouser -o -nogroup' to identify unowned files. Alert on any findings. Include recommendations to investigate origin and correct ownership.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=custom:unowned_files host=*\n| stats count by host, directory\n| where count > 0\n```\n\nUnderstanding this SPL\n\n**Unowned File Detection** — Unowned files indicate potential file system corruption or security issue requiring investigation.\n\nDocumented **Data sources**: `sourcetype=custom:unowned_files`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: custom:unowned_files. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=custom:unowned_files. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, directory** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Alert\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We look for files with no valid owner so odd leftovers from bad restores or intruders do not sit on the disk undetected."
+  "grandmaExplanation": "We look for files with no valid owner so odd leftovers from bad restores or intruders do not sit on the disk undetected.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

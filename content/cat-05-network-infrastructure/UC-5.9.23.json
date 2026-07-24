@@ -9,28 +9,42 @@
     "Anomaly"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Internet Outage Correlation with Internal Alerts' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_internet_outage_correlation_with_internal_alerts` (UC-5.9.23), SOC dashboard panel \"Operations — Internet Outage Correlation with Internal Alerts\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.9.23 positive (Internet, Outage, Correlation, with, Internal): ingest synthetic events into `index=_audit` sourcetype='target_sourcetype' where `count` grouped by `outage_type`, `severity`, `search_name` satisfies detection threshold for 'Internet Outage Correlation with Internal Alerts'. Validate macro `event_index`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.9.23 negative (Internal Alerts): ingest benign `_audit` / `target_sourcetype` events where `outage_type`, `severity`, `search_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Internet Outage Correlation with Internal Alerts'."
+  },
   "dataSources": "**Multiple data sources combined:**\n\n(1) `index=thousandeyes_events sourcetype=cisco:thousandeyes:event` — Internet Insights events (Network Outage, DNS Issue, Proxy Issue) from `ta_cisco_thousandeyes`.\n\n(2) Internal Splunk alerts — events from `index=_audit` (triggered alerts), `index=_internal` (scheduler), or a custom notable events index depending on your deployment. In Splunk Enterprise Security environments, use `index=notable` for correlated events.\n\n(3) Optional: `index=thousandeyes_metrics sourcetype=cisco:thousandeyes:metric` — OTel v2 network metrics for time-correlation with the outage window.\n\nThis UC performs cross-index correlation, joining ThousandEyes Internet Insights events with your internal monitoring alerts to determine causality.",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported. Also requires whatever app/TA produces your internal alerts (e.g., Splunk Enterprise Security, ITSI, or custom savedsearches).",
   "spl": "`event_index` (type=\"Network Outage\" OR type=\"DNS Issue\" OR type=\"Proxy Issue\") state=\"active\"\n| eval outage_start=_time\n| eval outage_type=type\n| stats earliest(outage_start) as outage_window_start latest(outage_start) as outage_window_end by outage_type, severity\n| eval outage_window_end=outage_window_end+900\n| map search=\"search index=_audit action=\\\"fired\\\" earliest=$outage_window_start$ latest=$outage_window_end$ | stats count as internal_alerts by search_name | eval outage_type=\\\"$outage_type$\\\"\" maxsearches=5\n| sort -internal_alerts",
-  "description": "Correlates ThousandEyes Internet Insights outage events with internally generated Splunk alerts to determine whether internal incidents are caused by external internet infrastructure failures. When a ThousandEyes Network Outage, DNS Issue, or Proxy Issue event is active, this UC automatically checks whether internal Splunk alerts fired during the same window — answering the critical question: \"Is our current incident an internal problem or an internet-wide problem?\"",
-  "value": "The single most expensive waste of engineering time during an incident is troubleshooting the wrong root cause. When a cloud application goes down, teams spend hours investigating the application, the load balancer, the database, and the CDN — only to discover 4 hours later that the ISP had a routing failure. This UC eliminates that waste by providing immediate causal context: if a ThousandEyes Internet Insights event overlaps with your internal alerts, the external outage is the likely root cause. This can cut MTTR by 60–90% for externally caused incidents by redirecting the team from \"fix it\" to \"wait for provider recovery and communicate to stakeholders.\" For a 4-hour P1 incident, reducing MTTR to 30 minutes saves hundreds of engineering hours and prevents unnecessary rollbacks or hotfixes.",
+  "description": "Surfaces risk tied to Internet, Outage, Correlation, with, Internal through UC-5.9.23 on `index=_audit` sourcetype `configured sourcetype`. Summarises `count` grouped by `outage_type`, `severity`, `search_name` across `the scheduled window` before applying configured threshold. Operators tune 'Internet Outage Correlation with Internal Alerts' using UC-5.9.23 runbook steps.",
+  "value": "Tracking `activity` via UC-5.9.23 on macro `event_index` improves response to 'Internet Outage Correlation with Internal Alerts' and reduces operational risk and delayed incident response.",
   "implementation": "Combine ThousandEyes Internet Insights events with internal Splunk alert audit trail using time-windowed correlation. The core technique: identify active Internet Insights events, define the outage time window, then query the internal alert audit index for alerts that fired within that window. The `map` command enables dynamic time-range correlation across different indexes.",
   "visualization": "(1) Timeline: ThousandEyes outage events and internal alerts overlaid on the same timeline. (2) Correlation table: outage type, severity, internal alerts that fired during the window. (3) Single value: count of correlated alerts (\"X internal alerts potentially caused by internet outage\"). (4) Sparkline: internal alert volume overlaid with outage event start/end.",
   "references": [
     {
       "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
-      "url": "https://splunkbase.splunk.com/app/7719"
+      "url": "https://splunkbase.splunk.com/app/7719",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes Internet Insights — Outage detection",
-      "url": "https://docs.thousandeyes.com/product-documentation/internet-insights"
+      "url": "https://docs.thousandeyes.com/product-documentation/internet-insights",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk search command reference — map",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Map"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Map",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Coincidental timing.** An internal alert fires during an Internet Insights outage window but is completely unrelated (e.g., a disk full alert during a network outage). Use domain knowledge to filter correlations — only match internal alerts related to network, application performance, or external connectivity.\n\n**Internal issues triggering downstream internet symptoms.** Your own misconfiguration (e.g., a firewall rule change) might cause ThousandEyes tests to fail, which could be interpreted as an internet issue. Check whether the Internet Insights event affects multiple ThousandEyes customers (true internet outage) or only your tests (your issue).\n\n**Time zone misalignment.** Ensure both ThousandEyes events and internal alerts use the same time reference. ThousandEyes uses UTC; internal alerts use whatever timezone the Splunk search head is configured for. The `| eval` time window calculation should work in epoch seconds to avoid TZ issues.",
+  "knownFalsePositives": "1. **Maintenance window on `_audit` (UC-5.9.23)** — Planned work for 'Internet Outage Correlation with Internal Alerts' shifts `count` over `span=1h` while `outage_type`, `severity`, `search_name` remains in-scope. Applies macro `event_index`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `severity` without crossing configured threshold for UC-5.9.23. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `outage_type`, `severity`, `search_name`** — Health checks in `_audit` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.9.23 on `outage_type` is unstable; join `event_index` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `outage_type`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "itsi"

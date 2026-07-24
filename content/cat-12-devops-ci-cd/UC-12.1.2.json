@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "GitHub/GitLab audit log, push events to protected branches",
-  "app": "GitHub audit log, GitLab API",
+  "exclusions": "Covers the detection logic documented for 'Branch Protection Bypasses' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_branch_protection_bypasses` (UC-12.1.2), SOC dashboard panel \"Operations — Branch Protection Bypasses\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.1.2 positive (Branch, Protection, Bypasses): ingest synthetic events into `index=devops` sourcetype='github:audit' where `count` grouped by `entity` satisfies detection threshold for 'Branch Protection Bypasses'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.1.2 negative (Protection Bypasses): ingest benign `devops` / `github:audit` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'Branch Protection Bypasses'."
+  },
+  "dataSources": "GitHub/GitLab audit log, push events to protected branches Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "GitHub audit log, GitLab API — Universal Forwarder (Splunkbase 617)",
   "spl": "index=devops sourcetype=\"github:audit\" action=\"protected_branch.policy_override\"\n| table _time, actor, repo, branch, action",
-  "description": "Direct pushes to protected branches bypass code review, introducing unreviewed code to production. Detection ensures process compliance.",
-  "value": "Direct pushes to protected branches bypass code review, introducing unreviewed code to production. Detection ensures process compliance.",
+  "description": "Identifies UC-12.1.2 — Branch, Protection, Bypasses — using `index=devops` sourcetype `github:audit`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Protection Bypasses. Purpose-built for 'Branch Protection Bypasses' in Operations workflows.",
+  "value": "Operators running UC-12.1.2 on `github:audit` feeds shorten triage for Protection Bypasses tied to 'Branch Protection Bypasses', lowering operational risk and delayed incident response.",
   "implementation": "Ingest GitHub/GitLab audit logs. Alert on any push to protected branches (main, release) without PR merge. Alert on branch protection rule changes. Correlate with deployment events.",
   "visualization": "Table (bypass events), Timeline (protection violations), Single value (bypasses this month — target: 0).",
   "cimModels": [
@@ -24,14 +30,40 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Bypasses from emergency hotfixes, planned admin pushes during release freezes, or repo migration tasks.",
+  "knownFalsePositives": "1. **Maintenance window on `devops` (UC-12.1.2)** — Planned work for 'Branch Protection Bypasses' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `github:audit`** — Scheduled automation elevates `src` without crossing configured threshold for UC-12.1.2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `github:audit`** — First 48h baseline for UC-12.1.2 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "github",
     "gitlab"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: GitHub audit log, GitLab API.\n• Ensure the following data sources are available: GitHub/GitLab audit log, push events to protected branches.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest GitHub/GitLab audit logs. Alert on any push to protected branches (main, release) without PR merge. Alert on branch protection rule changes. Correlate with deployment events.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=devops sourcetype=\"github:audit\" action=\"protected_branch.policy_override\"\n| table _time, actor, repo, branch, action\n```\n\nUnderstanding this SPL\n\n**Branch Protection Bypasses** — Direct pushes to protected branches bypass code review, introducing unreviewed code to production. Detection ensures process compliance.\n\nDocumented **Data sources**: GitHub/GitLab audit log, push events to protected branches. **App/TA** (typical add-on context): GitHub audit log, GitLab API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: devops; **sourcetype**: github:audit. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=devops, sourcetype=\"github:audit\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Pipeline stage (see **Branch Protection Bypasses**): table _time, actor, repo, branch, action\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with the GitHub and GitLab audit or activity views for the same time range. Verify field extractions and index permissions.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (bypass events), Timeline (protection violations), Single value (bypasses this month — target: 0).",
-  "grandmaExplanation": "We watch for changes that skip the normal review path on important branches, because that is when risky or unreviewed code can reach production."
+  "equipmentModels": [
+    "github_generic",
+    "gitlab_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: GitHub audit log, GitLab API.\n• Ensure the following data sources are available: GitHub/GitLab audit log, push events to protected branches.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest GitHub/GitLab audit logs. Alert on any push to protected branches (main, release) without PR merge. Alert on branch protection rule changes. Correlate with deployment events.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=devops sourcetype=\"github:audit\" action=\"protected_branch.policy_override\"\n| table _time, actor, repo, branch, action\n```\n\nUnderstanding this SPL\n\n**Branch Protection Bypasses** — Direct pushes to protected branches bypass code review, introducing unreviewed code to production. Detection ensures process compliance.\n\nDocumented **Data sources**: GitHub/GitLab audit log, push events to protected branches. **App/TA** (typical add-on context): GitHub audit log, GitLab API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: devops; **sourcetype**: github:audit. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=devops, sourcetype=\"github:audit\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Pipeline stage (see **Branch Protection Bypasses**): table _time, actor, repo, branch, action\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with the GitHub and GitLab audit or activity views for the same time range. Verify field extractions and index permissions.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (bypass events), Timeline (protection violations), Single value (bypasses this month — target: 0).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (GitHub audit log, GitLab API — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=github:audit into devops. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user, action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch for changes that skip the normal review path on important branches, because that is when risky or unreviewed code can reach production.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

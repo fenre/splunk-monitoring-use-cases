@@ -9,11 +9,17 @@
     "Change"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=argocd:application` with sync operation and hook fields; optional `argocd:audit`",
-  "app": "Argo CD application controller logs → HEC; OpenTelemetry for Argo CD metrics (Splunk IM app pattern)",
+  "exclusions": "Covers the detection logic documented for 'Argo CD Post-Sync Resource Hook Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_argo_cd_post_sync_resource_hook_failures` (UC-12.2.28), SOC dashboard panel \"Operations — Argo CD Post-Sync Resource Hook Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.2.28 positive (Argo, Post, Sync, Resource, Hook): ingest synthetic events into `index=devops` sourcetype='argocd:application' where `values` grouped by `message` satisfies detection threshold for 'Argo CD Post-Sync Resource Hook Failures'. Validate filter `hook_phase=\"Failed\" OR sync_phase=\"SyncFailed\" AND message=\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.2.28 negative (Hook Failures): ingest benign `devops` / `argocd:application` events where `message` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'Argo CD Post-Sync Resource Hook Failures'."
+  },
+  "dataSources": "`sourcetype=argocd:application` with sync operation and hook fields; optional `argocd:audit` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Argo CD application controller logs → HEC; OpenTelemetry for Argo CD metrics (Splunk IM app pattern) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=devops sourcetype=\"argocd:application\"\n| search hook_phase=\"Failed\" OR sync_phase=\"SyncFailed\" AND message=\"*hook*\"\n| stats count, values(name) as apps, values(namespace) as ns by message\n| sort -count",
-  "description": "Pre/post-sync hooks that fail leave clusters in partially upgraded states.",
-  "value": "Surfaces hook failures so rollbacks and manual cleanup happen before user-facing outages.",
+  "description": "Monitors UC-12.2.28 — Argo, Post, Sync, Resource, Hook — using `index=devops` sourcetype `argocd:application`, grouped by `message`. Outputs `values` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `hook_phase=\"Failed\" OR sync_phase=\"SyncFailed\" AND message=\"`. Purpose-built for 'Argo CD Post-Sync Resource Hook Failures' in Operations workflows.",
+  "value": "Operators running UC-12.2.28 on `argocd:application` feeds shorten triage for Hook Failures tied to 'Argo CD Post-Sync Resource Hook Failures', lowering operational risk and delayed incident response.",
   "implementation": "Normalize `operation_state`, `phase`, and Argo CD hook types from application status JSON. Alert on any Failed hook in prod projects.",
   "visualization": "Table (hook error message × apps), Timeline.",
   "cimModels": [
@@ -23,17 +29,33 @@
   "references": [
     {
       "title": "Argo CD Splunk integration notes",
-      "url": "https://github.com/argoproj/argo-cd/wiki/Splunk"
+      "url": "https://github.com/argoproj/argo-cd/wiki/Splunk",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Infrastructure Monitoring App for Argo CD (GitHub)",
-      "url": "https://github.com/splunk/Splunk-Infrastructure-Monitoring-App-for-ArgoCD"
+      "url": "https://github.com/splunk/Splunk-Infrastructure-Monitoring-App-for-ArgoCD",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Pipeline noise during blue/green cutovers, dependency cache cold-starts, or scheduled maintenance windows.",
+  "knownFalsePositives": "1. **Maintenance window on `devops` (UC-12.2.28)** — Planned work for 'Argo CD Post-Sync Resource Hook Failures' shifts `values` over `span=1h` while `message` remains in-scope. Applies filter `hook_phase=\"Failed\" OR sync_phase=\"SyncFailed\" AND message=\"`. Cross-check CMDB CHG.\n\n2. **Batch `values` on `argocd:application`** — Scheduled automation elevates `src` without crossing configured threshold for UC-12.2.28. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `message`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `argocd:application`** — First 48h baseline for UC-12.2.28 on `message` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `message`, `exception_reason`, `valid_until`.",
   "equipment": [
     "argocd",
     "opentelemetry"
+  ],
+  "equipmentModels": [
+    "argocd_generic",
+    "opentelemetry_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -42,5 +64,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch GitOps sync and Argo signals so clusters stay aligned with the desired configuration in Git."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Argo CD application controller logs → HEC; OpenTelemetry for Argo CD metrics (Splunk IM app pattern) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=argocd:application into devops. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`message`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch GitOps sync and Argo signals so clusters stay aligned with the desired configuration in Git.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

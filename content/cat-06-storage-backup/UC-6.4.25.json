@@ -10,11 +10,17 @@
     "Data Quality"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Deduplication engine stats in `commvault:storage` or policy summaries in `commvault:job` with `dedup_ratio`",
-  "app": "Commvault Add-on for Splunk or HEC from Commvault Analytics",
+  "exclusions": "Covers the detection logic documented for 'Commvault deduplication savings ratio declining trend on storage policies' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_commvault_deduplication_savings_ratio_declining_` (UC-6.4.25), SOC dashboard panel \"Operations — Commvault deduplication savings ratio declining trend on storage policies\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.4.25 positive (Commvault, deduplication, savings, ratio, declining): ingest synthetic events into `index=backup` sourcetype='commvault:storage' where `count` grouped by `pol` satisfies `drop_pct` > 15 for 'Commvault deduplication savings ratio declining trend on storage policies'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.4.25 negative (storage policies): ingest benign `backup` / `commvault:storage` events where `pol` stays below `drop_pct` > 15, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Commvault deduplication savings ratio declining trend on storage policies'."
+  },
+  "dataSources": "Deduplication engine stats in `commvault:storage` or policy summaries in `commvault:job` with `dedup_ratio` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Commvault Add-on for Splunk or HEC from Commvault Analytics — Universal Forwarder (Splunkbase 617)",
   "spl": "index=backup (sourcetype=\"commvault:storage\" OR sourcetype=\"commvault:job\")\n| eval dr=coalesce(dedup_ratio, dedupe_ratio, space_saved_ratio, global_savings_ratio)\n| eval pol=coalesce(storage_policy, policy_name)\n| timechart span=1d latest(dr) as dedup_ratio by pol\n| streamstats window=7 global=f current(dr) as dr_now earliest(dr) as dr_7dago\n| eval drop_pct=round((dr_7dago-dr_now)/dr_7dago*100,1)\n| where drop_pct > 15",
-  "description": "A falling deduplication ratio often signals new encrypted or already-compressed data sources, misaligned block size, or engine fragmentation. It directly raises backend storage costs.",
-  "value": "Gives backup admins early warning before library purchases accelerate and cloud tier bills spike.",
+  "description": "Surfaces storage policies anomalies for UC-6.4.25 with window `1d` on `index=backup` sourcetype `commvault:storage`. Combines `count` by `pol` and compares against `drop_pct` > 15. Mapped to keywords Commvault, deduplication, savings, ratio, declining for dashboard routing.",
+  "value": "Alerting on Commvault, deduplication, savings, ratio, declining through UC-6.4.25 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Normalize percentage fields (50 vs 0.5) in `props.conf`. Use summary indexing for 90-day trends. Join `policy` to business unit for chargeback conversations.",
   "visualization": "Line chart (dedup ratio), table (policy, week drop %).",
   "cimModels": [
@@ -23,10 +29,26 @@
   "references": [
     {
       "title": "Commvault Documentation — Splunk integration",
-      "url": "https://documentation.commvault.com/"
+      "url": "https://documentation.commvault.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `backup` (UC-6.4.25)** — Planned work for 'Commvault deduplication savings ratio declining trend on storage policies' shifts `count` over `span=1d` while `pol` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `commvault:storage`** — Scheduled automation elevates `dr` without crossing `drop_pct` > 15 for UC-6.4.25. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pol`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `commvault:storage`** — First 48h baseline for UC-6.4.25 on `pol` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pol`, `exception_reason`, `valid_until`.",
   "equipment": [
     "commvault",
     "hashicorp"
@@ -42,5 +64,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch how full your storage is getting and give you time to add space or clean up snapshots and old data before an application or job suddenly stops working."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Commvault Add-on for Splunk or HEC from Commvault Analytics — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=commvault:storage, commvault:job into backup. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`drop_pct, pol`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch how full your storage is getting and give you time to add space or clean up snapshots and old data before an application or job suddenly stops working.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

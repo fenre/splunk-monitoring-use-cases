@@ -9,11 +9,17 @@
     "Risk"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "`index=openstack` `sourcetype=\"openstack:placement\"` — `resource_class`, `inventory_total`, `inventory_reserved`, `allocations_used`, `allocation_ratio`",
-  "app": "Placement DB snapshot or `osc-placement` exporter",
+  "exclusions": "Covers the detection logic documented for 'OpenStack Placement API Allocation Ratio Threshold Breach' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_openstack_placement_api_allocation_ratio_thresho` (UC-2.9.14), SOC dashboard panel \"Linux — OpenStack Placement API Allocation Ratio Threshold Breach\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.9.14 positive (OpenStack, Placement, API, Allocation, Ratio): ingest synthetic events into `index=openstack` sourcetype='openstack:placement' where `count` grouped by `resource_class`, `hypervisor_hostname` satisfies `virt_pct` > 95 for 'OpenStack Placement API Allocation Ratio Threshold Breach'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.9.14 negative (Threshold Breach): ingest benign `openstack` / `openstack:placement` events where `resource_class`, `hypervisor_hostname` stays below `virt_pct` > 95, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 3 confirms zero alert rows for 'OpenStack Placement API Allocation Ratio Threshold Breach'."
+  },
+  "dataSources": "`index=openstack` `sourcetype=\"openstack:placement\"` — `resource_class`, `inventory_total`, `inventory_reserved`, `allocations_used`, `allocation_ratio` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Placement DB snapshot or `osc-placement` exporter — Universal Forwarder (Splunkbase 617)",
   "spl": "index=openstack sourcetype=\"openstack:placement\" earliest=-6h\n| eval used=tonumber(allocations_used), inv=tonumber(inventory_total)-tonumber(inventory_reserved)\n| eval ar=tonumber(allocation_ratio)\n| eval virt_pct=100*used/(inv*ar)\n| where virt_pct>95\n| stats latest(virt_pct) as pressure by resource_class, hypervisor_hostname",
-  "description": "Placement tracks real consumable inventory. Breaching effective capacity risks impossible-to-schedule bursts even when averages look fine.",
-  "value": "Aligns finance and engineering on true headroom before purchase orders land.",
+  "description": "Alerts on when Threshold Breach criteria fire for 'OpenStack Placement API Allocation Ratio Threshold Breach' (UC-2.9.14) in `index=openstack` sourcetype `openstack:placement`. Pipeline aggregates `count` by `resource_class`, `hypervisor_hostname` over `the scheduled window`. Alert logic enforces `virt_pct` > 95. Title terms: OpenStack, Placement, API, Allocation, Ratio. Eliminates manual hunting for UC-2.9.14 conditions.",
+  "value": "UC-2.9.14 helps teams contain OpenStack, Placement, API, Allocation, Ratio scenarios and reduce capacity incidents, patch regressions, and service outages before incidents compound.",
   "implementation": "Ingest placement summaries per RC. Alert when virtual utilization crosses 95% of effective capacity. Pair with hardware procurement workflow.",
   "visualization": "Heat map by hypervisor; line chart pressure; table resource classes.",
   "cimModels": [
@@ -22,13 +28,33 @@
   "references": [
     {
       "title": "OpenStack Placement service",
-      "url": "https://docs.openstack.org/placement/latest/"
+      "url": "https://docs.openstack.org/placement/latest/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "OpenStack metrics may swing during image builds, large migrations, or control-plane rolling updates; verify services are healthy in parallel before declaring data-plane failure.",
+  "knownFalsePositives": "1. **Patch Tuesday on `openstack`** — Package managers spike `resource_class` metrics for 'OpenStack Placement API Allocation Ratio Threshold Breach'. Correlate with apt/yum logs in the same `openstack:placement` window.\n\n2. **Nightly backup I/O on `resource_class`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `openstack:placement`** — Nagios/Zabbix polls `resource_class` and mimics sustained load without crossing `virt_pct` > 95.\n\n4. **New host onboarding** — `resource_class` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `resource_class`, `valid_until`.",
   "equipment": [
     "hyperv",
     "openstack"
+  ],
+  "equipmentModels": [
+    "hyperv_generic",
+    "openstack_generic"
   ],
   "status": "verified",
   "lastReviewed": "2025-06-01",
@@ -37,5 +63,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We monitor the building blocks of your private cloud—computers, networks, disks, and logins—so new systems come up reliably and people are not locked out when something upstream hiccups."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Placement DB snapshot or `osc-placement` exporter — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=openstack:placement into openstack. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`hypervisor_hostname, resource_class, virt_pct`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We monitor the building blocks of your private cloud—computers, networks, disks, and logins—so new systems come up reliably and people are not locked out when something upstream hiccups.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

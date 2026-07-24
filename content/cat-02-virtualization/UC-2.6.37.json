@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'HDX Adaptive Transport (EDT) and Graphics Mode' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_hdx_adaptive_transport_edt_and_graphics_mode` (UC-2.6.37), SOC dashboard panel \"Linux — HDX Adaptive Transport (EDT) and Graphics Mode\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.6.37 positive (HDX, Adaptive, Transport, (EDT), and): ingest synthetic events into `index=uberagent` sourcetype='uberAgent:Network:NetworkPerformanceEDT' where `avg_loss`, `avg_rtt`, `fallbacks` grouped by `_time`, `host`, `SessionId` satisfies `loss_pct` > 2, or `latency_ms` > 150 for 'HDX Adaptive Transport (EDT) and Graphics Mode'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.6.37 negative (Graphics Mode): ingest benign `uberagent` / `uberAgent:Network:NetworkPerformanceEDT` events where `_time`, `host`, `SessionId` stays below `loss_pct` > 2, or `latency_ms` > 150, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 9 confirms zero alert rows for 'HDX Adaptive Transport (EDT) and Graphics Mode'."
+  },
   "dataSources": "`index=uberagent` `sourcetype=\"uberAgent:Network:NetworkPerformanceEDT\"`, `sourcetype=\"uberAgent:Remoting:HDX*\"` or `sourcetype=\"uberAgent:GPU:*\"` for encoder or GPU use; `index=xd` `sourcetype=\"citrix:vda:events\"` for graphics and transport fallback messages; optional `sourcetype=\"citrix:netscaler:syslog\"` for UDP/ICA profile stats",
   "app": "uberAgent UXM (Splunkbase 1448), optional Template for Citrix XenDesktop 7 (TA-XD7-Broker)",
   "spl": "index=uberagent (sourcetype=\"uberAgent:Network:NetworkPerformanceEDT\" OR sourcetype=\"uberAgent:Remoting:HDX*\") earliest=-1h\n| eval loss_pct=coalesce(UDPPacketLossPercent, UdpPacketLoss, PacketLoss), latency_ms=coalesce(UDPRTTms, AvgRttMs, Latency), fallback=if(match(coalesce(Transport, Protocol), \"(?i)tcp\"),1,0)\n| where loss_pct>2 OR latency_ms>150 OR fallback=1\n| bin _time span=5m\n| stats avg(loss_pct) as avg_loss, avg(latency_ms) as avg_rtt, sum(fallback) as fallbacks, dc(user) as users by _time, host, SessionId\n| table _time, host, users, avg_loss, avg_rtt, fallbacks",
-  "description": "HDX Adaptive Transport prefers UDP (EDT) for interactive traffic when the network is healthy, falling back to TCP when loss or delay is high. High packet loss, RTT, or constant fallback reduces perceived responsiveness and can force CPU-biased H.264/HEVC or software rendering, stressing hosts and user experience. uberAgent’s EDT and HDX remoting metrics complement Citrix VDA event strings on encoder choice and display pipeline pressure.",
-  "value": "HDX Adaptive Transport prefers UDP (EDT) for interactive traffic when the network is healthy, falling back to TCP when loss or delay is high. High packet loss, RTT, or constant fallback reduces perceived responsiveness and can force CPU-biased H.264/HEVC or software rendering, stressing hosts and user experience. uberAgent’s EDT and HDX remoting metrics complement Citrix VDA event strings on encoder choice and display pipeline pressure.",
+  "description": "Monitors UC-2.6.37 — HDX, Adaptive, Transport, (EDT), and — using `index=uberagent` sourcetype `uberAgent:Network:NetworkPerformanceEDT`, grouped by `_time`, `host`, `SessionId`. Outputs `avg_loss`, `avg_rtt`, `fallbacks` each `5m`; alert when `loss_pct` > 2, or `latency_ms` > 150. Primary focus: Graphics Mode. Purpose-built for 'HDX Adaptive Transport (EDT) and Graphics Mode' in Linux workflows.",
+  "value": "Operators running UC-2.6.37 on `uberAgent:Network:NetworkPerformanceEDT` feeds shorten triage for Graphics Mode tied to 'HDX Adaptive Transport (EDT) and Graphics Mode', lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Deploy uberAgent on VDAs with network and remoting data enabled. Add field extractions for your exact uberAgent 7.x/8.x field names. Side-by-side: run a VDA search for 'policy', 'H264', 'HEVC', or 'YUV' in `citrix:vda:events` for policy-driven changes. Set threshold bands by site (WAN vs LAN).",
   "visualization": "Dual-axis chart (loss vs RTT), Heatmap (hosts by time), Table (top sessions with fallback).",
   "cimModels": [
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "uberAgent documentation - HDX/EDT",
-      "url": "https://liquidware.com/"
+      "url": "https://liquidware.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1448",
+      "url": "https://splunkbase.splunk.com/app/1448",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Citrix environments often coordinate broker, VDA, gateway, and profile layers; a single noisy component may clear when maintenance or a publish job completes.",
+  "knownFalsePositives": "1. **Patch Tuesday on `uberagent`** — Package managers spike `_time` metrics for 'HDX Adaptive Transport (EDT) and Graphics Mode'. Correlate with apt/yum logs in the same `uberAgent:Network:NetworkPerformanceEDT` window.\n\n2. **Nightly backup I/O on `_time`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `uberAgent:Network:NetworkPerformanceEDT`** — Nagios/Zabbix polls `_time` and mimics sustained load without crossing `loss_pct` > 2.\n\n4. **New host onboarding** — `_time` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `_time`, `valid_until`.",
   "equipment": [
     "citrix",
     "syslog"
@@ -35,6 +57,12 @@
     "citrix_uberagent"
   ],
   "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: uberAgent UXM (Splunkbase 1448), optional VDA or broker TA for context.\n• Ensure the following data sources are available: `sourcetype=\"uberAgent:Network:NetworkPerformanceEDT\"` and remoting/graphics sourcetypes, optional `sourcetype=\"citrix:vda:events\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfirm uberAgent is licensed for network remoting. Map transport and GPU metrics to fields used in the SPL; create macros if sourcetype names include wildcards. Ingest a narrow slice of VDA log events for display stack messages.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; align field names to your uberAgent build):\n\n```spl\nindex=uberagent (sourcetype=\"uberAgent:Network:NetworkPerformanceEDT\" OR sourcetype=\"uberAgent:Remoting:HDX*\") earliest=-1h\n| eval loss_pct=coalesce(UDPPacketLossPercent, UdpPacketLoss, PacketLoss), latency_ms=coalesce(UDPRTTms, AvgRttMs, Latency), fallback=if(match(coalesce(Transport, Protocol), \"(?i)tcp\"),1,0)\n| where loss_pct>2 OR latency_ms>150 OR fallback=1\n| bin _time span=5m\n| stats avg(loss_pct) as avg_loss, avg(latency_ms) as avg_rtt, sum(fallback) as fallbacks, dc(user) as users by _time, host, SessionId\n| table _time, host, users, avg_loss, avg_rtt, fallbacks\n```\n\nStep 3 — Validate\nBenchmark a known good LAN session and a throttled lab session. Adjust thresholds. Confirm VDA text events align on forced encoder mode.\n\nStep 4 — Operationalize\nFeed findings to the network and desktop graphics teams. Track GPU memory pressure in a companion panel if you enable GPU fields.",
-  "grandmaExplanation": "We see when the line between a virtual desktop and a user is noisy or too slow, and when the system stops using the fast path for pictures — so you catch choppy screens before they hurt real work."
+  "grandmaExplanation": "We see when the line between a virtual desktop and a user is noisy or too slow, and when the system stops using the fast path for pictures — so you catch choppy screens before they hurt real work.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,27 +9,55 @@
     "Anomaly"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Apple Health metrics (`apple:health`), Oura Ring daily readiness/sleep (`oura:daily`), WHOOP recovery/strain (`whoop:cycle`), Withings body and blood-pressure (`withings:measure`), Dexcom CGM glucose (`dexcom:egv`).",
-  "app": "Apple Health / Apple Watch exports (Health Auto Export, Shortcuts) via HEC; Oura, WHOOP, Withings, and Dexcom APIs via scripted REST inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'High Sleep Duration Low Readiness Mismatch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_high_sleep_duration_low_readiness_mismatch` (UC-25.2.18), SOC dashboard panel \"Personal — High Sleep Duration Low Readiness Mismatch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.2.18 positive (High, Sleep, Duration, Low, Readiness): ingest synthetic events into `index=personal` sourcetype='oura:daily' where `avg_readiness` grouped by `user`, `_time` satisfies `sleep_hours` >= 8, `long_sleep_days` >= 3, or `avg_readiness` < 70 for 'High Sleep Duration Low Readiness Mismatch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.2.18 negative (Readiness Mismatch): ingest benign `personal` / `oura:daily` events where `user`, `_time` stays below `sleep_hours` >= 8, `long_sleep_days` >= 3, or `avg_readiness` < 70, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 5 confirms zero alert rows for 'High Sleep Duration Low Readiness Mismatch'."
+  },
+  "dataSources": "Apple Health metrics (`apple:health`), Oura Ring daily readiness/sleep (`oura:daily`), WHOOP recovery/strain (`whoop:cycle`), Withings body and blood-pressure (`withings:measure`), Dexcom CGM glucose (`dexcom:egv`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Apple Health / Apple Watch exports (Health Auto Export, Shortcuts) via HEC; Oura, WHOOP, Withings, and Dexcom APIs via scripted REST inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=oura:daily\n| where sleep_hours>=8\n| bin _time span=1w\n| stats avg(readiness_score) as avg_readiness, count as long_sleep_days by user _time\n| where long_sleep_days>=3 AND avg_readiness<70\n| sort avg_readiness",
-  "description": "Highlights weeks where you seem to be sleeping enough on paper but readiness remains low, a useful hint that quantity is not the real issue.",
-  "value": "This catches the frustrating pattern where more time in bed still does not translate into feeling recovered, pushing you to inspect stress, illness, or sleep timing instead.",
+  "description": "Detects 'High Sleep Duration Low Readiness Mismatch' patterns (UC-25.2.18) sourced from `index=personal` sourcetype `oura:daily`. Threshold bundle: `sleep_hours` >= 8, `long_sleep_days` >= 3, or `avg_readiness` < 70; aggregation grain: `user`, `_time`; metrics: `avg_readiness`. Watch terms: High, Sleep, Duration, Low, Readiness.",
+  "value": "UC-25.2.18 gives Personal teams earlier visibility into Readiness Mismatch through `oura:daily` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Forward sleep duration and readiness from Oura; review weekly when long-sleep weeks still carry poor readiness scores.",
   "visualization": "Weekly scatter plot of long-sleep days versus average readiness.",
   "cimModels": [],
   "references": [
     {
       "title": "Oura API v2 documentation",
-      "url": "https://cloud.ouraring.com/v2/docs"
+      "url": "https://cloud.ouraring.com/v2/docs",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Apple HealthKit",
-      "url": "https://developer.apple.com/health-fitness/"
+      "url": "https://developer.apple.com/health-fitness/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It ranks when you are sleeping a lot but still waking up looking under-recovered according to the wearable."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.2.18)** — Connector for 'High Sleep Duration Low Readiness Mismatch' stops polling `oura:daily`; stale `avg_readiness` on `user`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_readiness` over `1w` is expected for UC-25.2.18, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `oura:daily`. Dedup with `stats latest(*) by user`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `sleep_hours` >= 8 for 'High Sleep Duration Low Readiness Mismatch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Oura Ring — Oura Cloud API v2 → HEC scripted input.\n• **Subcategory context**: Health, Sleep & Wearables — typical feeds: Apple Health metrics (`apple:health`), Oura Ring daily readiness/sleep (`oura:daily`), Whoop recovery/strain (`whoop:cycle`), Withings body/blood-pressure (`withings:measure`), Dexcom CGM glucose (`de.\n• **Sourcetypes in this search**: `oura:daily`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Oura Ring** events into `index=personal` with `sourcetype=oura:daily`.\n\n**Collection method:** Oura Cloud API v2 → HEC scripted input.\n\n**Reference endpoint / path:** `GET /v2/usercollection/daily_sleep`.\n\n**Suggested poll interval:** 86400s (daily sync).\n\n**Key fields to extract:** `score, contributors, heart_rate, hrv`.\n\n**Typical connector stack:** Apple Health / Apple Watch exports (Health Auto Export, Shortcuts) via HEC; Oura, Whoop, Withings, Dexcom APIs via scripted REST inputs..\n\n**Author notes:** Forward sleep duration and readiness from Oura; review weekly when long-sleep weeks still carry poor readiness scores.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"oura:daily\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=oura:daily earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **High Sleep Duration Low Readiness Mismatch** over `personal` data (primarily `sourcetype=oura:daily`) across the full search range. It applies numeric thresholds on `sleep_hours` (>= 8) after avg — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `avg_readiness`, `long_sleep_days`, `sleep_hours`, `user`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=oura:daily\n| where sleep_hours>=8\n| bin _time span=1w\n| stats avg(readiness_score) as avg_readiness, count as long_sleep_days by user _time\n| where long_sleep_days>=3 AND avg_readiness<70\n| sort avg_readiness\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Oura app → Readiness / Sleep tabs. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=oura:daily earliest=-7d\n| head 50\n| table _time, avg_readiness, long_sleep_days, sleep_hours, user\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=oura:daily earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `sleep_hours` before alerting:\n\n```spl\nindex=personal sourcetype=oura:daily earliest=-30d\n| stats perc50(sleep_hours) AS p50 perc90(sleep_hours) AS p90 perc99(sleep_hours) AS p99 max(sleep_hours) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.2.18: Personal evidence` with the following panel layout:\n\n**Panel 1 — Weekly Scatter Plot Of Long-Sleep Days Versus Average Readiness (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Oura Ring — no Oura Ring events / missing fields:** If `oura:daily` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Oura Ring connector script is still running (`systemctl status` or cron log).\n\n**Oura Ring — NULL values in extracted fields:** The Oura Ring JSON export shape drifted — compare a raw event (`index=personal sourcetype=oura:daily | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Oura Ring — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Oura Ring — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Oura Ring APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1w` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1w` buckets.",
+  "grandmaExplanation": "It ranks when you are sleeping a lot but still waking up looking under-recovered according to the wearable.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

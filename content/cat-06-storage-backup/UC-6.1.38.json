@@ -9,11 +9,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'TrueNAS SCALE ZFS Pool Scrub Errors and Stalled Scrubs' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_truenas_scale_zfs_pool_scrub_errors_and_stalled_` (UC-6.1.38), SOC dashboard panel \"Operations — TrueNAS SCALE ZFS Pool Scrub Errors and Stalled Scrubs\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.1.38 positive (TrueNAS, SCALE, ZFS, Pool, Scrub): ingest synthetic events into `index=storage` sourcetype='truenas:pool' where `count` grouped by `hostname`, `pool_name` satisfies `scan_err` > 0 for 'TrueNAS SCALE ZFS Pool Scrub Errors and Stalled Scrubs'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.1.38 negative (Stalled Scrubs): ingest benign `storage` / `truenas:pool` events where `hostname`, `pool_name` stays below `scan_err` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'TrueNAS SCALE ZFS Pool Scrub Errors and Stalled Scrubs'."
+  },
   "dataSources": "TrueNAS REST `pool` resource (`scan` subsection) via scripted input or HEC with `sourcetype=truenas:pool`",
   "app": "Custom TrueNAS REST collector (API key) — complements archived TA Freenas (Splunkbase 6192) patterns",
   "spl": "index=storage sourcetype=\"truenas:pool\" earliest=-24h\n| eval scan_fn=coalesce(scan_function, scan.type)\n| eval scan_st=coalesce(scan_state, scan.state)\n| eval scan_err=coalesce(scan_errors, scan.errors, 0)\n| where scan_fn=\"SCRUB\" AND (scan_err > 0 OR scan_st!=\"FINISHED\" AND scan_st!=\"ACTIVE\")\n| stats latest(scan_err) as scrub_errors latest(scan_st) as scrub_state latest(scan_progress) as progress by hostname pool_name\n| sort - scrub_errors",
-  "description": "Scrubs that stop mid-flight or report checksum errors indicate latent disk or controller issues; ignoring them allows silent corruption to spread before replication catches it.",
-  "value": "Forces timely disk replacement and validates that automated scrub schedules actually complete—critical for ZFS pools backing VMware, backup landing zones, and file shares.",
+  "description": "Monitors UC-6.1.38 — TrueNAS, SCALE, ZFS, Pool, Scrub — using `index=storage` sourcetype `truenas:pool`, grouped by `hostname`, `pool_name`. Outputs `count` each `the scheduled window`; alert when `scan_err` > 0. Primary focus: Stalled Scrubs. Purpose-built for 'TrueNAS SCALE ZFS Pool Scrub Errors and Stalled Scrubs' in Operations workflows.",
+  "value": "Alerting on TrueNAS, SCALE, ZFS, Pool, Scrub through UC-6.1.38 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Poll `/api/v2.0/pool` and expand nested `scan` data. Normalize TrueNAS CORE vs SCALE field paths (`scan.state` vs flat keys). Alert on any `scan_errors > 0` immediately; warn if a scrub stays non-`FINISHED` longer than twice your expected duration.",
   "visualization": "Table (pool, scrub state, errors), timeline (scrub start/stop), single value (pools with errors).",
   "cimModels": [
@@ -22,16 +28,31 @@
   "references": [
     {
       "title": "TrueNAS API documentation",
-      "url": "https://www.truenas.com/docs/scale/scaleuireference/systemsettings/advanced/"
+      "url": "https://www.truenas.com/docs/scale/scaleuireference/systemsettings/advanced/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "OpenZFS — zpool scrub",
-      "url": "https://openzfs.github.io/openzfs-docs/man/master/8/zpool-scrub.8.html"
+      "url": "https://openzfs.github.io/openzfs-docs/man/master/8/zpool-scrub.8.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.1.38)** — Planned work for 'TrueNAS SCALE ZFS Pool Scrub Errors and Stalled Scrubs' shifts `count` over `span=1h` while `hostname`, `pool_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `truenas:pool`** — Scheduled automation elevates `pool_name` without crossing `scan_err` > 0 for UC-6.1.38. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `hostname`, `pool_name`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `truenas:pool`** — First 48h baseline for UC-6.1.38 on `hostname` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `hostname`, `exception_reason`, `valid_until`.",
   "equipment": [
     "truenas"
+  ],
+  "equipmentModels": [
+    "truenas_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -40,5 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We help you see how your arrays and related gear are doing before small issues turn into full outages or restore surprises."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom TrueNAS REST collector (API key) — complements archived TA Freenas (Splunkbase 6192) patterns). Enable the modular input or HEC token that writes sourcetype=truenas:pool into storage. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`hostname, pool_name, scan_err`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you see how your arrays and related gear are doing before small issues turn into full outages or restore surprises.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

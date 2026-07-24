@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "pack_id": "windows-ta",
+  "purpose": "Reference scaffolding for Windows/IAM UCs using Splunk Add-on for Microsoft Windows (Splunkbase 742) and WinEventLog:Security. Authors adapt — do not paste verbatim.",
+  "lastReviewed": "2026-07-24",
+  "ta": {
+    "name": "Splunk Add-on for Microsoft Windows",
+    "splunkbaseId": 742,
+    "scope": "Universal Forwarder on Domain Controllers and member servers; WinEventLog://Security, System, Application"
+  },
+  "kfps": [
+    {
+      "scenario": "Password spray against many accounts from one Source_Network_Address with low per-account counts.",
+      "distinguish": "Each Account_Name has <5 failures but distinct accounts >50; use separate UC or widen stats window.",
+      "suppress": "Track in threat-hunting dashboard; do not lower brute-force threshold globally."
+    },
+    {
+      "scenario": "Service account lockout after password rotation — legitimate Kerberos failure burst.",
+      "distinguish": "Account_Name ends in `$` or appears in `privileged_accounts` lookup with `rotation_window` flag.",
+      "suppress": "Time-bound entry in `iam_exception_register.csv` keyed on Account_Name during rotation change ticket."
+    },
+    {
+      "scenario": "Break-glass administrator testing after quarterly credential roll.",
+      "distinguish": "Active CHG in ServiceNow with `break_glass=true` and matching admin Account_Name.",
+      "suppress": "Filter via `lookup break_glass_accounts Account_Name OUTPUT valid_until | where now() < valid_until`."
+    },
+    {
+      "scenario": "Vulnerability scanner or red-team cred stuffing from approved scanner netblock.",
+      "distinguish": "Source_Network_Address in `approved_scanners.csv`; User-Agent or Logon_Process in 4625 matches scanner signature.",
+      "suppress": "Exclude CIDR via `where NOT cidrmatch(\"10.50.0.0/16\", Source_Network_Address)` or scanner lookup join."
+    }
+  ],
+  "troubleshooting": [
+    {
+      "symptom": "No EventCode=4625 in index=wineventlog",
+      "cause": "Audit policy missing Failure logons or UF not collecting Security log",
+      "fix": "GPO Advanced Audit Policy → Logon/Logoff → Audit Logon; verify `[WinEventLog://Security]` on DC UF"
+    },
+    {
+      "symptom": "Account_Name is `-` or null",
+      "cause": "Pre-Win2016 field names or XML parsing drift",
+      "fix": "Check `XmlWinEventLog:Security` vs `WinEventLog:Security`; align props/transforms for TargetUserName"
+    }
+  ]
+}

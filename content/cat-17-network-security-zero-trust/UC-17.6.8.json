@@ -9,11 +9,17 @@
     "Configuration"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Akamai Guardicore Reveal Label Coverage and Ungrouped Assets (`guardicore:agent`)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_akamai_guardicore_reveal_label_coverage_and_ungr` (UC-17.6.8), SOC dashboard panel \"Network — Akamai Guardicore Reveal Label Coverage and Ungrouped Assets (`guardicore:agent`)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.6.8 positive (Akamai, Guardicore, Reveal, Label, Coverage): ingest synthetic events into `index=microseg` sourcetype='guardicore:agent' where `unlabeled` grouped by `datacenter` satisfies `unlabeled` > 0 for 'Akamai Guardicore Reveal Label Coverage and Ungrouped Assets (`guardicore:agent`)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.6.8 negative (Assets (`guardicore:agent`)): ingest benign `microseg` / `guardicore:agent` events where `datacenter` stays below `unlabeled` > 0, or exclude the test entity via `network_exception_register.csv`. Variant 4 confirms zero alert rows for 'Akamai Guardicore Reveal Label Coverage and Ungrouped Assets (`guardicore:agent`)'."
+  },
   "dataSources": "Guardicore Centra exports: `guardicore:network`, `guardicore:agent`, `guardicore:incident`, `guardicore:policy`, `guardicore:deception`",
   "app": "Akamai Guardicore Add-on for Splunk (Splunkbase 7426)",
   "spl": "index=microseg sourcetype=\"guardicore:agent\" earliest=-4h\n| where isnull(label_group) OR label_group=\"\"\n| stats dc(hostname) as unlabeled by datacenter\n| where unlabeled>0",
-  "description": "Assets without labels escape intent-based policies.",
-  "value": "Microsegmentation program managers identify assets that have agents but lack labels, which means they escape intent-based policy enforcement and create gaps in the security posture.",
+  "description": "Detects risk tied to Akamai, Guardicore, Reveal, Label, Coverage through UC-17.6.8 on `index=microseg` sourcetype `guardicore:agent`. Summarises `unlabeled` grouped by `datacenter` across `the scheduled window` before applying `unlabeled` > 0. Operators tune 'Akamai Guardicore Reveal Label Coverage and Ungrouped Assets (`guardicore:agent`)' using UC-17.6.8 runbook steps.",
+  "value": "Tracking `unlabeled` via UC-17.6.8 on `guardicore:agent` feeds improves response to 'Akamai Guardicore Reveal Label Coverage and Ungrouped Assets (`guardicore:agent`)' and reduces unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Install the add-on, configure API polling intervals appropriate to API limits, and map assets to CMDB for enrichment lookups.",
   "visualization": "Single value (unlabeled), table.",
   "cimModels": [],
@@ -21,18 +27,34 @@
   "references": [
     {
       "title": "Splunkbase — Akamai Guardicore Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/7426"
+      "url": "https://splunkbase.splunk.com/app/7426",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Akamai Guardicore documentation",
-      "url": "https://www.akamai.com/products/guardicore"
+      "url": "https://www.akamai.com/products/guardicore",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Microseg blocks from new app deployments, missing exception rules, or planned segmentation rollouts.",
+  "knownFalsePositives": "1. **Maintenance window on `microseg` (UC-17.6.8)** — Planned work for 'Akamai Guardicore Reveal Label Coverage and Ungrouped Assets (`guardicore:agent`)' shifts `unlabeled` over `span=1h` while `datacenter` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `guardicore:agent`** — Scheduled automation elevates `src` without crossing `unlabeled` > 0 for UC-17.6.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `datacenter`** — Health checks in `microseg` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `guardicore:agent`** — First 48h baseline for UC-17.6.8 on `datacenter` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `datacenter`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "guardicore",
     "m365"
+  ],
+  "equipmentModels": [
+    "guardicore_generic",
+    "m365_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -42,5 +64,7 @@
   ],
   "reviewer": "catalog-team",
   "detailedImplementation": "Prerequisites\n• Akamai Guardicore Add-on for Splunk (Splunkbase 7426) v3.x collecting agent and asset data from the Centra REST API.\n• Data in `index=microseg` with `sourcetype=guardicore:agent`. Key fields: `hostname`, `ip_address`, `label_group`, `label_environment`, `label_application`, `label_role`, `datacenter`, `agent_status`.\n• Guardicore's intent-based policies are driven by labels — assets without labels escape policy enforcement because no rule matches them. Label coverage is a prerequisite for effective microsegmentation.\n• Labels in Guardicore follow a multi-dimensional model: Environment (prod/staging/dev), Application (app name), Role (web/app/db), and custom labels.\n\nStep 1 — Configure data collection\nVerify label data is present:\n```spl\nindex=microseg sourcetype=\"guardicore:agent\" earliest=-4h\n| stats count by label_group\n| sort - count\n```\nAssets with `label_group=null` or `label_group=\"\"` are ungrouped. These are the primary concern.\n\nStep 2 — Create the search and alert\n\nPrimary search — Ungrouped asset identification:\n```spl\nindex=microseg sourcetype=\"guardicore:agent\" earliest=-4h\n| where isnull(label_group) OR label_group=\"\" OR label_group=\"Ungrouped\"\n| stats count as ungrouped_assets values(hostname) as hosts values(ip_address) as ips by datacenter\n| appendpipe [\n    search index=microseg sourcetype=\"guardicore:agent\" earliest=-4h\n    | stats dc(hostname) as total_assets\n    | eval datacenter=\"TOTAL\"\n]\n| sort datacenter\n```\n\nUnderstanding this SPL: Identifies assets that have a Guardicore agent but no label assignment. These assets are visible in Reveal (flow data is captured) but invisible to intent-based policies. In a mature deployment, ungrouped assets should be under 5% of total — anything higher indicates label hygiene problems.\n\nLabel completeness scoring:\n```spl\nindex=microseg sourcetype=\"guardicore:agent\" earliest=-4h\n| eval has_env=if(isnotnull(label_environment) AND label_environment!=\"\", 1, 0)\n| eval has_app=if(isnotnull(label_application) AND label_application!=\"\", 1, 0)\n| eval has_role=if(isnotnull(label_role) AND label_role!=\"\", 1, 0)\n| eval label_score=has_env + has_app + has_role\n| stats avg(label_score) as avg_score count(eval(label_score=3)) as fully_labeled count(eval(label_score=0)) as unlabeled dc(hostname) as total by datacenter\n| eval fully_labeled_pct=round(fully_labeled/total*100, 1)\n| sort - fully_labeled_pct\n```\n\nStep 3 — Validate\n(a) In Guardicore Centra: Reveal > Labels. Compare the ungrouped asset count with Splunk.\n(b) Pick 5 ungrouped assets from the search results and verify them in Centra — they should appear without label assignments.\n(c) Cross-reference with CMDB: ungrouped assets often correlate with 'orphaned' VMs that have no documented owner.\n\nStep 4 — Operationalize\nDashboard (\"Guardicore — Label Coverage\"):\n• Row 1 — Single-value tiles: \"Label coverage (%)\", \"Ungrouped assets\", \"Fully labeled assets\".\n• Row 2 — Bar chart: label completeness score by datacenter.\n• Row 3 — Table: ungrouped asset list with hostname, IP, datacenter.\n\nAlert: Weekly report on ungrouped assets. Trigger immediate alert if ungrouped count exceeds 10% of total assets.\n\nRunbook:\n1. **Newly provisioned VMs ungrouped** — Update the provisioning automation to apply labels at deployment time via the Centra API.\n2. **Legacy assets ungrouped** — Manual labeling required. Work with the asset owner to determine the correct Environment/Application/Role labels.\n3. **Assets with partial labels** — Missing Application or Role labels reduce policy precision. Complete the label set.\n\nStep 5 — Troubleshooting\n• **Label data fields always null** — The TA may not be polling the asset/label API. Verify the TA's inputs include asset metadata collection.\n• **Ungrouped count in Splunk doesn't match Centra** — Labels may have been applied after the last TA poll. Wait one poll cycle and re-check.\n• **Label names inconsistent** — Standardize label naming conventions (e.g., 'Production' vs 'Prod' vs 'PROD'). Use Centra's bulk label management to normalize.",
-  "grandmaExplanation": "We check that every computer in our network has been properly labeled and sorted into groups, because the ones that are not labeled slip through our security rules unnoticed."
+  "grandmaExplanation": "We check that every computer in our network has been properly labeled and sorted into groups, because the ones that are not labeled slip through our security rules unnoticed.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

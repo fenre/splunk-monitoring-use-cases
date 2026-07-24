@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`latency`, `request_uri`, `route_id`",
-  "app": "Kong, Envoy, AWS API GW access logs",
+  "exclusions": "Covers the detection logic documented for 'API Response Time SLA Breaches' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_api_response_time_sla_breaches` (UC-8.4.13), SOC dashboard panel \"Operations — API Response Time SLA Breaches\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.4.13 positive (API, Response, Time, SLA, Breaches): ingest synthetic events into `index=api` sourcetype='kong:access' where `count` grouped by `route_uri` satisfies detection threshold for 'API Response Time SLA Breaches'. Validate lookup `api_route_sla`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.4.13 negative (SLA Breaches): ingest benign `api` / `kong:access` events where `route_uri` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'API Response Time SLA Breaches'."
+  },
+  "dataSources": "`latency`, `request_uri`, `route_id` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Kong, Envoy, AWS API GW access logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=api sourcetype=\"kong:access\"\n| lookup api_route_sla route_uri OUTPUT p95_ms_sla\n| stats perc95(latency) as p95 by route_uri\n| where p95 > p95_ms_sla\n| table route_uri p95 p95_ms_sla",
-  "description": "p95/p99 latency from gateway access logs vs documented SLA per route (`/api/v1/orders`). Complements UC-8.4.2 with SLA lookup join.",
-  "value": "p95/p99 latency from gateway access logs vs documented SLA per route (`/api/v1/orders`). Complements UC-8.4.2 with SLA lookup join.",
+  "description": "Alerts on UC-8.4.13 — API, Response, Time, SLA, Breaches — using `index=api` sourcetype `kong:access`, grouped by `route_uri`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes lookup `api_route_sla`. Purpose-built for 'API Response Time SLA Breaches' in Operations workflows.",
+  "value": "UC-8.4.13 accelerates insight into SLA Breaches ('API Response Time SLA Breaches') by tracking `activity` on `kong:access` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Maintain SLA lookup per route. Run every 15m. Alert on breach for 3 consecutive windows. Exclude OPTIONS from stats.",
   "visualization": "Line chart (p95 vs SLA), Table (breached routes), Heatmap (route × hour).",
   "cimModels": [
@@ -23,14 +29,40 @@
   "references": [
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Response time spikes during JVM garbage collection, connection pool exhaustion, or backend dependency degradation. Load tests, campaigns, and cold caches also move percentiles.",
+  "knownFalsePositives": "1. **Maintenance window on `api` (UC-8.4.13)** — Planned work for 'API Response Time SLA Breaches' shifts `count` over `span=1h` while `route_uri` remains in-scope. Applies lookup `api_route_sla`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `kong:access`** — Scheduled automation elevates `src` without crossing configured threshold for UC-8.4.13. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `route_uri`** — Health checks in `api` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kong:access`** — First 48h baseline for UC-8.4.13 on `route_uri` is unstable; join `api_route_sla` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `route_uri`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "envoy"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Kong, Envoy, AWS API GW access logs.\n• Ensure the following data sources are available: `latency`, `request_uri`, `route_id`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMaintain SLA lookup per route. Run every 15m. Alert on breach for 3 consecutive windows. Exclude OPTIONS from stats.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=api sourcetype=\"kong:access\"\n| lookup api_route_sla route_uri OUTPUT p95_ms_sla\n| stats perc95(latency) as p95 by route_uri\n| where p95 > p95_ms_sla\n| table route_uri p95 p95_ms_sla\n```\n\nUnderstanding this SPL\n\n**API Response Time SLA Breaches** — p95/p99 latency from gateway access logs vs documented SLA per route (`/api/v1/orders`). Complements UC-8.4.2 with SLA lookup join.\n\nDocumented **Data sources**: `latency`, `request_uri`, `route_id`. **App/TA** (typical add-on context): Kong, Envoy, AWS API GW access logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: api; **sourcetype**: kong:access. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=api, sourcetype=\"kong:access\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `stats` rolls up events into metrics; results are split **by route_uri** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where p95 > p95_ms_sla` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **API Response Time SLA Breaches**): table route_uri p95 p95_ms_sla\n\n\nStep 3 — Validate\nCompare with the API gateway or mesh admin (Kong, Apigee, AWS API Gateway, etc.) and a raw log tail for the same time range.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (p95 vs SLA), Table (breached routes), Heatmap (route × hour).",
-  "grandmaExplanation": "We watch for signs that slowness from gateway access logs vs documented service promises per route."
+  "equipmentModels": [
+    "aws_generic",
+    "envoy_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Kong, Envoy, AWS API GW access logs.\n• Ensure the following data sources are available: `latency`, `request_uri`, `route_id`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMaintain SLA lookup per route. Run every 15m. Alert on breach for 3 consecutive windows. Exclude OPTIONS from stats.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=api sourcetype=\"kong:access\"\n| lookup api_route_sla route_uri OUTPUT p95_ms_sla\n| stats perc95(latency) as p95 by route_uri\n| where p95 > p95_ms_sla\n| table route_uri p95 p95_ms_sla\n```\n\nUnderstanding this SPL\n\n**API Response Time SLA Breaches** — p95/p99 latency from gateway access logs vs documented SLA per route (`/api/v1/orders`). Complements UC-8.4.2 with SLA lookup join.\n\nDocumented **Data sources**: `latency`, `request_uri`, `route_id`. **App/TA** (typical add-on context): Kong, Envoy, AWS API GW access logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: api; **sourcetype**: kong:access. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=api, sourcetype=\"kong:access\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `stats` rolls up events into metrics; results are split **by route_uri** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where p95 > p95_ms_sla` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **API Response Time SLA Breaches**): table route_uri p95 p95_ms_sla\n\n\nStep 3 — Validate\nCompare with the API gateway or mesh admin (Kong, Apigee, AWS API Gateway, etc.) and a raw log tail for the same time range.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (p95 vs SLA), Table (breached routes), Heatmap (route × hour).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Kong, Envoy, AWS API GW access logs — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=kong:access into api. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`p95_ms_sla, route_uri`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch for signs that slowness from gateway access logs vs documented service promises per route.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

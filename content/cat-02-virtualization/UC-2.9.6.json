@@ -9,11 +9,17 @@
     "Change"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=openstack` `sourcetype=\"openstack:heat\"` — `stack_name`, `stack_id`, `resource`, `status` (FAILED|ROLLBACK_COMPLETE), `status_reason`",
-  "app": "Heat engine logs to Splunk",
+  "exclusions": "Covers the detection logic documented for 'OpenStack Heat Stack Creation Failures and Rollback Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_openstack_heat_stack_creation_failures_and_rollb` (UC-2.9.6), SOC dashboard panel \"Linux — OpenStack Heat Stack Creation Failures and Rollback Events\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.9.6 positive (OpenStack, Heat, Stack, Creation, Failures): ingest synthetic events into `index=openstack` sourcetype='openstack:heat' where `values` grouped by `stack_name`, `project_id` satisfies -7d for 'OpenStack Heat Stack Creation Failures and Rollback Events'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.9.6 negative (Rollback Events): ingest benign `openstack` / `openstack:heat` events where `stack_name`, `project_id` stays below -7d, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 12 confirms zero alert rows for 'OpenStack Heat Stack Creation Failures and Rollback Events'."
+  },
+  "dataSources": "`index=openstack` `sourcetype=\"openstack:heat\"` — `stack_name`, `stack_id`, `resource`, `status` (FAILED|ROLLBACK_COMPLETE), `status_reason` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Heat engine logs to Splunk — Universal Forwarder (Splunkbase 617)",
   "spl": "index=openstack sourcetype=\"openstack:heat\" earliest=-7d\n| eval st=upper(coalesce(status, stack_status))\n| where st=\"FAILED\" OR match(st, \"ROLLBACK\")\n| stats count as bad, values(status_reason) as reasons by stack_name, project_id\n| sort - bad",
-  "description": "IaC failures leave partial resources costing money or exposing security gaps. Heat rollbacks should be rare and actionable.",
-  "value": "Improves infrastructure automation reliability and FinOps hygiene.",
+  "description": "Detects UC-2.9.6 — OpenStack, Heat, Stack, Creation, Failures — using `index=openstack` sourcetype `openstack:heat`, grouped by `stack_name`, `project_id`. Outputs `values` each `the scheduled window`; alert when -7d. Primary focus: Rollback Events. Purpose-built for 'OpenStack Heat Stack Creation Failures and Rollback Events' in Linux workflows.",
+  "value": "Tracking `activity` via UC-2.9.6 on `openstack:heat` feeds improves response to 'OpenStack Heat Stack Creation Failures and Rollback Events' and reduces capacity incidents, patch regressions, and service outages.",
   "implementation": "Parse `status_reason` tokens. Notify project owners on rollback. Trend top failing resources.",
   "visualization": "Bar chart failures by resource type; table stacks; drill to events.",
   "cimModels": [
@@ -22,12 +28,31 @@
   "references": [
     {
       "title": "OpenStack Heat",
-      "url": "https://docs.openstack.org/heat/latest/"
+      "url": "https://docs.openstack.org/heat/latest/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "OpenStack metrics may swing during image builds, large migrations, or control-plane rolling updates; verify services are healthy in parallel before declaring data-plane failure.",
+  "knownFalsePositives": "1. **Patch Tuesday on `openstack`** — Package managers spike `stack_name` metrics for 'OpenStack Heat Stack Creation Failures and Rollback Events'. Correlate with apt/yum logs in the same `openstack:heat` window.\n\n2. **Nightly backup I/O on `stack_name`** — Predictable `values` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `openstack:heat`** — Nagios/Zabbix polls `stack_name` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `stack_name` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `stack_name`, `valid_until`.",
   "equipment": [
     "openstack"
+  ],
+  "equipmentModels": [
+    "openstack_generic"
   ],
   "status": "verified",
   "lastReviewed": "2025-06-01",
@@ -36,5 +61,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We monitor the building blocks of your private cloud—computers, networks, disks, and logins—so new systems come up reliably and people are not locked out when something upstream hiccups."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Heat engine logs to Splunk — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=openstack:heat into openstack. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`project_id, stack_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We monitor the building blocks of your private cloud—computers, networks, disks, and logins—so new systems come up reliably and people are not locked out when something upstream hiccups.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

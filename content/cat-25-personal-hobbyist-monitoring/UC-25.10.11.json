@@ -9,26 +9,55 @@
     "Analytics"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil-moisture and greenhouse sensors (`plant:sensor`), aquarium controllers (`aquarium:sensor`).",
-  "app": "Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT.",
+  "exclusions": "Covers personal hobby monitoring for 'Heat Index Safety Alert' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_heat_index_safety_alert` (UC-25.10.11), SOC dashboard panel \"Personal — Heat Index Safety Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.10.11 positive (Heat, Index, Safety, Alert): ingest synthetic events into `index=personal` sourcetype='ecowitt:obs' where `count` grouped by `station` satisfies `heat_index_c` > 32 for 'Heat Index Safety Alert'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.10.11 negative (Safety Alert): ingest benign `personal` / `ecowitt:obs` events where `station` stays below `heat_index_c` > 32, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 5 confirms zero alert rows for 'Heat Index Safety Alert'."
+  },
+  "dataSources": "Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil-moisture and greenhouse sensors (`plant:sensor`), aquarium controllers (`aquarium:sensor`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=ecowitt:obs\n| stats latest(temp_c) as temp_c, latest(humidity_pct) as humidity by station\n| eval heat_index_c=round(temp_c+(humidity/100*6)-4,1)\n| where heat_index_c>32\n| sort - heat_index_c",
-  "description": "Combines temperature and humidity into a simple heat-index proxy so you know when outdoor conditions have shifted from warm to genuinely risky.",
-  "value": "Raw temperature misses how oppressive humid heat feels; a safety-focused composite is better for outdoor work, pets, and exercise decisions.",
+  "description": "Detects 'Heat Index Safety Alert' patterns (UC-25.10.11) sourced from `index=personal` sourcetype `ecowitt:obs`. Threshold bundle: `heat_index_c` > 32; aggregation grain: `station`; metrics: `count`. Watch terms: Heat, Index, Safety, Alert.",
+  "value": "UC-25.10.11 gives Personal teams earlier visibility into Safety Alert through `ecowitt:obs` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Forward weather-station temperature and humidity; alert when the calculated heat index enters your danger zone.",
   "visualization": "Current-condition panel of temperature, humidity, and heat-index proxy.",
   "cimModels": [],
   "references": [
     {
       "title": "Ecowitt API",
-      "url": "https://doc.ecowitt.net/web/#/apiv3en?page_id=1"
+      "url": "https://doc.ecowitt.net/web/#/apiv3en?page_id=1",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.10.11)** — Connector for 'Heat Index Safety Alert' stops polling `ecowitt:obs`; stale `count` on `station` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.10.11, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ecowitt:obs`. Dedup with `stats latest(*) by station`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `heat_index_c` > 32 for 'Heat Index Safety Alert'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It logs when the combination of heat and humidity outside is getting dangerous, not just uncomfortable."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Weather, Environment & Garden — typical feeds: Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil-moisture/greenhouse sensors, aquarium controllers (`aquarium:sensor`.\n• **Sourcetypes in this search**: `ecowitt:obs`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=ecowitt:obs`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT..\n\n**Author notes:** Forward weather-station temperature and humidity; alert when the calculated heat index enters your danger zone.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"ecowitt:obs\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=ecowitt:obs earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Heat Index Safety Alert** over `personal` data (primarily `sourcetype=ecowitt:obs`) across the full search range. It applies numeric thresholds on `heat_index_c` (> 32) after latest — tune these constants to your household baseline.\n\n**Fields this search depends on:** `heat_index_c`, `station`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=ecowitt:obs\n| stats latest(temp_c) as temp_c, latest(humidity_pct) as humidity by station\n| eval heat_index_c=round(temp_c+(humidity/100*6)-4,1)\n| where heat_index_c>32\n| sort - heat_index_c\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=ecowitt:obs earliest=-7d\n| head 50\n| table heat_index_c, station\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=ecowitt:obs earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `heat_index_c` before alerting:\n\n```spl\nindex=personal sourcetype=ecowitt:obs earliest=-30d\n| stats perc50(heat_index_c) AS p50 perc90(heat_index_c) AS p90 perc99(heat_index_c) AS p99 max(heat_index_c) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.10.11: Personal evidence` with the following panel layout:\n\n**Panel 1 — Current-Condition Panel Of Temperature (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n**Panel 2 — Humidity (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n**Panel 3 — And Heat-Index Proxy (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `ecowitt:obs` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=ecowitt:obs | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It logs when the combination of heat and humidity outside is getting dangerous, not just uncomfortable.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

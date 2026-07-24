@@ -9,11 +9,17 @@
     "Security"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Citrix ShareFile API Rate Limiting and Auth Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_citrix_sharefile_api_rate_limiting_and_auth_fail` (UC-2.6.73), SOC dashboard panel \"Linux — Citrix ShareFile API Rate Limiting and Auth Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.6.73 positive (Citrix, ShareFile, API, Rate, Limiting): ingest synthetic events into `index=sharefile` sourcetype='citrix:sharefile:api' where `auth_fails`, `rate_hits`, `job_errors` grouped by `_time`, `client` satisfies `auth_fails` > 10, `rate_hits` > 0, or `job_errors` > 0 for 'Citrix ShareFile API Rate Limiting and Auth Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.6.73 negative (Auth Failures): ingest benign `sharefile` / `citrix:sharefile:api` events where `_time`, `client` stays below `auth_fails` > 10, `rate_hits` > 0, or `job_errors` > 0, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 10 confirms zero alert rows for 'Citrix ShareFile API Rate Limiting and Auth Failures'."
+  },
   "dataSources": "`index=sharefile` `sourcetype=\"citrix:sharefile:api\"` (REST responses); fields `http_status` (401, 403, 429), `error_code`, `client_id` or `app_name`, `rate_limit_key`, `integration_job` for sync worker failures Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
   "app": "No official Splunk TA for ShareFile. Ingest audit trail via ShareFile REST API (https://api.sharefile.com) to HEC with a custom scripted input or Splunk Add-on Builder. Suggested custom sourcetype: `citrix:sharefile:audit`. Optionally correlate with Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated risk indicators.",
   "spl": "index=sharefile sourcetype=\"citrix:sharefile:api\" earliest=-4h\n| eval sc=tonumber(http_status), is_auth=if(sc IN (401,403),1,0), is_rl=if(sc=429 OR match(lower(error_code),\"(?i)rate|throttl|limit\"),1,0), job_fail=if(match(lower(coalesce(integration_job, \"\")),\"(?i)fail|error\") OR match(lower(error_code),\"(?i)job|sync|worker\"),1,0), client=coalesce(client_id, app_name, \"unknown\")\n| bin _time span=5m\n| stats count as reqs, sum(is_auth) as auth_fails, sum(is_rl) as rate_hits, sum(job_fail) as job_errors by _time, client\n| where auth_fails>10 OR rate_hits>0 OR job_errors>0\n| table _time, client, reqs, auth_fails, rate_hits, job_errors",
-  "description": "Integrations, automation, and line-of-business apps depend on ShareFile APIs. OAuth failures break sign-in, rate limiting signals abusive or mis-tuned clients, and job errors may leave folders out of sync. Monitoring these patterns protects both availability and security (stolen or misconfigured tokens).",
-  "value": "Integrations, automation, and line-of-business apps depend on ShareFile APIs. OAuth failures break sign-in, rate limiting signals abusive or mis-tuned clients, and job errors may leave folders out of sync. Monitoring these patterns protects both availability and security (stolen or misconfigured tokens).",
+  "description": "Surfaces UC-2.6.73 — Citrix, ShareFile, API, Rate, Limiting — using `index=sharefile` sourcetype `citrix:sharefile:api`, grouped by `_time`, `client`. Outputs `auth_fails`, `rate_hits`, `job_errors` each `5m`; alert when `auth_fails` > 10, `rate_hits` > 0, or `job_errors` > 0. Primary focus: Auth Failures. Purpose-built for 'Citrix ShareFile API Rate Limiting and Auth Failures' in Linux workflows.",
+  "value": "For 'Citrix ShareFile API Rate Limiting and Auth Failures', UC-2.6.73 converts `auth_fails`, `rate_hits`, `job_errors` on `citrix:sharefile:api` feeds into actionable rows and reduces capacity incidents, patch regressions, and service outages.",
   "implementation": "Collect API and OAuth logs with client identity. Alert on 429 from production integrations first (fix back-off and batch size). For 401/403, spike-check against key rotation and blocked accounts. Tag integration job names in events for MTTR. Compare to synthetic login tests to separate ShareFile service issues from a single app.",
   "visualization": "Timechart: 429, 401, 403 by client_id; table: top clients for rate limits; single-value: failed job count in the last hour.",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Citrix — ShareFile API documentation",
-      "url": "https://api.sharefile.com/"
+      "url": "https://api.sharefile.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 6280",
+      "url": "https://splunkbase.splunk.com/app/6280",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Citrix environments often coordinate broker, VDA, gateway, and profile layers; a single noisy component may clear when maintenance or a publish job completes.",
+  "knownFalsePositives": "1. **Patch Tuesday on `sharefile`** — Package managers spike `_time` metrics for 'Citrix ShareFile API Rate Limiting and Auth Failures'. Correlate with apt/yum logs in the same `citrix:sharefile:api` window.\n\n2. **Nightly backup I/O on `_time`** — Predictable `sum` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `citrix:sharefile:api`** — Nagios/Zabbix polls `_time` and mimics sustained load without crossing `auth_fails` > 10.\n\n4. **New host onboarding** — `_time` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `_time`, `valid_until`.",
   "mitreAttack": [
     "T1110",
     "T1190"
@@ -33,7 +55,16 @@
   "equipment": [
     "citrix"
   ],
+  "equipmentModels": [
+    "citrix_generic"
+  ],
   "lastReviewed": "2026-04-24",
-  "detailedImplementation": "Prerequisites: API or gateway logs in Splunk with status codes and a stable client identifier; OAuth logs correlated by client_id when possible. Step 1: Configure data collection — Ingest 429/4xx in real time; use HEC to index=sharefile, props.conf [citrix:sharefile:api] with EXTRACT for http_status and client_id, transforms.conf [sharefile_api] for JSON key routing. Step 2: Create the search and alert — Save the SPL; sliding windows; page when rate limits hit a business-critical client_id for more than 15m; for auth, alert on 401/403 with novel IP from lookup sharefile_client_context.csv; start with auth_fails>10 or rate_hits>0 per 5m and tune. Step 3: Validate — `index=sharefile sourcetype=\"citrix:sharefile:api\" earliest=-30m | stats count by http_status, client`. Step 4: Operationalize — Lookup sharefile_client_owners.csv in transforms.conf; route to app/identity; if persistent, escalate to Citrix/ShareFile admins.",
-  "grandmaExplanation": "We keep an eye on shareFile API Rate Limiting and Auth Failures and raise the alarm before it drags down real work or real outages start."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites: API or gateway logs in Splunk with status codes and a stable client identifier; OAuth logs correlated by client_id when possible. Step 1: Configure data collection — Ingest 429/4xx in real time; use HEC to index=sharefile, props.conf [citrix:sharefile:api] with EXTRACT for http_status and client_id, transforms.conf [sharefile_api] for JSON key routing. Step 2: Create the search and alert — Save the SPL; sliding windows; page when rate limits hit a business-critical client_id for more than 15m; for auth, alert on 401/403 with novel IP from lookup sharefile_client_context.csv; start with auth_fails>10 or rate_hits>0 per 5m and tune. Step 3: Validate — `index=sharefile sourcetype=\"citrix:sharefile:api\" earliest=-30m | stats count by http_status, client`. Step 4: Operationalize — Lookup sharefile_client_owners.csv in transforms.conf; route to app/identity; if persistent, escalate to Citrix/ShareFile admins.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (No official Splunk TA for ShareFile. Ingest audit trail via ShareFile REST API (https://api.sharefile.com) to HEC with a custom scripted input or Splunk Add-on Builder. Suggested custom sourcetype: `citrix:sharefile:audit`. Optionally correlate with Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated risk indicators.). Enable the modular input or HEC token that writes sourcetype=citrix:sharefile:api into sharefile. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, auth_fails, client, job_errors`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We keep an eye on shareFile API Rate Limiting and Auth Failures and raise the alarm before it drags down real work or real outages start.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

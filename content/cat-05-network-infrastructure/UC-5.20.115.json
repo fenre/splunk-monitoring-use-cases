@@ -9,28 +9,42 @@
     "Performance"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` or `sourcetype=juniper:junos` — Monitors stateful NAT64 (RFC 6146) and stateless SIIT (RFC 7915) protocol translation gateways that enable IPv6-only clients to communicate with IPv4-only servers. These translators are critical infrastructure during the IPv6 transition — when they fail, IPv6-only clients lose access to all IPv4-only content.\n\n**NAT64/SIIT operational context:**\n\n1. **Stateful NAT64.** Maintains per-session state mapping between IPv6 and IPv4 addresses. Session table can exhaust under high traffic or DoS. Used with DNS64 for transparent operation.\n2. **Stateless NAT64 (SIIT).** 1:1 mapping between IPv6 and IPv4 addresses. No session state — deterministic translation. Used for servers that need stable addresses in both protocols.\n3. **DNS64.** Synthesises AAAA records for IPv4-only domains by embedding the IPv4 address in the well-known prefix 64:ff9b::/96. Essential companion to NAT64.\n4. **464XLAT (RFC 6877).** Client-side translation (CLAT) combined with NAT64 (PLAT) for applications that require literal IPv4 addresses. Used in mobile networks.\n5. **Session table exhaustion.** Stateful NAT64 has a finite session table. Under DDoS or high legitimate load, the table fills and new translations are dropped.\n6. **Translation failures.** Some protocols embed IP addresses in the payload (FTP, SIP). These require Application Layer Gateways (ALGs) that understand both IPv4 and IPv6.",
-  "app": "Splunk Enterprise",
+  "exclusions": "Covers the detection logic documented for 'IPv6-to-IPv4 Protocol Translation (NAT64/SIIT) Health Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ipv6_to_ipv4_protocol_translation_nat64_siit_hea` (UC-5.20.115), SOC dashboard panel \"Operations — IPv6-to-IPv4 Protocol Translation (NAT64/SIIT) Health Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.115 positive (IPv6, IPv4, Protocol, Translation, (NAT64): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `count` grouped by `host`, `nat64_event` satisfies `events` > 100, or `events` > 50 for 'IPv6-to-IPv4 Protocol Translation (NAT64/SIIT) Health Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.115 negative (Health Monitoring): ingest benign `network` / `cisco:ios` events where `host`, `nat64_event` stays below `events` > 100, or `events` > 50, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'IPv6-to-IPv4 Protocol Translation (NAT64/SIIT) Health Monitoring'."
+  },
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` or `sourcetype=juniper:junos` — Monitors stateful NAT64 (RFC 6146) and stateless SIIT (RFC 7915) protocol translation gateways that enable IPv6-only clients to communicate with IPv4-only servers. These translators are critical infrastructure during the IPv6 transition — when they fail, IPv6-only clients lose access to all IPv4-only content.\n\n**NAT64/SIIT operational context:**\n\n1. **Stateful NAT64.** Maintains per-session state mapping between IPv6 and IPv4 addresses. Session table can exhaust under high traffic or DoS. Used with DNS64 for transparent operation.\n2. **Stateless NAT64 (SIIT).** 1:1 mapping between IPv6 and IPv4 addresses. No session state — deterministic translation. Used for servers that need stable addresses in both protocols.\n3. **DNS64.** Synthesises AAAA records for IPv4-only domains by embedding the IPv4 address in the well-known prefix 64:ff9b::/96. Essential companion to NAT64.\n4. **464XLAT (RFC 6877).** Client-side translation (CLAT) combined with NAT64 (PLAT) for applications that require literal IPv4 addresses. Used in mobile networks.\n5. **Session table exhaustion.** Stateful NAT64 has a finite session table. Under DDoS or high legitimate load, the table fills and new translations are dropped.\n6. **Translation failures.** Some protocols embed IP addresses in the payload (FTP, SIP). These require Application Layer Gateways (ALGs) that understand both IPv4 and IPv6. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\" OR sourcetype=\"juniper:junos\") earliest=-4h\n  (\"%NAT64\" OR \"%NAT-6\" OR \"nat64\" OR \"stateful64\" OR \"SIIT\" OR \"464XLAT\")\n| eval nat64_event=case(\n    match(_raw, \"(?i)session.*table.*full|translation.*limit|pool.*exhaust\"), \"SESSION_EXHAUSTION\",\n    match(_raw, \"(?i)translation.*fail|nat64.*drop|cannot.*translate\"), \"TRANSLATION_FAILURE\",\n    match(_raw, \"(?i)pool.*low|address.*running|threshold\"), \"POOL_LOW\",\n    match(_raw, \"(?i)session.*create|translation.*created\"), \"SESSION_CREATED\",\n    match(_raw, \"(?i)hairpin|v6v6\"), \"HAIRPIN\",\n    1=1, \"OTHER\")\n| stats count as events by host, nat64_event\n| eval severity=case(\n    nat64_event=\"SESSION_EXHAUSTION\", \"CRITICAL — NAT64 session table full — IPv6-only clients losing IPv4 access\",\n    nat64_event=\"TRANSLATION_FAILURE\" AND events > 100, \"HIGH — translation failures (\" . events . \") — protocol or ALG issue\",\n    nat64_event=\"POOL_LOW\", \"WARNING — NAT64 IPv4 address pool running low\",\n    nat64_event=\"HAIRPIN\" AND events > 50, \"MEDIUM — NAT64 hairpinning detected (performance impact)\",\n    1=1, null())\n| where isnotnull(severity)\n| sort -events",
-  "description": "Monitors NAT64 (RFC 6146), SIIT (RFC 7915), and 464XLAT (RFC 6877) protocol translation gateways for session table exhaustion, translation failures, IPv4 address pool depletion, and performance degradation. These translators are critical infrastructure for IPv6-only networks that must communicate with IPv4-only services.",
-  "value": "As organisations move toward IPv6-only networks (per OMB M-21-07 and general industry trend), NAT64 becomes a critical single point of failure. When NAT64 goes down, every IPv6-only client loses access to all IPv4-only content — effectively a total internet outage for those clients. Monitoring NAT64 health, session table utilisation, and translation success rate is essential for maintaining connectivity during the IPv6 transition.",
+  "description": "Identifies 'IPv6-to-IPv4 Protocol Translation (NAT64/SIIT) Health Monitoring' patterns (UC-5.20.115) sourced from `index=network` sourcetype `cisco:ios`. Threshold bundle: `events` > 100, or `events` > 50; aggregation grain: `host`, `nat64_event`; metrics: `count`. Watch terms: IPv6, IPv4, Protocol, Translation, (NAT64.",
+  "value": "UC-5.20.115 gives Operations teams earlier visibility into Health Monitoring through `cisco:ios` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Monitor NAT64 session table utilisation, translation success/failure rates, IPv4 pool utilisation, and DNS64 synthesis health. Alert on session exhaustion and translation failures.",
   "visualization": "(1) Gauge: NAT64 session table utilization. (2) Timechart: translations per second. (3) Single-value: translation failure rate. (4) Table: NAT64 devices with health status.",
   "references": [
     {
       "title": "RFC 6146 — Stateful NAT64: Network Address and Protocol Translation from IPv6 Clients to IPv4 Servers",
-      "url": "https://www.rfc-editor.org/rfc/rfc6146"
+      "url": "https://www.rfc-editor.org/rfc/rfc6146",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 6147 — DNS64: DNS Extensions for Network Address Translation from IPv6 Clients to IPv4 Servers",
-      "url": "https://www.rfc-editor.org/rfc/rfc6147"
+      "url": "https://www.rfc-editor.org/rfc/rfc6147",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 6877 — 464XLAT: Combination of Stateful and Stateless Translation",
-      "url": "https://www.rfc-editor.org/rfc/rfc6877"
+      "url": "https://www.rfc-editor.org/rfc/rfc6877",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**High legitimate translation volume.** During peak hours, NAT64 session creation rates increase naturally. Baseline the normal peak rate before setting alert thresholds.\n\n**ALG-related failures.** Some application protocols (FTP active mode, SIP without IPv6 support) fail through NAT64 by design, not due to a NAT64 malfunction. These are expected failures.\n\n**DNS64 NXDOMAIN.** When a domain doesn't exist (NXDOMAIN), DNS64 correctly returns NXDOMAIN. This is not a DNS64 failure.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.115)** — Planned work for 'IPv6-to-IPv4 Protocol Translation (NAT64/SIIT) Health Monitoring' shifts `count` over `span=1h` while `host`, `nat64_event` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ios`** — Scheduled automation elevates `nat64_event` without crossing `events` > 100 for UC-5.20.115. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `nat64_event`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.20.115 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "jool",

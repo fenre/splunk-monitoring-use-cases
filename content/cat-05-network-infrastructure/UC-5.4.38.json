@@ -8,25 +8,43 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Cisco C9800 WLC AP Join Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_cisco_c9800_wlc_ap_join_failures` (UC-5.4.38), SOC dashboard panel \"Operations — Cisco C9800 WLC AP Join Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.4.38 positive (Cisco, C9800, WLC, Join, Failures): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `count` grouped by `host`, `ap_name`, `_raw` satisfies detection threshold for 'Cisco C9800 WLC AP Join Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.4.38 negative (Join Failures): ingest benign `network` / `cisco:ios` events where `host`, `ap_name`, `_raw` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Cisco C9800 WLC AP Join Failures'."
+  },
   "dataSources": "Cisco Catalyst 9800 wireless LAN controller syslog ingested via `TA-cisco_ios` (Splunkbase 1352). Look for the CAPWAP and DTLS facilities at severity 3 and below: `%CAPWAP-3-ERRORLOG`, `%DTLS-3-HANDSHAKE_FAILURE`, `%AP_EVENT-3-CRASH`. The AP name is normally extractable from the message body via the `AP <name>` literal.",
   "app": "Cisco Networks Add-on for Splunk (`TA-cisco_ios`, Splunkbase 1352)",
   "spl": "index=network sourcetype=\"cisco:ios\" host=\"c9800*\"\n  (\"%CAPWAP-3-ERRORLOG\" OR \"%DTLS-3-HANDSHAKE_FAILURE\" OR \"%AP_EVENT-3-CRASH\")\n| rex \"AP (?<ap_name>\\S+)\"\n| stats count by host, ap_name, _raw\n| sort - count",
-  "description": "Surfaces APs that fail to register with the Cisco Catalyst 9800 wireless LAN controller because of CAPWAP tunnel failures, DTLS certificate-handshake errors, or repeated AP-side crashes. Each failed-join event represents one AP's worth of campus Wi-Fi coverage going dark.",
-  "value": "Cisco Catalyst 9800 wireless controllers are the campus Wi-Fi backbone for thousands of enterprises. AP join failures are uniquely silent: the AP looks 'present' on the wired switch port (LLDP, MAC table, PoE) but never finishes handshaking with the WLC, so users in that coverage cell get no Wi-Fi at all. Three classic failure modes converge here — expired or untrusted controller certificates, CAPWAP MTU / firewall mismatches between AP and WLC, and AP-side crashes that should have triggered a hardware-replacement workflow but did not. Detection at the controller is the only place all three are visible together.",
+  "description": "Identifies UC-5.4.38 — Cisco, C9800, WLC, Join, Failures — using `index=network` sourcetype `cisco:ios`, grouped by `host`, `ap_name`, `_raw`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Join Failures. Purpose-built for 'Cisco C9800 WLC AP Join Failures' in Operations workflows.",
+  "value": "For 'Cisco C9800 WLC AP Join Failures', UC-5.4.38 converts `activity` on `cisco:ios` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Forward Cisco C9800 syslog to Splunk at severity 3 or lower so the CAPWAP / DTLS / AP_EVENT facilities reach the indexer. Alert when any AP triggers a join failure or repeatedly crashes inside a 15-minute window. Correlate with the certificate-expiry calendar for the WLC trustpoint — most surprise outages trace back to expired CAs.",
   "visualization": "Table (failed APs with cause), Status grid (AP join state per WLC, coloured by health), Timeline (join failures over time, useful for spotting controller-wide flap events).",
   "cimModels": [],
   "references": [
     {
       "title": "Cisco Catalyst 9800 series wireless controllers",
-      "url": "https://www.cisco.com/c/en/us/support/wireless/catalyst-9800-series-wireless-controllers/series.html"
+      "url": "https://www.cisco.com/c/en/us/support/wireless/catalyst-9800-series-wireless-controllers/series.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CAPWAP troubleshooting on Catalyst 9800",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Scheduled controller upgrades.** Rolling AP firmware upgrades and WLC HA failovers generate CAPWAP errors as APs reset and rejoin the partner controller. Suppress alerts during announced maintenance windows.\n\n**Powered-down lab APs.** Lab APs that are physically powered off but still configured on the WLC will alarm forever. Filter by AP name pattern or move lab APs to a dedicated WLC.\n\n**Single-AP DTLS handshake retries.** Some AP models retry DTLS handshakes with a brief delay; one or two retries per join is normal. Threshold the alert on count > 3 within 5 minutes for a single AP.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.4.38)** — Planned work for 'Cisco C9800 WLC AP Join Failures' shifts `count` over `span=1h` while `host`, `ap_name`, `_raw` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ios`** — Scheduled automation elevates `ap_name` without crossing configured threshold for UC-5.4.38. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `ap_name`, `_raw`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.4.38 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
@@ -37,6 +55,12 @@
     "cisco_ios"
   ],
   "status": "community",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Cisco Networks Add-on for Splunk (`TA-cisco_ios`, Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ios into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_raw, ap_name, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We watch the wireless access points on the ceiling check in with the building's main Wi-Fi controller. When any of them fail to check in, that part of the office loses Wi-Fi entirely — even though the device looks alive on the wall. We alert before users start asking why their phones say no signal.",
+  "prerequisiteUseCases": [],
   "wave": "crawl"
 }

@@ -111,205 +111,205 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 - **UC-17.1.28** — Cisco ISE<sup class="ref">[<a href="#ref-2">2</a>]</sup> Deployment Replication Health and PSN Sync Lag
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.28.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.28.json)
 <a id='uc-17-1-29'></a>
 - **UC-17.1.29** — Cisco ISE Node Resource Saturation (CPU, Memory, Disk, Threads)
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.29.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.29.json)
 <a id='uc-17-1-30'></a>
 - **UC-17.1.30** — Cisco ISE Process Crash and Service-Restart Detection
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.30.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.30.json)
 <a id='uc-17-1-31'></a>
 - **UC-17.1.31** — Cisco ISE Certificate Expiry and Trust-Chain Health
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.31.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.31.json)
 <a id='uc-17-1-33'></a>
 - **UC-17.1.33** — Cisco ISE pxGrid Subscriber Connectivity and Topic Health
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.33.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.33.json)
 <a id='uc-17-1-34'></a>
 - **UC-17.1.34** — pxGrid Topic Throughput Anomaly and Subscriber Lag Detection
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.34.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.34.json)
 <a id='uc-17-1-36'></a>
 - **UC-17.1.36** — Cisco TrustSec / SGT Assignment Mismatch and SXP Listener Health
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.36.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.36.json)
 <a id='uc-17-1-37'></a>
 - **UC-17.1.37** — ISE-Cisco ACI / Cisco Secure Workload SGT Binding Synchronisation
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.37.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.37.json)
 <a id='uc-17-1-38'></a>
 - **UC-17.1.38** — EAP-TLS Client Certificate Failure and Trust-Chain Validation
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.38.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.38.json)
 <a id='uc-17-1-40'></a>
 - **UC-17.1.40** — RADIUS Authentication Latency SLO and Slow PSN Detection
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.40.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.40.json)
 <a id='uc-17-1-41'></a>
 - **UC-17.1.41** — Threat-Centric NAC (TC-NAC) — STIX/TAXII Feed and Auto-Quarantine Effectiveness
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.41.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.41.json)
 <a id='uc-17-1-42'></a>
 - **UC-17.1.42** — Adaptive Network Control (ANC) Action Auditing and Excessive Quarantine Detection
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.42.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.42.json)
 <a id='uc-17-1-44'></a>
 - **UC-17.1.44** — Cisco ISE External Identity Store Health (AD/LDAP/RADIUS/SAML/OAuth)
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.44.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.44.json)
 <a id='uc-17-1-45'></a>
 - **UC-17.1.45** — Cisco ISE PassiveID — WMI / AD Agent / Syslog Provider Health
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.45.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.45.json)
 <a id='uc-17-1-46'></a>
 - **UC-17.1.46** — Cisco Identity Intelligence (CII) Risk-Score Drift and Adaptive-Auth Triggering
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.46.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.46.json)
 <a id='uc-17-1-47'></a>
 - **UC-17.1.47** — Cisco ISE Backup Job Success and Operational-Data Backup Validation
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.47.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.47.json)
 <a id='uc-17-1-48'></a>
 - **UC-17.1.48** — Cisco ISE Restore Audit and Configuration-Drift Detection Post-Restore
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.48.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.48.json)
 <a id='uc-17-1-49'></a>
 - **UC-17.1.49** — Cisco ISE Patch and Upgrade Health — Pre/Post-Upgrade Validation
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.49.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.49.json)
 <a id='uc-17-1-50'></a>
 - **UC-17.1.50** — Cisco ISE — MDM/UEM Connector Health and Compliance Drift
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.50.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.50.json)
 <a id='uc-17-1-51'></a>
 - **UC-17.1.51** — ISE Sponsor Portal — Sponsor Approval Latency and Approval-Pattern Anomalies
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.51.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.51.json)
 <a id='uc-17-1-52'></a>
 - **UC-17.1.52** — Self-Registration Portal Storm Detection and Bot-Onboarding Defense
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.52.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.52.json)
 <a id='uc-17-1-53'></a>
 - **UC-17.1.53** — Posture Remediation Funnel — Detection-to-Compliant Conversion Rate
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.53.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.53.json)
 <a id='uc-17-1-55'></a>
 - **UC-17.1.55** — Cisco ISE Profiler Probe Quality and Endpoint-Classification Coverage
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.55.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.55.json)
 <a id='uc-17-1-56'></a>
 - **UC-17.1.56** — ISE RADIUS Change-of-Authorization (CoA) Failure Detection
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.56.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.56.json)
 <a id='uc-17-1-57'></a>
 - **UC-17.1.57** — ISE ERS / OpenAPI Brute-Force, Token Theft, and Anomalous API-Caller Detection
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.57.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.57.json)
 <a id='uc-17-1-59'></a>
 - **UC-17.1.59** — Cisco ISE Logs through Splunk Edge Processor — Pipeline Health and Routing
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.59.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.59.json)
 <a id='uc-17-1-61'></a>
 - **UC-17.1.61** — ISE Multi-Site Topology — Cross-Site Replication Lag and WAN Loss Impact
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.61.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.61.json)
 <a id='uc-17-1-66'></a>
 - **UC-17.1.66** — Cisco AI Endpoint Analytics — IoT/OT Classification Confidence and New-Profile Discovery
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.66.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.66.json)
 <a id='uc-17-1-67'></a>
 - **UC-17.1.67** — Cisco AI Endpoint Behavioural (AEB) Profile-Drift and Behaviour-Anomaly Detection
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.67.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.67.json)
 <a id='uc-17-1-68'></a>
 - **UC-17.1.68** — ISE IoT/OT Device Onboarding — Profile Match and SGT Assignment Validation
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.68.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.68.json)
 <a id='uc-17-1-70'></a>
 - **UC-17.1.70** — OCSP Responder and CRL Repository Reachability and Latency Monitoring
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.70.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.70.json)
 <a id='uc-17-1-73'></a>
 - **UC-17.1.73** — Cisco WLC + ISE Wireless Authentication Funnel — Association → Auth → DHCP → Posture
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.73.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.73.json)
 <a id='uc-17-1-77'></a>
 - **UC-17.1.77** — Cisco ISE PSN Authentication-Per-Second (TPS) SLO and Capacity Headroom
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.77.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.77.json)
 <a id='uc-17-1-80'></a>
 - **UC-17.1.80** — ISE ANC Closed-Loop Effectiveness — Quarantine-to-Compromise-Stop Time
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.80.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.80.json)
 <a id='uc-22-2-1'></a>
 - **UC-22.2.1** — NIS2 Art.23(4)(a) — 24-Hour Early-Warning Notification Readiness
@@ -748,9 +748,9 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 8.20.0
+catalogue_version: 8.24.0
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     d010119379cfbb44fc0feadaf5ee44b9873461a6d4bc9e2c30e797bebfe9eced
+inputs_sha256:     05f941e7cba30a6ed15be3f33541ee7425e92ce578db21f18d57d3d67e5fb1db
 ```
 
 To re-generate:

@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=\"WinEventLog:Security\"` (4688, 4702) for `powershell*`, `mmc.exe`, `BrokerPowerShell.exe`, `Citrix*Studio*`, `index=xd` `sourcetype=\"citrix:broker:events\"` for admin/audit and publish changes, `sourcetype=\"linux_audit\"` or container logs for Cloud connectors if you separate admin API calls",
-  "app": "Splunk Add-on for Microsoft Windows, Template for Citrix XenDesktop 7 (TA-XD7-Broker), optional Splunk Enterprise Security for correlation",
+  "exclusions": "Covers the detection logic documented for 'Citrix Configuration Change Audit Trail' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_citrix_configuration_change_audit_trail` (UC-2.6.42), SOC dashboard panel \"Linux — Citrix Configuration Change Audit Trail\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.6.42 positive (Citrix, Configuration, Change, Audit, Trail): ingest synthetic events into `index=windows` sourcetype='WinEventLog:Security' EventCode=4688 where `count` grouped by `entity` satisfies detection threshold for 'Citrix Configuration Change Audit Trail'. Validate filter `match(_raw, \"(?i)BrokerPowerShell`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.6.42 negative (Audit Trail): ingest benign `windows` / `WinEventLog:Security` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 0 confirms zero alert rows for 'Citrix Configuration Change Audit Trail'."
+  },
+  "dataSources": "`sourcetype=\"WinEventLog:Security\"` (4688, 4702) for `powershell*`, `mmc.exe`, `BrokerPowerShell.exe`, `Citrix*Studio*`, `index=xd` `sourcetype=\"citrix:broker:events\"` for admin/audit and publish changes, `sourcetype=\"linux_audit\"` or container logs for Cloud connectors if you separate admin API calls Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for Microsoft Windows, Template for Citrix XenDesktop 7 (TA-XD7-Broker), optional Splunk Enterprise Security for correlation — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=windows sourcetype=\"WinEventLog:Security\" (EventCode=4688 OR EventCode=4702)\n| search match(_raw, \"(?i)BrokerPowerShell|CVAD|XD.*Catalog|XenDesktop|Studio|Publish|Delivery.?Group|Machine.?Catalog|GPO|Broker\\\\bin|Get-Broker|Set-Broker|New-Broker|Remove-Broker\")\n| eval account=coalesce(Security_ID, user, src_user, Account_Name)\n| eval process=New_Process_Name\n| table _time, host, account, process, EventCode, CommandLine\n| append [search index=xd sourcetype=\"citrix:broker:events\" match(_raw, \"(?i)admin|audit|publish|unpublish|add.?desktop|change.?entitlement|polic|Studio\")]\n| sort - _time",
-  "description": "Unplanned or unauthorized changes to published resources, machine catalogs, entitlements, and policies are high-impact in VDI. Collecting a tamper-resistant trail from Windows process creation and Citrix admin audit events, plus any broker-side configuration events you expose, gives security and change teams evidence for investigations and attestation, not only for ITIL tickets.",
-  "value": "Unplanned or unauthorized changes to published resources, machine catalogs, entitlements, and policies are high-impact in VDI. Collecting a tamper-resistant trail from Windows process creation and Citrix admin audit events, plus any broker-side configuration events you expose, gives security and change teams evidence for investigations and attestation, not only for ITIL tickets.",
+  "description": "Alerts on 'Citrix Configuration Change Audit Trail' (UC-2.6.42) using `index=windows` sourcetype `WinEventLog:Security` via filter `match(_raw, \"(?i)BrokerPowerShell` by aggregating `count` grouped by `entity` over `the scheduled window` and alerting when configured threshold. Keywords: Citrix, Configuration, Change, Audit, Trail. Focuses on Audit Trail behaviour so linux teams can triage UC-2.6.42 without ad-hoc log review.",
+  "value": "UC-2.6.42 accelerates insight into Audit Trail ('Citrix Configuration Change Audit Trail') by tracking `activity` on `WinEventLog:Security` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
   "implementation": "Send Security logs from admin jump hosts and all Delivery Controllers. Enable command-line process auditing (4688) per Microsoft guidance. Harden: lock down who can run `BrokerPowerShell`. Enrich with asset identity for admin accounts. For Citrix DaaS, pipe Cloud Director API audit to Splunk. Retention: align to your compliance schedule (e.g. 1 year online).",
   "visualization": "Timeline (change events by admin), Table (raw command line), Bar chart (changes per day by team via lookup).",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Citrix audit logging and reporting",
-      "url": "https://docs.citrix.com/en-us/"
+      "url": "https://docs.citrix.com/en-us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 742",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Citrix environments often coordinate broker, VDA, gateway, and profile layers; a single noisy component may clear when maintenance or a publish job completes.",
+  "knownFalsePositives": "1. **Patch Tuesday on `windows`** — Package managers spike `host` metrics for 'Citrix Configuration Change Audit Trail'. Correlate with apt/yum logs in the same `WinEventLog:Security` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Security`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "mitreAttack": [
     "T1078",
     "T1098"
@@ -37,6 +59,12 @@
     "citrix_cvad"
   ],
   "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Windows, Template for Citrix XenDesktop 7 (TA-XD7-Broker), optional Splunk Enterprise Security.\n• Ensure the following data sources are available: `sourcetype=\"WinEventLog:Security\"` for admin hosts and controllers, `sourcetype=\"citrix:broker:events\"` for broker audit.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable 4688 with command line collection on all admin entry points. Ingest `citrix:broker:events` with admin/audit subtypes. Create a `privileged_admins.csv` to separate service accounts. For Cloud, export Director or logging API to HEC with signing metadata if required by policy.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; field names for Security 4688 may vary with TA version):\n\n```spl\nindex=windows sourcetype=\"WinEventLog:Security\" (EventCode=4688 OR EventCode=4702)\n| search match(_raw, \"(?i)BrokerPowerShell|CVAD|XD.*Catalog|XenDesktop|Studio|Publish|Delivery.?Group|Machine.?Catalog|GPO|Broker\\\\bin|Get-Broker|Set-Broker|New-Broker|Remove-Broker\")\n| eval account=coalesce(Security_ID, user, src_user, Account_Name)\n| eval process=New_Process_Name\n| table _time, host, account, process, EventCode, CommandLine\n| append [search index=xd sourcetype=\"citrix:broker:events\" match(_raw, \"(?i)admin|audit|publish|unpublish|add.?desktop|change.?entitlement|polic|Studio\")]\n| sort - _time\n```\n\nStep 3 — Validate\nRun a test change in lower environment; verify both the PowerShell and broker legs appear. Tune regex to include `Web Studio` browser paths if your team uses the web UI.\n\nStep 4 — Operationalize\nSend daily digest to the SOC for unusual off-hours `Remove-Broker` or mass publish events. Add Correlation Searches in ES if available. Map to your change tool via ticket number in a shared lookup where operators paste the incident id into the work notes field.",
-  "grandmaExplanation": "We keep a clear diary of who changed what in the app farm, from the admin console to scripted commands — so you catch surprises and finger-pointing before they hurt real work."
+  "grandmaExplanation": "We keep a clear diary of who changed what in the app farm, from the admin console to scripted commands — so you catch surprises and finger-pointing before they hurt real work.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

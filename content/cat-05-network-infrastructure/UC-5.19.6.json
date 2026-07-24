@@ -10,28 +10,42 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Detailed: `index=iac` Ansible job stderr/stdout callbacks mentioning rollback (`ansible:result`, `awx:job_events`), Terraform state operation logs (`terraform:apply`, `tfc:run`) with `destroy`/rollback annotations, vendor rollback syslog (`cisco:ios_xe` configuration rollback, Junos `rollback` commits), Nornir runner transcripts (`network_audit:nornir`) tagging `rollback_playbook`; enrich with `change_ticket` field when present.",
-  "app": "Ansible Automation Platform HEC; Terraform Enterprise notifications; Cisco IOS-XE configuration rollback syslog via `TA-cisco_ios`; generic syslog or HEC for custom rollback orchestrators; GitLab/Jenkins bridge logs when rollback pipelines execute.",
+  "exclusions": "Covers the detection logic documented for 'Rollback Event Detection and Frequency' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_rollback_event_detection_and_frequency` (UC-5.19.6), SOC dashboard panel \"Operations — Rollback Event Detection and Frequency\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.19.6 positive (Rollback, Event, Detection, and, Frequency): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `med_cnt` grouped by `_time`, `hn` satisfies `count` >= 2 for 'Rollback Event Detection and Frequency'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.19.6 negative (and Frequency): ingest benign `target_index` / `target_sourcetype` events where `_time`, `hn` stays below `count` >= 2, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Rollback Event Detection and Frequency'."
+  },
+  "dataSources": "Detailed: `index=iac` Ansible job stderr/stdout callbacks mentioning rollback (`ansible:result`, `awx:job_events`), Terraform state operation logs (`terraform:apply`, `tfc:run`) with `destroy`/rollback annotations, vendor rollback syslog (`cisco:ios_xe` configuration rollback, Junos `rollback` commits), Nornir runner transcripts (`network_audit:nornir`) tagging `rollback_playbook`; enrich with `change_ticket` field when present. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Ansible Automation Platform HEC; Terraform Enterprise notifications; Cisco IOS-XE configuration rollback syslog via `TA-cisco_ios`; generic syslog or HEC for custom rollback orchestrators; GitLab/Jenkins bridge logs when rollback pipelines execute. — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index IN (\"iac\",\"network\",\"main\") earliest=-30d@d latest=now\n| eval blob=lower(_raw)\n| eval st=lower(coalesce(sourcetype,_sourcetype,\"\"))\n| eval rb=case(\n    match(blob,\"\\\\brollback\\\\b|rolling\\\\s*back|revert(ed)?\\\\s+config|restore\\\\s+prior|checkpoint\\\\s+restore|configure\\\\s+replace\\\\s+revert\"),1,\n    match(st,\"ansible|awx|tower\") AND match(blob,\"\\\\bfailed\\\\b.*(?:rollback|revert)|rescuer\\\\s*:.*rollback\"),1,\n    match(st,\"terraform|tfc\") AND match(blob,\"destroy|state\\\\s*rollback|policy\\\\s*override.*rollback\"),1,\n    match(blob,\"jb\\\\s*rollback|configuration\\\\s+rollback|commit\\\\s+rollback\"),1,\n    0)\n| where rb=1\n| eval hn=coalesce(host,device,network_device,\"orchestrator\")\n| eval ticket=coalesce(change_ticket,chg,snow_ticket,\"none\")\n| bin _time span=1d\n| stats count earliest(_time) as first_seen latest(_time) as last_seen values(st) as sources values(ticket) as tickets by _time hn\n| eventstats median(count) as med_cnt\n| where count>=2 OR count>=med_cnt*3\n| sort -count",
-  "description": "Splunk fingerprints rollback verbs across automation transcripts and device configuration journals so teams quantify how often production reversals occur, which hosts accumulate rollback churn, and whether failures correlate with repeated ticket numbers.",
-  "value": "Stability improves because frequent rollbacks—often precursors to latent automation defects or flaky QA—trigger engineering reviews before the next maintenance window repeats the same destructive pattern across device fleets.",
+  "description": "Detects UC-5.19.6 — Rollback, Event, Detection, and, Frequency — using `index=target_index` sourcetype `configured sourcetype`, grouped by `_time`, `hn`. Outputs `med_cnt` each `1d`; alert when `count` >= 2. Primary focus: and Frequency. Purpose-built for 'Rollback Event Detection and Frequency' in Operations workflows.",
+  "value": "For 'Rollback Event Detection and Frequency', UC-5.19.6 converts `med_cnt` on UC-5.19.6 search results into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Centralize rollback phrases per toolchain locale; dedupe on `(hn,_time)` bursts; monthly tune regex against vendor wording; route alerts to automation SMEs when daily count exceeds statistical baseline.",
   "visualization": "Dashboard Studio: KPI rollbacks last thirty days; `splunk.timechart` of daily rollback count; bar chart top hosts; detail table with tickets and source sourcetypes.",
   "references": [
     {
       "title": "Cisco IOS Configuration Replace and Rollback — Configuration guide",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Ansible documentation — Blocks and rescue/always for error handling",
-      "url": "https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_blocks.html"
+      "url": "https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_blocks.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "HashiCorp Terraform — State recovery and refused applies",
-      "url": "https://developer.hashicorp.com/terraform/cli/commands/state"
+      "url": "https://developer.hashicorp.com/terraform/cli/commands/state",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Documentation hits:** knowledge-base crawlers matching rollback vocabulary.**ChatOps exports:** Slack transcripts mentioning rollback.**Semantic overlap:** \"rollback\" in unrelated database contexts if indices mixed.**Scheduled drills:** DR exercises spike counts—tag `drill=true`.**Vendor synonyms:** phrases like \"abort transaction\" missed until localized.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index` (UC-5.19.6)** — Planned work for 'Rollback Event Detection and Frequency' shifts `med_cnt` over `span=1d` while `_time`, `hn` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `configured_sourcetype`** — Scheduled automation elevates `hn` without crossing `count` >= 2 for UC-5.19.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `hn`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.19.6 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "N/A (change reliability monitoring)"
   ],
@@ -61,7 +75,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Collect Ansible failure handlers that invoke rollback roles as structured logs.\n• Document IOS-XE / Junos rollback syslog mnemonics actually emitted.\n\nStep 1 — Phrase inventory\nInterview SMEs for canonical rollback strings in English/localized builds; encode into macro `rollback_terms`.\n\nStep 2 — Ingest breadth\nEnsure rollback-capable jobs ship stdout/stderr excerpts without credential leakage.\n\nStep 3 — Saved search\nPersist `network_automation_rollback_frequency`; alert weekly when any host exceeds three rollbacks or spikes above triple median.\n\nStep 4 — Validate\nExecute playbook with intentional rollback handler in lab; confirm hit counts versus manual observation.\n\nStep 5 — Operationalize\nDashboard: timeline of rollback counts; host leaderboard; drilldown to originating job IDs and change tickets for RCA workshops.",
+  "detailedImplementation": "Prerequisites\n• Collect Ansible failure handlers that invoke rollback roles as structured logs.\n• Document IOS-XE / Junos rollback syslog mnemonics actually emitted.\n\nStep 1 — Phrase inventory\nInterview SMEs for canonical rollback strings in English/localized builds; encode into macro `rollback_terms`.\n\nStep 2 — Ingest breadth\nEnsure rollback-capable jobs ship stdout/stderr excerpts without credential leakage.\n\nStep 3 — Saved search\nPersist `network_automation_rollback_frequency`; alert weekly when any host exceeds three rollbacks or spikes above triple median.\n\nStep 4 — Validate\nExecute playbook with intentional rollback handler in lab; confirm hit counts versus manual observation.\n\nStep 5 — Operationalize\nDashboard: timeline of rollback counts; host leaderboard; drilldown to originating job IDs and change tickets for RCA workshops.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Ansible Automation Platform HEC; Terraform Enterprise notifications; Cisco IOS-XE configuration rollback syslog via `TA-cisco_ios`; generic syslog or HEC for custom rollback orchestrators; GitLab/Jenkins bridge logs when rollback pipelines execute. — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, hn, rb`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We notice whenever automated updates get undone or backed out on network gear. Tracking how often that happens helps us find flaky procedures early instead of fighting the same fire every month.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

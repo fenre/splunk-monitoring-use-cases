@@ -9,26 +9,55 @@
     "Anomaly"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Video-game sessions (`game:session`), achievement unlocks (`achievement:unlock`), board-game plays (`boardgame:play`), chess games (`chess:game`), dice rolls (`dice:roll`).",
-  "app": "Gaming and tabletop telemetry — Steam / PSN / Xbox playtime and achievement APIs, BoardGameGeek plays export, Lichess / Chess.com game archives, and tabletop dice-roller logs — streamed to Splunk HEC via scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Chess Rating Trend and Slumps' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_chess_rating_trend_and_slumps` (UC-25.29.6), SOC dashboard panel \"Personal — Chess Rating Trend and Slumps\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.29.6 positive (Chess, Rating, Trend, and, Slumps): ingest synthetic events into `index=personal` sourcetype='chess:game' where `season_avg` grouped by `variant` satisfies detection threshold for 'Chess Rating Trend and Slumps'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.29.6 negative (and Slumps): ingest benign `personal` / `chess:game` events where `variant` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 8 confirms zero alert rows for 'Chess Rating Trend and Slumps'."
+  },
+  "dataSources": "Video-game sessions (`game:session`), achievement unlocks (`achievement:unlock`), board-game plays (`boardgame:play`), chess games (`chess:game`), dice rolls (`dice:roll`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Gaming and tabletop telemetry — Steam / PSN / Xbox playtime and achievement APIs, BoardGameGeek plays export, Lichess / Chess.com game archives, and tabletop dice-roller logs — streamed to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=chess:game\n| timechart span=1w latest(rating) as rating by variant\n| eventstats avg(rating) as season_avg\n| eval slump=if(rating<season_avg-50,1,0)",
-  "description": "Trends your online chess rating over time per variant and flags the slumps worth stepping away from.",
-  "value": "A rating trend separates real improvement from tilt; spotting a slump early is the cue to take a break, not to keep losing.",
+  "description": "Identifies UC-25.29.6 — Chess, Rating, Trend, and, Slumps — using `index=personal` sourcetype `chess:game`, grouped by `variant`. Outputs `season_avg` each `1w`; alert when configured threshold. Primary focus: and Slumps. Purpose-built for 'Chess Rating Trend and Slumps' in Personal workflows.",
+  "value": "UC-25.29.6 accelerates insight into and Slumps ('Chess Rating Trend and Slumps') by tracking `season_avg` on `chess:game` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Ingest game results from Lichess/Chess.com; schedule weekly and trend rating per variant.",
   "visualization": "Line chart of chess rating over time by variant.",
   "cimModels": [],
   "references": [
     {
       "title": "Lichess — API",
-      "url": "https://lichess.org/api"
+      "url": "https://lichess.org/api",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.29.6)** — Connector for 'Chess Rating Trend and Slumps' stops polling `chess:game`; stale `season_avg` on `variant` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `season_avg` over `1w` is expected for UC-25.29.6, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `chess:game`. Dedup with `stats latest(*) by variant`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Chess Rating Trend and Slumps'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],
-  "grandmaExplanation": "It tracks your online chess rating over time and warns of a losing slump, when it is best to take a break."
+  "equipmentModels": [
+    "asterisk_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Games & Tabletop — typical feeds: Video-game sessions (`game:session`), achievement unlocks (`achievement:unlock`), board-game plays (`boardgame:play`), chess games (`chess:game`), dice rolls (`dice:roll`)..\n• **Sourcetypes in this search**: `chess:game`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=chess:game`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Gaming and tabletop telemetry — Steam / PSN / Xbox playtime and achievement APIs, BoardGameGeek plays export, Lichess / Chess.com game archives, and tabletop dice-roller logs — streamed to Splunk HEC via scripted inputs..\n\n**Author notes:** Ingest game results from Lichess/Chess.com; schedule weekly and trend rating per variant.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"chess:game\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=chess:game earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Chess Rating Trend and Slumps** over `personal` data (primarily `sourcetype=chess:game`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `slump`, `variant`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=chess:game\n| timechart span=1w latest(rating) as rating by variant\n| eventstats avg(rating) as season_avg\n| eval slump=if(rating<season_avg-50,1,0)\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=chess:game earliest=-7d\n| head 50\n| table slump, variant\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=chess:game earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.29.6: Personal evidence` with the following panel layout:\n\n**Panel 1 — Line Chart Of Chess Rating Over Time By Variant (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `chess:game` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=chess:game | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Bucket misalignment:** `span=1w` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1w` buckets.",
+  "grandmaExplanation": "It tracks your online chess rating over time and warns of a losing slump, when it is best to take a break.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

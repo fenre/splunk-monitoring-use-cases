@@ -9,27 +9,55 @@
     "Anomaly"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Fivetran REST API connector status (`fivetran:connector`), log-service sync events (`fivetran:log`), and usage/MAR exports.",
-  "app": "Fivetran REST API (`/v1/connectors`, `/v1/metadata`) and Fivetran Platform Connector logs via HEC scripted inputs; Fivetran log-service events (`fivetran:log`).",
+  "exclusions": "Covers the detection logic documented for 'Fivetran Monthly Active Rows Cost Spike' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_fivetran_monthly_active_rows_cost_spike` (UC-24.8.9), SOC dashboard panel \"Operations — Fivetran Monthly Active Rows Cost Spike\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.8.9 positive (Fivetran, Monthly, Active, Rows, Cost): ingest synthetic events into `index=bi` sourcetype='fivetran:log' where `mar`, `avg_mar`, `sd_mar` grouped by `connector_id` satisfies detection threshold for 'Fivetran Monthly Active Rows Cost Spike'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.8.9 negative (Cost Spike): ingest benign `bi` / `fivetran:log` events where `connector_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Fivetran Monthly Active Rows Cost Spike'."
+  },
+  "dataSources": "Fivetran REST API connector status (`fivetran:connector`), log-service sync events (`fivetran:log`), and usage/MAR exports. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Fivetran REST API (`/v1/connectors`, `/v1/metadata`) and Fivetran Platform Connector logs via HEC scripted inputs; Fivetran log-service events (`fivetran:log`). — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=fivetran:log event=\"records_modified\"\n| timechart span=1d sum(count) as mar by connector_id\n| untable _time connector_id mar\n| eventstats avg(mar) as avg_mar, stdev(mar) as sd_mar by connector_id\n| where mar>avg_mar+3*sd_mar\n| sort - mar",
-  "description": "Tracks Fivetran monthly-active-rows (MAR) per connector and flags days where a connector's row volume spikes far above its own baseline, the primary driver of Fivetran cost.",
-  "value": "Fivetran bills on MAR; an unexpected spike (a bad re-sync or an upstream backfill) can blow the monthly budget, and per-connector anomaly detection catches it within a day.",
+  "description": "Detects UC-24.8.9 — Fivetran, Monthly, Active, Rows, Cost — using `index=bi` sourcetype `fivetran:log`, grouped by `connector_id`. Outputs `mar`, `avg_mar`, `sd_mar` each `1d`; alert when configured threshold. Primary focus: Cost Spike. Purpose-built for 'Fivetran Monthly Active Rows Cost Spike' in Operations workflows.",
+  "value": "UC-24.8.9 gives Operations teams earlier visibility into Cost Spike through `fivetran:log` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Ingest Fivetran log-service records_modified events; schedule daily and alert on 3-sigma MAR spikes for any connector.",
   "visualization": "Timechart of MAR per connector, anomaly table, cost projection.",
   "cimModels": [],
   "references": [
     {
       "title": "Fivetran — REST API reference",
-      "url": "https://fivetran.com/docs/rest-api"
+      "url": "https://fivetran.com/docs/rest-api",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Fivetran — Platform Connector / logs",
-      "url": "https://fivetran.com/docs/logs/fivetran-platform"
+      "url": "https://fivetran.com/docs/logs/fivetran-platform",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "We watch how many rows each data connector moves so a surprise spike that would inflate the bill is caught the same day."
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.8.9)** — Planned work for 'Fivetran Monthly Active Rows Cost Spike' shifts `mar`, `avg_mar`, `sd_mar` over `span=1d` while `connector_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `fivetran:log`** — Scheduled automation elevates `src` without crossing configured threshold for UC-24.8.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `connector_id`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `fivetran:log`** — First 48h baseline for UC-24.8.9 on `connector_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `connector_id`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Fivetran REST API (`/v1/connectors`, `/v1/metadata`) and Fivetran Platform Connector logs via HEC scripted inputs; Fivetran log-service events (`fivetran:log`). — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=fivetran:log into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`connector_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch how many rows each data connector moves so a surprise spike that would inflate the bill is caught the same day.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

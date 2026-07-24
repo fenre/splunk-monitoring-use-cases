@@ -8,11 +8,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=edge-hub-logs` sourcetype=splunk_edge_hub_log people_count_event, `index=edge-hub-data` metric_name=occupancy_count",
-  "app": "Splunk Edge Hub (USB camera + NPU container), v2.1+",
+  "exclusions": "Covers the detection logic documented for 'USB Camera People Counting for Occupancy & Capacity Management' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_usb_camera_people_counting_for_occupancy_capacit` (UC-14.3.45), SOC dashboard panel \"Operations — USB Camera People Counting for Occupancy & Capacity Management\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.3.45 positive (USB, Camera, People, Counting, for): ingest synthetic events into `index=edge-hub-logs` sourcetype='splunk_edge_hub_log' where `peak_occupancy`, `avg_occ` grouped by `location`, `camera_id` satisfies detection threshold for 'USB Camera People Counting for Occupancy & Capacity Management'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.3.45 negative (Capacity Management): ingest benign `edge-hub-logs` / `splunk_edge_hub_log` events where `location`, `camera_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'USB Camera People Counting for Occupancy & Capacity Management'."
+  },
+  "dataSources": "`index=edge-hub-logs` sourcetype=splunk_edge_hub_log people_count_event, `index=edge-hub-data` metric_name=occupancy_count Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Edge Hub (USB camera + NPU container), v2.1+ — Universal Forwarder (Splunkbase 617)",
   "spl": "index=edge-hub-logs sourcetype=splunk_edge_hub_log people_count_event\n| stats latest(people_detected) as occupancy, latest(_time) as timestamp, max(people_detected) as peak_occupancy by location, camera_id\n| join max=1 location [| rest /services/data-model/indexes/facility_capacity_limits | fields location, max_occupancy_safe, max_occupancy_emergency]\n| eval capacity_status=case(\n    occupancy > max_occupancy_emergency, \"EMERGENCY_EXCEEDED\",\n    occupancy > max_occupancy_safe, \"OVERCROWDED\",\n    1=1, \"NORMAL\")\n| stats latest(capacity_status) as status, avg(occupancy) as avg_occ by location",
-  "description": "Enables real-time facility occupancy tracking and automatic alerts when spaces exceed safe capacity thresholds.",
-  "value": "Enables real-time facility occupancy tracking and automatic alerts when spaces exceed safe capacity thresholds.",
+  "description": "Surfaces when Capacity Management criteria fire for 'USB Camera People Counting for Occupancy & Capacity Management' (UC-14.3.45) in `index=edge-hub-logs` sourcetype `splunk_edge_hub_log`. Pipeline aggregates `peak_occupancy`, `avg_occ` by `location`, `camera_id` over `the scheduled window`. Alert logic enforces configured threshold. Title terms: USB, Camera, People, Counting, for. Eliminates manual hunting for UC-14.3.45 conditions.",
+  "value": "UC-14.3.45 helps teams contain USB, Camera, People, Counting, for scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Deploy Edge Hub with USB camera (v2.1+ USB passthrough required). Build custom ARM64 container using TensorFlow Lite + OpenCV for person detection + counting (YOLO or MobileNet models work well). Container processes video frames at 1-2 fps, outputs people_count metric to MQTT and event logs. Run inference on NPU (v2.1+) for real-time performance. Configure container resource limits: memory 512MB, CPU 2 cores. Set safe + emergency capacity thresholds per location. Alert if occupancy exceeds safe threshold; trigger intercom/visual alerts if emergency threshold exceeded.",
   "visualization": "Occupancy trend by location, capacity status heatmap, peak occupancy histogram.",
   "cimModels": [
@@ -22,17 +28,43 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Sensors offline during scheduled site visits, calibration, or replacement campaigns.",
+  "knownFalsePositives": "1. **Maintenance window on `edge-hub-logs` (UC-14.3.45)** — Planned work for 'USB Camera People Counting for Occupancy & Capacity Management' shifts `peak_occupancy`, `avg_occ` over `span=1h` while `location`, `camera_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `splunk_edge_hub_log`** — Scheduled automation elevates `camera_id` without crossing configured threshold for UC-14.3.45. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `location`, `camera_id`** — Health checks in `edge-hub-logs` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `splunk_edge_hub_log`** — First 48h baseline for UC-14.3.45 on `location` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `location`, `exception_reason`, `valid_until`.",
   "equipment": [
     "edge_hub",
     "mqtt"
+  ],
+  "equipmentModels": [
+    "edge_hub_generic",
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     "Splunk Edge Hub"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (USB camera + NPU container), v2.1+.\n• Ensure the following data sources are available: `index=edge-hub-logs` sourcetype=splunk_edge_hub_log people_count_event, `index=edge-hub-data` metric_name=occupancy_count.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy Edge Hub with USB camera (v2.1+ USB passthrough required). Build custom ARM64 container using TensorFlow Lite + OpenCV for person detection + counting (YOLO or MobileNet models work well). Container processes video frames at 1-2 fps, outputs people_count metric to MQTT and event logs. Run inference on NPU (v2.1+) for real-time performance. Configure container resource limits: memory 512MB, CPU 2 cores. Set safe + emergency capacity thresholds per location. Alert if occupancy exceeds safe …\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edge-hub-logs sourcetype=splunk_edge_hub_log people_count_event\n| stats latest(people_detected) as occupancy, latest(_time) as timestamp, max(people_detected) as peak_occupancy by location, camera_id\n| join max=1 location [| rest /services/data-model/indexes/facility_capacity_limits | fields location, max_occupancy_safe, max_occupancy_emergency]\n| eval capacity_status=case(\n    occupancy > max_occupancy_emergency, \"EMERGENCY_EXCEEDED\",\n    occupancy > max_occupancy_safe, \"OVERCROWDED\",\n    1=1, \"NORMAL\")\n| stats latest(capacity_status) as status, avg(occupancy) as avg_occ by location\n```\n\nUnderstanding this SPL\n\n**USB Camera People Counting for Occupancy & Capacity Management** — Enables real-time facility occupancy tracking and automatic alerts when spaces exceed safe capacity thresholds.\n\nDocumented **Data sources**: `index=edge-hub-logs` sourcetype=splunk_edge_hub_log people_count_event, `index=edge-hub-data` metric_name=occupancy_count. **App/TA** (typical add-on context): Splunk Edge Hub (USB camera + NPU container), v2.1+. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-logs; **sourcetype**: splunk_edge_hub_log. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edge-hub-logs, sourcetype=splunk_edge_hub_log. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by location, camera_id** so each row reflects one combination of those dimensions.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **capacity_status** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by location** so each row reflects one combination of those dimensions.\n\n\nStep 3 — Validate\nConfirm metric or event volume in the time range, then compare trends and device status to the Splunk Edge Hub admin UI or the mobile app for the same devices. Verify metric names, hosts, and time skew.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Occupancy trend by location, capacity status heatmap, peak occupancy histogram.",
-  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with when a space looks empty or busy in an odd way before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with when a space looks empty or busy in an odd way before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,35 +9,56 @@
     "Business"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Club attendance (`club:attendance`), running-club sessions (`runningclub:session`), maker-space visits (`makerspace:visit`), book-club meetings (`bookclub:meeting`), community events (`community:event`).",
-  "app": "Book-club attendance, running-club miles, maker-space visits, and general social-club participation logs streamed to Splunk HEC via forms, check-ins, and calendar exports.",
+  "exclusions": "Covers personal hobby monitoring for 'Running Club Miles Monthly Contribution Rollup' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_running_club_miles_monthly_contribution_rollup` (UC-25.81.12), SOC dashboard panel \"Personal — Running Club Miles Monthly Contribution Rollup\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.81.12 positive (Running, Club, Miles, Monthly, Contribution): ingest synthetic events into `index=personal` sourcetype='runningclub:session' where `total_metric`, `active_members` grouped by `_time` satisfies detection threshold for 'Running Club Miles Monthly Contribution Rollup'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.81.12 negative (Contribution Rollup): ingest benign `personal` / `runningclub:session` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 7 confirms zero alert rows for 'Running Club Miles Monthly Contribution Rollup'."
+  },
+  "dataSources": "Club attendance (`club:attendance`), running-club sessions (`runningclub:session`), maker-space visits (`makerspace:visit`), book-club meetings (`bookclub:meeting`), community events (`community:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Book-club attendance, running-club miles, maker-space visits, and general social-club participation logs streamed to Splunk HEC via forms, check-ins, and calendar exports. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=runningclub:session\n| bin _time span=1mon\n| stats sum(distance_km) as total_metric count as events dc(runner) as active_members by _time\n| sort - _time",
-  "description": "Summarizes the monthly contribution behind running club miles, including activity volume and active-member count.",
-  "value": "Monthly rollups give you a simple stewardship view without needing to inspect every meeting or visit.",
+  "description": "Monitors UC-25.81.12 — Running, Club, Miles, Monthly, Contribution — using `index=personal` sourcetype `runningclub:session`, grouped by `_time`. Outputs `total_metric`, `active_members` each `1m`; alert when configured threshold. Primary focus: Contribution Rollup. Purpose-built for 'Running Club Miles Monthly Contribution Rollup' in Personal workflows.",
+  "value": "UC-25.81.12 operationalises 'Running Club Miles Monthly Contribution Rollup' against `runningclub:session` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Review active-member count alongside the main metric to separate a busy month from one carried by a small core group.",
   "visualization": "Monthly chart of total club kilometres and distinct active members.",
   "cimModels": [],
   "references": [
     {
       "title": "Meetup",
-      "url": "https://www.meetup.com/"
+      "url": "https://www.meetup.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "StoryGraph - book clubs",
-      "url": "https://thestorygraph.com/"
+      "url": "https://thestorygraph.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Makerspace.com",
-      "url": "https://makerspace.com/"
+      "url": "https://makerspace.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.81.12)** — Connector for 'Running Club Miles Monthly Contribution Rollup' stops polling `runningclub:session`; stale `total_metric`, `active_members` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `total_metric`, `active_members` over `1m` is expected for UC-25.81.12, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `runningclub:session`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew goal threshold for 'Running Club Miles Monthly Contribution Rollup'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "dell_emc",
     "oci"
   ],
-  "grandmaExplanation": "It measures the bigger monthly picture for running club miles and how many people were involved."
+  "equipmentModels": [
+    "dell_emc_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Social Clubs & Community Groups — typical feeds: Club attendance (`club:attendance`), running-club sessions (`runningclub:session`), maker-space visits (`makerspace:visit`), book-club meetings (`bookclub:meeting`), community events (`community:event.\n• **Sourcetypes in this search**: `runningclub:session`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=runningclub:session`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Book-club attendance, running-club miles, maker-space visits, and general social-club participation logs streamed to Splunk HEC via forms, check-ins, and calendar exports..\n\n**Author notes:** Review active-member count alongside the main metric to separate a busy month from one carried by a small core group.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"runningclub:session\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=runningclub:session earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Running Club Miles Monthly Contribution Rollup** over `personal` data (primarily `sourcetype=runningclub:session`) across the full search range. The `sum, dc` aggregation groups by `_time`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `_time`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=runningclub:session\n| bin _time span=1mon\n| stats sum(distance_km) as total_metric count as events dc(runner) as active_members by _time\n| sort - _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=runningclub:session earliest=-7d\n| head 50\n| table _time\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=runningclub:session earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.81.12: Personal evidence` with the following panel layout:\n\n**Panel 1 — Monthly Chart Of Total Club Kilometres And Distinct Active Members (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `runningclub:session` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=runningclub:session | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1m` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1m` buckets.",
+  "grandmaExplanation": "It measures the bigger monthly picture for running club miles and how many people were involved.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

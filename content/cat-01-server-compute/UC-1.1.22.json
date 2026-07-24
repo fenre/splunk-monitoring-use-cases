@@ -8,11 +8,17 @@
     "Configuration"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=linux_audit, /proc/sys monitoring`",
-  "app": "`Splunk_TA_nix, custom scripted input`",
+  "exclusions": "Covers the detection logic documented for 'Sysctl Parameter Changes Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_sysctl_parameter_changes_detection` (UC-1.1.22), SOC dashboard panel \"Linux — Sysctl Parameter Changes Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.22 positive (Sysctl, Parameter, Changes, Detection): ingest synthetic events into `index=os` sourcetype='linux_audit' where `count` grouped by `host`, `path`, `exe`, `auid` satisfies `count` > 0 for 'Sysctl Parameter Changes Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.22 negative (Changes Detection): ingest benign `os` / `linux_audit` events where `host`, `path`, `exe`, `auid` stays below `count` > 0, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 8 confirms zero alert rows for 'Sysctl Parameter Changes Detection'."
+  },
+  "dataSources": "`sourcetype=linux_audit, /proc/sys monitoring` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix, custom scripted input` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=linux_audit action=modified path=/proc/sys/*\n| stats count by host, path, exe, auid\n| where count > 0",
-  "description": "Identifies modifications to kernel parameters that affect system behavior, security posture, or performance tuning.",
-  "value": "Identifies modifications to kernel parameters that affect system behavior, security posture, or performance tuning.",
+  "description": "Alerts on UC-1.1.22 — Sysctl, Parameter, Changes, Detection — using `index=os` sourcetype `linux_audit`, grouped by `host`, `path`, `exe`, `auid`. Outputs `count` each `the scheduled window`; alert when `count` > 0. Primary focus: Changes Detection. Purpose-built for 'Sysctl Parameter Changes Detection' in Linux workflows.",
+  "value": "UC-1.1.22 accelerates insight into Changes Detection ('Sysctl Parameter Changes Detection') by tracking `activity` on `linux_audit` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
   "implementation": "Set up auditctl rules to monitor changes to /proc/sys and /etc/sysctl.conf. Create alerts for unexpected sysctl modifications, especially those affecting network (ip_forward, tcp_syncookies) or IPC parameters.",
   "visualization": "Table, Timeline",
   "cimModels": [
@@ -21,13 +27,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Hardening, containers, and orchestration can change `sysctl` often. Distinguish policy drift from expected automation using host class and change tickets.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Sysctl Parameter Changes Detection'. Correlate with apt/yum logs in the same `linux_audit` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `linux_audit`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `count` > 0.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=linux_audit, /proc/sys monitoring`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nSet up auditctl rules to monitor changes to /proc/sys and /etc/sysctl.conf. Create alerts for unexpected sysctl modifications, especially those affecting network (ip_forward, tcp_syncookies) or IPC parameters.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=linux_audit action=modified path=/proc/sys/*\n| stats count by host, path, exe, auid\n| where count > 0\n```\n\nUnderstanding this SPL\n\n**Sysctl Parameter Changes Detection** — Identifies modifications to kernel parameters that affect system behavior, security posture, or performance tuning.\n\nDocumented **Data sources**: `sourcetype=linux_audit, /proc/sys monitoring`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: linux_audit. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=linux_audit. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, path, exe, auid** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nOn the host, compare with `top`, `htop`, `vmstat`, `iostat`, or `sar` as appropriate to this use case. For log-only detections, compare with the relevant file under `/var/log` (or `journalctl`) on a test host. Confirm that indexed event counts and field values line up with what you see on the system and that your role can search the right indexes and fields.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Timeline",
-  "grandmaExplanation": "We spot modifications to kernel parameters that affect system behavior, security posture, or performance tuning — so you find out before users do when something is slowing down or breaking."
+  "grandmaExplanation": "We spot modifications to kernel parameters that affect system behavior, security posture, or performance tuning — so you find out before users do when something is slowing down or breaking.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

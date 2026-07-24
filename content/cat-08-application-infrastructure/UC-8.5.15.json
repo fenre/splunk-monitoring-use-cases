@@ -9,11 +9,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=platform` `sourcetype=traefik:log` JSON or text application logs",
-  "app": "Traefik `--log.level=INFO` forwarded to Splunk",
+  "exclusions": "Covers the detection logic documented for 'Traefik Dynamic Configuration Provider Errors' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_traefik_dynamic_configuration_provider_errors` (UC-8.5.15), SOC dashboard panel \"Operations — Traefik Dynamic Configuration Provider Errors\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.5.15 positive (Traefik, Dynamic, Configuration, Provider, Errors): ingest synthetic events into `index=platform` sourcetype='traefik:log' where `count` grouped by `message` satisfies detection threshold for 'Traefik Dynamic Configuration Provider Errors'. Validate filter `\"error\" AND (\"provider\" OR \"kubernetes\" OR \"docker\" OR \"file`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.5.15 negative (Provider Errors): ingest benign `platform` / `traefik:log` events where `message` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Traefik Dynamic Configuration Provider Errors'."
+  },
+  "dataSources": "`index=platform` `sourcetype=traefik:log` JSON or text application logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Traefik `--log.level=INFO` forwarded to Splunk — Universal Forwarder (Splunkbase 617)",
   "spl": "index=platform sourcetype=\"traefik:log\"\n| search \"error\" AND (\"provider\" OR \"kubernetes\" OR \"docker\" OR \"file\")\n| stats count by message\n| sort -count",
-  "description": "Provider errors mean Traefik stopped applying new ingress labels, file templates, or KV watches—routing drift follows.",
-  "value": "Prevents silent desync between cluster intent and edge config.",
+  "description": "Alerts on UC-8.5.15 — Traefik, Dynamic, Configuration, Provider, Errors — using `index=platform` sourcetype `traefik:log`, grouped by `message`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `\"error\" AND (\"provider\" OR \"kubernetes\" OR \"docker\" OR \"file`. Purpose-built for 'Traefik Dynamic Configuration Provider Errors' in Operations workflows.",
+  "value": "UC-8.5.15 operationalises 'Traefik Dynamic Configuration Provider Errors' against `traefik:log` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Enable structured logs; redact secrets. Alert on new message signatures.",
   "visualization": "Table (message × count), timeline, link to Git commits for file provider repos.",
   "cimModels": [
@@ -23,10 +29,26 @@
   "references": [
     {
       "title": "Traefik — Logs and Access Logs",
-      "url": "https://doc.traefik.io/traefik/"
+      "url": "https://doc.traefik.io/traefik/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
+  "knownFalsePositives": "1. **Maintenance window on `platform` (UC-8.5.15)** — Planned work for 'Traefik Dynamic Configuration Provider Errors' shifts `count` over `span=1h` while `message` remains in-scope. Applies filter `\"error\" AND (\"provider\" OR \"kubernetes\" OR \"docker\" OR \"file`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `traefik:log`** — Scheduled automation elevates `src` without crossing configured threshold for UC-8.5.15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `message`** — Health checks in `platform` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `traefik:log`** — First 48h baseline for UC-8.5.15 on `message` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `message`, `exception_reason`, `valid_until`.",
   "equipment": [
     "docker",
     "hardware_bmc",
@@ -44,6 +66,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Traefik `--log.level=INFO` forwarded to Splunk.\n• Ensure the following data sources are available: `index=platform` `sourcetype=traefik:log` JSON or text application logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCombine with Traefik dashboard health checks.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=platform sourcetype=\"traefik:log\"\n| search \"error\" AND (\"provider\" OR \"kubernetes\" OR \"docker\" OR \"file\")\n| stats count by message\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Traefik Dynamic Configuration Provider Errors** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=platform` `sourcetype=traefik:log` JSON or text application logs. **App/TA**: Traefik `--log.level=INFO` forwarded to Splunk. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nCompare with the cache or proxy product’s own stats (CLI or UI) and a small sample of indexed events.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Table (message × count), timeline, link to Git commits for file provider repos..",
-  "grandmaExplanation": "We help you prevent silent desync between cluster intent and edge config."
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Traefik `--log.level=INFO` forwarded to Splunk.\n• Ensure the following data sources are available: `index=platform` `sourcetype=traefik:log` JSON or text application logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCombine with Traefik dashboard health checks.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=platform sourcetype=\"traefik:log\"\n| search \"error\" AND (\"provider\" OR \"kubernetes\" OR \"docker\" OR \"file\")\n| stats count by message\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Traefik Dynamic Configuration Provider Errors** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=platform` `sourcetype=traefik:log` JSON or text application logs. **App/TA**: Traefik `--log.level=INFO` forwarded to Splunk. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nCompare with the cache or proxy product’s own stats (CLI or UI) and a small sample of indexed events.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Table (message × count), timeline, link to Git commits for file provider repos..\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Traefik `--log.level=INFO` forwarded to Splunk — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=traefik:log into platform. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`message`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you prevent silent desync between cluster intent and edge config.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

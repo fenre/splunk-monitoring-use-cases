@@ -9,36 +9,48 @@
     "Operations"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Personal productivity telemetry (`obsidian:sync`, `obsidian:note`, `todoist:task`, `toggl:timeentry`, `calendar:freebusy`, `calendar:event`).",
-  "app": "Obsidian Sync, Todoist, Toggl Track, Google Calendar / iCloud calendar exports, and task metadata ingested into Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Obsidian Daily Note Gap Over Three Days' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_obsidian_daily_note_gap_over_three_days` (UC-25.13.23), SOC dashboard panel \"Personal — Obsidian Daily Note Gap Over Three Days\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.13.23 positive (Obsidian, Daily, Note, Gap, Over): ingest synthetic events into `index=personal` sourcetype='obsidian:note' where `last_note` grouped by `vault` satisfies `days_since` > 3 for 'Obsidian Daily Note Gap Over Three Days'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.13.23 negative (Three Days): ingest benign `personal` / `obsidian:note` events where `vault` stays below `days_since` > 3, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 9 confirms zero alert rows for 'Obsidian Daily Note Gap Over Three Days'."
+  },
+  "dataSources": "Personal productivity telemetry (`obsidian:sync`, `obsidian:note`, `todoist:task`, `toggl:timeentry`, `calendar:freebusy`, `calendar:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Obsidian Sync, Todoist, Toggl Track, Google Calendar / iCloud calendar exports, and task metadata ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=obsidian:note note_type=daily\n| stats max(_time) as last_note by vault\n| eval days_since=round((now()-last_note)/86400,1)\n| where days_since>3\n| sort - days_since",
-  "description": "Uses Obsidian daily-note events telemetry to monitor how long each vault has gone without a daily note in index=personal.",
-  "value": "Splunk turns the feed into an operational check for journaling gaps that break personal tracking continuity, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Detects UC-25.13.23 — Obsidian, Daily, Note, Gap, Over — using `index=personal` sourcetype `obsidian:note`, grouped by `vault`. Outputs `last_note` each `the scheduled window`; alert when `days_since` > 3. Primary focus: Three Days. Purpose-built for 'Obsidian Daily Note Gap Over Three Days' in Personal workflows.",
+  "value": "Operators running UC-25.13.23 on `obsidian:note` feeds shorten triage for Three Days tied to 'Obsidian Daily Note Gap Over Three Days', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest Obsidian daily-note events data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Vault table of days since last daily note.",
   "cimModels": [],
   "references": [
     {
       "title": "Obsidian Sync",
-      "url": "https://help.obsidian.md/sync"
+      "url": "https://help.obsidian.md/sync",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Todoist REST API",
-      "url": "https://developer.todoist.com/rest/v2/"
+      "url": "https://developer.todoist.com/rest/v2/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Toggl Track API",
-      "url": "https://engineering.toggl.com/docs/"
+      "url": "https://engineering.toggl.com/docs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Google Calendar freeBusy",
-      "url": "https://developers.google.com/workspace/calendar/api/v3/reference/freebusy/query"
+      "url": "https://developers.google.com/workspace/calendar/api/v3/reference/freebusy/query",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.13.23)** — Connector for 'Obsidian Daily Note Gap Over Three Days' stops polling `obsidian:note`; stale `last_note` on `vault` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_note` over `1w` is expected for UC-25.13.23, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `obsidian:note`. Dedup with `stats latest(*) by vault`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_since` > 3 for 'Obsidian Daily Note Gap Over Three Days'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "hashicorp",
     "mqtt"
@@ -46,5 +58,12 @@
   "equipmentModels": [
     "hashicorp_vault"
   ],
-  "grandmaExplanation": "It lists how long each vault has gone without a daily note so you can spot journaling gaps that break personal tracking continuity before it becomes annoying."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Digital Life & Productivity — typical feeds: RescueTime activity (`rescuetime:activity`), Apple/Android screen-time exports (`screentime:usage`), GitHub events (`github:personal`), habit-tracker logs (`habit:entry`), calendar/todo exports..\n• **Sourcetypes in this search**: `obsidian:note`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=obsidian:note`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Screen-time / RescueTime exports, GitHub personal activity, habit/journal trackers, and calendar feeds via HEC scripted inputs..\n\n**Author notes:** Ingest Obsidian daily-note events data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"obsidian:note\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=obsidian:note earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Obsidian Daily Note Gap Over Three Days** over `personal` data (primarily `sourcetype=obsidian:note`) across the full search range. It applies numeric thresholds on `days_since` (> 3) after max — tune these constants to your household baseline.\n\n**Fields this search depends on:** `days_since`, `vault`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=obsidian:note note_type=daily\n| stats max(_time) as last_note by vault\n| eval days_since=round((now()-last_note)/86400,1)\n| where days_since>3\n| sort - days_since\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=obsidian:note earliest=-7d\n| head 50\n| table days_since, vault\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=obsidian:note earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `days_since` before alerting:\n\n```spl\nindex=personal sourcetype=obsidian:note earliest=-30d\n| stats perc50(days_since) AS p50 perc90(days_since) AS p90 perc99(days_since) AS p99 max(days_since) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.13.23: Personal evidence` with the following panel layout:\n\n**Panel 1 — Vault Table Of Days Since Last Daily Note (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `obsidian:note` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=obsidian:note | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It lists how long each vault has gone without a daily note so you can spot journaling gaps that break personal tracking continuity before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

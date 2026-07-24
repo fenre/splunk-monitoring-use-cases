@@ -8,21 +8,43 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "POWER-ETHERNET-MIB (pethMainPseOperStatus, pethMainPseConsumptionPower, pethMainPsePower)",
-  "app": "SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog",
+  "exclusions": "Covers the detection logic documented for 'PoE Power Budget Utilization' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_poe_power_budget_utilization` (UC-5.1.34), SOC dashboard panel \"Operations — PoE Power Budget Utilization\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.1.34 positive (PoE, Power, Budget, Utilization): ingest synthetic events into `index=network` sourcetype='snmp:poe' where `count` grouped by `host` satisfies `util_pct` > 80 for 'PoE Power Budget Utilization'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.1.34 negative (Budget Utilization): ingest benign `network` / `snmp:poe` events where `host` stays below `util_pct` > 80, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'PoE Power Budget Utilization'."
+  },
+  "dataSources": "POWER-ETHERNET-MIB (pethMainPseOperStatus, pethMainPseConsumptionPower, pethMainPsePower) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=snmp:poe\n| eval util_pct=round(pethMainPseConsumptionPower/pethMainPsePower*100,1)\n| where pethMainPseOperStatus=\"on\" AND util_pct > 80\n| stats latest(util_pct) as poe_util, latest(pethMainPseConsumptionPower) as used_w, latest(pethMainPsePower) as total_w by host\n| table host poe_util used_w total_w",
-  "description": "Power over Ethernet budget approaching capacity per switch.",
-  "value": "Operations teams trend PoE power budget utilization over 30 days to project capacity exhaustion and plan PoE infrastructure expansion before powered devices are denied power.",
+  "description": "Detects when Budget Utilization criteria fire for 'PoE Power Budget Utilization' (UC-5.1.34) in `index=network` sourcetype `snmp:poe`. Pipeline aggregates `count` by `host` over `the scheduled window`. Alert logic enforces `util_pct` > 80. Title terms: PoE, Power, Budget, Utilization. Eliminates manual hunting for UC-5.1.34 conditions.",
+  "value": "UC-5.1.34 helps teams contain PoE, Power, Budget, Utilization scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Poll POWER-ETHERNET-MIB (pethMainPsePower, pethMainPseConsumptionPower) every 300s. Alert when utilization exceeds 80%. Track per PSE unit on modular switches.",
   "visualization": "Gauge (utilization), Table (host, used, total), Line chart.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "AP reboots, phone bulk restarts, and new cameras shift PoE load. Scheduled refresh windows can look like a budget breach.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.1.34)** — Planned work for 'PoE Power Budget Utilization' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `snmp:poe`** — Scheduled automation elevates `util_pct` without crossing `util_pct` > 80 for UC-5.1.34. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:poe`** — First 48h baseline for UC-5.1.34 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "snmp",
@@ -32,6 +54,10 @@
     "cisco_ios",
     "snmp_generic"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "premiumApps": [
     {
       "name": "Splunk User Behavior Analytics",
@@ -39,7 +65,9 @@
       "note": "UBA"
     }
   ],
-  "detailedImplementation": "Prerequisites\n* PoE power utilization trending data from SNMP. Extends UC-5.1.19 with capacity planning focus. Key SNMP: pethMainPseConsumptionPower over time, per-port cpeExtPdStatsPower.\n* PoE budget utilization trending: tracks power consumption growth over weeks/months to predict when additional PoE capacity will be needed, particularly as IoT devices and 802.3bt high-power devices proliferate.\n\nStep 1 -- Configure data collection\n```\n# Same SNMP polling as UC-5.1.19\n# Ensure data retained > 30 days for capacity trending\n```\nVerify:\n```spl\nindex=network earliest=-30d\n| eval poe_watts=tonumber(coalesce(pethMainPseConsumptionPower, poe_watts_used))\n| where isnotnull(poe_watts)\n| bin _time span=1d | stats avg(poe_watts) by _time, host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- PoE budget utilization trending:**\n```spl\nindex=network earliest=-30d\n| eval poe_watts=tonumber(coalesce(pethMainPseConsumptionPower, poe_watts_used))\n| eval poe_budget=tonumber(coalesce(poe_watts_budget, power_budget))\n| eval device=coalesce(host, device_name)\n| where isnotnull(poe_watts)\n| bin _time span=1d\n| stats avg(poe_watts) as avg_watts max(poe_watts) as peak_watts latest(poe_budget) as budget by _time, device\n| eval util_pct=if(budget > 0, round(100*avg_watts/budget, 1), null())\n| eventstats first(avg_watts) as start_watts last(avg_watts) as end_watts by device\n| eval growth_rate=round((end_watts - start_watts)/30, 1)\n| eval days_to_capacity=if(growth_rate > 0 AND isnotnull(budget), round((budget - end_watts)/growth_rate), null())\n| eval severity=case(\n    util_pct > 85, \"WARNING -- PoE utilization at \".util_pct.\"% (near capacity)\",\n    days_to_capacity < 90 AND days_to_capacity > 0, \"INFO -- PoE capacity exhaustion projected in \".days_to_capacity.\" days\",\n    growth_rate > 5, \"INFO -- PoE consumption growing at \".growth_rate.\"W/day\",\n    1==1, \"OK\")\n| where severity != \"OK\"\n| dedup device sortby -_time\n| table device, end_watts, budget, util_pct, growth_rate, days_to_capacity, severity\n| sort severity, days_to_capacity\n```\n\nStep 3 -- Validate\n(a) CLI: `show power inline` -- current per-port and total consumption.\n(b) Identify high-power devices: 802.3bt devices consuming 60-90W.\n(c) Plan for new device deployments and their PoE requirements.\n\nStep 4 -- Operationalize\nDashboard (\"Network -- PoE Capacity Planning\"):\n* Row 1 -- Single-value: \"Switches > 85% PoE\", \"Fastest growing\", \"Days to capacity\".\n* Row 2 -- PoE utilization trend timechart.\n\nAlert: Warning (PoE utilization > 85%): plan capacity expansion.\n\nStep 5 -- Troubleshooting\n\n* **Approaching capacity** -- Options: (1) add external PoE power supply module, (2) deploy PoE injectors for high-power devices, (3) upgrade switch to model with higher PoE budget, (4) redistribute devices across switches.\n\n* **Sudden capacity increase** -- New high-power devices (802.3bt cameras, APs) may consume 30-90W each. Plan PoE budget before deployment.\n\n* **Growth projection inaccurate** -- Seasonal patterns (conference room usage, heating) may skew trends. Analyze by time-of-day and day-of-week for accurate forecasting.",
+  "detailedImplementation": "Prerequisites\n* PoE power utilization trending data from SNMP. Extends UC-5.1.19 with capacity planning focus. Key SNMP: pethMainPseConsumptionPower over time, per-port cpeExtPdStatsPower.\n* PoE budget utilization trending: tracks power consumption growth over weeks/months to predict when additional PoE capacity will be needed, particularly as IoT devices and 802.3bt high-power devices proliferate.\n\nStep 1 -- Configure data collection\n```\n# Same SNMP polling as UC-5.1.19\n# Ensure data retained > 30 days for capacity trending\n```\nVerify:\n```spl\nindex=network earliest=-30d\n| eval poe_watts=tonumber(coalesce(pethMainPseConsumptionPower, poe_watts_used))\n| where isnotnull(poe_watts)\n| bin _time span=1d | stats avg(poe_watts) by _time, host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- PoE budget utilization trending:**\n```spl\nindex=network earliest=-30d\n| eval poe_watts=tonumber(coalesce(pethMainPseConsumptionPower, poe_watts_used))\n| eval poe_budget=tonumber(coalesce(poe_watts_budget, power_budget))\n| eval device=coalesce(host, device_name)\n| where isnotnull(poe_watts)\n| bin _time span=1d\n| stats avg(poe_watts) as avg_watts max(poe_watts) as peak_watts latest(poe_budget) as budget by _time, device\n| eval util_pct=if(budget > 0, round(100*avg_watts/budget, 1), null())\n| eventstats first(avg_watts) as start_watts last(avg_watts) as end_watts by device\n| eval growth_rate=round((end_watts - start_watts)/30, 1)\n| eval days_to_capacity=if(growth_rate > 0 AND isnotnull(budget), round((budget - end_watts)/growth_rate), null())\n| eval severity=case(\n    util_pct > 85, \"WARNING -- PoE utilization at \".util_pct.\"% (near capacity)\",\n    days_to_capacity < 90 AND days_to_capacity > 0, \"INFO -- PoE capacity exhaustion projected in \".days_to_capacity.\" days\",\n    growth_rate > 5, \"INFO -- PoE consumption growing at \".growth_rate.\"W/day\",\n    1==1, \"OK\")\n| where severity != \"OK\"\n| dedup device sortby -_time\n| table device, end_watts, budget, util_pct, growth_rate, days_to_capacity, severity\n| sort severity, days_to_capacity\n```\n\nStep 3 -- Validate\n(a) CLI: `show power inline` -- current per-port and total consumption.\n(b) Identify high-power devices: 802.3bt devices consuming 60-90W.\n(c) Plan for new device deployments and their PoE requirements.\n\nStep 4 -- Operationalize\nDashboard (\"Network -- PoE Capacity Planning\"):\n* Row 1 -- Single-value: \"Switches > 85% PoE\", \"Fastest growing\", \"Days to capacity\".\n* Row 2 -- PoE utilization trend timechart.\n\nAlert: Warning (PoE utilization > 85%): plan capacity expansion.\n\nStep 5 -- Troubleshooting\n\n* **Approaching capacity** -- Options: (1) add external PoE power supply module, (2) deploy PoE injectors for high-power devices, (3) upgrade switch to model with higher PoE budget, (4) redistribute devices across switches.\n\n* **Sudden capacity increase** -- New high-power devices (802.3bt cameras, APs) may consume 30-90W each. Plan PoE budget before deployment.\n\n* **Growth projection inaccurate** -- Seasonal patterns (conference room usage, heating) may skew trends. Analyze by time-of-day and day-of-week for accurate forecasting.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=snmp:poe into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, util_pct`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We help you know early when something looks wrong with poe power budget utilization so the team can act before it grows into a bigger outage.",
-  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360"
+  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

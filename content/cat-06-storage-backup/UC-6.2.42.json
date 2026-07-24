@@ -9,11 +9,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Reporting metrics indexed as `truenas:pool` ancillary stats or `truenas:dataset` with ARC fields if exported",
-  "app": "TrueNAS reporting API or `sysctl` scraper to Splunk",
+  "exclusions": "Covers the detection logic documented for 'TrueNAS ZFS ARC hit ratio and memory pressure trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_truenas_zfs_arc_hit_ratio_and_memory_pressure_tr` (UC-6.2.42), SOC dashboard panel \"Operations — TrueNAS ZFS ARC hit ratio and memory pressure trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.2.42 positive (TrueNAS, ZFS, ARC, hit, ratio): ingest synthetic events into `index=storage` sourcetype='truenas:pool' where `count` grouped by `hostname` satisfies -24h for 'TrueNAS ZFS ARC hit ratio and memory pressure trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.42 negative (pressure trending): ingest benign `storage` / `truenas:pool` events where `hostname` stays below -24h, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'TrueNAS ZFS ARC hit ratio and memory pressure trending'."
+  },
+  "dataSources": "Reporting metrics indexed as `truenas:pool` ancillary stats or `truenas:dataset` with ARC fields if exported Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "TrueNAS reporting API or `sysctl` scraper to Splunk — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"truenas:pool\" earliest=-24h\n| eval arc_hit=coalesce(arc_hit_ratio, arc_hits_percent, arc_hit_percent)\n| eval arc_size=coalesce(arc_size_bytes, arc_size)\n| timechart span=15m latest(arc_hit) as arc_hit_pct latest(arc_size) as arc_bytes by hostname",
-  "description": "A falling ARC hit ratio on memory-bound appliances raises read latency for NFS and SMB clients even when disks are healthy.",
-  "value": "Guides RAM upgrades and helps distinguish network issues from cache starvation.",
+  "description": "Identifies pressure trending activity in UC-6.2.42 ('TrueNAS ZFS ARC hit ratio and memory pressure trending') from `index=storage` sourcetype `truenas:pool`. Rolls up `count` by `hostname` across `15m` and pages when -24h. Covers TrueNAS, ZFS, ARC, hit, ratio. Operations operators treat UC-6.2.42 as the canonical signal.",
+  "value": "Operators running UC-6.2.42 on `truenas:pool` feeds shorten triage for pressure trending tied to 'TrueNAS ZFS ARC hit ratio and memory pressure trending', lowering operational risk and delayed incident response.",
   "implementation": "If ARC is not in default pool payload, add a lightweight script querying `arcstats` via middleware. Document units in `props.conf`.",
   "visualization": "Dual-axis line (hit % and ARC bytes).",
   "cimModels": [
@@ -22,16 +28,31 @@
   "references": [
     {
       "title": "TrueNAS SCALE API documentation",
-      "url": "https://www.truenas.com/docs/scale/scaletutorials/toptoolbar/"
+      "url": "https://www.truenas.com/docs/scale/scaletutorials/toptoolbar/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TrueNAS CORE/SCALE docs — alerts",
-      "url": "https://www.truenas.com/docs/"
+      "url": "https://www.truenas.com/docs/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.2.42)** — Planned work for 'TrueNAS ZFS ARC hit ratio and memory pressure trending' shifts `count` over `span=15m` while `hostname` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `truenas:pool`** — Scheduled automation elevates `arc_hit` without crossing configured threshold for UC-6.2.42. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `hostname`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `truenas:pool`** — First 48h baseline for UC-6.2.42 on `hostname` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `hostname`, `exception_reason`, `valid_until`.",
   "equipment": [
     "truenas"
+  ],
+  "equipmentModels": [
+    "truenas_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We help you see how object storage is growing, who can reach it, and when something is exposed or mis-tagged, so cloud storage stays under control."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (TrueNAS reporting API or `sysctl` scraper to Splunk — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=truenas:pool into storage. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`hostname`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you see how object storage is growing, who can reach it, and when something is exposed or mis-tagged, so cloud storage stays under control.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

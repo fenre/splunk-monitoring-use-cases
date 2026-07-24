@@ -9,11 +9,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "PowerNet-MIB `rPDULoadStatusLoad` / per-phase load columns on `sourcetype=snmp:apc:pdu` (three-phase rPDU models)",
-  "app": "SNMP Modular Input (Splunkbase #1537), Splunk Connect for SNMP (Splunkbase #6266)",
+  "exclusions": "Covers the detection logic documented for 'APC Switched Rack PDU Phase Load Imbalance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_apc_switched_rack_pdu_phase_load_imbalance` (UC-15.1.30), SOC dashboard panel \"Operations — APC Switched Rack PDU Phase Load Imbalance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-15.1.30 positive (APC, Switched, Rack, PDU, Phase): ingest synthetic events into `index=power` sourcetype='snmp:apc:pdu' where `max` grouped by `entity` satisfies `imbalance` > 20 for 'APC Switched Rack PDU Phase Load Imbalance'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-15.1.30 negative (Load Imbalance): ingest benign `power` / `snmp:apc:pdu` events where `entity` stays below `imbalance` > 20, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'APC Switched Rack PDU Phase Load Imbalance'."
+  },
+  "dataSources": "PowerNet-MIB `rPDULoadStatusLoad` / per-phase load columns on `sourcetype=snmp:apc:pdu` (three-phase rPDU models) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "SNMP Modular Input (Splunkbase #1537), Splunk Connect for SNMP (Splunkbase #6266) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=power sourcetype=snmp:apc:pdu host=*\n| eval p1=tonumber(rPDULoadStatusLoad1), p2=tonumber(rPDULoadStatusLoad2), p3=tonumber(rPDULoadStatusLoad3)\n| eval maxp=max(p1,p2,p3), minp=min(min(p1,p2),p3)\n| eval imbalance=round(maxp-minp,1)\n| where imbalance > 20 AND isnotnull(p1)\n| table _time, host, pdu_name, p1, p2, p3, imbalance\n| sort - imbalance",
-  "description": "Three-phase rack PDUs suffer neutral current and breaker stress when one leg is overloaded. Comparing `rPDULoadStatusLoad1..3` exposes uneven IT load distribution across phases before overheating or upstream breaker trips.",
-  "value": "Improves electrical safety and utilization by guiding rack cord routing and PDU balancing using SNMP already collected for outlet UC-15.1.7.",
+  "description": "Monitors UC-15.1.30 — APC, Switched, Rack, PDU, Phase — using `index=power` sourcetype `snmp:apc:pdu`, grouped by `entity`. Outputs `max` each `the scheduled window`; alert when `imbalance` > 20. Primary focus: Load Imbalance. Purpose-built for 'APC Switched Rack PDU Phase Load Imbalance' in Operations workflows.",
+  "value": "Operators running UC-15.1.30 on `snmp:apc:pdu` feeds shorten triage for Load Imbalance tied to 'APC Switched Rack PDU Phase Load Imbalance', lowering operational risk and delayed incident response.",
   "implementation": "Field names vary by MIB branch (`rPDULoadStatusLoad` table indices). Use `snmpwalk` to confirm exact suffixes and map to `rPDULoadStatusLoad1` fields in `props.conf`. Single-phase PDUs will null out—filter with `isnotnull(p1)`. Tune imbalance >20% (of max phase rating) per facility engineering. Poll every 5 minutes.",
   "visualization": "Stacked bar (p1–p3), Table (worst imbalance), Heatmap (PDU × phase).",
   "cimModels": [
@@ -23,14 +29,26 @@
   "references": [
     {
       "title": "APC PowerNet-MIB — rPDU load tables",
-      "url": "https://www.apc.com/us/en/faqs/FA156148/"
+      "url": "https://www.apc.com/us/en/faqs/FA156148/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "SNMP Modular Input (Splunkbase 1537)",
-      "url": "https://splunkbase.splunk.com/app/1537"
+      "url": "https://splunkbase.splunk.com/app/1537",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Power spikes during equipment power cycling, scheduled load shifting, or DR drills.",
+  "knownFalsePositives": "1. **Maintenance window on `power` (UC-15.1.30)** — Planned work for 'APC Switched Rack PDU Phase Load Imbalance' shifts `max` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `snmp:apc:pdu`** — Scheduled automation elevates `p1` without crossing `imbalance` > 20 for UC-15.1.30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `power` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:apc:pdu`** — First 48h baseline for UC-15.1.30 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apc_dc",
     "snmp"
@@ -46,6 +64,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• DCIM with phase labeling per outlet strip.\n• Electrician review of thresholds.\n\nStep 1 — MIB walk on a reference rPDU.\n\nStep 2 — Align extractions with UC-15.1.7 outlet metrics.\n\nStep 3 — Change management for cord moves.\n\nStep 4 — Optional Modbus path if SNMP disabled.",
-  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access."
+  "detailedImplementation": "Prerequisites\n• DCIM with phase labeling per outlet strip.\n• Electrician review of thresholds.\n\nStep 1 — MIB walk on a reference rPDU.\n\nStep 2 — Align extractions with UC-15.1.7 outlet metrics.\n\nStep 3 — Change management for cord moves.\n\nStep 4 — Optional Modbus path if SNMP disabled.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (SNMP Modular Input (Splunkbase #1537), Splunk Connect for SNMP (Splunkbase #6266) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=snmp:apc:pdu into power. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`imbalance`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

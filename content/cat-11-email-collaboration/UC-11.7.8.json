@@ -9,11 +9,17 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=voip` · `sourcetype=\"asterisk:full\"`",
-  "app": "Custom TA, HEC, or Universal Forwarder mapping Asterisk logs to `asterisk:pjsip`, `asterisk:cdr`, `asterisk:queue_log`, `asterisk:full`, `asterisk:messages`, `asterisk:security`, `asterisk:ami`",
+  "exclusions": "Covers the detection logic documented for 'Asterisk Full Log Dialplan Context Error Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_asterisk_full_log_dialplan_context_error_rate` (UC-11.7.8), SOC dashboard panel \"Operations — Asterisk Full Log Dialplan Context Error Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-11.7.8 positive (Asterisk, Full, Log, Dialplan, Context): ingest synthetic events into `index=voip` sourcetype='asterisk:full' where `tot` grouped by `context` satisfies -24h for 'Asterisk Full Log Dialplan Context Error Rate'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.7.8 negative (Error Rate): ingest benign `voip` / `asterisk:full` events where `context` stays below -24h, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Asterisk Full Log Dialplan Context Error Rate'."
+  },
+  "dataSources": "`index=voip` · `sourcetype=\"asterisk:full\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom TA, HEC, or Universal Forwarder mapping Asterisk logs to `asterisk:pjsip`, `asterisk:cdr`, `asterisk:queue_log`, `asterisk:full`, `asterisk:messages`, `asterisk:security`, `asterisk:ami` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=voip sourcetype=\"asterisk:full\" earliest=-24h\n| where match(_raw, \"(?i)WARNING|ERROR\") AND match(_raw, \"(?i)dialplan|app_|pbx_|Goto|Extension\")\n| eval context=coalesce(context, CONTEXT, \"unknown\")\n| stats count by context\n| eventstats sum(count) as tot\n| eval err_share_pct=round(100*count/tot,3)\n| sort -count",
-  "description": "Dialplan errors spike after module upgrades or AGI database failures. Share by context isolates the broken macro or subroutine quickly.",
-  "value": "Reduces unexplained call failures and speeds rollback decisions.",
+  "description": "Monitors 'Asterisk Full Log Dialplan Context Error Rate' (UC-11.7.8) using `index=voip` sourcetype `asterisk:full` by aggregating `tot` grouped by `context` over `the scheduled window` and alerting when -24h. Keywords: Asterisk, Full, Log, Dialplan, Context. Focuses on Error Rate behaviour so operations teams can triage UC-11.7.8 without ad-hoc log review.",
+  "value": "UC-11.7.8 accelerates insight into Error Rate ('Asterisk Full Log Dialplan Context Error Rate') by tracking `tot` on `asterisk:full` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "(1) Noise-filter music-on-hold chatter. (2) Baseline per context. (3) Alert on 3x baseline. (4) Pair with Git history.",
   "visualization": "Bar by context; timechart error rate.",
   "cimModels": [
@@ -23,20 +29,31 @@
   "references": [
     {
       "title": "Asterisk Wiki",
-      "url": "https://wiki.asterisk.org/"
+      "url": "https://wiki.asterisk.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk — Monitor network ports",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/Monitornetworkports"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/Monitornetworkports",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Dialplan",
-      "url": "https://wiki.asterisk.org/wiki/display/AST/Dialplan"
+      "url": "https://wiki.asterisk.org/wiki/display/AST/Dialplan",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Dialplan changes, new IVR, and one-off test calls that create benign parse noise during cutover.",
+  "knownFalsePositives": "1. **Maintenance window on `voip` (UC-11.7.8)** — Planned work for 'Asterisk Full Log Dialplan Context Error Rate' shifts `tot` over `span=1h` while `context` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `asterisk:full`** — Scheduled automation elevates `context` without crossing configured threshold for UC-11.7.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `context`** — Health checks in `voip` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `asterisk:full`** — First 48h baseline for UC-11.7.8 on `context` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `context`, `exception_reason`, `valid_until`.",
   "equipment": [
     "asterisk"
+  ],
+  "equipmentModels": [
+    "asterisk_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -45,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch this Asterisk system’s calls and health, so trunks, queues, and voicemail stay in shape for everyday use."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom TA, HEC, or Universal Forwarder mapping Asterisk logs to `asterisk:pjsip`, `asterisk:cdr`, `asterisk:queue_log`, `asterisk:full`, `asterisk:messages`, `asterisk:security`, `asterisk:ami` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=asterisk:full into voip. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`context`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch this Asterisk system’s calls and health, so trunks, queues, and voicemail stay in shape for everyday use.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

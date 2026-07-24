@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=custom:cpuidle, /sys/devices/system/cpu/cpu*/cpuidle/state*/`",
-  "app": "`Splunk_TA_nix, custom scripted input`",
+  "exclusions": "Covers the detection logic documented for 'CPU C-State Residency Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_cpu_c_state_residency_monitoring` (UC-1.1.97), SOC dashboard panel \"Linux — CPU C-State Residency Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.97 positive (CPU, State, Residency, Monitoring): ingest synthetic events into `index=os` sourcetype='custom:cpuidle' where `avg_time` grouped by `host`, `c_state` satisfies detection threshold for 'CPU C-State Residency Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.97 negative (Residency Monitoring): ingest benign `os` / `custom:cpuidle` events where `host`, `c_state` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 0 confirms zero alert rows for 'CPU C-State Residency Monitoring'."
+  },
+  "dataSources": "`sourcetype=custom:cpuidle, /sys/devices/system/cpu/cpu*/cpuidle/state*/` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix, custom scripted input` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=custom:cpuidle host=*\n| stats avg(c_state_time) as avg_time by host, c_state\n| eval idle_pct=avg_time/total_time*100",
-  "description": "CPU C-state residency tracking optimizes power consumption and identifies power management issues.",
-  "value": "CPU C-state residency tracking optimizes power consumption and identifies power management issues.",
+  "description": "Surfaces 'CPU C-State Residency Monitoring' (UC-1.1.97) using `index=os` sourcetype `custom:cpuidle` by aggregating `avg_time` grouped by `host`, `c_state` over `the scheduled window` and alerting when configured threshold. Keywords: CPU, State, Residency, Monitoring. Focuses on Residency Monitoring behaviour so linux teams can triage UC-1.1.97 without ad-hoc log review.",
+  "value": "UC-1.1.97 accelerates insight into Residency Monitoring ('CPU C-State Residency Monitoring') by tracking `avg_time` on `custom:cpuidle` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
   "implementation": "Create a scripted input reading CPU idle state residency times. Track time spent in each C-state. Alert when C-state distribution changes unexpectedly, indicating power management changes.",
   "visualization": "Pie Chart, Heatmap",
   "cimModels": [
@@ -21,13 +27,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Laptop or datacenter power policies legitimately change C-state mix after BIOS, `cpupower`, or `intel_pstate` updates. The SPL references `total_time` only if your collector emits it—without that field, `idle_pct` is empty rather than wrong.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'CPU C-State Residency Monitoring'. Correlate with apt/yum logs in the same `custom:cpuidle` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `custom:cpuidle`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=custom:cpuidle, /sys/devices/system/cpu/cpu*/cpuidle/state*/`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate a scripted input reading CPU idle state residency times. Track time spent in each C-state. Alert when C-state distribution changes unexpectedly, indicating power management changes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=custom:cpuidle host=*\n| stats avg(c_state_time) as avg_time by host, c_state\n| eval idle_pct=avg_time/total_time*100\n```\n\nUnderstanding this SPL\n\n**CPU C-State Residency Monitoring** — CPU C-state residency tracking optimizes power consumption and identifies power management issues.\n\nDocumented **Data sources**: `sourcetype=custom:cpuidle, /sys/devices/system/cpu/cpu*/cpuidle/state*/`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: custom:cpuidle. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=custom:cpuidle. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, c_state** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **idle_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Pie Chart, Heatmap\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We measure how long CPUs stay in each sleep state so we can spot policy or firmware changes that save power at the cost of latency."
+  "grandmaExplanation": "We measure how long CPUs stay in each sleep state so we can spot policy or firmware changes that save power at the cost of latency.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

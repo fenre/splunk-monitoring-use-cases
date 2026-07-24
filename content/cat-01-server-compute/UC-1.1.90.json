@@ -8,11 +8,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=custom:journalctl_usage` (parsed `journalctl --disk-usage` or direct file size of `/var/log/journal`)",
-  "app": "`Splunk_TA_nix` with a scripted poll",
+  "exclusions": "Covers the detection logic documented for 'Journal Disk Usage Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_journal_disk_usage_monitoring` (UC-1.1.90), SOC dashboard panel \"Linux — Journal Disk Usage Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.90 positive (Journal, Disk, Usage, Monitoring): ingest synthetic events into `index=os` sourcetype='custom:journalctl_usage' where `count` grouped by `host` satisfies `journal_size` > 1000 for 'Journal Disk Usage Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.90 negative (Usage Monitoring): ingest benign `os` / `custom:journalctl_usage` events where `host` stays below `journal_size` > 1000, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 0 confirms zero alert rows for 'Journal Disk Usage Monitoring'."
+  },
+  "dataSources": "`sourcetype=custom:journalctl_usage` (parsed `journalctl --disk-usage` or direct file size of `/var/log/journal`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` with a scripted poll — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=custom:journalctl_usage host=*\n| stats latest(disk_usage_mb) as journal_size by host\n| where journal_size>1000",
-  "description": "Tracks the latest **journal_size** in **MB** per **host** from a structured feed and alerts when persistent **journald** data on disk grows past about **one** **gigabyte** (tune to root **volume** size).",
-  "value": "**Journal** growth on small **root** disks is a classic way to accidentally fill **/** and take down services that still need a few free **inodes** and blocks.",
+  "description": "Detects 'Journal Disk Usage Monitoring' (UC-1.1.90) using `index=os` sourcetype `custom:journalctl_usage` by aggregating `count` grouped by `host` over `the scheduled window` and alerting when `journal_size` > 1000. Keywords: Journal, Disk, Usage, Monitoring. Focuses on Usage Monitoring behaviour so linux teams can triage UC-1.1.90 without ad-hoc log review.",
+  "value": "UC-1.1.90 accelerates insight into Usage Monitoring ('Journal Disk Usage Monitoring') by tracking `activity` on `custom:journalctl_usage` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
   "implementation": "Run the script daily or weekly—**journal** size does not need per-minute precision. Consider `| where journal_size>0.15*root_fs_mb` once you ingest **df** for the same **host**.",
   "visualization": "Gauge, Single Value",
   "cimModels": [
@@ -23,17 +29,38 @@
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Hosts that intentionally keep a **large** **journal** for **compliance**; **MB** vs **MiB** confusion in the script—document units in the **event**; **docker** **graph** drivers that store journal elsewhere—scope by **CMDB** role.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Journal Disk Usage Monitoring'. Correlate with apt/yum logs in the same `custom:journalctl_usage` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `custom:journalctl_usage`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `journal_size` > 1000.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
-  "detailedImplementation": "Prerequisites\n• **systemd** **journal** persistent storage enabled; know whether you are on **volatile** **/run/log/journal** only (this UC needs **/var/log/journal** or an explicit size path).\n\n**CIM** — The `cimSpl` is a **disk** **fullness** proxy on **/** or **/var**, not the literal **journal** byte counter—use it when you already ingest **df** into **Performance.Storage**.\n\n\nStep 3 — Validate\n`journalctl --disk-usage` on the host; **systemd-tmpfiles** / **journald.conf** for **SystemMaxUse**; **df** **-h** on the **mount** that holds **journal**.\n\nStep 4 — Operationalize\nAfter a page, run `journalctl --vacuum-time=` or **--vacuum-size=** per your retention policy, not “delete everything” without **legal** review.\n\n",
-  "grandmaExplanation": "We help you know when the machine’s own event diary is using a lot of disk space, so it does not quietly fill the drive and break other programs that need room to work."
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• **systemd** **journal** persistent storage enabled; know whether you are on **volatile** **/run/log/journal** only (this UC needs **/var/log/journal** or an explicit size path).\n\n**CIM** — The `cimSpl` is a **disk** **fullness** proxy on **/** or **/var**, not the literal **journal** byte counter—use it when you already ingest **df** into **Performance.Storage**.\n\n\nStep 3 — Validate\n`journalctl --disk-usage` on the host; **systemd-tmpfiles** / **journald.conf** for **SystemMaxUse**; **df** **-h** on the **mount** that holds **journal**.\n\nStep 4 — Operationalize\nAfter a page, run `journalctl --vacuum-time=` or **--vacuum-size=** per your retention policy, not “delete everything” without **legal** review.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_nix` with a scripted poll — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=custom:journalctl_usage into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, journal_size`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you know when the machine’s own event diary is using a lot of disk space, so it does not quietly fill the drive and break other programs that need room to work.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

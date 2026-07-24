@@ -9,11 +9,17 @@
     "Resilience"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'NetApp ONTAP MetroCluster switchover and DR event correlation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_netapp_ontap_metrocluster_switchover_and_dr_even` (UC-6.1.50), SOC dashboard panel \"Operations — NetApp ONTAP MetroCluster switchover and DR event correlation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.1.50 positive (NetApp, ONTAP, MetroCluster, switchover, and): ingest synthetic events into `index=storage` sourcetype='netapp:ontap:event' where `count` grouped by `entity` satisfies detection threshold for 'NetApp ONTAP MetroCluster switchover and DR event correlation'. Validate filter `(message=\"*metrocluster*\" OR message=\"*MetroCluster*\" OR mes`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.1.50 negative (event correlation): ingest benign `storage` / `netapp:ontap:event` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'NetApp ONTAP MetroCluster switchover and DR event correlation'."
+  },
   "dataSources": "ONTAP EMS events indexed as `netapp:ontap:event` or `netapp:ontap:ems` from `TA-netapp_ontap` (syslog or REST EMS)",
   "app": "Splunk Add-on for NetApp Data ONTAP (`TA-netapp_ontap`, Splunkbase 1664)",
   "spl": "index=storage (sourcetype=\"netapp:ontap:event\" OR sourcetype=\"netapp:ontap:ems\")\n| search (message=\"*metrocluster*\" OR message=\"*MetroCluster*\" OR message=\"*switchover*\" OR EMSMessage=\"*metrocluster*\" OR EMSMessage=\"*switchover*\")\n| eval cluster=coalesce(cluster_name, cluster, cluster_uuid)\n| eval node=coalesce(node_name, node, origin_node)\n| table _time, cluster, node, severity, EMSMessage, message\n| sort - _time",
-  "description": "Unplanned MetroCluster switchovers or failed negotiated switchovers strand I/O on one site and often precede extended outages. Rapid EMS correlation helps validate bridges, NVMe shelves, and mediator health before applications time out.",
-  "value": "Reduces mean time to detect for site or fabric incidents affecting synchronous replication, protecting RTO for business-critical NAS and SAN workloads.",
+  "description": "Alerts on UC-6.1.50 for NetApp, ONTAP, MetroCluster, switchover, and over `index=storage` sourcetype `netapp:ontap:event` with thresholds configured threshold. Groups `count` by `entity` each `the scheduled window`. Differentiated by filter `(message=\"*metrocluster*\" OR message=\"*MetroCluster*\" OR mes`. Supports repeatable operations triage for 'NetApp ONTAP MetroCluster switchover and DR event correlation'.",
+  "value": "For 'NetApp ONTAP MetroCluster switchover and DR event correlation', UC-6.1.50 converts `activity` on `netapp:ontap:event` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Install `TA-netapp_ontap` on a heavy forwarder. Enable EMS via `inputs.conf` (syslog from the cluster management LIF or scripted REST `/api/support/ems/events`). Normalize sourcetype to `netapp:ontap:event` or `netapp:ontap:ems` in `props.conf`. Schedule a 1-minute alert excluding maintenance windows from a CSV lookup.",
   "visualization": "Timeline by severity, table (cluster, node, message), single value (event count 15m).",
   "cimModels": [
@@ -22,17 +28,33 @@
   "references": [
     {
       "title": "Splunk Add-on for NetApp Data ONTAP (Splunkbase)",
-      "url": "https://splunkbase.splunk.com/app/1664"
+      "url": "https://splunkbase.splunk.com/app/1664",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "MetroCluster IP documentation",
-      "url": "https://docs.netapp.com/us-en/ontap-metrocluster/"
+      "url": "https://docs.netapp.com/us-en/ontap-metrocluster/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.1.50)** — Planned work for 'NetApp ONTAP MetroCluster switchover and DR event correlation' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `(message=\"*metrocluster*\" OR message=\"*MetroCluster*\" OR mes`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `netapp:ontap:event`** — Scheduled automation elevates `cluster` without crossing configured threshold for UC-6.1.50. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netapp:ontap:event`** — First 48h baseline for UC-6.1.50 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "netapp",
     "syslog"
+  ],
+  "equipmentModels": [
+    "netapp_generic",
+    "syslog_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -42,5 +64,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We help you see how your arrays and related gear are doing before small issues turn into full outages or restore surprises."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for NetApp Data ONTAP (`TA-netapp_ontap`, Splunkbase 1664)). Enable the modular input or HEC token that writes sourcetype=netapp:ontap:event, netapp:ontap:ems into storage. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user, action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you see how your arrays and related gear are doing before small issues turn into full outages or restore surprises.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

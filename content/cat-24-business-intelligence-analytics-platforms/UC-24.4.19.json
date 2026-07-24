@@ -9,27 +9,55 @@
     "Configuration"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Qlik logs (`qlik:scheduler`, `qlik:engine`, `qlik:proxy`), QRS API (`qlik:qrs`).",
-  "app": "Qlik Sense logs via UF; QRS API and Qlik Cloud REST API via HEC.",
+  "exclusions": "Covers the detection logic documented for 'Qlik Sense Permission and Role Change Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_qlik_sense_permission_and_role_change_audit` (UC-24.4.19), SOC dashboard panel \"Operations — Qlik Sense Permission and Role Change Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.4.19 positive (Qlik, Sense, Permission, and, Role): ingest synthetic events into `index=bi` sourcetype='qlik:proxy' where `values` grouped by `user_id` satisfies detection threshold for 'Qlik Sense Permission and Role Change Audit'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.4.19 negative (Change Audit): ingest benign `bi` / `qlik:proxy` events where `user_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Qlik Sense Permission and Role Change Audit'."
+  },
+  "dataSources": "Qlik logs (`qlik:scheduler`, `qlik:engine`, `qlik:proxy`), QRS API (`qlik:qrs`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Qlik Sense logs via UF; QRS API and Qlik Cloud REST API via HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=qlik:proxy (object_type=\"*security*\" OR action=\"*role*\")\n| stats count as changes, values(action) as actions by user_id\n| sort - changes",
-  "description": "Audits Qlik Sense events that grant, revoke or modify permissions and roles, giving a change trail for least-privilege reviews and incident investigation.",
-  "value": "Unreviewed permission changes are a leading cause of data-access incidents; an audit trail for Qlik Sense supports governance and rollback.",
+  "description": "Identifies UC-24.4.19 — Qlik, Sense, Permission, and, Role — using `index=bi` sourcetype `qlik:proxy`, grouped by `user_id`. Outputs `values` each `the scheduled window`; alert when configured threshold. Primary focus: Change Audit. Purpose-built for 'Qlik Sense Permission and Role Change Audit' in Operations workflows.",
+  "value": "UC-24.4.19 operationalises 'Qlik Sense Permission and Role Change Audit' against `qlik:proxy` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ingest Qlik Sense admin/audit events; schedule daily and alert on privilege grants made outside an approved change window.",
   "visualization": "Table of actor by change count with actions, timeline.",
   "cimModels": [],
   "references": [
     {
       "title": "Qlik Sense — Monitoring",
-      "url": "https://help.qlik.com/en-US/sense-admin/Subsystems/DeployAdminister/Content/Sense_DeployAdminister/Monitoring/monitoring-intro.htm"
+      "url": "https://help.qlik.com/en-US/sense-admin/Subsystems/DeployAdminister/Content/Sense_DeployAdminister/Monitoring/monitoring-intro.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Qlik — QRS API",
-      "url": "https://help.qlik.com/en-US/sense-developer/Subsystems/RepositoryServiceAPI/Content/Sense_RepositoryServiceAPI/RepositoryServiceAPI-Introduction.htm"
+      "url": "https://help.qlik.com/en-US/sense-developer/Subsystems/RepositoryServiceAPI/Content/Sense_RepositoryServiceAPI/RepositoryServiceAPI-Introduction.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "We keep a record of who changes access and permissions in Qlik Sense so unexpected changes can be traced."
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.4.19)** — Planned work for 'Qlik Sense Permission and Role Change Audit' shifts `values` over `span=1h` while `user_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `qlik:proxy`** — Scheduled automation elevates `src` without crossing configured threshold for UC-24.4.19. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user_id`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `qlik:proxy`** — First 48h baseline for UC-24.4.19 on `user_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `user_id`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Qlik Sense logs via UF; QRS API and Qlik Cloud REST API via HEC. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=qlik:proxy into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`user_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We keep a record of who changes access and permissions in Qlik Sense so unexpected changes can be traced.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

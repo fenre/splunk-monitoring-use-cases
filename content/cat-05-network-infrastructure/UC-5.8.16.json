@@ -8,21 +8,43 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Alert Volume Trending and Alert Fatigue Analysis (Meraki)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_alert_volume_trending_and_alert_fatigue_analysis` (UC-5.8.16), SOC dashboard panel \"Operations — Alert Volume Trending and Alert Fatigue Analysis (Meraki)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.8.16 positive (Alert, Volume, Trending, and, Alert): ingest synthetic events into `index=meraki` sourcetype='meraki:webhook' where `sum` grouped by `alert_type` satisfies detection threshold for 'Alert Volume Trending and Alert Fatigue Analysis (Meraki)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.8.16 negative (Analysis (Meraki)): ingest benign `meraki` / `meraki:webhook` events where `alert_type` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Alert Volume Trending and Alert Fatigue Analysis (Meraki)'."
+  },
   "dataSources": "`sourcetype=meraki:webhook`; Meraki API (`meraki:devices` etc.) and optional organization syslog/HTTPS",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580, webhooks)",
   "spl": "index=meraki sourcetype=\"meraki:webhook\"\n| timechart count as alert_count by alert_type\n| eval alert_ratio=alert_count/sum(alert_count)",
-  "description": "Analyzes alert volume trends to optimize alerting rules and reduce false positives.",
-  "value": "Network operations teams analyze Meraki alert volume trends to detect alert storms, identify noisy alert types causing operator fatigue, and optimize alert configurations for a sustainable signal-to-noise ratio.",
+  "description": "Monitors UC-5.8.16 — Alert, Volume, Trending, and, Alert — using `index=meraki` sourcetype `meraki:webhook`, grouped by `alert_type`. Outputs `sum` each `the scheduled window`; alert when configured threshold. Primary focus: Analysis (Meraki). Purpose-built for 'Alert Volume Trending and Alert Fatigue Analysis (Meraki)' in Operations workflows.",
+  "value": "UC-5.8.16 operationalises 'Alert Volume Trending and Alert Fatigue Analysis (Meraki)' against `meraki:webhook` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ingest webhook alerts. Track volume and types over time.",
   "visualization": "Alert volume timeline; alert type pie chart; trend sparklines.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Meraki (Splunkbase 5631)",
+      "url": "https://splunkbase.splunk.com/app/5631",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Real incidents naturally raise alert volume; trend suppression and dedup before you tune thresholds so you do not hide true problems.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki` (UC-5.8.16)** — Planned work for 'Alert Volume Trending and Alert Fatigue Analysis (Meraki)' shifts `sum` over `span=1h` while `alert_type` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `meraki:webhook`** — Scheduled automation elevates `alert_ratio` without crossing configured threshold for UC-5.8.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `alert_type`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `meraki:webhook`** — First 48h baseline for UC-5.8.16 on `alert_type` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `alert_type`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
@@ -30,6 +52,12 @@
   "equipmentModels": [
     "cisco_meraki"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Meraki alert data from Dashboard API (`sourcetype=meraki:assurancealerts`) and/or syslog (`sourcetype=meraki`). Key fields: `alertType`, `alertLevel` (informational/warning/critical), `network`, `deviceSerial`, `deviceName`, `alertData`.\n• Meraki generates alerts for: device offline, uplink failure, VPN connectivity loss, rogue AP detection, firmware updates, port status changes, and many more. High-volume environments can generate hundreds of alerts per hour, leading to alert fatigue.\n\nStep 1 — Configure data collection\nVerify alert data:\n```spl\nindex=meraki (sourcetype=\"meraki:assurancealerts\" OR sourcetype=\"meraki\") earliest=-24h\n| stats count by alertType, alertLevel\n| sort -count\n```\n\nStep 2 — Create the search and alert\n\n**Primary search — Alert volume trending with fatigue analysis:**\n```spl\nindex=meraki (sourcetype=\"meraki:assurancealerts\" OR sourcetype=\"meraki\") earliest=-7d\n| bin _time span=1h\n| stats count as alerts dc(alertType) as alert_types dc(deviceSerial) as devices by _time\n| eventstats avg(alerts) as avg_hourly stdev(alerts) as std_hourly\n| eval upper_threshold=avg_hourly + (3 * std_hourly)\n| eval is_storm=if(alerts > upper_threshold, \"YES\", \"NO\")\n| eval fatigue_risk=case(alerts > 100, \"HIGH\", alerts > 50, \"MEDIUM\", 1==1, \"LOW\")\n```\n\nUnderstanding this SPL: Alert fatigue is when operators stop paying attention to alerts because there are too many. This search establishes a baseline alert volume and detects spikes (alert storms) that indicate either a real incident or a noisy alert configuration. The fatigue risk assessment helps prioritize alert tuning — if most hours are \"HIGH\", the alert configuration needs significant reduction.\n\n**Top noisy alert types:**\n```spl\nindex=meraki (sourcetype=\"meraki:assurancealerts\" OR sourcetype=\"meraki\") earliest=-7d\n| stats count as total dc(deviceSerial) as devices first(_time) as first_seen latest(_time) as last_seen by alertType, alertLevel\n| eval daily_avg=round(total/7, 1)\n| eval signal_to_noise=case(alertLevel=\"critical\" AND daily_avg > 50, \"NOISY_CRITICAL\", alertLevel=\"warning\" AND daily_avg > 100, \"NOISY_WARNING\", alertLevel=\"informational\" AND daily_avg > 200, \"EXCESSIVE_INFO\", 1==1, \"ACCEPTABLE\")\n| where signal_to_noise!=\"ACCEPTABLE\"\n| sort -total\n```\n\n**Alert-to-incident ratio:**\n```spl\nindex=meraki (sourcetype=\"meraki:assurancealerts\" OR sourcetype=\"meraki\") alertLevel=\"critical\" earliest=-30d\n| bin _time span=1d\n| stats count as critical_alerts by _time\n| eventstats avg(critical_alerts) as avg_daily_critical\n| eval actionable_estimate=round(avg_daily_critical * 0.1, 0)\n| eval noise_estimate=round(avg_daily_critical * 0.9, 0)\n```\n\nStep 3 — Validate\n(a) Compare alert counts with Meraki Dashboard: Organization > Alert log. Numbers should match within polling intervals.\n(b) Review the top 10 noisy alert types with the network team — determine which are actionable vs. noise.\n(c) Verify alert storm detection: cause a known alert spike (e.g., reboot multiple devices) and confirm the anomaly detection triggers.\n\nStep 4 — Operationalize\nDashboard (\"Meraki Alert Health\"):\n• Row 1 — Single-value tiles: \"Alerts (24h)\", \"Alert storms detected\", \"Noisy alert types\", \"Fatigue risk level\".\n• Row 2 — Alert volume trending (7 days) with anomaly bands.\n• Row 3 — Top noisy alert types with tuning recommendations.\n• Row 4 — Daily critical alert count with estimated actionable %.\n\nAlerting:\n• Warning (alert volume > 3σ above baseline): alert storm — possible incident or configuration issue.\n• Info (weekly): alert fatigue report — noisy types to consider disabling or suppressing.\n\nStep 5 — Troubleshooting\n\n• **Alert volume consistently high** — Disable informational alerts for non-critical device types (sensors, cameras). Tune warning thresholds in Meraki Dashboard: Network > Alerts.\n\n• **Alert storms correlate with firmware upgrades** — During firmware rollouts, devices reboot and generate offline/online alert pairs. Suppress alerts during planned upgrade windows.\n\n• **Critical alerts with no action taken** — Review alert routing: are critical alerts reaching the right team? If they go to a shared email, they may be ignored. Route to PagerDuty or a dedicated Slack channel.",
-  "grandmaExplanation": "We help you see when Meraki is throwing too many of the same alerts, so the team can tune and avoid crying wolf."
+  "grandmaExplanation": "We help you see when Meraki is throwing too many of the same alerts, so the team can tune and avoid crying wolf.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

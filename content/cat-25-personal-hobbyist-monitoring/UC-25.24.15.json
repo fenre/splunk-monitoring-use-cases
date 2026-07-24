@@ -8,31 +8,57 @@
     "Performance"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Beehive weight and entrance activity (`beehive:weight`), hive climate (`beehive:climate`), brooder climate (`brooder:climate`), egg counts (`coop:egg`), rain-barrel level (`rainbarrel:level`), greenhouse climate (`greenhouse:climate`), orchard bloom observations (`orchard:bloom`), and milking logs (`milking:session`).",
-  "app": "Homestead telemetry from beehive monitors, coop sensors, brooder controls, greenhouse sensors, rain barrels, orchard logs, and milking records streamed to Splunk HEC via MQTT, LoRaWAN, and Home Assistant.",
+  "exclusions": "Covers personal hobby monitoring for 'Greenhouse Overnight Heat-Loss Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_greenhouse_overnight_heat_loss_rate` (UC-25.24.15), SOC dashboard panel \"Personal — Greenhouse Overnight Heat-Loss Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.24.15 positive (Greenhouse, Overnight, Heat, Loss, Rate): ingest synthetic events into `index=personal` sourcetype='greenhouse:climate' where `avg_cooling_rate_cph` grouped by `greenhouse` satisfies `date_hour` >= 0, or `date_hour` <= 6 for 'Greenhouse Overnight Heat-Loss Rate'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.24.15 negative (Loss Rate): ingest benign `personal` / `greenhouse:climate` events where `greenhouse` stays below `date_hour` >= 0, or `date_hour` <= 6, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 9 confirms zero alert rows for 'Greenhouse Overnight Heat-Loss Rate'."
+  },
+  "dataSources": "Beehive weight and entrance activity (`beehive:weight`), hive climate (`beehive:climate`), brooder climate (`brooder:climate`), egg counts (`coop:egg`), rain-barrel level (`rainbarrel:level`), greenhouse climate (`greenhouse:climate`), orchard bloom observations (`orchard:bloom`), and milking logs (`milking:session`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Homestead telemetry from beehive monitors, coop sensors, brooder controls, greenhouse sensors, rain barrels, orchard logs, and milking records streamed to Splunk HEC via MQTT, LoRaWAN, and Home Assistant. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=greenhouse:climate\n| where date_hour>=0 AND date_hour<=6\n| sort 0 _time\n| streamstats current=f last(temp_c) as prev_temp_c last(_time) as prev_time by greenhouse\n| eval cooling_rate_cph=round((prev_temp_c-temp_c)/((_time-prev_time)/3600),2)\n| stats avg(cooling_rate_cph) as avg_cooling_rate_cph by greenhouse",
-  "description": "Estimates how quickly each greenhouse cools overnight so insulation or heater issues show up clearly.",
-  "value": "Heat-loss rate is a more actionable metric than just low temperature because it tells you how fast conditions deteriorate.",
+  "description": "Alerts on UC-25.24.15 — Greenhouse, Overnight, Heat, Loss, Rate — using `index=personal` sourcetype `greenhouse:climate`, grouped by `greenhouse`. Outputs `avg_cooling_rate_cph` each `the scheduled window`; alert when `date_hour` >= 0, or `date_hour` <= 6. Primary focus: Loss Rate. Purpose-built for 'Greenhouse Overnight Heat-Loss Rate' in Personal workflows.",
+  "value": "Operators running UC-25.24.15 on `greenhouse:climate` feeds shorten triage for Loss Rate tied to 'Greenhouse Overnight Heat-Loss Rate', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Stream temperature readings overnight from each greenhouse and compute the average hour-by-hour cooling rate.",
   "visualization": "Table of average overnight cooling rate by greenhouse.",
   "cimModels": [],
   "references": [
     {
       "title": "BEEP - open beehive monitoring",
-      "url": "https://beep.nl/en/"
+      "url": "https://beep.nl/en/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "The Things Network - LoRaWAN",
-      "url": "https://www.thethingsnetwork.org/docs/"
+      "url": "https://www.thethingsnetwork.org/docs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.24.15)** — Connector for 'Greenhouse Overnight Heat-Loss Rate' stops polling `greenhouse:climate`; stale `avg_cooling_rate_cph` on `greenhouse` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_cooling_rate_cph` over `1w` is expected for UC-25.24.15, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `greenhouse:climate`. Dedup with `stats latest(*) by greenhouse`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `date_hour` >= 0 for 'Greenhouse Overnight Heat-Loss Rate'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "m365",
     "mqtt"
   ],
-  "grandmaExplanation": "It compares how quickly your greenhouse loses warmth overnight, which helps you judge insulation and heater performance."
+  "equipmentModels": [
+    "m365_generic",
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Homestead, Bees & Livestock — typical feeds: Beehive telemetry (`beehive:reading`), coop door (`chickencoop:door`), egg counts (`egg:count`), livestock tags (`livestock:tag`), feed level (`feed:level`), pasture sensors (`pasture:sensor`), trail .\n• **Sourcetypes in this search**: `greenhouse:climate`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=greenhouse:climate`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Homestead sensors — connected beehive scale/temperature/sound, automatic chicken-coop door, egg counter, livestock GPS/health tags, feed-silo level, and pasture soil sensors — via MQTT and LoRaWAN gateways..\n\n**Author notes:** Stream temperature readings overnight from each greenhouse and compute the average hour-by-hour cooling rate.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"greenhouse:climate\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=greenhouse:climate earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Greenhouse Overnight Heat-Loss Rate** over `personal` data (primarily `sourcetype=greenhouse:climate`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `date_hour`, `greenhouse`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=greenhouse:climate\n| where date_hour>=0 AND date_hour<=6\n| sort 0 _time\n| streamstats current=f last(temp_c) as prev_temp_c last(_time) as prev_time by greenhouse\n| eval cooling_rate_cph=round((prev_temp_c-temp_c)/((_time-prev_time)/3600),2)\n| stats avg(cooling_rate_cph) as avg_cooling_rate_cph by greenhouse\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=greenhouse:climate earliest=-7d\n| head 50\n| table date_hour, greenhouse\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=greenhouse:climate earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `date_hour` before alerting:\n\n```spl\nindex=personal sourcetype=greenhouse:climate earliest=-30d\n| stats perc50(date_hour) AS p50 perc90(date_hour) AS p90 perc99(date_hour) AS p99 max(date_hour) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.24.15: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Average Overnight Cooling Rate By Greenhouse (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `greenhouse:climate` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=greenhouse:climate | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It compares how quickly your greenhouse loses warmth overnight, which helps you judge insulation and heater performance.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

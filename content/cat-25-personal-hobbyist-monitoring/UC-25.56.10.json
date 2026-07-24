@@ -9,23 +9,55 @@
     "Business"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Prayer sessions (`prayer:session`), scripture readings (`scripture:reading`), fasting logs (`fasting:log`), gratitude entries (`gratitude:entry`), retreats (`retreat:event`).",
-  "app": "Spiritual-practice and mindfulness logs — prayer / meditation timers, scripture-reading plans (YouVersion), fasting and gratitude journals, and retreat calendars — streamed to Splunk HEC via APIs and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Spiritual-Practice Balance Wheel' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_spiritual_practice_balance_wheel` (UC-25.56.10), SOC dashboard panel \"Personal — Spiritual-Practice Balance Wheel\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.56.10 positive (Spiritual, Practice, Balance, Wheel): ingest synthetic events into `index=personal` sourcetype='prayer:session' where `avg_per_month` grouped by `sourcetype`, `_time` satisfies detection threshold for 'Spiritual-Practice Balance Wheel'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.56.10 negative (Balance Wheel): ingest benign `personal` / `prayer:session` events where `sourcetype`, `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 13 confirms zero alert rows for 'Spiritual-Practice Balance Wheel'."
+  },
+  "dataSources": "Prayer sessions (`prayer:session`), scripture readings (`scripture:reading`), fasting logs (`fasting:log`), gratitude entries (`gratitude:entry`), retreats (`retreat:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Spiritual-practice and mindfulness logs — prayer / meditation timers, scripture-reading plans (YouVersion), fasting and gratitude journals, and retreat calendars — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal (sourcetype=prayer:session OR sourcetype=scripture:reading OR sourcetype=gratitude:entry OR sourcetype=fasting:log OR sourcetype=retreat:event)\n| bin _time span=1mon\n| stats count by sourcetype _time\n| stats avg(count) as avg_per_month by sourcetype\n| sort - avg_per_month",
-  "description": "Brings your different practices — prayer, reading, gratitude, fasting, gathering — into one balance view.",
-  "value": "A balance wheel gently reveals which practices you lean on and which you have quietly let go.",
+  "description": "Surfaces UC-25.56.10 — Spiritual, Practice, Balance, Wheel — using `index=personal` sourcetype `prayer:session`, grouped by `sourcetype`, `_time`. Outputs `avg_per_month` each `1m`; alert when configured threshold. Primary focus: Balance Wheel. Purpose-built for 'Spiritual-Practice Balance Wheel' in Personal workflows.",
+  "value": "UC-25.56.10 gives Personal teams earlier visibility into Balance Wheel through `prayer:session` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Combine practice feeds in `index=personal`; compare monthly frequency across practices.",
   "visualization": "Radar or bar chart of practices by monthly frequency.",
   "cimModels": [],
   "references": [
     {
       "title": "Greater Good Science Center — gratitude research",
-      "url": "https://greatergood.berkeley.edu/topic/gratitude"
+      "url": "https://greatergood.berkeley.edu/topic/gratitude",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It brings all your different practices together in one picture, showing which you keep up and which have slipped."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.56.10)** — Connector for 'Spiritual-Practice Balance Wheel' stops polling `prayer:session`; stale `avg_per_month` on `sourcetype`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_per_month` over `1m` is expected for UC-25.56.10, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `prayer:session`. Dedup with `stats latest(*) by sourcetype`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew goal threshold for 'Spiritual-Practice Balance Wheel'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Spiritual Practice & Mindfulness — typical feeds: Prayer sessions (`prayer:session`), scripture readings (`scripture:reading`), fasting logs (`fasting:log`), gratitude entries (`gratitude:entry`), retreats (`retreat:event`)..\n• **Sourcetypes in this search**: `prayer:session`, `scripture:reading`, `gratitude:entry`, `fasting:log`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=prayer:session`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Spiritual-practice and mindfulness logs — prayer / meditation timers, scripture-reading plans (YouVersion), fasting and gratitude journals, and retreat calendars — streamed to Splunk HEC via APIs and scripted inputs..\n\n**Author notes:** Combine practice feeds in `index=personal`; compare monthly frequency across practices.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"prayer:session\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=prayer:session earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Spiritual-Practice Balance Wheel** over `personal` data (primarily `sourcetype=prayer:session`) across the full search range. The `avg` aggregation groups by `sourcetype`, `_time`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `_time`, `sourcetype`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal (sourcetype=prayer:session OR sourcetype=scripture:reading OR sourcetype=gratitude:entry OR sourcetype=fasting:log OR sourcetype=retreat:event)\n| bin _time span=1mon\n| stats count by sourcetype _time\n| stats avg(count) as avg_per_month by sourcetype\n| sort - avg_per_month\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=prayer:session earliest=-7d\n| head 50\n| table _time, sourcetype\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=prayer:session earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.56.10: Personal evidence` with the following panel layout:\n\n**Panel 1 — Radar Or Bar Chart Of Practices By Monthly Frequency (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `prayer:session` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=prayer:session | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1m` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1m` buckets.",
+  "grandmaExplanation": "It brings all your different practices together in one picture, showing which you keep up and which have slipped.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

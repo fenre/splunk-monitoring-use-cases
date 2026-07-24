@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set an SR with `sr_target_sl=3` but `sr_achieved_sl=2`. UC-22.55.8 MUST flag `sr_status=\"sl_gap\"`.",
-    "negativeScenario": "Implement SR to target SL, sign test evidence; UC-22.55.8 MUST record `sr_status=\"compliant\"`."
+    "positiveScenario": "UC-22.55.8 positive (CLC, 50701, System, Security, Requirements): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `count` grouped by `entity` satisfies detection threshold for 'CLC/TS 50701 System Security Requirements (SRs) Implementation — IEC 62443-3-3 SRs deployed per zone with verification evidence'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.55.8 negative (verification evidence): ingest benign `target_index` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv`. Variant 15 confirms zero alert rows for 'CLC/TS 50701 System Security Requirements (SRs) Implementation — IEC 62443-3-3 SRs deployed per zone with verification evidence'."
   },
   "dataSources": "KV Store `rail_sr_implementation_lookup`. ServiceNow GRC SR-task records. SOAR `rail-sr-test-sync` playbook.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup rail_sr_implementation_lookup\n| where sr_in_scope=true\n| eval sr_status = case(\n    isnull(sr_implemented_at), \"not_implemented\",\n    isnull(sr_test_passed_at), \"implemented_untested\",\n    sr_achieved_sl < sr_target_sl, \"sl_gap\",\n    isnull(sr_evidence_url) OR sr_evidence_url=\"\", \"evidence_missing\",\n    1=1, \"compliant\")\n| where sr_status != \"compliant\"\n| table sr_id sr_iec_reference zone_id sr_target_sl sr_achieved_sl sr_implemented_at sr_implemented_by sr_test_passed_at sr_evidence_url sr_status",
-  "description": "Audits every in-scope SR against its target SL with implementation, test, and evidence records.",
-  "value": "Without SR-level instrumentation, the operator cannot show how SL-T translates into deployed controls. NB will check this on every assessment.",
+  "description": "Identifies UC-22.55.8 — CLC, 50701, System, Security, Requirements — using `index=target_index` sourcetype `configured sourcetype`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: verification evidence. Purpose-built for 'CLC/TS 50701 System Security Requirements (SRs) Implementation — IEC 62443-3-3 SRs deployed per zone with verification evidence' in Compliance workflows.",
+  "value": "UC-22.55.8 operationalises 'CLC/TS 50701 System Security Requirements (SRs) Implementation — IEC 62443-3-3 SRs deployed per zone with verification evidence' against UC-22.55.8 search results so operators reduce audit findings, regulatory gaps, and attestation delays without manual correlation.",
   "implementation": "(1) Map IEC 62443-3-3 SRs to operator zones in `rail_sr_implementation_lookup`. (2) Engineering implements SRs; QA tests; evidence stored. (3) Schedule UC-22.55.8 weekly Monday 05:00.",
   "visualization": "(Panel 1) SR coverage matrix (zone vs SR). (Panel 2) Gap queue. (Panel 3) Achievement vs target trend.",
   "cimModels": [
@@ -47,14 +47,26 @@
   "references": [
     {
       "title": "IEC 62443-3-3 — System security requirements",
-      "url": "https://webstore.iec.ch/publication/7033"
+      "url": "https://webstore.iec.ch/publication/7033",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CLC/TS 50701:2021 clause 7.2",
-      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Compensating control** — SR may have approved compensating control; tag `sr_status_override=compensating_control_approved`.\n\n**Suppression mechanism**: KV Store `clc_22_55_8_exceptions` with documented Rail-CISO approval and 90-day maximum grant.",
+  "knownFalsePositives": "1. **Authorised CLC TS 50701 control testing** — Internal audit exercises 'CLC/TS 50701 System Security Requirements (SRs) Implementation — IEC 62443-3-3 SRs deployed per zone with verification evidence' (UC-22.55.8) on `entity` during scheduled clause CLC-TS-50701-c7-2 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `clc_ts_50701_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `clc_ts_50701_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (system-requirement governance)"
   ],
@@ -86,7 +98,7 @@
     "Splunk Enterprise Security",
     "Splunk SOAR"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_sr_implementation_lookup`.\n\n## Step 1 — SR collection\n\n```ini\n[rail_sr_implementation_lookup]\nenforceTypes = true\nfield.sr_id = string\nfield.sr_iec_reference = string\nfield.zone_id = string\nfield.sr_target_sl = number\nfield.sr_achieved_sl = number\nfield.sr_in_scope = bool\nfield.sr_implemented_at = number\nfield.sr_implemented_by = string\nfield.sr_test_passed_at = number\nfield.sr_evidence_url = string\n```\n\nIEC 62443-3-3 SRs include 100+ requirements across 7 FRs. The implementation maps each to operator zones.\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.8: CLC/TS 50701 SR Implementation]\ncron_schedule = 0 5 * * 1\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.8,reg=CLC-TS-50701,clause=CLC-TS-50701-c7-2\naction.notable.param.rule_title = Rail SR implementation gap or SL shortfall\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `sl_gap`** (owner: Signal Engineering Lead, severity P2): close gap or escalate compensating control for approval.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Component-level CR fallback**: zone SR may be partially satisfied by component CRs (UC-22.55.9); document combined coverage.\n- **Safety-significant SRs**: SRs affecting safety-significant functions need EN 50126 coordination.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_sr_implementation_lookup`.\n\n## Step 1 — SR collection\n\n```ini\n[rail_sr_implementation_lookup]\nenforceTypes = true\nfield.sr_id = string\nfield.sr_iec_reference = string\nfield.zone_id = string\nfield.sr_target_sl = number\nfield.sr_achieved_sl = number\nfield.sr_in_scope = bool\nfield.sr_implemented_at = number\nfield.sr_implemented_by = string\nfield.sr_test_passed_at = number\nfield.sr_evidence_url = string\n```\n\nIEC 62443-3-3 SRs include 100+ requirements across 7 FRs. The implementation maps each to operator zones.\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.8: CLC/TS 50701 SR Implementation]\ncron_schedule = 0 5 * * 1\ndispatch.earliest_time = -2y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.8,reg=CLC-TS-50701,clause=CLC-TS-50701-c7-2\naction.notable.param.rule_title = Rail SR implementation gap or SL shortfall\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `sl_gap`** (owner: Signal Engineering Lead, severity P2): close gap or escalate compensating control for approval.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Component-level CR fallback**: zone SR may be partially satisfied by component CRs (UC-22.55.9); document combined coverage.\n- **Safety-significant SRs**: SRs affecting safety-significant functions need EN 50126 coordination.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`sr_status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "For each zone of our railway, we make a checklist of cyber-protections to install — like a recipe. The list comes from international rules. We tick off each one as we install it and test that it really works. If anything is missing or weaker than required, the team is alerted.",
   "prerequisiteUseCases": [
     "UC-22.55.7"

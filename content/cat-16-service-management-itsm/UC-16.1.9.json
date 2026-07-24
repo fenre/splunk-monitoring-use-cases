@@ -8,11 +8,17 @@
     "Configuration"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Change records + incident records + monitoring events",
-  "app": "`Splunk_TA_snow` + monitoring data",
+  "exclusions": "Covers the detection logic documented for 'Change-Incident Correlation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_change_incident_correlation` (UC-16.1.9), SOC dashboard panel \"Operations — Change-Incident Correlation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-16.1.9 positive (Change, Incident, Correlation): ingest synthetic events into `index=itsm` sourcetype='snow:incident' where `count` grouped by `entity` satisfies -24h for 'Change-Incident Correlation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.1.9 negative (Incident Correlation): ingest benign `itsm` / `snow:incident` events where `entity` stays below -24h, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Change-Incident Correlation'."
+  },
+  "dataSources": "Change records + incident records + monitoring events Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_snow` + monitoring data — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"snow:incident\" priority IN (1,2)\n| join type=left max=1 cmdb_ci\n    [search index=itsm sourcetype=\"snow:change_request\" close_code=\"successful\" earliest=-24h\n     | table cmdb_ci, number as change_number, short_description as change_desc, end_date]\n| where isnotnull(change_number)\n| table number, short_description, cmdb_ci, change_number, change_desc",
-  "description": "Correlating incidents with recent changes is the fastest path to root cause. Automated correlation accelerates MTTR.",
-  "value": "Correlating incidents with recent changes is the fastest path to root cause. Automated correlation accelerates MTTR.",
+  "description": "Surfaces UC-16.1.9 — Change, Incident, Correlation — using `index=itsm` sourcetype `snow:incident`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when -24h. Primary focus: Incident Correlation. Purpose-built for 'Change-Incident Correlation' in Operations workflows.",
+  "value": "UC-16.1.9 helps teams contain Change, Incident, Correlation scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "When high-priority incidents are created, automatically search for changes completed in the last 24 hours on related CIs. Present correlation to incident team. Track change-related incident percentage. Feed back to change management.",
   "visualization": "Table (incident-change correlation), Single value (% incidents with recent change), Timeline (changes + incidents overlaid).",
   "cimModels": [
@@ -22,13 +28,38 @@
   "references": [
     {
       "title": "Splunk_TA_snow",
-      "url": "https://splunkbase.splunk.com/app/1928"
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Loose cause links when many incidents land near the same change window; not every line is a true regression.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm` (UC-16.1.9)** — Planned work for 'Change-Incident Correlation' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `snow:incident`** — Scheduled automation elevates `src` without crossing configured threshold for UC-16.1.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:incident`** — First 48h baseline for UC-16.1.9 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],
+  "equipmentModels": [
+    "servicenow_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_snow` + monitoring data.\n• Ensure the following data sources are available: Change records + incident records + monitoring events.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nWhen high-priority incidents are created, automatically search for changes completed in the last 24 hours on related CIs. Present correlation to incident team. Track change-related incident percentage. Feed back to change management.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsm sourcetype=\"snow:incident\" priority IN (1,2)\n| join type=left max=1 cmdb_ci\n    [search index=itsm sourcetype=\"snow:change_request\" close_code=\"successful\" earliest=-24h\n     | table cmdb_ci, number as change_number, short_description as change_desc, end_date]\n| where isnotnull(change_number)\n| table number, short_description, cmdb_ci, change_number, change_desc\n```\n\nUnderstanding this SPL\n\n**Change-Incident Correlation** — Correlating incidents with recent changes is the fastest path to root cause. Automated correlation accelerates MTTR.\n\nDocumented **Data sources**: Change records + incident records + monitoring events. **App/TA** (typical add-on context): `Splunk_TA_snow` + monitoring data. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsm; **sourcetype**: snow:incident. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsm, sourcetype=\"snow:incident\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where isnotnull(change_number)` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Change-Incident Correlation**): table number, short_description, cmdb_ci, change_number, change_desc\n\n\nStep 3 — Validate\nCompare with the ServiceNow change request list or form for the same records. Verify change numbers, states, and timing against our search. Use the same filters you expect operations to use in the list view.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (incident-change correlation), Single value (% incidents with recent change), Timeline (changes + incidents overlaid).",
-  "grandmaExplanation": "We line up change activity with a burst of customer issues, so we can tell a real break from coincidence fast."
+  "grandmaExplanation": "We line up change activity with a burst of customer issues, so we can tell a real break from coincidence fast.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

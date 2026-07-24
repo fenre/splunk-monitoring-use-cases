@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`itsi_tracked_alerts`",
-  "app": "Splunk ITSI",
+  "exclusions": "Covers the detection logic documented for 'Notable Event Volume Trending by Source' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_notable_event_volume_trending_by_source` (UC-13.2.23), SOC dashboard panel \"Operations — Notable Event Volume Trending by Source\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-13.2.23 positive (Notable, Event, Volume, Trending, Source): ingest synthetic events into `index=itsi_tracked_alerts` sourcetype='target_sourcetype' where `count` grouped by `source`, `limit=20` satisfies `Total` > 50 for 'Notable Event Volume Trending by Source'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-13.2.23 negative (by Source): ingest benign `itsi_tracked_alerts` / `target_sourcetype` events where `source`, `limit=20` stays below `Total` > 50, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Notable Event Volume Trending by Source'."
+  },
+  "dataSources": "`itsi_tracked_alerts` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk ITSI — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsi_tracked_alerts\n| timechart span=1h count by source limit=20\n| addtotals\n| where Total > 50",
-  "description": "Tracking notable event volume by source correlation search identifies noisy rules, misconfigured thresholds, and alert fatigue risks before they overwhelm analysts.",
-  "value": "Tracking notable event volume by source correlation search identifies noisy rules, misconfigured thresholds, and alert fatigue risks before they overwhelm analysts.",
+  "description": "Alerts on UC-13.2.23 — Notable, Event, Volume, Trending, Source — using `index=itsi_tracked_alerts` sourcetype `configured sourcetype`, grouped by `source`, `limit=20`. Outputs `count` each `1h`; alert when `Total` > 50. Primary focus: by Source. Purpose-built for 'Notable Event Volume Trending by Source' in Operations workflows.",
+  "value": "UC-13.2.23 operationalises 'Notable Event Volume Trending by Source' against UC-13.2.23 search results so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Monitor notable event ingest rates per correlation search source. Identify sudden spikes (alert storms) and sustained high-volume sources (noisy rules). Set thresholds: >100 notables/hour from a single source warrants investigation. Tune or disable noisy correlation searches. Feed into Episode Review capacity planning.",
   "visualization": "Stacked area chart (events by source over time), Table (top 10 noisiest sources).",
   "cimModels": [
@@ -22,16 +28,36 @@
   "references": [
     {
       "title": "Splunk ITSI",
-      "url": "https://splunkbase.splunk.com/app/1841"
+      "url": "https://splunkbase.splunk.com/app/1841",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Episode and score noise from content changes, seasonality, and who is in scope. We check maintenance and drill paths before we escalate.",
+  "knownFalsePositives": "1. **Maintenance window on `itsi_tracked_alerts` (UC-13.2.23)** — Planned work for 'Notable Event Volume Trending by Source' shifts `count` over `span=1h` while `source`, `limit=20` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `limit=20` without crossing `Total` > 50 for UC-13.2.23. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `source`, `limit=20`** — Health checks in `itsi_tracked_alerts` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-13.2.23 on `source` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `source`, `exception_reason`, `valid_until`.",
   "equipment": [
     "itsi",
     "kubernetes"
   ],
   "equipmentModels": [
     "kubernetes_helm"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     {
@@ -40,6 +66,8 @@
       "note": "ITSI"
     }
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ITSI.\n• Ensure the following data sources are available: `itsi_tracked_alerts`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor notable event ingest rates per correlation search source. Identify sudden spikes (alert storms) and sustained high-volume sources (noisy rules). Set thresholds: >100 notables/hour from a single source warrants investigation. Tune or disable noisy correlation searches. Feed into Episode Review capacity planning.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsi_tracked_alerts\n| timechart span=1h count by source limit=20\n| addtotals\n| where Total > 50\n```\n\nUnderstanding this SPL\n\n**Notable Event Volume Trending by Source** — Tracking notable event volume by source correlation search identifies noisy rules, misconfigured thresholds, and alert fatigue risks before they overwhelm analysts.\n\nDocumented **Data sources**: `itsi_tracked_alerts`. **App/TA** (typical add-on context): Splunk ITSI. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsi_tracked_alerts.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsi_tracked_alerts. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=1h** buckets with a separate series **by source limit=20** — ideal for trending and alerting on this use case.\n• Pipeline stage (see **Notable Event Volume Trending by Source**): addtotals\n• Filters the current rows with `where Total > 50` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nRun the search when you know the service or episode context. Compare with the ITSI Service Analyzer, episode or notable views, and Glass Tables or drill-downs for the same time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked area chart (events by source over time), Table (top 10 noisiest sources).",
-  "grandmaExplanation": "We track service health, episodes, and related signals in one workspace so the team can see what broke and who owns it without juggling every console."
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ITSI.\n• Ensure the following data sources are available: `itsi_tracked_alerts`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor notable event ingest rates per correlation search source. Identify sudden spikes (alert storms) and sustained high-volume sources (noisy rules). Set thresholds: >100 notables/hour from a single source warrants investigation. Tune or disable noisy correlation searches. Feed into Episode Review capacity planning.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsi_tracked_alerts\n| timechart span=1h count by source limit=20\n| addtotals\n| where Total > 50\n```\n\nUnderstanding this SPL\n\n**Notable Event Volume Trending by Source** — Tracking notable event volume by source correlation search identifies noisy rules, misconfigured thresholds, and alert fatigue risks before they overwhelm analysts.\n\nDocumented **Data sources**: `itsi_tracked_alerts`. **App/TA** (typical add-on context): Splunk ITSI. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsi_tracked_alerts.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsi_tracked_alerts. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=1h** buckets with a separate series **by source limit=20** — ideal for trending and alerting on this use case.\n• Pipeline stage (see **Notable Event Volume Trending by Source**): addtotals\n• Filters the current rows with `where Total > 50` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nRun the search when you know the service or episode context. Compare with the ITSI Service Analyzer, episode or notable views, and Glass Tables or drill-downs for the same time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked area chart (events by source over time), Table (top 10 noisiest sources).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk ITSI — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=see SPL into itsi_tracked_alerts. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`Total, limit=20, source`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We track service health, episodes, and related signals in one workspace so the team can see what broke and who owns it without juggling every console.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

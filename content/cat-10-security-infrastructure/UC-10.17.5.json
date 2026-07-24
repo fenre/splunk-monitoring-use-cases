@@ -9,11 +9,17 @@
     "Anomaly"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'SonicWall Anti-Spyware IPS Alerts Correlated with Reputation (SonicWall)' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_sonicwall_anti_spyware_ips_alerts_correlated_wit` (UC-10.17.5), SOC dashboard panel \"Security Infra — SonicWall Anti-Spyware IPS Alerts Correlated with Reputation (SonicWall)\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.17.5 positive (SonicWall, Anti, Spyware, IPS, Alerts): ingest synthetic events into `index=netfw` sourcetype='dell:sonicwall:firewall' where `count` grouped by `dst_ip`, `signature`, `reputation` satisfies `score` < 40 for 'SonicWall Anti-Spyware IPS Alerts Correlated with Reputation (SonicWall)'. Validate lookup `local_threat_intel`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.17.5 negative (Reputation (SonicWall)): ingest benign `netfw` / `dell:sonicwall:firewall` events where `dst_ip`, `signature`, `reputation` stays below `score` < 40, or exclude the test entity via `soc_exception_register.csv`. Variant 3 confirms zero alert rows for 'SonicWall Anti-Spyware IPS Alerts Correlated with Reputation (SonicWall)'."
+  },
   "dataSources": "`sourcetype=dell:sonicwall:firewall` IPS/anti-spyware events; optional `threat_intel` lookup on dst_ip",
   "app": "Dell SonicWall Add-on for Splunk (Splunkbase 6203)",
   "spl": "index=netfw sourcetype=\"dell:sonicwall:firewall\" earliest=-24h\n| where match(_raw,\"(?i)intrusion|IPS|spyware\")\n| lookup local_threat_intel ip AS dst_ip OUTPUT reputation score\n| stats count by dst_ip, signature, reputation\n| where reputation==\"malicious\" OR score<40 OR isnull(reputation)\n| sort -count",
-  "description": "IPS alerts from low-reputation destinations are higher fidelity than generic noise. This pattern prioritizes investigation queues.",
-  "value": "Cuts analyst fatigue while maintaining coverage on likely malicious flows.",
+  "description": "Identifies when Reputation (SonicWall) criteria fire for 'SonicWall Anti-Spyware IPS Alerts Correlated with Reputation (SonicWall)' (UC-10.17.5) in `index=netfw` sourcetype `dell:sonicwall:firewall`. Pipeline aggregates `count` by `dst_ip`, `signature`, `reputation` over `the scheduled window`. Alert logic enforces `score` < 40. SPL signature: lookup `local_threat_intel`. Eliminates manual hunting for UC-10.17.5 conditions.",
+  "value": "UC-10.17.5 helps teams contain SonicWall, Anti, Spyware, IPS, Alerts scenarios and reduce missed threat campaigns, control regressions, and SOC SLA breaches before incidents compound.",
   "implementation": "Maintain a simple local intel lookup or use Splunk Enterprise Security threat intelligence framework. Join dst_ip to reputation score.",
   "visualization": "Bubble chart (alert volume vs reputation), notable list for score <30.",
   "cimModels": [
@@ -22,16 +28,32 @@
   "references": [
     {
       "title": "Splunkbase — Dell SonicWall Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/6203"
+      "url": "https://splunkbase.splunk.com/app/6203",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Connect for Syslog — Dell SonicWall reference",
-      "url": "https://docs.splunk.com/Documentation/SC4S/"
+      "url": "https://docs.splunk.com/Documentation/SC4S/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Approved vulnerability scanner** — Scanner `src` triggers high-severity signatures for 'SonicWall Anti-Spyware IPS Alerts Correlated with Reputation (SonicWall)'. Join `scanner_ips` before threshold.\n\n2. **Signature definition update** — Vendor content push reclassifies benign traffic. Compare threat_id first_seen with content release date.\n\n3. **Red-team emulation** — Atomic test traffic from approved exercise hosts.\n\n4. **Backup replication traffic** — Off-hours bulk transfer matches lateral-movement heuristics.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `src`, `threat_id`, `valid_until`.",
   "securityDomain": "threat",
   "equipment": [
     "sonicwall"
+  ],
+  "equipmentModels": [
+    "sonicwall_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -40,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "IPS alerts from low-reputation destinations are higher fidelity than generic noise — we monitor SonicWall logs so teams can act before users feel pain."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Dell SonicWall Add-on for Splunk (Splunkbase 6203)). Enable the modular input or HEC token that writes sourcetype=dell:sonicwall:firewall into netfw. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`dst_ip, ip, reputation, reputation score`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "IPS alerts from low-reputation destinations are higher fidelity than generic noise — we monitor SonicWall logs so teams can act before users feel pain.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

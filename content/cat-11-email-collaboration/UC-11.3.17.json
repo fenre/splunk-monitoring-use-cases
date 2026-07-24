@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Webex Admin Audit Events API (admin actions, actor, target, timestamp)",
-  "app": "`ta_cisco_webex_add_on_for_splunk` (GitHub), Webex Admin Audit Events API via HEC webhook",
+  "exclusions": "Covers the detection logic documented for 'Webex Admin Audit Trail' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_webex_admin_audit_trail` (UC-11.3.17), SOC dashboard panel \"Operations — Webex Admin Audit Trail\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-11.3.17 positive (Webex, Admin, Audit, Trail): ingest synthetic events into `index=webex` sourcetype='webex:admin_audit' where `total_by_admin` grouped by `actorEmail`, `actionType`, `targetType` satisfies detection threshold for 'Webex Admin Audit Trail'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.3.17 negative (Audit Trail): ingest benign `webex` / `webex:admin_audit` events where `actorEmail`, `actionType`, `targetType` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Webex Admin Audit Trail'."
+  },
+  "dataSources": "Webex Admin Audit Events API (admin actions, actor, target, timestamp) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`ta_cisco_webex_add_on_for_splunk` (GitHub), Webex Admin Audit Events API via HEC webhook — Universal Forwarder (Splunkbase 617)",
   "spl": "index=webex sourcetype=\"webex:admin_audit\"\n| stats count as changes by actorEmail, actionType, targetType\n| eventstats sum(changes) as total_by_admin by actorEmail\n| sort -total_by_admin\n| table actorEmail, actionType, targetType, changes, total_by_admin",
-  "description": "Provides full accountability for administrative changes in Webex Control Hub — user provisioning, policy changes, license assignments, security settings, and integration modifications. Required for compliance audits (SOX, HIPAA, ISO 27001) and security investigations. Detects unauthorized admin actions or compromised admin accounts through anomaly detection on change volume and timing.",
-  "value": "Provides full accountability for administrative changes in Webex Control Hub — user provisioning, policy changes, license assignments, security settings, and integration modifications. Required for compliance audits (SOX, HIPAA, ISO 27001) and security investigations. Detects unauthorized admin actions or compromised admin accounts through anomaly detection on change volume and timing.",
+  "description": "Detects 'Webex Admin Audit Trail' patterns (UC-11.3.17) sourced from `index=webex` sourcetype `webex:admin_audit`. Threshold bundle: configured threshold; aggregation grain: `actorEmail`, `actionType`, `targetType`; metrics: `total_by_admin`. Watch terms: Webex, Admin, Audit, Trail.",
+  "value": "UC-11.3.17 gives Operations teams earlier visibility into Audit Trail through `webex:admin_audit` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Register a Webex integration with the `audit:events_read` scope and full admin credentials. Poll the Admin Audit Events API every 5 minutes. Enrich events with admin role information from the People API. Alert on: changes outside business hours, bulk user deletions (>10 in 1 hour), security policy modifications, and admin actions from new IP addresses or locations.",
   "visualization": "Timeline (admin changes over time), Table (audit log with filters), Bar chart (changes by admin), Pie chart (change types).",
   "cimModels": [
@@ -23,10 +29,26 @@
   "references": [
     {
       "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned break-glass, partner support logins, and read-only admin roles during maintenance.",
+  "knownFalsePositives": "1. **Maintenance window on `webex` (UC-11.3.17)** — Planned work for 'Webex Admin Audit Trail' shifts `total_by_admin` over `span=1h` while `actorEmail`, `actionType`, `targetType` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `webex:admin_audit`** — Scheduled automation elevates `actionType` without crossing configured threshold for UC-11.3.17. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `actorEmail`, `actionType`, `targetType`** — Health checks in `webex` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `webex:admin_audit`** — First 48h baseline for UC-11.3.17 on `actorEmail` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `actorEmail`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "github"
@@ -34,7 +56,13 @@
   "equipmentModels": [
     "cisco_webex"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `ta_cisco_webex_add_on_for_splunk` (GitHub), Webex Admin Audit Events API via HEC webhook.\n• Ensure the following data sources are available: Webex Admin Audit Events API (admin actions, actor, target, timestamp).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nRegister a Webex integration with the `audit:events_read` scope and full admin credentials. Poll the Admin Audit Events API every 5 minutes. Enrich events with admin role information from the People API. Alert on: changes outside business hours, bulk user deletions (>10 in 1 hour), security policy modifications, and admin actions from new IP addresses or locations.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=webex sourcetype=\"webex:admin_audit\"\n| stats count as changes by actorEmail, actionType, targetType\n| eventstats sum(changes) as total_by_admin by actorEmail\n| sort -total_by_admin\n| table actorEmail, actionType, targetType, changes, total_by_admin\n```\n\nUnderstanding this SPL\n\n**Webex Admin Audit Trail** — Provides full accountability for administrative changes in Webex Control Hub — user provisioning, policy changes, license assignments, security settings, and integration modifications. Required for compliance audits (SOX, HIPAA, ISO 27001) and security investigations. Detects unauthorized admin actions or compromised admin accounts through anomaly detection on change volume and timing.\n\nDocumented **Data sources**: Webex Admin Audit Events API (admin actions, actor, target, timestamp). **App/TA** (typical add-on context): `ta_cisco_webex_add_on_for_splunk` (GitHub), Webex Admin Audit Events API via HEC webhook. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: webex; **sourcetype**: webex:admin_audit. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=webex, sourcetype=\"webex:admin_audit\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by actorEmail, actionType, targetType** so each row reflects one combination of those dimensions.\n• `eventstats` rolls up events into metrics; results are split **by actorEmail** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Webex Admin Audit Trail**): table actorEmail, actionType, targetType, changes, total_by_admin\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Webex Admin Audit Trail** — Provides full accountability for administrative changes in Webex Control Hub — user provisioning, policy changes, license assignments, security settings, and integration modifications. Required for compliance audits (SOX, HIPAA, ISO 27001) and security investigations. Detects unauthorized admin actions or compromised admin accounts through anomaly detection on change volume and timing.\n\nDocumented **Data sources**: Webex Admin Audit Events API (admin actions, actor, target, timestamp). **App/TA** (typical add-on context): `ta_cisco_webex_add_on_for_splunk` (GitHub), Webex Admin Audit Events API via HEC webhook. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Change.All_Changes` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nCompare with Cisco Webex Control Hub analytics, audit, and service status for the same time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (admin changes over time), Table (audit log with filters), Bar chart (changes by admin), Pie chart (change types).",
   "grandmaExplanation": "We use this to stay ahead of email and collaboration problems, so the team is not the last to know when something drifts or breaks.",
-  "hardware": "Cisco Webex Control Hub"
+  "hardware": "Cisco Webex Control Hub",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

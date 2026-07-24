@@ -9,24 +9,43 @@
     "Anomaly"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Beehive telemetry (`beehive:reading`), coop door (`chickencoop:door`), egg counts (`egg:count`), livestock tags (`livestock:tag`), feed level (`feed:level`), pasture sensors (`pasture:sensor`).",
-  "app": "Homestead sensors — connected beehive scale/temperature/sound, automatic chicken-coop door, egg counter, livestock GPS/health tags, feed-silo level, and pasture soil sensors — streamed to Splunk HEC via MQTT and LoRaWAN gateways.",
+  "exclusions": "Covers personal hobby monitoring for 'Livestock GPS Fence and Straying Alert' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_livestock_gps_fence_and_straying_alert` (UC-25.24.6), SOC dashboard panel \"Personal — Livestock GPS Fence and Straying Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.24.6 positive (Livestock, GPS, Fence, and, Straying): ingest synthetic events into `index=personal` sourcetype='livestock:tag' where `count` grouped by `animal` satisfies detection threshold for 'Livestock GPS Fence and Straying Alert'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.24.6 negative (Straying Alert): ingest benign `personal` / `livestock:tag` events where `animal` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Livestock GPS Fence and Straying Alert'."
+  },
+  "dataSources": "Beehive telemetry (`beehive:reading`), coop door (`chickencoop:door`), egg counts (`egg:count`), livestock tags (`livestock:tag`), feed level (`feed:level`), pasture sensors (`pasture:sensor`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Homestead sensors — connected beehive scale/temperature/sound, automatic chicken-coop door, egg counter, livestock GPS/health tags, feed-silo level, and pasture soil sensors — streamed to Splunk HEC via MQTT and LoRaWAN gateways. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=livestock:tag\n| stats latest(distance_from_center_m) as dist, latest(_time) as seen by animal\n| eval strayed=if(dist>pasture_radius_m,1,0), silent=if((now()-seen)>7200,1,0)\n| where strayed=1 OR silent=1",
-  "description": "Alerts when a tagged animal wanders beyond the pasture or a tag goes silent, so a break in the fence is caught quickly.",
-  "value": "A single strayed animal can mean a downed fence and a lost flock; a location and heartbeat check turns hours of searching into minutes.",
+  "description": "Surfaces Straying Alert anomalies for UC-25.24.6 with window `the scheduled window` on `index=personal` sourcetype `livestock:tag`. Combines `count` by `animal` and compares against configured threshold. Mapped to keywords Livestock, GPS, Fence, and, Straying for dashboard routing.",
+  "value": "Alerting on Livestock, GPS, Fence, and, Straying through UC-25.24.6 reduces missed training goals, stale hobby data, and connector failures by surfacing `activity` early.",
   "implementation": "Ingest livestock GPS tags into `index=personal`; alert when an animal leaves the pasture or stops reporting.",
   "visualization": "Table of animals outside the fence or gone quiet.",
   "cimModels": [],
   "references": [
     {
       "title": "The Things Network — LoRaWAN",
-      "url": "https://www.thethingsnetwork.org/"
+      "url": "https://www.thethingsnetwork.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.24.6)** — Connector for 'Livestock GPS Fence and Straying Alert' stops polling `livestock:tag`; stale `count` on `animal` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.24.6, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `livestock:tag`. Dedup with `stats latest(*) by animal`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Livestock GPS Fence and Straying Alert'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "hardware_bmc",
     "mqtt"
@@ -34,5 +53,12 @@
   "equipmentModels": [
     "hardware_bmc_ilo"
   ],
-  "grandmaExplanation": "It warns you if an animal wanders out of the field or its tracker goes quiet, so you find a broken fence fast."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Homestead, Bees & Livestock — typical feeds: Beehive telemetry (`beehive:reading`), coop door (`chickencoop:door`), egg counts (`egg:count`), livestock tags (`livestock:tag`), feed level (`feed:level`), pasture sensors (`pasture:sensor`), trail .\n• **Sourcetypes in this search**: `livestock:tag`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=livestock:tag`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Homestead sensors — connected beehive scale/temperature/sound, automatic chicken-coop door, egg counter, livestock GPS/health tags, feed-silo level, and pasture soil sensors — via MQTT and LoRaWAN gateways..\n\n**Author notes:** Ingest livestock GPS tags into `index=personal`; alert when an animal leaves the pasture or stops reporting.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"livestock:tag\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=livestock:tag earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Livestock GPS Fence and Straying Alert** over `personal` data (primarily `sourcetype=livestock:tag`) across the full search range. The `latest` aggregation groups by `animal`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `animal`, `strayed`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=livestock:tag\n| stats latest(distance_from_center_m) as dist, latest(_time) as seen by animal\n| eval strayed=if(dist>pasture_radius_m,1,0), silent=if((now()-seen)>7200,1,0)\n| where strayed=1 OR silent=1\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=livestock:tag earliest=-7d\n| head 50\n| table animal, strayed\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=livestock:tag earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.24.6: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Animals Outside The Fence Or Gone Quiet (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `livestock:tag` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=livestock:tag | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It warns you if an animal wanders out of the field or its tracker goes quiet, so you find a broken fence fast.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

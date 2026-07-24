@@ -8,11 +8,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=haproxy` `sourcetype=haproxy:stats` (`rate`, `scur`, `slim`)",
-  "app": "HAProxy stats CSV scripted input",
+  "exclusions": "Covers the detection logic documented for 'HAProxy Frontend Session Rate Versus ulimit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_haproxy_frontend_session_rate_versus_ulimit` (UC-8.4.21), SOC dashboard panel \"Operations — HAProxy Frontend Session Rate Versus ulimit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.4.21 positive (HAProxy, Frontend, Session, Rate, Versus): ingest synthetic events into `index=haproxy` sourcetype='haproxy:stats' where `count` grouped by `entity` satisfies `slim` > 0, or `sess_pct` > 85 for 'HAProxy Frontend Session Rate Versus ulimit'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.4.21 negative (Versus ulimit): ingest benign `haproxy` / `haproxy:stats` events where `entity` stays below `slim` > 0, or `sess_pct` > 85, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'HAProxy Frontend Session Rate Versus ulimit'."
+  },
+  "dataSources": "`index=haproxy` `sourcetype=haproxy:stats` (`rate`, `scur`, `slim`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "HAProxy stats CSV scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=haproxy sourcetype=\"haproxy:stats\" type=frontend\n| eval sess_pct=if(slim>0, round(100*scur/slim,1), null())\n| where sess_pct > 85\n| table _time, pxname, scur, slim, sess_pct",
-  "description": "`scur` approaching `slim` on a frontend signals connection limits or ulimit pressure during campaigns.",
-  "value": "Informs tuning of `maxconn`, kernel limits, and cloud LB pairing.",
+  "description": "Alerts on risk tied to HAProxy, Frontend, Session, Rate, Versus through UC-8.4.21 on `index=haproxy` sourcetype `haproxy:stats`. Summarises `count` grouped by `entity` across `the scheduled window` before applying `slim` > 0, or `sess_pct` > 85. Operators tune 'HAProxy Frontend Session Rate Versus ulimit' using UC-8.4.21 runbook steps.",
+  "value": "Tracking `activity` via UC-8.4.21 on `haproxy:stats` feeds improves response to 'HAProxy Frontend Session Rate Versus ulimit' and reduces operational risk and delayed incident response.",
   "implementation": "Poll stats frequently; `slim` may be 0 if unlimited—handle with `eval`.",
   "visualization": "Line chart (scur vs slim), single value alert.",
   "cimModels": [
@@ -22,12 +28,31 @@
   "references": [
     {
       "title": "HAProxy Management Guide — Logging",
-      "url": "https://www.haproxy.com/documentation/"
+      "url": "https://www.haproxy.com/documentation/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
+  "knownFalsePositives": "1. **Maintenance window on `haproxy` (UC-8.4.21)** — Planned work for 'HAProxy Frontend Session Rate Versus ulimit' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `haproxy:stats`** — Scheduled automation elevates `sess_pct` without crossing `slim` > 0 for UC-8.4.21. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `haproxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `haproxy:stats`** — First 48h baseline for UC-8.4.21 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "haproxy"
+  ],
+  "equipmentModels": [
+    "haproxy_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -36,6 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: HAProxy stats CSV scripted input.\n• Ensure the following data sources are available: `index=haproxy` `sourcetype=haproxy:stats` (`rate`, `scur`, `slim`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCSV field names must match HAProxy version; confirm `slim` presence.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=haproxy sourcetype=\"haproxy:stats\" type=frontend\n| eval sess_pct=if(slim>0, round(100*scur/slim,1), null())\n| where sess_pct > 85\n| table _time, pxname, scur, slim, sess_pct\n```\n\nUnderstanding this SPL\n\n**HAProxy Frontend Session Rate Versus ulimit** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=haproxy` `sourcetype=haproxy:stats` (`rate`, `scur`, `slim`). **App/TA**: HAProxy stats CSV scripted input. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nCompare with the API gateway or mesh admin (Kong, Apigee, AWS API Gateway, etc.) and a raw log tail for the same time range.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Line chart (scur vs slim), single value alert..",
-  "grandmaExplanation": "We watch for signs that informs tuning of, kernel limits, and cloud LB pairing."
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: HAProxy stats CSV scripted input.\n• Ensure the following data sources are available: `index=haproxy` `sourcetype=haproxy:stats` (`rate`, `scur`, `slim`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCSV field names must match HAProxy version; confirm `slim` presence.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=haproxy sourcetype=\"haproxy:stats\" type=frontend\n| eval sess_pct=if(slim>0, round(100*scur/slim,1), null())\n| where sess_pct > 85\n| table _time, pxname, scur, slim, sess_pct\n```\n\nUnderstanding this SPL\n\n**HAProxy Frontend Session Rate Versus ulimit** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=haproxy` `sourcetype=haproxy:stats` (`rate`, `scur`, `slim`). **App/TA**: HAProxy stats CSV scripted input. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nCompare with the API gateway or mesh admin (Kong, Apigee, AWS API Gateway, etc.) and a raw log tail for the same time range.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Line chart (scur vs slim), single value alert..\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (HAProxy stats CSV scripted input — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=haproxy:stats into haproxy. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`sess_pct, slim`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch for signs that informs tuning of, kernel limits, and cloud LB pairing.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

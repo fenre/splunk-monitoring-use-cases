@@ -8,11 +8,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=infoblox:dns`, `sourcetype=MSAD:NT6:DNS`",
-  "app": "Splunk_TA_infoblox, Splunk_TA_windows (DNS logs), Pi-hole syslog",
+  "exclusions": "Covers the detection logic documented for 'DNS Query Volume Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_dns_query_volume_trending` (UC-5.6.1), SOC dashboard panel \"Operations — DNS Query Volume Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.6.1 positive (DNS, Query, Volume, Trending): ingest synthetic events into `index=dns` sourcetype='infoblox:dns' where `count` grouped by `entity` satisfies detection threshold for 'DNS Query Volume Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.6.1 negative (Volume Trending): ingest benign `dns` / `infoblox:dns` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'DNS Query Volume Trending'."
+  },
+  "dataSources": "`sourcetype=infoblox:dns`, `sourcetype=MSAD:NT6:DNS` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk_TA_infoblox, Splunk_TA_windows (DNS logs), Pi-hole syslog — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dns sourcetype=\"infoblox:dns\" OR sourcetype=\"MSAD:NT6:DNS\"\n| timechart span=5m count as qps",
-  "description": "DNS query volume trending supports capacity planning and reveals traffic pattern changes.",
-  "value": "DNS and network operations teams track query-per-second trends per resolver, detect anomalous volume spikes from DGA malware or cache flushes, and plan resolver capacity based on true peak demand.",
+  "description": "Identifies Volume Trending anomalies for UC-5.6.1 with window `5m` on `index=dns` sourcetype `infoblox:dns`. Combines `count` by `entity` and compares against configured threshold. Mapped to keywords DNS, Query, Volume, Trending for dashboard routing.",
+  "value": "Alerting on DNS, Query, Volume, Trending through UC-5.6.1 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Forward DNS query logs. For Windows DNS: enable analytical logging. For Infoblox: configure syslog output. Track queries per second over time.",
   "visualization": "Line chart (QPS over time), Single value (current QPS), Table.",
   "cimModels": [
@@ -23,15 +29,42 @@
   "references": [
     {
       "title": "CIM: Network_Resolution",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Resolution"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Resolution",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes can come from DNS cache flushes, authorized security or performance monitoring, or very talky clients; compare against change windows and known scanning tools.",
+  "knownFalsePositives": "1. **Maintenance window on `dns` (UC-5.6.1)** — Planned work for 'DNS Query Volume Trending' shifts `count` over `span=5m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `infoblox:dns`** — Scheduled automation elevates `src` without crossing configured threshold for UC-5.6.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `dns` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `infoblox:dns`** — First 48h baseline for UC-5.6.1 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "infoblox",
     "syslog",
     "windows"
   ],
+  "equipmentModels": [
+    "infoblox_generic",
+    "syslog_generic",
+    "windows_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• DNS query logs flowing into `index=dns` from one or more sources: Infoblox NIOS (`sourcetype=infoblox:dns` via Splunk_TA_infoblox, Splunkbase 2934), Windows DNS Server (`sourcetype=MSAD:NT6:DNS` via Splunk_TA_windows — enable DNS Analytical logging in Event Viewer > Applications and Services Logs > Microsoft > Windows > DNS-Server > Analytical), BIND/named (`sourcetype=named`), or Pi-hole syslog.\n• For Infoblox: configure syslog forwarding from each Grid Member to a Splunk syslog collector or Heavy Forwarder. In NIOS Grid Manager: Grid > Grid Manager > Members > [member] > Logging > Syslog > add log destination. Set facility to local6 or similar, severity to info.\n• For Windows DNS: DNS Analytical logging generates high volume (~500 bytes/query). Estimate: 10,000 queries/sec = ~430 GB/day. Plan index sizing accordingly. Enable via: `wevtutil set-log Microsoft-Windows-DNSServer/Analytical /enabled:true /rt:true /ms:1073741824`.\n• CIM: the Network_Resolution data model normalizes DNS fields: `DNS.query` (domain queried), `DNS.reply_code` (NOERROR, NXDOMAIN, SERVFAIL, etc.), `DNS.src` (client IP), `DNS.dest` (resolver IP), `DNS.query_type` (A, AAAA, MX, PTR, etc.).\n• Baseline: understand your normal query volume patterns — weekday vs. weekend, business hours vs. off-hours. Typical enterprise: 1K-50K queries/sec depending on size.\n\nStep 1 — Configure data collection\nVerify DNS data is arriving:\n```spl\nindex=dns earliest=-15m\n| stats count by sourcetype, host\n```\nEach DNS server/resolver should appear as a `host`. If empty: check syslog forwarding (Infoblox), Windows Event Forwarding, or inputs.conf targeting DNS log files.\n\nVerify key field extraction:\n```spl\nindex=dns earliest=-15m\n| stats count dc(query) as unique_domains dc(src) as unique_clients by sourcetype\n```\n\nStep 2 — Create the search and alert\n\n**Primary search — QPS trending with anomaly bands:**\n```spl\nindex=dns (sourcetype=\"infoblox:dns\" OR sourcetype=\"MSAD:NT6:DNS\" OR sourcetype=\"named\") earliest=-24h\n| bin _time span=5m\n| stats count as queries by _time, host\n| eval qps=round(queries/300, 1)\n| eventstats avg(qps) as avg_qps stdev(qps) as std_qps by host\n| eval upper_band=round(avg_qps + (3 * std_qps), 1)\n| eval anomaly=if(qps > upper_band, \"SPIKE\", \"normal\")\n| sort -_time\n```\n\nUnderstanding this SPL: Calculates queries-per-second (QPS) per resolver in 5-minute windows. The 3-sigma upper band provides a dynamic threshold that adapts to each server's normal pattern. A QPS spike can indicate: DNS cache flush (all clients re-resolve), new application deployment, DGA malware generating random lookups, or DNS amplification attack.\n\n**Per-resolver capacity trending (7-day growth):**\n```spl\nindex=dns (sourcetype=\"infoblox:dns\" OR sourcetype=\"MSAD:NT6:DNS\") earliest=-7d\n| bin _time span=1h\n| stats count as hourly_queries by _time, host\n| timechart span=1h max(hourly_queries) as peak_queries by host\n```\n\n**Top clients driving query volume:**\n```spl\nindex=dns earliest=-1h\n| stats count as queries dc(query) as unique_domains by src\n| sort -queries\n| head 20\n| eval queries_per_sec=round(queries/3600, 1)\n```\n\nUnderstanding this SPL: Identifies the chattiest DNS clients. A single client generating an outsized proportion of queries could be: a misconfigured application (DNS retry storm), malware (DGA beaconing), or a legitimate high-traffic service (reverse proxy, load balancer).\n\nStep 3 — Validate\n(a) Compare QPS with the DNS server's built-in statistics: Infoblox NIOS reporting, Windows DNS Server `dnscmd /statistics`, or BIND `rndc stats`.\n(b) During a known event (DNS cache flush, application deployment), verify the QPS spike appears in the trending data.\n(c) Verify per-resolver data: each DNS server should show independent volume — if one shows zero, its logs are not being forwarded.\n\nStep 4 — Operationalize\nDashboard (\"DNS — Query Volume\"):\n• Row 1 — Single-value tiles: \"Total QPS (all resolvers)\", \"Peak QPS (1h)\", \"Active resolvers\", \"QPS anomalies (24h)\".\n• Row 2 — Timechart: QPS per resolver over 24h with anomaly band overlay.\n• Row 3 — Top clients table: src, queries, unique_domains, queries_per_sec.\n• Row 4 — Week-over-week comparison: peak QPS by resolver.\n\nAlerting:\n• Critical (QPS > 3x normal sustained for 10+ minutes): possible DNS amplification or DGA outbreak — alert security and DNS operations.\n• Warning (QPS > 2x normal for any single resolver): capacity concern — check resolver health.\n• Capacity (7-day peak QPS > 80% of resolver rated capacity): plan infrastructure expansion.\n\nRunbook (owner: DNS/Network Operations):\n1. **QPS spike**: Identify top clients during the spike. If one client dominates, investigate that host. If many clients spike simultaneously, check for DNS cache expiry, application change, or network issue forcing re-resolution.\n2. **Gradual QPS increase**: Normal growth from new users/services. Track against resolver capacity limits and plan scaling.\n\nStep 5 — Troubleshooting\n\n• **Windows DNS Analytical log not generating events** — The Analytical log must be explicitly enabled and is disabled by default. Enable via PowerShell: `Set-DnsServerDiagnostics -All $true` or selectively enable query logging. After enabling, the Splunk TA needs to read from the Windows Event Log channel.\n\n• **Infoblox query logs missing for some members** — Each Grid Member must have syslog forwarding configured individually. Check NIOS: Grid > Member > Logging. If the member sends to a VIP, ensure the VIP routes to the Splunk collector.\n\n• **QPS calculation seems low** — If using `timechart count`, divide by the span in seconds (300 for 5-minute bins) to get true QPS. The search above handles this with `eval qps=round(queries/300, 1)`.",
-  "grandmaExplanation": "We watch for unusual DNS patterns so we notice possible attacks, mistakes, or overloaded resolvers before people feel it as slow apps or failed lookups."
+  "grandmaExplanation": "We watch for unusual DNS patterns so we notice possible attacks, mistakes, or overloaded resolvers before people feel it as slow apps or failed reference lists.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

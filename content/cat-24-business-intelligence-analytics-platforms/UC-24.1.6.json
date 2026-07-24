@@ -9,28 +9,43 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Tableau Backgrounder Queue Backlog' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_tableau_backgrounder_queue_backlog` (UC-24.1.6), SOC dashboard panel \"Operations — Tableau Backgrounder Queue Backlog\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.1.6 positive (Tableau, Backgrounder, Queue, Backlog): ingest synthetic events into `index=bi` sourcetype='tableau:backgrounder' where `sum` grouped by `_time` satisfies `backlog` > 50 for 'Tableau Backgrounder Queue Backlog'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.1.6 negative (Queue Backlog): ingest benign `bi` / `tableau:backgrounder` events where `_time` stays below `backlog` > 50, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Tableau Backgrounder Queue Backlog'."
+  },
   "dataSources": "Tableau Server logs (`tableau:backgrounder`, `tableau:vizqlserver`, `tableau:httpd`), `workgroup` repository tables (`background_jobs`, `http_requests`, `_views_stats`, `licensing`) via DB Connect, Tableau Cloud Admin Insights / Activity Log exports.",
   "app": "Splunk DB Connect (Splunkbase 2686) against the Tableau Server `workgroup` PostgreSQL repository; Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC scripted inputs.",
   "spl": "index=bi sourcetype=tableau:backgrounder\n| bin _time span=15m\n| stats sum(eval(job_status=\"Pending\")) as pending, sum(eval(job_status=\"Running\")) as running by _time\n| eval backlog=pending\n| where backlog>50\n| sort - _time",
-  "description": "Buckets Backgrounder job status over time to reveal when the pending-job queue grows faster than workers can drain it, the leading indicator of missed refresh windows.",
-  "value": "A growing Backgrounder backlog is the earliest sign you need more Backgrounder capacity; catching it prevents cascading refresh delays and late dashboards.",
+  "description": "Alerts on Queue Backlog anomalies for UC-24.1.6 with window `15m` on `index=bi` sourcetype `tableau:backgrounder`. Combines `sum` by `_time` and compares against `backlog` > 50. Mapped to keywords Tableau, Backgrounder, Queue, Backlog for dashboard routing.",
+  "value": "Alerting on Tableau, Backgrounder, Queue, Backlog through UC-24.1.6 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Schedule every 15 minutes; tune the backlog threshold to your worker count. When backlog is chronic, add Backgrounder processes or stagger schedules.",
   "visualization": "Timechart of pending vs running jobs, alert on sustained backlog.",
   "cimModels": [],
   "references": [
     {
       "title": "Tableau Server — View server logs",
-      "url": "https://help.tableau.com/current/server/en-us/logs_server_view.htm"
+      "url": "https://help.tableau.com/current/server/en-us/logs_server_view.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Tableau REST API reference",
-      "url": "https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api.htm"
+      "url": "https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk DB Connect",
-      "url": "https://splunkbase.splunk.com/app/2686"
+      "url": "https://splunkbase.splunk.com/app/2686",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.1.6)** — Planned work for 'Tableau Backgrounder Queue Backlog' shifts `sum` over `span=15m` while `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `tableau:backgrounder`** — Scheduled automation elevates `backlog` without crossing `backlog` > 50 for UC-24.1.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `tableau:backgrounder`** — First 48h baseline for UC-24.1.6 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "db_connect",
@@ -40,5 +55,12 @@
     "apache_httpd",
     "postgresql_pg"
   ],
-  "grandmaExplanation": "We watch the waiting line of Tableau's background jobs so you know when it is getting too long and reports are about to run late."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk DB Connect (Splunkbase 2686) against the Tableau Server `workgroup` PostgreSQL repository; Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC scripted inputs.). Enable the modular input or HEC token that writes sourcetype=tableau:backgrounder into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, backlog`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch the waiting line of Tableau's background jobs so you know when it is getting too long and reports are about to run late.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

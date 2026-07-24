@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=vmstat`",
-  "app": "`Splunk_TA_nix`",
+  "exclusions": "Covers the detection logic documented for 'Swap Thrashing Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_swap_thrashing_detection` (UC-1.1.45), SOC dashboard panel \"Linux — Swap Thrashing Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.45 positive (Swap, Thrashing, Detection): ingest synthetic events into `index=os` sourcetype='vmstat' where `count` grouped by `host` satisfies `si` > 100, `so` > 100, or `count` > 10 for 'Swap Thrashing Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.45 negative (Thrashing Detection): ingest benign `os` / `vmstat` events where `host` stays below `si` > 100, `so` > 100, or `count` > 10, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 10 confirms zero alert rows for 'Swap Thrashing Detection'."
+  },
+  "dataSources": "`sourcetype=vmstat` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=vmstat host=*\n| where si > 100 AND so > 100\n| stats count by host\n| eval swap_thrash=\"YES\"\n| where count > 10",
-  "description": "Swap thrashing causes severe performance degradation and can make systems unresponsive.",
-  "value": "Swap thrashing causes severe performance degradation and can make systems unresponsive.",
+  "description": "Detects UC-1.1.45 — Swap, Thrashing, Detection — using `index=os` sourcetype `vmstat`, grouped by `host`. Outputs `count` each `the scheduled window`; alert when `si` > 100, `so` > 100, or `count` > 10. Primary focus: Thrashing Detection. Purpose-built for 'Swap Thrashing Detection' in Linux workflows.",
+  "value": "For 'Swap Thrashing Detection', UC-1.1.45 converts `activity` on `vmstat` feeds into actionable rows and reduces capacity incidents, patch regressions, and service outages.",
   "implementation": "Monitor vmstat si (swap in) and so (swap out) rates. Alert when both exceed 100 pages/sec simultaneously for 10+ consecutive samples. Include memory pressure metrics and process identification in alert context.",
   "visualization": "Alert, Timechart",
   "cimModels": [
@@ -21,17 +27,38 @@
   "references": [
     {
       "title": "Splunk_TA_nix",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "A short burst of swap activity can start a large process or follow a one-time memory spike. Sustain the pattern or add memory-usage and app context before a critical page.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Swap Thrashing Detection'. Correlate with apt/yum logs in the same `vmstat` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vmstat`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `si` > 100.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix`.\n• Ensure the following data sources are available: `sourcetype=vmstat`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor vmstat si (swap in) and so (swap out) rates. Alert when both exceed 100 pages/sec simultaneously for 10+ consecutive samples. Include memory pressure metrics and process identification in alert context.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=vmstat host=*\n| where si > 100 AND so > 100\n| stats count by host\n| eval swap_thrash=\"YES\"\n| where count > 10\n```\n\nUnderstanding this SPL\n\n**Swap Thrashing Detection** — Swap thrashing causes severe performance degradation and can make systems unresponsive.\n\nDocumented **Data sources**: `sourcetype=vmstat`. **App/TA** (typical add-on context): `Splunk_TA_nix`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: vmstat. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=vmstat. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where si > 100 AND so > 100` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **swap_thrash** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where count > 10` — typically the threshold or rule expression for this monitoring goal.\n\nStep 3 — Validate\nOn the host, compare with `top`, `htop`, `vmstat`, `iostat`, or `sar` as appropriate to this use case. For log-only detections, compare with the relevant file under `/var/log` (or `journalctl`) on a test host. Confirm that indexed event counts and field values line up with what you see on the system and that your role can search the right indexes and fields.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Timechart",
-  "grandmaExplanation": "Swap thrashing causes severe performance degradation and can make systems unresponsive — so you find out before users do when something is slowing down or breaking."
+  "grandmaExplanation": "Swap thrashing causes severe performance degradation and can make systems unresponsive — so you find out before users do when something is slowing down or breaking.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

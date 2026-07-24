@@ -10,11 +10,17 @@
   ],
   "splunkPillar": "Security",
   "industry": "Manufacturing",
+  "exclusions": "Covers the detection logic documented for 'Modbus Device Identification Enumeration (FC 43 / 0x2B)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_modbus_device_identification_enumeration_fc_43_0` (UC-14.6.7), SOC dashboard panel \"Operations — Modbus Device Identification Enumeration (FC 43 / 0x2B)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.6.7 positive (Modbus, Device, Identification, Enumeration, (FC): ingest synthetic events into `index=ot` sourcetype='zeek:modbus_detailed:json' where `targets` grouped by `source_h` satisfies `count` > 20, or `targets` > 5 for 'Modbus Device Identification Enumeration (FC 43 / 0x2B)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.6.7 negative (/ 0x2B)): ingest benign `ot` / `zeek:modbus_detailed:json` events where `source_h` stays below `count` > 20, or `targets` > 5, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Modbus Device Identification Enumeration (FC 43 / 0x2B)'."
+  },
   "dataSources": "`index=ot` `sourcetype=\"zeek:modbus_detailed:json\"` or `sourcetype=\"zeek:modbus_read_device_identification:json\"` (`func`, `mei_type`, `object_id`, `source_h`, `destination_h`)",
   "app": "TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)",
   "spl": "index=ot (sourcetype=\"zeek:modbus_detailed:json\" OR sourcetype=\"zeek:modbus_read_device_identification:json\")\n| where func IN (\"0x2B\",\"43\",\"0x2b\") OR mei_type=\"READ-DEVICE-IDENTIFICATION\" OR isnotnull(object_id)\n| stats count dc(destination_h) as targets by source_h\n| where count>20 OR targets>5\n| sort - count",
-  "description": "Read Device Identification (FC 0x2B) is a common reconnaissance step; bursts from non-inventory hosts often precede targeted attacks or rogue integration attempts.",
-  "value": "Read Device Identification (FC 0x2B) is a common reconnaissance step; bursts from non-inventory hosts often precede targeted attacks or rogue integration attempts.",
+  "description": "Detects when / 0x2B) criteria fire for 'Modbus Device Identification Enumeration (FC 43 / 0x2B)' (UC-14.6.7) in `index=ot` sourcetype `zeek:modbus_detailed:json`. Pipeline aggregates `targets` by `source_h` over `the scheduled window`. Alert logic enforces `count` > 20, or `targets` > 5. Title terms: Modbus, Device, Identification, Enumeration, (FC. Eliminates manual hunting for UC-14.6.7 conditions.",
+  "value": "UC-14.6.7 helps teams contain Modbus, Device, Identification, Enumeration, (FC scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Forward ICSNPP Modbus detailed and read-device-identification logs from OT VLAN taps. Allowlist asset-management scanners; alert on new sources or high fan-out to many slaves in a short window.",
   "visualization": "Bar chart (enumeration events by source), Table (source, target count), Map or table (distinct targets).",
   "cimModels": [
@@ -24,17 +30,38 @@
   "references": [
     {
       "title": "TA for Zeek",
-      "url": "https://splunkbase.splunk.com/app/5466"
+      "url": "https://splunkbase.splunk.com/app/5466",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Corelight App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3884"
+      "url": "https://splunkbase.splunk.com/app/3884",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Device identification requests during asset baselines, spares burn-in, or asset management scans.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-14.6.7)** — Planned work for 'Modbus Device Identification Enumeration (FC 43 / 0x2B)' shifts `targets` over `span=1h` while `source_h` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `zeek:modbus_detailed:json`** — Scheduled automation elevates `src` without crossing `count` > 20 for UC-14.6.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `source_h`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zeek:modbus_detailed:json`** — First 48h baseline for UC-14.6.7 on `source_h` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `source_h`, `exception_reason`, `valid_until`.",
   "equipment": [
     "modbus"
   ],
+  "equipmentModels": [
+    "modbus_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884).\n• Ensure the following data sources are available: `index=ot` `sourcetype=\"zeek:modbus_detailed:json\"` or `sourcetype=\"zeek:modbus_read_device_identification:json\"` (`func`, `mei_type`, `object_id`, `source_h`, `destination_h`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward ICSNPP Modbus detailed and read-device-identification logs from OT VLAN taps. Allowlist asset-management scanners; alert on new sources or high fan-out to many slaves in a short window.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot (sourcetype=\"zeek:modbus_detailed:json\" OR sourcetype=\"zeek:modbus_read_device_identification:json\")\n| where func IN (\"0x2B\",\"43\",\"0x2b\") OR mei_type=\"READ-DEVICE-IDENTIFICATION\" OR isnotnull(object_id)\n| stats count dc(destination_h) as targets by source_h\n| where count>20 OR targets>5\n| sort - count\n```\n\nUnderstanding this SPL\n\n**Modbus Device Identification Enumeration (FC 43 / 0x2B)** — Read Device Identification (FC 0x2B) is a common reconnaissance step; bursts from non-inventory hosts often precede targeted attacks or rogue integration attempts.\n\nDocumented **Data sources**: `index=ot` `sourcetype=\"zeek:modbus_detailed:json\"` or `sourcetype=\"zeek:modbus_read_device_identification:json\"` (`func`, `mei_type`, `object_id`, `source_h`, `destination_h`). **App/TA** (typical add-on context): TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: zeek:modbus_detailed:json, zeek:modbus_read_device_identification:json. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"zeek:modbus_detailed:json\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where func IN (\"0x2B\",\"43\",\"0x2b\") OR mei_type=\"READ-DEVICE-IDENTIFICATION\" OR isnotnull(object_id)` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by source_h** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where count>20 OR targets>5` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nRun the search for a short window and compare key fields with Zeek or Corelight protocol logs on the sensor for the same flow. Reconcile function codes, endpoints, and time order against a small known-good capture if needed.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (enumeration events by source), Table (source, target count), Map or table (distinct targets).",
-  "grandmaExplanation": "We use deep packet inspection to see identification and enumeration on Modbus so asset sweeps and odd scanners show up."
+  "grandmaExplanation": "We use deep packet inspection to see identification and enumeration on Modbus so asset sweeps and odd scanners show up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

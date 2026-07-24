@@ -9,27 +9,57 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "RescueTime activity (`rescuetime:activity`), screen-time exports (`screentime:usage`), GitHub events (`github:personal`), habit-tracker logs (`habit:entry`), calendar exports (`calendar:event`), email metadata (`email:metadata`), password-audit reports (`passwordmanager:audit`).",
-  "app": "Screen-time / RescueTime exports, GitHub personal activity, habit/journal trackers, password-audit exports, and calendar/email feeds via HEC scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Social Media Screen-Time Spillover' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_social_media_screen_time_spillover` (UC-25.13.13), SOC dashboard panel \"Personal — Social Media Screen-Time Spillover\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.13.13 positive (Social, Media, Screen, Time, Spillover): ingest synthetic events into `index=personal` sourcetype='screentime:usage' where `social_minutes` grouped by `_time` satisfies `social_minutes` > 60 for 'Social Media Screen-Time Spillover'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.13.13 negative (Time Spillover): ingest benign `personal` / `screentime:usage` events where `_time` stays below `social_minutes` > 60, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 11 confirms zero alert rows for 'Social Media Screen-Time Spillover'."
+  },
+  "dataSources": "RescueTime activity (`rescuetime:activity`), screen-time exports (`screentime:usage`), GitHub events (`github:personal`), habit-tracker logs (`habit:entry`), calendar exports (`calendar:event`), email metadata (`email:metadata`), password-audit reports (`passwordmanager:audit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Screen-time / RescueTime exports, GitHub personal activity, habit/journal trackers, password-audit exports, and calendar/email feeds via HEC scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=screentime:usage\n| where match(app_name,\"(?i)instagram|tiktok|twitter|x|facebook|reddit\")\n| bin _time span=1d\n| stats sum(minutes) as social_minutes by _time\n| where social_minutes>60\n| sort - social_minutes",
-  "description": "Adds up the daily minutes spent in social apps and flags the days where idle checking clearly expanded into real time consumption.",
-  "value": "A lot of digital drift happens five minutes at a time; turning it into a total helps you decide whether the trade-off felt worth it.",
+  "description": "Monitors UC-25.13.13 — Social, Media, Screen, Time, Spillover — using `index=personal` sourcetype `screentime:usage`, grouped by `_time`. Outputs `social_minutes` each `1d`; alert when `social_minutes` > 60. Primary focus: Time Spillover. Purpose-built for 'Social Media Screen-Time Spillover' in Personal workflows.",
+  "value": "UC-25.13.13 helps teams contain Social, Media, Screen, Time, Spillover scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Forward screen-time exports with app names; review the high-social days and compare them to mood, sleep, or focus metrics if desired.",
   "visualization": "Daily chart of total social-media minutes.",
   "cimModels": [],
   "references": [
     {
       "title": "RescueTime data export",
-      "url": "https://help.rescuetime.com/article/431-manual-offline-time"
+      "url": "https://help.rescuetime.com/article/431-manual-offline-time",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.13.13)** — Connector for 'Social Media Screen-Time Spillover' stops polling `screentime:usage`; stale `social_minutes` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `social_minutes` over `1d` is expected for UC-25.13.13, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `screentime:usage`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `social_minutes` > 60 for 'Social Media Screen-Time Spillover'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "github",
     "security_essentials"
   ],
-  "grandmaExplanation": "It maps when quick social-media checks have turned into more than an hour of the day."
+  "equipmentModels": [
+    "github_generic",
+    "security_essentials_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Digital Life & Productivity — typical feeds: RescueTime activity (`rescuetime:activity`), Apple/Android screen-time exports (`screentime:usage`), GitHub events (`github:personal`), habit-tracker logs (`habit:entry`), calendar/todo exports..\n• **Sourcetypes in this search**: `screentime:usage`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=screentime:usage`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Screen-time / RescueTime exports, GitHub personal activity, habit/journal trackers, and calendar feeds via HEC scripted inputs..\n\n**Author notes:** Forward screen-time exports with app names; review the high-social days and compare them to mood, sleep, or focus metrics if desired.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"screentime:usage\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=screentime:usage earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Social Media Screen-Time Spillover** over `personal` data (primarily `sourcetype=screentime:usage`) across the full search range. It applies numeric thresholds on `social_minutes` (> 60) after sum — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `social_minutes`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=screentime:usage\n| where match(app_name,\"(?i)instagram|tiktok|twitter|x|facebook|reddit\")\n| bin _time span=1d\n| stats sum(minutes) as social_minutes by _time\n| where social_minutes>60\n| sort - social_minutes\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=screentime:usage earliest=-7d\n| head 50\n| table _time, social_minutes\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=screentime:usage earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `social_minutes` before alerting:\n\n```spl\nindex=personal sourcetype=screentime:usage earliest=-30d\n| stats perc50(social_minutes) AS p50 perc90(social_minutes) AS p90 perc99(social_minutes) AS p99 max(social_minutes) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.13.13: Personal evidence` with the following panel layout:\n\n**Panel 1 — Daily Chart Of Total Social-Media Minutes (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `screentime:usage` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=screentime:usage | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It maps when quick social-media checks have turned into more than an hour of the day.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

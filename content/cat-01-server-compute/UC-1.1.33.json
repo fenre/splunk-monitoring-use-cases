@@ -8,11 +8,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=df`",
-  "app": "`Splunk_TA_nix`",
+  "exclusions": "Covers the detection logic documented for 'Inode Exhaustion Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_inode_exhaustion_detection` (UC-1.1.33), SOC dashboard panel \"Linux — Inode Exhaustion Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.33 positive (Inode, Exhaustion, Detection): ingest synthetic events into `index=os` sourcetype='df' where `count` grouped by `host`, `mount_point` satisfies `inode_pct` > 85 for 'Inode Exhaustion Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.33 negative (Exhaustion Detection): ingest benign `os` / `df` events where `host`, `mount_point` stays below `inode_pct` > 85, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 2 confirms zero alert rows for 'Inode Exhaustion Detection'."
+  },
+  "dataSources": "`sourcetype=df` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=df host=*\n| stats latest(inode_usage) as inode_pct by host, mount_point\n| where inode_pct > 85",
-  "description": "Inode exhaustion causes file creation failures even when disk space remains available, stopping applications.",
-  "value": "Inode exhaustion causes file creation failures even when disk space remains available, stopping applications.",
+  "description": "Identifies UC-1.1.33 for Inode, Exhaustion, Detection over `index=os` sourcetype `df` with thresholds `inode_pct` > 85. Groups `count` by `host`, `mount_point` each `the scheduled window`. Centered on Exhaustion Detection indicators. Supports repeatable linux triage for 'Inode Exhaustion Detection'.",
+  "value": "For 'Inode Exhaustion Detection', UC-1.1.33 converts `activity` on `df` feeds into actionable rows and reduces capacity incidents, patch regressions, and service outages.",
   "implementation": "Use Splunk_TA_nix df input which includes inode usage percentages. Create alerts for filesystems exceeding 85% inode usage. Add search to identify which directories consuming excessive inodes to guide cleanup.",
   "visualization": "Table, Gauge",
   "cimModels": [
@@ -21,17 +27,38 @@
   "references": [
     {
       "title": "Splunk_TA_nix",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Many small files can use most inodes while block space is still free. Set thresholds with `df -i` baselines and directory clean-up playbooks, not only block-usage SLOs.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Inode Exhaustion Detection'. Correlate with apt/yum logs in the same `df` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `df`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `inode_pct` > 85.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix`.\n• Ensure the following data sources are available: `sourcetype=df`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nUse Splunk_TA_nix df input which includes inode usage percentages. Create alerts for filesystems exceeding 85% inode usage. Add search to identify which directories consuming excessive inodes to guide cleanup.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=df host=*\n| stats latest(inode_usage) as inode_pct by host, mount_point\n| where inode_pct > 85\n```\n\nUnderstanding this SPL\n\n**Inode Exhaustion Detection** — Inode exhaustion causes file creation failures even when disk space remains available, stopping applications.\n\nDocumented **Data sources**: `sourcetype=df`. **App/TA** (typical add-on context): `Splunk_TA_nix`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: df. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=df. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, mount_point** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where inode_pct > 85` — typically the threshold or rule expression for this monitoring goal.\n\nStep 3 — Validate\nOn the host, compare with `top`, `htop`, `vmstat`, `iostat`, or `sar` as appropriate to this use case. For log-only detections, compare with the relevant file under `/var/log` (or `journalctl`) on a test host. Confirm that indexed event counts and field values line up with what you see on the system and that your role can search the right indexes and fields.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Gauge",
-  "grandmaExplanation": "Inode exhaustion causes file creation failures even when disk space remains available, stopping applications — so you find out before users do when something is slowing down or breaking."
+  "grandmaExplanation": "Inode exhaustion causes file creation failures even when disk space remains available, stopping applications — so you find out before users do when something is slowing down or breaking.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

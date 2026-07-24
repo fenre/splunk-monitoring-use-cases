@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=linux_secure`",
-  "app": "`Splunk_TA_nix`",
+  "exclusions": "Covers the detection logic documented for 'Failed su Attempts' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_failed_su_attempts` (UC-1.1.75), SOC dashboard panel \"Linux — Failed su Attempts\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.75 positive (Failed, Attempts): ingest synthetic events into `index=os` sourcetype='linux_secure' where `count` grouped by `host`, `user` satisfies `failures` > 3 for 'Failed su Attempts'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.75 negative (su Attempts): ingest benign `os` / `linux_secure` events where `host`, `user` stays below `failures` > 3, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 3 confirms zero alert rows for 'Failed su Attempts'."
+  },
+  "dataSources": "`sourcetype=linux_secure` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=linux_secure (\"su:\" AND (\"FAILED\" OR \"authentication failure\"))\n| stats count as failures by host, user\n| where failures>3",
-  "description": "Counts each **(host,user)** line where **su** failed in the time window, then pages when a tuple is above a few failures (credential guessing or a stuck script).",
-  "value": "**su** failures are a tight signal on servers where people should be using **sudo** or **SAML**-backed access instead of direct **su** to **root** or shared break-glass accounts.",
+  "description": "Monitors when su Attempts criteria fire for 'Failed su Attempts' (UC-1.1.75) in `index=os` sourcetype `linux_secure`. Pipeline aggregates `count` by `host`, `user` over `the scheduled window`. Alert logic enforces `failures` > 3. Title terms: Failed, Attempts. Eliminates manual hunting for UC-1.1.75 conditions.",
+  "value": "UC-1.1.75 helps teams contain Failed, Attempts scenarios and reduce capacity incidents, patch regressions, and service outages before incidents compound.",
   "implementation": "Tighten the `OR` to your distro’s exact `su` failure substring. Add `| search user=root OR target=root` if you only want privilege-escalation style **su** attempts, not all failed `su` to a normal user.",
   "visualization": "Table, Alert",
   "cimModels": [
@@ -23,17 +29,38 @@
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Monitoring scripts that intentionally exercise **su** in **cron**; **failures=1** for a person mis-typing once—`>3` already dampens; **user** misparsed from **PAM** lines—**props** work first.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Failed su Attempts'. Correlate with apt/yum logs in the same `linux_secure` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `linux_secure`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `failures` > 3.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
-  "detailedImplementation": "Prerequisites\n• A single sourcetype for all **auth** events so you are not `union`ing three indexes.\n\n**CIM** — `match(Authentication.app,\"su\")` is a best-effort mirror; if your CIM build uses `signature=SU`, re-target that field instead.\n\n\nStep 3 — Validate\n`grep su /var/log/secure` (RHEL) or `auth.log` (Debian) and compare the row count in Search for a window.\n\nStep 4 — Operationalize\nSend straight to the **access** team when the **user** is a shared break-glass account; send to the **app** owner for service accounts with automation bugs.\n\n",
-  "grandmaExplanation": "We help you know when the old “become another user” command keeps failing, which can be someone guessing a password for a powerful account or a script that’s stuck in a loop."
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• A single sourcetype for all **auth** events so you are not `union`ing three indexes.\n\n**CIM** — `match(Authentication.app,\"su\")` is a best-effort mirror; if your CIM build uses `signature=SU`, re-target that field instead.\n\n\nStep 3 — Validate\n`grep su /var/log/secure` (RHEL) or `auth.log` (Debian) and compare the row count in Search for a window.\n\nStep 4 — Operationalize\nSend straight to the **access** team when the **user** is a shared break-glass account; send to the **app** owner for service accounts with automation bugs.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=linux_secure into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`failures, host, user`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you know when the old “become another user” command keeps failing, which can be someone guessing a password for a powerful account or a script that’s stuck in a loop.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

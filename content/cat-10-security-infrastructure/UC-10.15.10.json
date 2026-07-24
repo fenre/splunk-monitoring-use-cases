@@ -9,11 +9,17 @@
     "Anomaly"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Suricata TLS Client JA3 Fingerprints Rare in the Enterprise (Possible Custom Malware C2)' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_suricata_tls_client_ja3_fingerprints_rare_in_the` (UC-10.15.10), SOC dashboard panel \"Security Infra — Suricata TLS Client JA3 Fingerprints Rare in the Enterprise (Possible Custom Malware C2)\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.15.10 positive (Suricata, TLS, Client, JA3, Fingerprints): ingest synthetic events into `index=ids` sourcetype='suricata:tls' where `ja3_src_rarity`, `unique_servers` grouped by `ja3`, `src_ip` satisfies `ja3_src_rarity` <= 5, `handshakes` >= 12, or `unique_servers` >= 6 for 'Suricata TLS Client JA3 Fingerprints Rare in the Enterprise (Possible Custom Malware C2)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.15.10 negative (Malware C2)): ingest benign `ids` / `suricata:tls` events where `ja3`, `src_ip` stays below `ja3_src_rarity` <= 5, `handshakes` >= 12, or `unique_servers` >= 6, or exclude the test entity via `soc_exception_register.csv`. Variant 2 confirms zero alert rows for 'Suricata TLS Client JA3 Fingerprints Rare in the Enterprise (Possible Custom Malware C2)'."
+  },
   "dataSources": "Suricata EVE JSON TLS events, commonly `sourcetype=suricata:tls` when using the Splunk TA for Suricata",
   "app": "Splunk TA for Suricata (Splunkbase 4242)",
   "spl": "index=ids sourcetype=\"suricata:tls\" earliest=-7d\n| eval ja3=coalesce(ja3, ja3_hash, tls_ja3)\n| eval src_ip=coalesce(src_ip, src)\n| eval dest_ip=coalesce(dest_ip, dest)\n| where isnotnull(ja3) AND ja3!=\"\"\n| eventstats dc(src_ip) as ja3_src_rarity by ja3\n| where ja3_src_rarity <= 5\n| stats dc(dest_ip) as unique_servers count as handshakes values(server_name) as sni_samples by src_ip, ja3\n| where handshakes >= 12 AND unique_servers >= 6\n| sort -handshakes",
-  "description": "Most enterprise clients present a small set of JA3 hashes from standard browsers and patch levels. A source IP generating many connections with a rarely seen JA3 while contacting diverse destinations may indicate custom malware, red-team tooling, or outdated TLS stacks being abused.",
-  "value": "Adds behaviour-based coverage on encrypted channels where payload inspection is not available.",
+  "description": "Detects UC-10.15.10 for Suricata, TLS, Client, JA3, Fingerprints over `index=ids` sourcetype `suricata:tls` with thresholds `ja3_src_rarity` <= 5, `handshakes` >= 12, or `unique_servers` >= 6. Groups `ja3_src_rarity`, `unique_servers` by `ja3`, `src_ip` each `the scheduled window`. Centered on Malware C2) indicators. Supports repeatable security infra triage for 'Suricata TLS Client JA3 Fingerprints Rare in the Enterprise (Possible Custom Malware C2)'.",
+  "value": "For 'Suricata TLS Client JA3 Fingerprints Rare in the Enterprise (Possible Custom Malware C2)', UC-10.15.10 converts `ja3_src_rarity`, `unique_servers` on `suricata:tls` feeds into actionable rows and reduces missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Confirm Suricata outputs `tls` events in EVE JSON and that the TA maps them to `suricata:tls`. Tune `ja3_hits` using a 7-day window on your own data. Enrich `src_ip` with DHCP or AD identity. Exclude known vulnerability scanners and patch-management relays via lookup.",
   "visualization": "Table (src_ip, JA3, connection count), Hunt timeline, Pair with `suricata:flow` for byte ratios.",
   "cimModels": [
@@ -23,17 +29,32 @@
   "references": [
     {
       "title": "Splunkbase — TA for Suricata",
-      "url": "https://splunkbase.splunk.com/app/4242"
+      "url": "https://splunkbase.splunk.com/app/4242",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Suricata EVE JSON format",
-      "url": "https://docs.suricata.io/en/latest/output/eve/eve-json-format.html"
+      "url": "https://docs.suricata.io/en/latest/output/eve/eve-json-format.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Rare TLS fingerprint patterns can be custom apps, new browsers, or TLS middleboxes, not just malware — compare to change-managed releases.",
+  "knownFalsePositives": "1. **Maintenance window on `ids` (UC-10.15.10)** — Planned work for 'Suricata TLS Client JA3 Fingerprints Rare in the Enterprise (Possible Custom Malware C2)' shifts `ja3_src_rarity`, `unique_servers` over `span=1h` while `ja3`, `src_ip` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `suricata:tls`** — Scheduled automation elevates `src_ip` without crossing `ja3_src_rarity` <= 5 for UC-10.15.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ja3`, `src_ip`** — Health checks in `ids` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `suricata:tls`** — First 48h baseline for UC-10.15.10 on `ja3` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `ja3`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "suricata"
+  ],
+  "equipmentModels": [
+    "suricata_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -42,6 +63,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We use rare TLS handshakes on the wire to spotlight custom or odd clients that can hide a private channel in normal traffic."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk TA for Suricata (Splunkbase 4242)). Enable the modular input or HEC token that writes sourcetype=suricata:tls into ids. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`handshakes, ja3, ja3_src_rarity, src_ip`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use rare TLS handshakes on the wire to spotlight custom or odd clients that can hide a private channel in normal traffic.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,23 +9,55 @@
     "Business"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "ADS-B aircraft snapshots (`adsb:aircraft`), personal flight logbook (`flight:log`), commute trips (`commute:trip`), transit arrivals (`transit:arrival`), geofence events (`geofence:event`), travel documents (`travel:document`), fare quotes (`airprice:quote`).",
-  "app": "Home ADS-B receiver (dump1090/readsb/tar1090 JSON feed), personal flight logbook exports, commute/transit APIs, and phone geofence webhooks via Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Google Timeline Visit Dwell Minutes Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_google_timeline_visit_dwell_minutes_leaderboard` (UC-25.14.70), SOC dashboard panel \"Personal — Google Timeline Visit Dwell Minutes Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.14.70 positive (Google, Timeline, Visit, Dwell, Minutes): ingest synthetic events into `index=personal` sourcetype='timeline:visit' where `total_value`, `avg_value` grouped by `place_name` satisfies detection threshold for 'Google Timeline Visit Dwell Minutes Leaderboard'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.14.70 negative (Minutes Leaderboard): ingest benign `personal` / `timeline:visit` events where `place_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 8 confirms zero alert rows for 'Google Timeline Visit Dwell Minutes Leaderboard'."
+  },
+  "dataSources": "ADS-B aircraft snapshots (`adsb:aircraft`), personal flight logbook (`flight:log`), commute trips (`commute:trip`), transit arrivals (`transit:arrival`), geofence events (`geofence:event`), travel documents (`travel:document`), fare quotes (`airprice:quote`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Home ADS-B receiver (dump1090/readsb/tar1090 JSON feed), personal flight logbook exports, commute/transit APIs, and phone geofence webhooks via Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=timeline:visit dwell_min=*\n| stats sum(dwell_min) as total_value, avg(dwell_min) as avg_value by place_name\n| sort - total_value",
-  "description": "Ranks place values by total and average dwell minutes across Google Timeline visit events.",
-  "value": "Leaderboards help you see which people, devices, places, or projects dominate the signal.",
+  "description": "Surfaces UC-25.14.70 — Google, Timeline, Visit, Dwell, Minutes — using `index=personal` sourcetype `timeline:visit`, grouped by `place_name`. Outputs `total_value`, `avg_value` each `the scheduled window`; alert when configured threshold. Primary focus: Minutes Leaderboard. Purpose-built for 'Google Timeline Visit Dwell Minutes Leaderboard' in Personal workflows.",
+  "value": "UC-25.14.70 accelerates insight into Minutes Leaderboard ('Google Timeline Visit Dwell Minutes Leaderboard') by tracking `total_value`, `avg_value` on `timeline:visit` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Ingest numeric `dwell_min` values for each Google Timeline visit event and review total and average dwell minutes by place.",
   "visualization": "Table of entities ranked by total dwell minutes.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk ES Content Management",
+      "url": "https://docs.splunk.com/Documentation/ES/latest/Admin/ContentManagement",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It smartly which place shows the biggest dwell minutes numbers in your Google Timeline visit data."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.14.70)** — Connector for 'Google Timeline Visit Dwell Minutes Leaderboard' stops polling `timeline:visit`; stale `total_value`, `avg_value` on `place_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `total_value`, `avg_value` over `1w` is expected for UC-25.14.70, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `timeline:visit`. Dedup with `stats latest(*) by place_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Google Timeline Visit Dwell Minutes Leaderboard'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Travel, Commute & Flight-Spotting — typical feeds: ADS-B aircraft snapshots (`adsb:aircraft`), personal flight logbook (`flight:log`), commute trips (`commute:trip`), transit arrivals (`transit:arrival`), geofence events (`geofence:event`), travel doc.\n• **Sourcetypes in this search**: `timeline:visit`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=timeline:visit`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Home ADS-B receiver (dump1090/readsb/tar1090 JSON feed), personal flight logbook exports, commute/transit APIs, and phone geofence webhooks via Splunk HEC..\n\n**Author notes:** Ingest numeric `dwell_min` values for each Google Timeline visit event and review total and average dwell minutes by place.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"timeline:visit\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=timeline:visit earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Google Timeline Visit Dwell Minutes Leaderboard** over `personal` data (primarily `sourcetype=timeline:visit`) across the full search range. The `sum, avg` aggregation groups by `place_name`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `place_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=timeline:visit dwell_min=*\n| stats sum(dwell_min) as total_value, avg(dwell_min) as avg_value by place_name\n| sort - total_value\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=timeline:visit earliest=-7d\n| head 50\n| table place_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=timeline:visit earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.14.70: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Entities Ranked By Total Dwell Minutes (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `timeline:visit` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=timeline:visit | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It smartly which place shows the biggest dwell minutes numbers in your Google Timeline visit data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

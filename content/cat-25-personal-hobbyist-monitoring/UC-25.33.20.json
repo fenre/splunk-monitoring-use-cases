@@ -9,35 +9,60 @@
     "Resilience"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Alcohol habit events (`habit:alcohol`), caffeine intake (`habit:caffeine`), screen-time sessions (`habit:screen`), and fasting windows (`habit:fasting`).",
-  "app": "Habit-boundary telemetry for Dry January, caffeine cutoffs, screen-before-bed limits, and fasting windows sent to Splunk HEC via apps, shortcuts, and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Alcohol-Free Streak Recovery After Social Events' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_alcohol_free_streak_recovery_after_social_events` (UC-25.33.20), SOC dashboard panel \"Personal — Alcohol-Free Streak Recovery After Social Events\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.33.20 positive (Alcohol, Free, Streak, Recovery, After): ingest synthetic events into `index=personal` sourcetype='habit:alcohol' where `avg_recovery_days` grouped by `event_name` satisfies detection threshold for 'Alcohol-Free Streak Recovery After Social Events'. Validate filter `recovery_days=*`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.33.20 negative (Social Events): ingest benign `personal` / `habit:alcohol` events where `event_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 12 confirms zero alert rows for 'Alcohol-Free Streak Recovery After Social Events'."
+  },
+  "dataSources": "Alcohol habit events (`habit:alcohol`), caffeine intake (`habit:caffeine`), screen-time sessions (`habit:screen`), and fasting windows (`habit:fasting`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Habit-boundary telemetry for Dry January, caffeine cutoffs, screen-before-bed limits, and fasting windows sent to Splunk HEC via apps, shortcuts, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=habit:alcohol\n| search recovery_days=*\n| stats avg(recovery_days) as avg_recovery_days perc90(recovery_days) as p90_recovery_days count as samples by event_name\n| sort 0 - avg_recovery_days",
-  "description": "Measures alcohol-free streak recovery by social event.",
-  "value": "Recovery time after a social event shows whether one slip is staying isolated or dragging into a longer slide.",
+  "description": "Surfaces UC-25.33.20 — Alcohol, Free, Streak, Recovery, After — using `index=personal` sourcetype `habit:alcohol`, grouped by `event_name`. Outputs `avg_recovery_days` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `recovery_days=*`. Purpose-built for 'Alcohol-Free Streak Recovery After Social Events' in Personal workflows.",
+  "value": "Tracking `avg_recovery_days` via UC-25.33.20 on `habit:alcohol` feeds improves response to 'Alcohol-Free Streak Recovery After Social Events' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Send the relevant duration field for alcohol-free streak recovery to `index=personal` and review both average and p90 latency instead of relying on single examples.",
   "visualization": "Table of average and p90 alcohol-free streak recovery.",
   "cimModels": [],
   "references": [
     {
       "title": "Drinkaware",
-      "url": "https://www.drinkaware.co.uk/"
+      "url": "https://www.drinkaware.co.uk/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Apple Screen Time",
-      "url": "https://support.apple.com/guide/iphone/get-started-with-screen-time-iphbfa595995/ios"
+      "url": "https://support.apple.com/guide/iphone/get-started-with-screen-time-iphbfa595995/ios",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ZERO fasting",
-      "url": "https://www.zerofasting.com/"
+      "url": "https://www.zerofasting.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Oura",
-      "url": "https://oura.com/"
+      "url": "https://oura.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It highlights how long alcohol-free streak recovery usually takes, so slowdowns are obvious instead of anecdotal."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.33.20)** — Connector for 'Alcohol-Free Streak Recovery After Social Events' stops polling `habit:alcohol`; stale `avg_recovery_days` on `event_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_recovery_days` over `1w` is expected for UC-25.33.20, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `habit:alcohol`. Dedup with `stats latest(*) by event_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Alcohol-Free Streak Recovery After Social Events'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Everyday Habits & Vices — typical feeds: Alcohol drinks (`alcohol:drink`), vice logs (`vice:log`), hydration intake (`hydration:intake`), swear-jar entries (`swearjar:entry`)..\n• **Sourcetypes in this search**: `habit:alcohol`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=habit:alcohol`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Habit and sobriety trackers, alcohol-unit and hydration logs, vaping/smoking cessation apps, and a smart swear jar — sent to Splunk HEC via scripted inputs and MQTT..\n\n**Author notes:** Send the relevant duration field for alcohol-free streak recovery to `index=personal` and review both average and p90 latency instead of relying on single examples.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"habit:alcohol\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=habit:alcohol earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Alcohol-Free Streak Recovery After Social Events** over `personal` data (primarily `sourcetype=habit:alcohol`) across the full search range. The `avg, perc90` aggregation groups by `event_name`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `event_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=habit:alcohol\n| search recovery_days=*\n| stats avg(recovery_days) as avg_recovery_days perc90(recovery_days) as p90_recovery_days count as samples by event_name\n| sort 0 - avg_recovery_days\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=habit:alcohol earliest=-7d\n| head 50\n| table event_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=habit:alcohol earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.33.20: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Average And P90 Alcohol-Free Streak Recovery (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `habit:alcohol` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=habit:alcohol | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It highlights how long alcohol-free streak recovery usually takes, so slowdowns are obvious instead of anecdotal.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

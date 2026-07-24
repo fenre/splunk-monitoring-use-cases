@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Add MAB to a CDE SSID. UC-22.11.107 captures evidence within 1 day.",
-    "negativeScenario": "All CDE SSIDs use 802.1X with strong EAP. Empty result; control attested."
+    "positiveScenario": "UC-22.11.107 positive (PCI, DSS, v4.0, 4.2.1, Strong): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `count` grouped by `ssid`, `AuthenticationMethod` satisfies -1d for 'PCI DSS v4.0 4.2.1 — Strong Wireless Authentication Mode Evidence (Cisco ISE)'. Validate lookup `pci_cde_ssid_inventory.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.11.107 negative ((Cisco ISE)): ingest benign `nac` / `cisco:ise:syslog` events where `ssid`, `AuthenticationMethod` stays below -1d, or exclude the test entity via `compliance_exception_register.csv`. Variant 7 confirms zero alert rows for 'PCI DSS v4.0 4.2.1 — Strong Wireless Authentication Mode Evidence (Cisco ISE)'."
   },
-  "dataSources": "`index=nac sourcetype=cisco:ise:syslog` *Authentication* category. Cross-reference UC-17.1.74. CDE SSID list is maintained in `pci_cde_ssid_inventory.csv`.",
-  "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915).",
+  "dataSources": "`index=nac sourcetype=cisco:ise:syslog` *Authentication* category. Cross-reference UC-17.1.74. CDE SSID list is maintained in `pci_cde_ssid_inventory.csv`. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915). (Splunkbase) — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode=5200 earliest=-1d\n| lookup pci_cde_ssid_inventory.csv ssid OUTPUT pci_cde_relevant\n| where pci_cde_relevant=\"yes\"\n| stats count by ssid, AuthenticationMethod\n| where AuthenticationMethod IN (\"PSK\", \"iPSK\", \"MAB\", \"EAP-MD5\", \"LEAP\")\n| eval pcidss_clause=\"4.2.1\", control=\"Strong_Wireless_Auth\"\n| collect index=audit_evidence",
-  "description": "We continuously evidence PCI DSS v4.0 4.2.1 — strong wireless authentication for CDE-relevant SSIDs.",
-  "value": "PCI auditors require evidence that wireless networks touching the CDE use strong authentication. This UC's daily attestation (and zero-result steady state) is the audit-quality artefact.",
+  "description": "Identifies UC-22.11.107 — PCI, DSS, v4.0, 4.2.1, Strong — using `index=nac` sourcetype `cisco:ise:syslog`, grouped by `ssid`, `AuthenticationMethod`. Outputs `count` each `the scheduled window`; alert when -1d. Filter chain includes lookup `pci_cde_ssid_inventory.csv`. Purpose-built for 'PCI DSS v4.0 4.2.1 — Strong Wireless Authentication Mode Evidence (Cisco ISE)' in Compliance workflows.",
+  "value": "UC-22.11.107 operationalises 'PCI DSS v4.0 4.2.1 — Strong Wireless Authentication Mode Evidence (Cisco ISE)' against `cisco:ise:syslog` feeds so operators reduce audit findings, regulatory gaps, and attestation delays without manual correlation.",
   "implementation": "Daily. Maintain `pci_cde_ssid_inventory.csv` with cardholder-data SSIDs.",
   "visualization": "PCI 4.2.1 panel: per-SSID auth-mode trend; weak-auth incident table.",
   "cimModels": [
@@ -43,14 +43,26 @@
   "references": [
     {
       "title": "PCI DSS v4.0",
-      "url": "https://www.pcisecuritystandards.org/document_library/"
+      "url": "https://www.pcisecuritystandards.org/document_library/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "UC-17.1.74 — ISE iPSK / MAB / 802.1X Mode Distribution",
-      "url": "../cat-17-network-security-zero-trust/UC-17.1.74.json"
+      "url": "../cat-17-network-security-zero-trust/UC-17.1.74.json",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "NIST Cybersecurity Framework",
+      "url": "https://www.nist.gov/cyberframework",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "ISO/IEC 27001 Information Security",
+      "url": "https://www.iso.org/standard/27001",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. Approved PSK SSIDs that only carry guest traffic and are formally documented as out-of-CDE — exclude via `pci_cde_ssid_inventory.csv` with `pci_cde_relevant=no`.",
+  "knownFalsePositives": "1. **Authorised PCI DSS control testing** — Internal audit exercises 'PCI DSS v4.0 4.2.1 — Strong Wireless Authentication Mode Evidence (Cisco ISE)' (UC-22.11.107) on `ssid` during scheduled clause 4.2.1 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=nac` `cisco:ise:syslog` without crossing evidence threshold. Cross-check engagement letter in `pci_dss_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `nac` for `ssid`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `ssid` during normal service delivery.\n\n**Suppression mechanism:** `pci_dss_exception_register.csv` keyed on `ssid`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "requiredFields": [
     "_time",
     "ssid",
@@ -72,6 +84,8 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.74 operational.\n- `pci_cde_ssid_inventory.csv` maintained with PCI scope review.\n- `audit_evidence` index with 1y+ retention.\n\n## Step 1 — Data\n\nVia ISE add-on plus `pci_cde_ssid_inventory.csv` (manually maintained).\n\n## Step 2 — Implementation\n\n```ini\n[UC-22.11.107: PCI 4.2.1 — Strong Wireless Auth Evidence]\ncron_schedule = 0 6 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.11.107,reg=PCIDSS,clause=4.2.1\n```\n\n## Step 3 — Validate\n\nAdd a CDE SSID with PSK enabled in test, confirm 22.11.107 captures evidence.\n\n## Step 4 — Operationalize\n\nDashboard panel 'PCI 4.2.1: CDE Wireless Auth Compliance'. Steady state should be zero rows.\n\n## Step 5 — Audit\n\nQuarterly evidence pack for PCI QSA review.",
-  "grandmaExplanation": "We continuously evidence PCI DSS v4.0 4.2.1 — strong wireless authentication for CDE-relevant SSIDs. That is important for the audit, where proof needs to line up with what the rules expect."
+  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.74 operational.\n- `pci_cde_ssid_inventory.csv` maintained with PCI scope review.\n- `audit_evidence` index with 1y+ retention.\n\n## Step 1 — Data\n\nVia ISE add-on plus `pci_cde_ssid_inventory.csv` (manually maintained).\n\n## Step 2 — Implementation\n\n```ini\n[UC-22.11.107: PCI 4.2.1 — Strong Wireless Auth Evidence]\ncron_schedule = 0 6 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.11.107,reg=PCIDSS,clause=4.2.1\n```\n\n## Step 3 — Validate\n\nAdd a CDE SSID with PSK enabled in test, confirm 22.11.107 captures evidence.\n\n## Step 4 — Operationalize\n\nDashboard panel 'PCI 4.2.1: CDE Wireless Auth Compliance'. Steady state should be zero rows.\n\n## Step 5 — Audit\n\nQuarterly evidence pack for PCI QSA review.\n\n**Ecosystem integration:** Forward compliance detections to Splunk SOAR for automated incident triage and escalation playbooks. Enrich events with asset context from ServiceNow CMDB. Cross-reference with CrowdStrike Falcon or Microsoft Defender for Endpoint for host forensics and threat detection context. Integrate Okta or Azure AD identity context to determine if the acting user had appropriate authorisation. Feed validated findings into the GRC platform (e.g., RSA Archer, ServiceNow GRC, or AuditBoard) for regulatory compliance tracking and audit evidence management.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915). (Splunkbase) — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac, audit_evidence. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`AuthenticationMethod, pci_cde_relevant, ssid`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We continuously evidence PCI DSS v4.0 4.2.1 — strong wireless authentication for CDE-relevant SSIDs. That is important for the audit, where proof needs to line up with what the rules expect.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

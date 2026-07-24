@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Akamai Guardicore Deception and Honeypot Connection Events' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_akamai_guardicore_deception_and_honeypot_connect` (UC-17.2.24), SOC dashboard panel \"Network — Akamai Guardicore Deception and Honeypot Connection Events\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.2.24 positive (Akamai, Guardicore, Deception, and, Honeypot): ingest synthetic events into `index=microseg` sourcetype='guardicore:network' where `count` grouped by `src_asset`, `dst_asset`, `dst_port`, `process_name` satisfies `count` >= 1 for 'Akamai Guardicore Deception and Honeypot Connection Events'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.2.24 negative (Connection Events): ingest benign `microseg` / `guardicore:network` events where `src_asset`, `dst_asset`, `dst_port`, `process_name` stays below `count` >= 1, or exclude the test entity via `network_exception_register.csv`. Variant 12 confirms zero alert rows for 'Akamai Guardicore Deception and Honeypot Connection Events'."
+  },
   "dataSources": "Guardicore deception and network flow events via add-on, commonly `sourcetype=guardicore:network` with deception asset labels",
   "app": "Akamai Guardicore Add-on for Splunk (Splunkbase 7426)",
   "spl": "index=microseg sourcetype=\"guardicore:network\" earliest=-7d\n| eval is_decoy=if(match(lower(coalesce(asset_labels, dst_labels, tags)),\"(?i)decoy|honeypot|deception\"),1,0)\n| where is_decoy=1\n| stats count by src_asset, dst_asset, dst_port, process_name\n| where count>=1\n| sort -count",
-  "description": "Any connection that touches a Guardicore deception asset is high fidelity: legitimate applications should never address those addresses or processes. Monitoring these flows surfaces lateral movement and internal scanning faster than statistical baselines on production workloads alone.",
-  "value": "Security teams detect connections to deception assets from the network flow perspective, providing an additional detection layer for lateral movement and active intrusion attempts with near-zero false positives.",
+  "description": "Detects UC-17.2.24 — Akamai, Guardicore, Deception, and, Honeypot — using `index=microseg` sourcetype `guardicore:network`, grouped by `src_asset`, `dst_asset`, `dst_port`, `process_name`. Outputs `count` each `the scheduled window`; alert when `count` >= 1. Primary focus: Connection Events. Purpose-built for 'Akamai Guardicore Deception and Honeypot Connection Events' in Network workflows.",
+  "value": "Tracking `activity` via UC-17.2.24 on `guardicore:network` feeds improves response to 'Akamai Guardicore Deception and Honeypot Connection Events' and reduces unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Ensure deception nodes are labeled consistently in Centra and that those labels flow into Splunk via the add-on. If `asset_labels` is not extracted, map from a lookup of deception IP ranges. Integrate alerts directly with IR playbooks; treat every hit as priority triage until disproven.",
   "visualization": "Table (source asset, decoy target, port), Timeline, Link graph (Reveal-style export if available).",
   "cimModels": [],
@@ -21,18 +27,34 @@
   "references": [
     {
       "title": "Splunkbase — Akamai Guardicore Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/7426"
+      "url": "https://splunkbase.splunk.com/app/7426",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Akamai Guardicore documentation",
-      "url": "https://www.akamai.com/products/akamai-guardicore-segmentation"
+      "url": "https://www.akamai.com/products/akamai-guardicore-segmentation",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Microseg blocks from new app deployments, missing exception rules, or planned segmentation rollouts.",
+  "knownFalsePositives": "1. **Maintenance window on `microseg` (UC-17.2.24)** — Planned work for 'Akamai Guardicore Deception and Honeypot Connection Events' shifts `count` over `span=1h` while `src_asset`, `dst_asset`, `dst_port`, `process_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `guardicore:network`** — Scheduled automation elevates `dst_asset` without crossing `count` >= 1 for UC-17.2.24. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src_asset`, `dst_asset`, `dst_port`, `process_name`** — Health checks in `microseg` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `guardicore:network`** — First 48h baseline for UC-17.2.24 on `src_asset` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `src_asset`, `exception_reason`, `valid_until`.",
   "securityDomain": "threat",
   "equipment": [
     "guardicore",
     "m365"
+  ],
+  "equipmentModels": [
+    "guardicore_generic",
+    "m365_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,6 +63,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Akamai Guardicore Add-on for Splunk (Splunkbase 7426) v3.x. Data in `index=microseg` with `sourcetype=guardicore:network`.\n• Guardicore Centra with the Deception module licensed and decoy assets deployed.\n• Key fields: `asset_labels`, `dst_labels`, `tags`, `src_ip`, `dst_ip`, `dst_port`, `process_name`.\n• This UC detects connections to deception assets from any network segment, complementing the dedicated deception UC (17.6.3) with a focus on flow-level detection from the network log perspective.\n\nStep 1 — Configure data collection\nVerify decoy-tagged events:\n```spl\nindex=microseg sourcetype=\"guardicore:network\" earliest=-7d\n| eval is_decoy=if(match(lower(coalesce(asset_labels, dst_labels, tags)), \"decoy|honeypot|deception\"), 1, 0)\n| where is_decoy=1\n| stats count by src_ip, dst_ip\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Honeypot connection events:\n```spl\nindex=microseg sourcetype=\"guardicore:network\" earliest=-7d\n| eval is_decoy=if(match(lower(coalesce(asset_labels, dst_labels, tags)), \"decoy|honeypot|deception\"), 1, 0)\n| where is_decoy=1\n| stats count as connections dc(dst_port) as unique_ports values(dst_port) as ports values(process_name) as processes earliest(_time) as first latest(_time) as last by src_ip, dst_ip\n| eval duration_hours=round((last - first)/3600, 1)\n| eval severity=case(match(mvjoin(processes, \",\"), \"(?i)ssh|rdp|smb\"), \"HIGH\", unique_ports>3, \"HIGH\", connections>10, \"MEDIUM\", 1==1, \"LOW\")\n| sort - severity, - connections\n```\n\nUnderstanding this SPL: Detects any network flow to a decoy-tagged asset using the Guardicore label system. Every connection to a decoy is suspicious. SSH, RDP, or SMB connections are high-severity because they indicate the attacker is trying to log in or access file shares on what they think is a real server. Multiple ports from the same source suggest port scanning.\n\nStep 3 — Validate\n(a) In Centra: Deception > Interactions. Cross-reference.\n(b) Test: connect to a decoy IP from a non-production host.\n\nStep 4 — Operationalize\nDashboard: Row 1 — \"Deception hits (7d)\". Row 2 — Table: source IP, destination (decoy), ports, severity.\nAlert: Real-time for any deception connection.\n\nRunbook:\n1. **Any deception hit** — Investigate the source IP. It is likely compromised.\n2. **SSH/RDP to decoy** — Active intrusion attempt. Isolate source immediately.\n\nStep 5 — Troubleshooting\n• **Label field names vary** — Check your TA version. Older versions use `labels`, newer use `asset_labels`.\n• **No decoy events** — Decoys may not be deployed. Check Centra > Deception.",
-  "grandmaExplanation": "We set up fake computers on our network, and any time a real computer tries to connect to one, we know something suspicious is happening because legitimate systems never need to talk to decoys."
+  "detailedImplementation": "Prerequisites\n• Akamai Guardicore Add-on for Splunk (Splunkbase 7426) v3.x. Data in `index=microseg` with `sourcetype=guardicore:network`.\n• Guardicore Centra with the Deception module licensed and decoy assets deployed.\n• Key fields: `asset_labels`, `dst_labels`, `tags`, `src_ip`, `dst_ip`, `dst_port`, `process_name`.\n• This UC detects connections to deception assets from any network segment, complementing the dedicated deception UC (17.6.3) with a focus on flow-level detection from the network log perspective.\n\nStep 1 — Configure data collection\nVerify decoy-tagged events:\n```spl\nindex=microseg sourcetype=\"guardicore:network\" earliest=-7d\n| eval is_decoy=if(match(lower(coalesce(asset_labels, dst_labels, tags)), \"decoy|honeypot|deception\"), 1, 0)\n| where is_decoy=1\n| stats count by src_ip, dst_ip\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Honeypot connection events:\n```spl\nindex=microseg sourcetype=\"guardicore:network\" earliest=-7d\n| eval is_decoy=if(match(lower(coalesce(asset_labels, dst_labels, tags)), \"decoy|honeypot|deception\"), 1, 0)\n| where is_decoy=1\n| stats count as connections dc(dst_port) as unique_ports values(dst_port) as ports values(process_name) as processes earliest(_time) as first latest(_time) as last by src_ip, dst_ip\n| eval duration_hours=round((last - first)/3600, 1)\n| eval severity=case(match(mvjoin(processes, \",\"), \"(?i)ssh|rdp|smb\"), \"HIGH\", unique_ports>3, \"HIGH\", connections>10, \"MEDIUM\", 1==1, \"LOW\")\n| sort - severity, - connections\n```\n\nUnderstanding this SPL: Detects any network flow to a decoy-tagged asset using the Guardicore label system. Every connection to a decoy is suspicious. SSH, RDP, or SMB connections are high-severity because they indicate the attacker is trying to log in or access file shares on what they think is a real server. Multiple ports from the same source suggest port scanning.\n\nStep 3 — Validate\n(a) In Centra: Deception > Interactions. Cross-reference.\n(b) Test: connect to a decoy IP from a non-production host.\n\nStep 4 — Operationalize\nDashboard: Row 1 — \"Deception hits (7d)\". Row 2 — Table: source IP, destination (decoy), ports, severity.\nAlert: Real-time for any deception connection.\n\nRunbook:\n1. **Any deception hit** — Investigate the source IP. It is likely compromised.\n2. **SSH/RDP to decoy** — Active intrusion attempt. Isolate source immediately.\n\nStep 5 — Troubleshooting\n• **Label field names vary** — Check your TA version. Older versions use `labels`, newer use `asset_labels`.\n• **No decoy events** — Decoys may not be deployed. Check Centra > Deception.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Akamai Guardicore Add-on for Splunk (Splunkbase 7426)). Enable the modular input or HEC token that writes sourcetype=guardicore:network into microseg. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`dst_asset, dst_port, is_decoy, process_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We set up fake computers on our network, and any time a real computer tries to connect to one, we know something suspicious is happening because legitimate systems never need to talk to decoys.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

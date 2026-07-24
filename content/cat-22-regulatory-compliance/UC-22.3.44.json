@@ -57,17 +57,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Injecting a synthetic major_incident with detected_at=-25h and no classified_at sets SLA_breached=1 on the next 5-min cycle.",
-    "negativeScenario": "A major incident with detect→classify in 4h, classify→initial in 10h, initial→intermediate in 30h, intermediate→final in 15d returns SLA_breached=0.",
-    "fixtureRef": "",
-    "attackTechnique": "T1090",
-    "fixtureStatus": "pending"
+    "positiveScenario": "UC-22.3.44 positive (DORA, Art.17, ICT, incident, classification): ingest synthetic events into `index=soar` sourcetype='target_sourcetype' where `detected_at`, `classified_at`, `notified_at` grouped by `incident_id` satisfies `detect_to_classify_h` > 24, `classify_to_initial_h` > 24, `initial_to_inter_h` > 72, or `inter_to_final_h` > 720 for 'DORA Art.17 — ICT incident classification timeliness: major-incident clock evidence'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.3.44 negative (clock evidence): ingest benign `soar` / `target_sourcetype` events where `incident_id` stays below `detect_to_classify_h` > 24, `classify_to_initial_h` > 24, `initial_to_inter_h` > 72, or `inter_to_final_h` > 720, or exclude the test entity via `compliance_exception_register.csv`. Variant 15 confirms zero alert rows for 'DORA Art.17 — ICT incident classification timeliness: major-incident clock evidence'."
   },
   "dataSources": "`index=soar` sourcetype=servicenow:sir_incident OR sourcetype=phantom:incident; `index=ticketing` sourcetype=jira:issue (IR project); regulator notification log `index=compliance` sourcetype=dora:notification. (Splunkbase 1621 — Splunk CIM Add-on)",
   "app": "Splunk SOAR, Splunk Add-on for ServiceNow",
   "spl": "index=soar sourcetype IN (servicenow:sir_incident,phantom:incident) tag::major_incident=true earliest=-1d\n| stats min(detected_at) AS detected_at min(classified_at) AS classified_at min(notified_at) AS notified_at min(intermediate_at) AS intermediate_at min(final_at) AS final_at BY incident_id\n| eval detect_to_classify_h=round((classified_at-detected_at)/3600,2)\n| eval classify_to_initial_h=round((notified_at-classified_at)/3600,2)\n| eval initial_to_inter_h=round((intermediate_at-notified_at)/3600,2)\n| eval inter_to_final_h=round((final_at-intermediate_at)/3600,2)\n| eval SLA_breached=if(detect_to_classify_h>24 OR classify_to_initial_h>24 OR initial_to_inter_h>72 OR inter_to_final_h>720,1,0)\n| table incident_id detected_at classified_at notified_at intermediate_at final_at detect_to_classify_h classify_to_initial_h initial_to_inter_h inter_to_final_h SLA_breached",
-  "description": "Measures, per major ICT incident, the elapsed time between detection, classification, initial notification, intermediate notification, and final report. Any SLA breach against the DORA Art.17 + ESA RTS timeline (24h initial / 72h intermediate / 30d final) sets SLA_breached=1 and triggers a finding.",
-  "value": "Supervisors under DORA request the per-incident clock evidence. This UC produces it automatically, so the entity can prove the notification workflow was operated within the required windows or identify the exact root cause of a miss.",
+  "description": "Surfaces UC-22.3.44 — DORA, Art.17, ICT, incident, classification — using `index=soar` sourcetype `configured sourcetype`, grouped by `incident_id`. Outputs `detected_at`, `classified_at`, `notified_at` each `the scheduled window`; alert when `detect_to_classify_h` > 24, `classify_to_initial_h` > 24, `initial_to_inter_h` > 72, or `inter_to_final_h` > 720. Primary focus: clock evidence. Purpose-built for 'DORA Art.17 — ICT incident classification timeliness: major-incident clock evidence' in Compliance workflows.",
+  "value": "UC-22.3.44 operationalises 'DORA Art.17 — ICT incident classification timeliness: major-incident clock evidence' against UC-22.3.44 search results so operators reduce audit findings, regulatory gaps, and attestation delays without manual correlation.",
   "implementation": "(1) Normalise detected_at/classified_at/notified_at/intermediate_at/final_at in the IR tool; (2) tag major incidents at classification; (3) schedule UC every 5m; (4) SLA_breached=1 escalates to CISO + Head of IR; (5) monthly roll-up to Board; (6) annual tabletop exercise validates clock fidelity. Indexes required: `index=compliance`, `index=soar`, `index=ticketing`; Sourcetypes: `sourcetype=dora:notification.`, `sourcetype=jira:issue`, `sourcetype=phantom:incident`, `sourcetype=phantom:incident;`.",
   "visualization": "Per-incident Gantt of phase durations, timechart of breaches per quarter, single value 'open incidents at risk of SLA breach in next 4h'. Key fields: `SLA_breached`, `classified_at`, `classify_to_initial_h`, `detect_to_classify_h`, `detected_at`, `final_at`.",
   "cimModels": [],
@@ -85,7 +82,7 @@
       "url": "https://splunkbase.splunk.com/app/263"
     }
   ],
-  "knownFalsePositives": "1. **Classification refinement period** — Initial classification using available criteria at discovery may require adjustment as impact assessment data becomes available over hours/days.\n\n2. **Aggregation period for client impact** — Determining whether client impact meets the 10% threshold requires data collection that extends beyond initial detection.\n\n3. **Cross-system impact correlation** — Determining geographic spread and interconnected service impact requires correlation across monitoring systems that takes processing time.\n\n4. **Economic impact estimation** — Accurate economic impact assessment for Art.18(1)(b) requires business input that extends beyond the technical classification timeline.\n\n5. **Weekend/holiday classification capacity** — Reduced staff availability outside business hours may extend classification timelines within documented escalation procedures.\n\n**Operational suppression:** Maintain a lookup table (`dora_approved_exceptions.csv`) mapping known legitimate activities by process owner, approval reference, and expiry date. Filter the SPL results against this lookup to suppress documented exceptions and reduce alert fatigue. Review and rotate entries quarterly per the ICT risk management framework review cycle.",
+  "knownFalsePositives": "1. **Authorised DORA control testing** — Internal audit exercises 'DORA Art.17 — ICT incident classification timeliness: major-incident clock evidence' (UC-22.3.44) on `incident_id` during scheduled clause Art.17 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=soar` `configured sourcetype` without crossing `detect_to_classify_h` > 24. Cross-check engagement letter in `dora_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `soar` for `incident_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `incident_id` during normal service delivery.\n\n**Suppression mechanism:** `dora_exception_register.csv` keyed on `incident_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1090"
   ],
@@ -101,6 +98,10 @@
   "equipment": [
     "jira",
     "servicenow"
+  ],
+  "equipmentModels": [
+    "jira_generic",
+    "servicenow_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-16",

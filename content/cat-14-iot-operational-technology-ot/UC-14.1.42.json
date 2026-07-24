@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=bms:fire`",
-  "app": "Fire alarm panel integration via syslog, serial gateway, or Notifier/Edwards/Simplex API",
+  "exclusions": "Covers the detection logic documented for 'Fire Alarm Panel Zone Health and Event Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_fire_alarm_panel_zone_health_and_event_monitorin` (UC-14.1.42), SOC dashboard panel \"Operations — Fire Alarm Panel Zone Health and Event Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.1.42 positive (Fire, Alarm, Panel, Zone, Health): ingest synthetic events into `index=building` sourcetype='bms:fire' where `zones_affected` grouped by `panel_id`, `building`, `_time` satisfies detection threshold for 'Fire Alarm Panel Zone Health and Event Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.1.42 negative (Event Monitoring): ingest benign `building` / `bms:fire` events where `panel_id`, `building`, `_time` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Fire Alarm Panel Zone Health and Event Monitoring'."
+  },
+  "dataSources": "`sourcetype=bms:fire` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Fire alarm panel integration via syslog, serial gateway, or Notifier/Edwards/Simplex API — Universal Forwarder (Splunkbase 617)",
   "spl": "index=building sourcetype=\"bms:fire\" event_type IN (\"trouble\", \"alarm\", \"supervisory\")\n| bin _time span=1h\n| stats count as events, dc(zone) as zones_affected, values(event_type) as event_types, latest(description) as latest_event by panel_id, building, _time\n| eval severity=case(\n    mvfind(event_types, \"alarm\")>=0, \"ALARM\",\n    mvfind(event_types, \"supervisory\")>=0, \"Supervisory\",\n    mvfind(event_types, \"trouble\")>=0, \"Trouble\")\n| table _time, building, panel_id, severity, zones_affected, events, latest_event\n| sort -severity, -events",
-  "description": "Fire alarm panel trouble conditions (ground faults, open circuits, dirty detectors) must be resolved promptly to maintain life safety protection. Centralizing fire panel events enables multi-building oversight and faster trouble resolution.",
-  "value": "Fire alarm panel trouble conditions (ground faults, open circuits, dirty detectors) must be resolved promptly to maintain life safety protection. Centralizing fire panel events enables multi-building oversight and faster trouble resolution.",
+  "description": "Detects UC-14.1.42 — Fire, Alarm, Panel, Zone, Health — using `index=building` sourcetype `bms:fire`, grouped by `panel_id`, `building`, `_time`. Outputs `zones_affected` each `1h`; alert when configured threshold. Primary focus: Event Monitoring. Purpose-built for 'Fire Alarm Panel Zone Health and Event Monitoring' in Operations workflows.",
+  "value": "UC-14.1.42 helps teams contain Fire, Alarm, Panel, Zone, Health scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Connect fire alarm panels via syslog receiver or serial-to-IP converter. Normalize events into alarm, trouble, and supervisory categories. Alert on any alarm immediately. Track trouble conditions for resolution within code-required timeframes.",
   "visualization": "Fire panel status dashboard; event timeline; trouble condition age tracking; multi-building overview map.",
   "cimModels": [
@@ -22,14 +28,40 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Test activations, inspector visits, and contractor work can look like new alarms until you check the fire panel and work orders.",
+  "knownFalsePositives": "1. **Maintenance window on `building` (UC-14.1.42)** — Planned work for 'Fire Alarm Panel Zone Health and Event Monitoring' shifts `zones_affected` over `span=1h` while `panel_id`, `building`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `bms:fire`** — Scheduled automation elevates `building` without crossing configured threshold for UC-14.1.42. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `panel_id`, `building`, `_time`** — Health checks in `building` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `bms:fire`** — First 48h baseline for UC-14.1.42 on `panel_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `panel_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "m365",
     "syslog"
   ],
+  "equipmentModels": [
+    "m365_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Fire alarm panel integration via syslog, serial gateway, or Notifier/Edwards/Simplex API.\n• Ensure the following data sources are available: `sourcetype=bms:fire`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConnect fire alarm panels via syslog receiver or serial-to-IP converter. Normalize events into alarm, trouble, and supervisory categories. Alert on any alarm immediately. Track trouble conditions for resolution within code-required timeframes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=building sourcetype=\"bms:fire\" event_type IN (\"trouble\", \"alarm\", \"supervisory\")\n| bin _time span=1h\n| stats count as events, dc(zone) as zones_affected, values(event_type) as event_types, latest(description) as latest_event by panel_id, building, _time\n| eval severity=case(\n    mvfind(event_types, \"alarm\")>=0, \"ALARM\",\n    mvfind(event_types, \"supervisory\")>=0, \"Supervisory\",\n    mvfind(event_types, \"trouble\")>=0, \"Trouble\")\n| table _time, building, panel_id, severity, zones_affected, events, latest_event\n| sort -severity, -events\n```\n\nUnderstanding this SPL\n\n**Fire Alarm Panel Zone Health and Event Monitoring** — Fire alarm panel trouble conditions (ground faults, open circuits, dirty detectors) must be resolved promptly to maintain life safety protection. Centralizing fire panel events enables multi-building oversight and faster trouble resolution.\n\nDocumented **Data sources**: `sourcetype=bms:fire`. **App/TA** (typical add-on context): Fire alarm panel integration via syslog, serial gateway, or Notifier/Edwards/Simplex API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: building; **sourcetype**: bms:fire. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=building, sourcetype=\"bms:fire\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by panel_id, building, _time** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **severity** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Fire Alarm Panel Zone Health and Event Monitoring**): table _time, building, panel_id, severity, zones_affected, events, latest_event\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nRun the search in a known window. Spot-check a few events against the BMS console (for example Niagara, Tridium, or Honeywell) and confirm zones, values, and alarms line up. Verify field names and that the right roles can search the index.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Fire panel status dashboard; event timeline; trouble condition age tracking; multi-building overview map.",
-  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with life-safety water and fire equipment before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with life-safety water and fire equipment before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

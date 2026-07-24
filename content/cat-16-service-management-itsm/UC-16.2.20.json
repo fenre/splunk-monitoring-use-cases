@@ -9,11 +9,17 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "PagerDuty incidents API or webhook (`pagerduty:incident`)",
+  "exclusions": "Covers the detection logic documented for 'PagerDuty Incident Volume Spike vs 4-Week Baseline per Service' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_pagerduty_incident_volume_spike_vs_4_week_baseli` (UC-16.2.20), SOC dashboard panel \"Operations — PagerDuty Incident Volume Spike vs 4-Week Baseline per Service\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-16.2.20 positive (PagerDuty, Incident, Volume, Spike, Week): ingest synthetic events into `index=alerts` sourcetype='pagerduty:incident' where `med` grouped by `service_name`, `_time` satisfies `count` > 10 for 'PagerDuty Incident Volume Spike vs 4-Week Baseline per Service'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.2.20 negative (per Service): ingest benign `alerts` / `pagerduty:incident` events where `service_name`, `_time` stays below `count` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'PagerDuty Incident Volume Spike vs 4-Week Baseline per Service'."
+  },
+  "dataSources": "PagerDuty incidents API or webhook (`pagerduty:incident`) Indexes: alerts. Sourcetypes: pagerduty:incident. Key fields: _time, service_name. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "PagerDuty App for Splunk (Splunkbase 3013) or Events API v2 scripted input",
   "spl": "index=alerts sourcetype=\"pagerduty:incident\"\n| bin _time span=1d\n| stats count by service_name, _time\n| eventstats median(count) as med by service_name\n| where count > med*3 AND count > 10\n| sort -count",
-  "description": "Sudden paging storms indicate brittle monitors or upstream outages.",
-  "value": "Separates real incidents from alert noise using service-level baselines.",
+  "description": "Monitors UC-16.2.20 — PagerDuty, Incident, Volume, Spike, Week — using `index=alerts` sourcetype `pagerduty:incident`, grouped by `service_name`, `_time`. Outputs `med` each `1d`; alert when `count` > 10. Primary focus: per Service. Purpose-built for 'PagerDuty Incident Volume Spike vs 4-Week Baseline per Service' in Operations workflows.",
+  "value": "UC-16.2.20 accelerates insight into per Service ('PagerDuty Incident Volume Spike vs 4-Week Baseline per Service') by tracking `med` on `pagerduty:incident` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Backfill 28d for `med`; exclude maintenance windows via `suppressor` field if present.",
   "visualization": "Line chart (count vs baseline), Table (service).",
   "cimModels": [
@@ -23,16 +29,31 @@
   "references": [
     {
       "title": "PagerDuty App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3013"
+      "url": "https://splunkbase.splunk.com/app/3013",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Opsgenie for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3759"
+      "url": "https://splunkbase.splunk.com/app/3759",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Real outages, wide dependency failure, and new or noisy monitor rules; check the same service in the on-call product before you blame a single team.",
+  "knownFalsePositives": "1. **Maintenance window on `alerts` (UC-16.2.20)** — Planned work for 'PagerDuty Incident Volume Spike vs 4-Week Baseline per Service' shifts `med` over `span=1d` while `service_name`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `median` on `pagerduty:incident`** — Scheduled automation elevates `_time` without crossing `count` > 10 for UC-16.2.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `service_name`, `_time`** — Health checks in `alerts` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `pagerduty:incident`** — First 48h baseline for UC-16.2.20 on `service_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `service_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "pagerduty"
+  ],
+  "equipmentModels": [
+    "pagerduty_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,6 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure: PagerDuty App for Splunk (Splunkbase 3013) or Events API v2 scripted input.\n• Data: PagerDuty incidents API or webhook (`pagerduty:incident`).\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nBackfill 28d for `med`; exclude maintenance windows via `suppressor` field if present.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=alerts sourcetype=\"pagerduty:incident\"\n| bin _time span=1d\n| stats count by service_name, _time\n| eventstats median(count) as med by service_name\n| where count > med*3 AND count > 10\n| sort -count\n```\n\nUnderstanding this search\nSudden paging storms indicate brittle monitors or upstream outages.\n\nStep 3 — Validate\nCompare with the PagerDuty incident timeline and service view for the same window. Reconcile a few incident numbers, state changes, and acknowledgement times. If anything disagrees, check export lag, time zone, and which API fields we map.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Line chart (count vs baseline), Table (service).",
-  "grandmaExplanation": "We compare this week’s paging to a few weeks of normal, so a single noisy service or a real storm stands out from everyday bumps."
+  "detailedImplementation": "Prerequisites\n• Install and configure: PagerDuty App for Splunk (Splunkbase 3013) or Events API v2 scripted input.\n• Data: PagerDuty incidents API or webhook (`pagerduty:incident`).\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nBackfill 28d for `med`; exclude maintenance windows via `suppressor` field if present.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=alerts sourcetype=\"pagerduty:incident\"\n| bin _time span=1d\n| stats count by service_name, _time\n| eventstats median(count) as med by service_name\n| where count > med*3 AND count > 10\n| sort -count\n```\n\nUnderstanding this search\nSudden paging storms indicate brittle monitors or upstream outages.\n\nStep 3 — Validate\nCompare with the PagerDuty incident timeline and service view for the same window. Reconcile a few incident numbers, state changes, and acknowledgement times. If anything disagrees, check export lag, time zone, and which API fields we map.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Line chart (count vs baseline), Table (service).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (PagerDuty App for Splunk (Splunkbase 3013) or Events API v2 scripted input). Enable the modular input or HEC token that writes sourcetype=pagerduty:incident into alerts. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, service_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We compare this week’s paging to a few weeks of normal, so a single noisy service or a real storm stands out from everyday bumps.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

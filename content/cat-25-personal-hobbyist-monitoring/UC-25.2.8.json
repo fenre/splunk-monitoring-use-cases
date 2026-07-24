@@ -8,23 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Apple Health metrics (`apple:health`), Oura Ring readiness/sleep (`oura:daily`), Whoop recovery/strain (`whoop:cycle`), Withings measurements (`withings:measure`).",
-  "app": "Apple Health / Apple Watch exports (Health Auto Export or Shortcuts) via HEC; Oura, Whoop, Withings, and Dexcom APIs via scripted REST inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Daily Hydration and Nutrition Rollup' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_daily_hydration_and_nutrition_rollup` (UC-25.2.8), SOC dashboard panel \"Personal — Daily Hydration and Nutrition Rollup\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.2.8 positive (Daily, Hydration, and, Nutrition, Rollup): ingest synthetic events into `index=personal` sourcetype='apple:health' where `sum` grouped by `_time` satisfies detection threshold for 'Daily Hydration and Nutrition Rollup'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.2.8 negative (Nutrition Rollup): ingest benign `personal` / `apple:health` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 5 confirms zero alert rows for 'Daily Hydration and Nutrition Rollup'."
+  },
+  "dataSources": "Apple Health metrics (`apple:health`), Oura Ring readiness/sleep (`oura:daily`), Whoop recovery/strain (`whoop:cycle`), Withings measurements (`withings:measure`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Apple Health / Apple Watch exports (Health Auto Export or Shortcuts) via HEC; Oura, Whoop, Withings, and Dexcom APIs via scripted REST inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=apple:health (metric=water OR metric=dietary_energy)\n| bin _time span=1d\n| stats sum(eval(if(metric=\"water\",value,0))) as water_ml, sum(eval(if(metric=\"dietary_energy\",value,0))) as kcal by _time\n| sort - _time",
-  "description": "Rolls up your logged water intake and calories per day so you can spot the days you forgot to drink or drastically under-ate.",
-  "value": "Seeing hydration and calories side by side each day catches the patterns that single meal logs miss, like chronic under-eating on busy days.",
+  "description": "Monitors 'Daily Hydration and Nutrition Rollup' patterns (UC-25.2.8) sourced from `index=personal` sourcetype `apple:health`. Threshold bundle: configured threshold; aggregation grain: `_time`; metrics: `sum`. Watch terms: Daily, Hydration, and, Nutrition, Rollup.",
+  "value": "UC-25.2.8 gives Personal teams earlier visibility into Nutrition Rollup through `apple:health` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest Apple Health nutrition and water metrics; schedule daily and review the rollup weekly.",
   "visualization": "Dual-axis chart of daily water and calories.",
   "cimModels": [],
   "references": [
     {
       "title": "Apple — HealthKit documentation",
-      "url": "https://developer.apple.com/documentation/healthkit"
+      "url": "https://developer.apple.com/documentation/healthkit",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It adds up how much you drank and ate each day so you can spot the days you forgot to look after yourself."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.2.8)** — Connector for 'Daily Hydration and Nutrition Rollup' stops polling `apple:health`; stale `sum` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected for UC-25.2.8, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `apple:health`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold for 'Daily Hydration and Nutrition Rollup'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Apple Health — Health Auto Export app or Shortcuts automation → HEC.\n• **Subcategory context**: Health, Sleep & Wearables — typical feeds: Apple Health metrics (`apple:health`), Oura Ring daily readiness/sleep (`oura:daily`), Whoop recovery/strain (`whoop:cycle`), Withings body/blood-pressure (`withings:measure`), Dexcom CGM glucose (`de.\n• **Sourcetypes in this search**: `apple:health`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Apple Health** events into `index=personal` with `sourcetype=apple:health`.\n\n**Collection method:** Health Auto Export app or Shortcuts automation → HEC.\n\n**Reference endpoint / path:** `iOS shortcut POST JSON batch nightly`.\n\n**Suggested poll interval:** 86400s.\n\n**Key fields to extract:** `metric, value, unit, sourceName, startDate`.\n\n**Typical connector stack:** Apple Health / Apple Watch exports (Health Auto Export, Shortcuts) via HEC; Oura, Whoop, Withings, Dexcom APIs via scripted REST inputs..\n\n**Author notes:** Ingest Apple Health nutrition and water metrics; schedule daily and review the rollup weekly.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"apple:health\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=apple:health earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Daily Hydration and Nutrition Rollup** over `personal` data (primarily `sourcetype=apple:health`) across the full search range. The `sum` aggregation groups by `_time`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `_time`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=apple:health (metric=water OR metric=dietary_energy)\n| bin _time span=1d\n| stats sum(eval(if(metric=\"water\",value,0))) as water_ml, sum(eval(if(metric=\"dietary_energy\",value,0))) as kcal by _time\n| sort - _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Apple Health app → Browse → metric category. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=apple:health earliest=-7d\n| head 50\n| table _time\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=apple:health earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.2.8: Personal evidence` with the following panel layout:\n\n**Panel 1 — Dual-Axis Chart Of Daily Water And Calories (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Apple Health — no Apple Health events / missing fields:** If `apple:health` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Apple Health connector script is still running (`systemctl status` or cron log).\n\n**Apple Health — NULL values in extracted fields:** The Apple Health JSON export shape drifted — compare a raw event (`index=personal sourcetype=apple:health | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Apple Health — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Apple Health — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Apple Health APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It adds up how much you drank and ate each day so you can spot the days you forgot to look after yourself.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

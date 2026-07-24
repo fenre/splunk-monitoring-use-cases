@@ -9,11 +9,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "PowerShell scripted input (`Get-StorageSubsystem`, `Get-PhysicalDisk`, `Get-StoragePool`)",
-  "app": "`Splunk_TA_windows` (Hyper-V), custom scripted input",
+  "exclusions": "Covers the detection logic documented for 'Storage Spaces Direct (S2D) Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_storage_spaces_direct_s2d_health` (UC-2.2.11), SOC dashboard panel \"Linux — Storage Spaces Direct (S2D) Health\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.2.11 positive (Storage, Spaces, Direct, (S2D), Health): ingest synthetic events into `index=hyperv` sourcetype='s2d_health' where `count` grouped by `pool_name`, `host` satisfies `capacity` > 80 for 'Storage Spaces Direct (S2D) Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.2.11 negative ((S2D) Health): ingest benign `hyperv` / `s2d_health` events where `pool_name`, `host` stays below `capacity` > 80, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 11 confirms zero alert rows for 'Storage Spaces Direct (S2D) Health'."
+  },
+  "dataSources": "PowerShell scripted input (`Get-StorageSubsystem`, `Get-PhysicalDisk`, `Get-StoragePool`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_windows` (Hyper-V), custom scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=hyperv sourcetype=\"s2d_health\"\n| stats latest(pool_health) as health, latest(pool_operational_status) as op_status, latest(capacity_pct) as capacity by pool_name, host\n| where health!=\"Healthy\" OR capacity > 80\n| sort -capacity\n| table pool_name, host, health, op_status, capacity",
-  "description": "Storage Spaces Direct pools local storage across cluster nodes into a shared storage fabric. Disk failures, network partitions, or capacity exhaustion degrade the storage pool, risking data loss. S2D self-heals by rebuilding data on remaining disks, consuming significant I/O during repair.",
-  "value": "Storage Spaces Direct pools local storage across cluster nodes into a shared storage fabric. Disk failures, network partitions, or capacity exhaustion degrade the storage pool, risking data loss. S2D self-heals by rebuilding data on remaining disks, consuming significant I/O during repair.",
+  "description": "Monitors UC-2.2.11 — Storage, Spaces, Direct, (S2D), Health — using `index=hyperv` sourcetype `s2d_health`, grouped by `pool_name`, `host`. Outputs `count` each `the scheduled window`; alert when `capacity` > 80. Primary focus: (S2D) Health. Purpose-built for 'Storage Spaces Direct (S2D) Health' in Linux workflows.",
+  "value": "UC-2.2.11 helps teams contain Storage, Spaces, Direct, (S2D), Health scenarios and reduce capacity incidents, patch regressions, and service outages before incidents compound.",
   "implementation": "Create scripted inputs: `Get-StoragePool | Select FriendlyName, HealthStatus, OperationalStatus, Size, AllocatedSize` and `Get-PhysicalDisk | Select FriendlyName, HealthStatus, OperationalStatus, MediaType, Size, CanPool`. Run every 5 minutes. Alert on any non-Healthy status or capacity >80%.",
   "visualization": "Status grid (pool health), Table (disk status), Gauge (capacity utilization), Events (repair operations).",
   "cimModels": [
@@ -22,14 +28,40 @@
   "references": [
     {
       "title": "Splunk_TA_windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Hyper-V counters can wobble when guests reboot, when integration services update, or during quick live migration; align spikes with host maintenance and live migration events.",
+  "knownFalsePositives": "1. **Patch Tuesday on `hyperv`** — Package managers spike `pool_name` metrics for 'Storage Spaces Direct (S2D) Health'. Correlate with apt/yum logs in the same `s2d_health` window.\n\n2. **Nightly backup I/O on `pool_name`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `s2d_health`** — Nagios/Zabbix polls `pool_name` and mimics sustained load without crossing `capacity` > 80.\n\n4. **New host onboarding** — `pool_name` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `pool_name`, `valid_until`.",
   "equipment": [
     "hyperv",
     "windows"
   ],
+  "equipmentModels": [
+    "hyperv_generic",
+    "windows_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows` (Hyper-V), custom scripted input.\n• Ensure the following data sources are available: PowerShell scripted input (`Get-StorageSubsystem`, `Get-PhysicalDisk`, `Get-StoragePool`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate scripted inputs: `Get-StoragePool | Select FriendlyName, HealthStatus, OperationalStatus, Size, AllocatedSize` and `Get-PhysicalDisk | Select FriendlyName, HealthStatus, OperationalStatus, MediaType, Size, CanPool`. Run every 5 minutes. Alert on any non-Healthy status or capacity >80%.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=hyperv sourcetype=\"s2d_health\"\n| stats latest(pool_health) as health, latest(pool_operational_status) as op_status, latest(capacity_pct) as capacity by pool_name, host\n| where health!=\"Healthy\" OR capacity > 80\n| sort -capacity\n| table pool_name, host, health, op_status, capacity\n```\n\nUnderstanding this SPL\n\n**Storage Spaces Direct (S2D) Health** — Storage Spaces Direct pools local storage across cluster nodes into a shared storage fabric. Disk failures, network partitions, or capacity exhaustion degrade the storage pool, risking data loss. S2D self-heals by rebuilding data on remaining disks, consuming significant I/O during repair.\n\nDocumented **Data sources**: PowerShell scripted input (`Get-StorageSubsystem`, `Get-PhysicalDisk`, `Get-StoragePool`). **App/TA** (typical add-on context): `Splunk_TA_windows` (Hyper-V), custom scripted input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: hyperv; **sourcetype**: s2d_health. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=hyperv, sourcetype=\"s2d_health\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by pool_name, host** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where health!=\"Healthy\" OR capacity > 80` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Storage Spaces Direct (S2D) Health**): table pool_name, host, health, op_status, capacity\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (pool health), Table (disk status), Gauge (capacity utilization), Events (repair operations).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We keep an eye on storage Spaces Direct (S2D) Health and raise the alarm before it drags down real work or real outages start."
+  "grandmaExplanation": "We keep an eye on storage Spaces Direct (S2D) Health and raise the alarm before it drags down real work or real outages start.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

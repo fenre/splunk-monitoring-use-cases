@@ -8,11 +8,17 @@
     "Capacity"
   ],
   "splunkPillar": "Security",
-  "dataSources": "ES notable events (`` `notable` `` macro)",
-  "app": "Splunk Enterprise Security",
+  "exclusions": "Covers the detection logic documented for 'Alert Volume Trending' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_alert_volume_trending` (UC-10.7.1), SOC dashboard panel \"Security Infra — Alert Volume Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.7.1 positive (Alert, Volume, Trending): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `count` grouped by `source` satisfies detection threshold for 'Alert Volume Trending'. Validate macro `notable`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.7.1 negative (Volume Trending): ingest benign `target_index` / `target_sourcetype` events where `source` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv`. Variant 3 confirms zero alert rows for 'Alert Volume Trending'."
+  },
+  "dataSources": "ES notable events (`` `notable` `` macro) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise Security — Universal Forwarder (Splunkbase 617)",
   "spl": "`notable`\n| timechart span=1d count by source\n| sort -count",
-  "description": "Alert volume trends reveal SOC workload, detection rule effectiveness, and potential alert fatigue risks.",
-  "value": "Alert volume trends reveal SOC workload, detection rule effectiveness, and potential alert fatigue risks.",
+  "description": "Monitors when Volume Trending criteria fire for 'Alert Volume Trending' (UC-10.7.1) in `index=target_index` sourcetype `configured sourcetype`. Pipeline aggregates `count` by `source` over `1d`. Alert logic enforces configured threshold. SPL signature: macro `notable`. Eliminates manual hunting for UC-10.7.1 conditions.",
+  "value": "UC-10.7.1 helps teams contain Alert, Volume, Trending scenarios and reduce missed threat campaigns, control regressions, and SOC SLA breaches before incidents compound.",
   "implementation": "Track notable event volume from ES over time. Break down by source (correlation search). Identify noisy rules for tuning. Alert when daily volume exceeds analyst capacity thresholds. Report on volume trends.",
   "visualization": "Stacked area (alerts by source), Line chart (total alert volume), Bar chart (top alerting rules).",
   "cimModels": [
@@ -22,13 +28,41 @@
   "references": [
     {
       "title": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263"
+      "url": "https://splunkbase.splunk.com/app/263",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk ES Content Management",
+      "url": "https://docs.splunk.com/Documentation/ES/latest/Admin/ContentManagement",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Volume changes during planned test cycles, new correlation rules, incident response surges, or data onboarding, not just attacks.",
+  "knownFalsePositives": "1. **Active major incident triage** — Analysts leave notables open while pivoting on parent campaign for 'Alert Volume Trending'. Check open MAJ ticket and `index=risk` contributions.\n\n2. **Correlation rule tuning** — Recent Content Management edit recategorises urgency. Compare `lastModified` on correlation search.\n\n3. **Risk-Based Alerting aggregation** — Individual rule fires consolidated into informational notables; per-rule count drops while risk score remains elevated.\n\n4. **Holiday on-call gap** — Valid aged notables during staffing gap; escalate paging rather than suppress rule globally.\n\n**Suppression mechanism:** ES Notable Event Suppression or `soc_exception_register.csv` keyed on `rule_name`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security.\n• Ensure the following data sources are available: ES notable events (`` `notable` `` macro).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nTrack notable event volume from ES over time. Break down by source (correlation search). Identify noisy rules for tuning. Alert when daily volume exceeds analyst capacity thresholds. Report on volume trends.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n`notable`\n| timechart span=1d count by source\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Alert Volume Trending** — Alert volume trends reveal SOC workload, detection rule effectiveness, and potential alert fatigue risks.\n\nDocumented **Data sources**: ES notable events (`` `notable` `` macro). **App/TA** (typical add-on context): Splunk Enterprise Security. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Invokes macro `notable` — in Search, use the UI or expand to inspect the underlying SPL.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by source** — ideal for trending and alerting on this use case.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nReview the ES Incident Review queue, correlation source names, and time ranges. Compare volume shifts to new rule rollouts, hunt campaigns, and major incident or change windows. Verify your search can read the `notable` index and the fields the panels expect.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked area (alerts by source), Line chart (total alert volume), Bar chart (top alerting rules).",
-  "grandmaExplanation": "We use this for Alert Volume Trending so leadership can see trends and the SOC can see workload and quality over time."
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security.\n• Ensure the following data sources are available: ES notable events (`` `notable` `` macro).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nTrack notable event volume from ES over time. Break down by source (correlation search). Identify noisy rules for tuning. Alert when daily volume exceeds analyst capacity thresholds. Report on volume trends.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n`notable`\n| timechart span=1d count by source\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Alert Volume Trending** — Alert volume trends reveal SOC workload, detection rule effectiveness, and potential alert fatigue risks.\n\nDocumented **Data sources**: ES notable events (`` `notable` `` macro). **App/TA** (typical add-on context): Splunk Enterprise Security. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Invokes macro `notable` — in Search, use the UI or expand to inspect the underlying SPL.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by source** — ideal for trending and alerting on this use case.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nReview the ES Incident Review queue, correlation source names, and time ranges. Compare volume shifts to new rule rollouts, hunt campaigns, and major incident or change windows. Verify your search can read the `notable` index and the fields the panels expect.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked area (alerts by source), Line chart (total alert volume), Bar chart (top alerting rules).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`source`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this for Alert Volume Trending so leadership can see trends and the SOC can see workload and quality over time.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

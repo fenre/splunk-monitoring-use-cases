@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin`",
-  "app": "`Splunk_TA_windows` (Hyper-V)",
+  "exclusions": "Covers the detection logic documented for 'Hyper-V Replication Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_hyper_v_replication_health` (UC-2.2.2), SOC dashboard panel \"Linux — Hyper-V Replication Health\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.2.2 positive (Hyper, Replication, Health): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin' where `count` grouped by `host`, `EventCode`, `Message` satisfies detection threshold for 'Hyper-V Replication Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.2.2 negative (Replication Health): ingest benign `wineventlog` / `WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin` events where `host`, `EventCode`, `Message` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 10 confirms zero alert rows for 'Hyper-V Replication Health'."
+  },
+  "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin` Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_windows` (Hyper-V) — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin\" (\"replication\" AND (\"error\" OR \"warning\" OR \"critical\" OR \"failed\"))\n| stats count by host, EventCode, Message\n| sort -count",
-  "description": "Replication lag means your DR site is behind. If replication breaks, you lose your recovery point objective (RPO).",
-  "value": "Replication lag means your DR site is behind. If replication breaks, you lose your recovery point objective (RPO).",
+  "description": "Surfaces UC-2.2.2 — Hyper, Replication, Health — using `index=wineventlog` sourcetype `WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin`, grouped by `host`, `EventCode`, `Message`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Replication Health. Purpose-built for 'Hyper-V Replication Health' in Linux workflows.",
+  "value": "For 'Hyper-V Replication Health', UC-2.2.2 converts `activity` on `WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin` feeds into actionable rows and reduces capacity incidents, patch regressions, and service outages.",
   "implementation": "Enable Hyper-V VMMS event log collection. Also create a PowerShell scripted input: `Get-VMReplication | Select VMName, State, Health, LastReplicationTime`. Alert on replication state != Normal or health != Normal.",
   "visualization": "Table (VM, replication state, health, last sync), Status indicators, Events list.",
   "cimModels": [
@@ -21,14 +27,40 @@
   "references": [
     {
       "title": "Splunk_TA_windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Hyper-V counters can wobble when guests reboot, when integration services update, or during quick live migration; align spikes with host maintenance and live migration events.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'Hyper-V Replication Health'. Correlate with apt/yum logs in the same `WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "hyperv",
     "windows"
   ],
+  "equipmentModels": [
+    "hyperv_generic",
+    "windows_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows` (Hyper-V).\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable Hyper-V VMMS event log collection. Also create a PowerShell scripted input: `Get-VMReplication | Select VMName, State, Health, LastReplicationTime`. Alert on replication state != Normal or health != Normal.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin\" (\"replication\" AND (\"error\" OR \"warning\" OR \"critical\" OR \"failed\"))\n| stats count by host, EventCode, Message\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Hyper-V Replication Health** — Replication lag means your DR site is behind. If replication breaks, you lose your recovery point objective (RPO).\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin`. **App/TA** (typical add-on context): `Splunk_TA_windows` (Hyper-V). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, EventCode, Message** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (VM, replication state, health, last sync), Status indicators, Events list.\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We keep an eye on replication Health and raise the alarm before it drags down real work or real outages start."
+  "grandmaExplanation": "We keep an eye on replication Health and raise the alarm before it drags down real work or real outages start.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

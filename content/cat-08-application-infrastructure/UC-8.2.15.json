@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`.NET CLR Memory`, `.NET Memory Cache`",
-  "app": "`Splunk_TA_windows` Perfmon",
+  "exclusions": "Covers the detection logic documented for '.NET CLR Memory Pressure' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_net_clr_memory_pressure` (UC-8.2.15), SOC dashboard panel \"Operations — .NET CLR Memory Pressure\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.2.15 positive (.NET, CLR, Memory, Pressure): ingest synthetic events into `index=perfmon` sourcetype='Perfmon:CLR_Memory' where `gen2_bytes`, `gc_pct` grouped by `instance` satisfies `gc_pct` > 15 for '.NET CLR Memory Pressure'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.2.15 negative (Memory Pressure): ingest benign `perfmon` / `Perfmon:CLR_Memory` events where `instance` stays below `gc_pct` > 15, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for '.NET CLR Memory Pressure'."
+  },
+  "dataSources": "`.NET CLR Memory`, `.NET Memory Cache` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_windows` Perfmon — Universal Forwarder (Splunkbase 617)",
   "spl": "index=perfmon sourcetype=\"Perfmon:CLR_Memory\"\n| timechart span=5m avg(Gen_2_heap_size) as gen2_bytes, avg(Pct_Time_in_GC) as gc_pct by instance\n| where gc_pct > 15",
-  "description": "`# Bytes in all Heaps`, `LOH` size, and `% Time in GC` together indicate memory pressure vs high allocation rate. Refines UC-8.2.8.",
-  "value": "`# Bytes in all Heaps`, `LOH` size, and `% Time in GC` together indicate memory pressure vs high allocation rate. Refines UC-8.2.8.",
+  "description": "Monitors Memory Pressure anomalies for UC-8.2.15 with window `5m` on `index=perfmon` sourcetype `Perfmon:CLR_Memory`. Combines `gen2_bytes`, `gc_pct` by `instance` and compares against `gc_pct` > 15. Mapped to keywords .NET, CLR, Memory, Pressure for dashboard routing.",
+  "value": "Alerting on .NET, CLR, Memory, Pressure through UC-8.2.15 reduces operational risk and delayed incident response by surfacing `gen2_bytes`, `gc_pct` early.",
   "implementation": "Collect every 1m for critical apps. Alert when GC time >15% and Gen 2 heap grows week-over-week. Trigger dump analysis workflow.",
   "visualization": "Dual-axis (heap vs GC %), Line chart (Gen 2 size), Table (instances over threshold).",
   "cimModels": [
@@ -22,13 +28,38 @@
   "references": [
     {
       "title": "Splunk_TA_windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "OOM during memory leak hunts (with -XX:+HeapDumpOnOutOfMemoryError), large batch jobs, or after misconfigured heap sizes. We check deploy and job windows before calling a new defect.",
+  "knownFalsePositives": "1. **Maintenance window on `perfmon` (UC-8.2.15)** — Planned work for '.NET CLR Memory Pressure' shifts `gen2_bytes`, `gc_pct` over `span=5m` while `instance` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `Perfmon:CLR_Memory`** — Scheduled automation elevates `src` without crossing `gc_pct` > 15 for UC-8.2.15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `instance`** — Health checks in `perfmon` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `Perfmon:CLR_Memory`** — First 48h baseline for UC-8.2.15 on `instance` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `instance`, `exception_reason`, `valid_until`.",
   "equipment": [
     "windows"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows` Perfmon.\n• Ensure the following data sources are available: `.NET CLR Memory`, `.NET Memory Cache`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect every 1m for critical apps. Alert when GC time >15% and Gen 2 heap grows week-over-week. Trigger dump analysis workflow.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=perfmon sourcetype=\"Perfmon:CLR_Memory\"\n| timechart span=5m avg(Gen_2_heap_size) as gen2_bytes, avg(Pct_Time_in_GC) as gc_pct by instance\n| where gc_pct > 15\n```\n\nUnderstanding this SPL\n\n**.NET CLR Memory Pressure** — `# Bytes in all Heaps`, `LOH` size, and `% Time in GC` together indicate memory pressure vs high allocation rate. Refines UC-8.2.8.\n\nDocumented **Data sources**: `.NET CLR Memory`, `.NET Memory Cache`. **App/TA** (typical add-on context): `Splunk_TA_windows` Perfmon. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: perfmon; **sourcetype**: Perfmon:CLR_Memory. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=perfmon, sourcetype=\"Perfmon:CLR_Memory\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by instance** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where gc_pct > 15` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nCompare with JBoss, WebLogic, or Tomcat admin consoles, or `catalina` / server logs on the host, for the same window. Confirm hostnames and fields match the vendor UI.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Dual-axis (heap vs GC %), Line chart (Gen 2 size), Table (instances over threshold).",
-  "grandmaExplanation": "We follow .NET CLR Memory Pressure in plain language so we notice drift or trouble early enough to act calmly."
+  "equipmentModels": [
+    "windows_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows` Perfmon.\n• Ensure the following data sources are available: `.NET CLR Memory`, `.NET Memory Cache`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect every 1m for critical apps. Alert when GC time >15% and Gen 2 heap grows week-over-week. Trigger dump analysis workflow.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=perfmon sourcetype=\"Perfmon:CLR_Memory\"\n| timechart span=5m avg(Gen_2_heap_size) as gen2_bytes, avg(Pct_Time_in_GC) as gc_pct by instance\n| where gc_pct > 15\n```\n\nUnderstanding this SPL\n\n**.NET CLR Memory Pressure** — `# Bytes in all Heaps`, `LOH` size, and `% Time in GC` together indicate memory pressure vs high allocation rate. Refines UC-8.2.8.\n\nDocumented **Data sources**: `.NET CLR Memory`, `.NET Memory Cache`. **App/TA** (typical add-on context): `Splunk_TA_windows` Perfmon. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: perfmon; **sourcetype**: Perfmon:CLR_Memory. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=perfmon, sourcetype=\"Perfmon:CLR_Memory\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by instance** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where gc_pct > 15` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nCompare with JBoss, WebLogic, or Tomcat admin consoles, or `catalina` / server logs on the host, for the same window. Confirm hostnames and fields match the vendor UI.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Dual-axis (heap vs GC %), Line chart (Gen 2 size), Table (instances over threshold).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_windows` Perfmon — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=Perfmon:CLR_Memory into perfmon. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`gc_pct, instance`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We follow .NET CLR Memory Pressure in plain language so we notice drift or trouble early enough to act calmly.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

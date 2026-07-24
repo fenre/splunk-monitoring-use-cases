@@ -9,46 +9,70 @@
     "Anomaly"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Endurance activities (`strava:activity`, `garmin:activity`, `coros:activity`, `wahoo:workout`, `trainerroad:workout`, `applefitness:workout`, `concept2:workout`, `zwift:activity`).",
-  "app": "COROS, Wahoo ELEMNT, TrainerRoad, Apple Fitness / HealthKit exports, Concept2 Logbook, Strava, Garmin Connect, and Zwift activity feeds via official APIs, FIT/CSV exports, and Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Rowing Stroke Rate Drift During Long Pieces' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_rowing_stroke_rate_drift_during_long_pieces` (UC-25.1.27), SOC dashboard panel \"Personal — Rowing Stroke Rate Drift During Long Pieces\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.1.27 positive (Rowing, Stroke, Rate, Drift, During): ingest synthetic events into `index=personal` sourcetype='concept2:workout' where `avg_spm`, `spm_sd` grouped by `workout_id`, `athlete` satisfies `distance_m` >= 5000, `avg_spm` > 18, or `spm_sd` > 3 for 'Rowing Stroke Rate Drift During Long Pieces'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.1.27 negative (Long Pieces): ingest benign `personal` / `concept2:workout` events where `workout_id`, `athlete` stays below `distance_m` >= 5000, `avg_spm` > 18, or `spm_sd` > 3, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 1 confirms zero alert rows for 'Rowing Stroke Rate Drift During Long Pieces'."
+  },
+  "dataSources": "Endurance activities (`strava:activity`, `garmin:activity`, `coros:activity`, `wahoo:workout`, `trainerroad:workout`, `applefitness:workout`, `concept2:workout`, `zwift:activity`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "COROS, Wahoo ELEMNT, TrainerRoad, Apple Fitness / HealthKit exports, Concept2 Logbook, Strava, Garmin Connect, and Zwift activity feeds via official APIs, FIT/CSV exports, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=concept2:workout distance_m>=5000\n| stats avg(stroke_rate_spm) as avg_spm, stdev(stroke_rate_spm) as spm_sd by workout_id athlete\n| where avg_spm>18 AND spm_sd>3\n| sort - spm_sd",
-  "description": "Uses Concept2 long-piece sessions telemetry to monitor stroke-rate stability in rows long enough to expose pacing issues in index=personal.",
-  "value": "Splunk turns the feed into an operational check for pieces where technique drifted under fatigue, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Detects Long Pieces activity in UC-25.1.27 ('Rowing Stroke Rate Drift During Long Pieces') from `index=personal` sourcetype `concept2:workout`. Rolls up `avg_spm`, `spm_sd` by `workout_id`, `athlete` across `the scheduled window` and pages when `distance_m` >= 5000, `avg_spm` > 18, or `spm_sd` > 3. Covers Rowing, Stroke, Rate, Drift, During. Personal operators treat UC-25.1.27 as the canonical signal.",
+  "value": "Operators running UC-25.1.27 on `concept2:workout` feeds shorten triage for Long Pieces tied to 'Rowing Stroke Rate Drift During Long Pieces', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest Concept2 long-piece sessions data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a weekly cadence.",
   "visualization": "Table of long pieces with average stroke rate and deviation.",
   "cimModels": [],
   "references": [
     {
       "title": "Strava - API reference",
-      "url": "https://developers.strava.com/docs/reference/"
+      "url": "https://developers.strava.com/docs/reference/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "COROS support",
-      "url": "https://support.coros.com/hc/en-us"
+      "url": "https://support.coros.com/hc/en-us",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Wahoo support",
-      "url": "https://support.wahoofitness.com/hc/en-us"
+      "url": "https://support.wahoofitness.com/hc/en-us",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TrainerRoad support",
-      "url": "https://support.trainerroad.com/hc/en-us"
+      "url": "https://support.trainerroad.com/hc/en-us",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Apple HealthKit",
-      "url": "https://developer.apple.com/documentation/healthkit"
+      "url": "https://developer.apple.com/documentation/healthkit",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Concept2 Logbook API",
-      "url": "https://log.concept2.com/developers/documentation"
+      "url": "https://log.concept2.com/developers/documentation",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.1.27)** — Connector for 'Rowing Stroke Rate Drift During Long Pieces' stops polling `concept2:workout`; stale `avg_spm`, `spm_sd` on `workout_id`, `athlete` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_spm`, `spm_sd` over `1w` is expected for UC-25.1.27, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `concept2:workout`. Dedup with `stats latest(*) by workout_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `distance_m` >= 5000 for 'Rowing Stroke Rate Drift During Long Pieces'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It reminds stroke-rate stability in rows long enough to expose pacing issues so you can spot pieces where technique drifted under fatigue before it becomes annoying."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Fitness & Activity Tracking — typical feeds: Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`), Zwift/TrainingPeaks exports..\n• **Sourcetypes in this search**: `concept2:workout`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=concept2:workout`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as files..\n\n**Author notes:** Ingest Concept2 long-piece sessions data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a weekly cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"concept2:workout\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=concept2:workout earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Rowing Stroke Rate Drift During Long Pieces** over `personal` data (primarily `sourcetype=concept2:workout`) across the full search range. It applies numeric thresholds on `distance_m` (>= 5000) after avg, stdev — tune these constants to your household baseline.\n\n**Fields this search depends on:** `athlete`, `avg_spm`, `distance_m`, `spm_sd`, `workout_id`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=concept2:workout distance_m>=5000\n| stats avg(stroke_rate_spm) as avg_spm, stdev(stroke_rate_spm) as spm_sd by workout_id athlete\n| where avg_spm>18 AND spm_sd>3\n| sort - spm_sd\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=concept2:workout earliest=-7d\n| head 50\n| table athlete, avg_spm, distance_m, spm_sd, workout_id\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=concept2:workout earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `distance_m` before alerting:\n\n```spl\nindex=personal sourcetype=concept2:workout earliest=-30d\n| stats perc50(distance_m) AS p50 perc90(distance_m) AS p90 perc99(distance_m) AS p99 max(distance_m) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.1.27: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Long Pieces With Average Stroke Rate And Deviation (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `concept2:workout` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=concept2:workout | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It reminds stroke-rate stability in rows long enough to expose pacing issues so you can spot pieces where technique drifted under fatigue before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

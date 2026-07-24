@@ -8,11 +8,17 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Backup scheduler logs, expected schedule lookup",
-  "app": "Vendor TA, custom correlation",
+  "exclusions": "Covers the detection logic documented for 'Missed Backup Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_missed_backup_detection` (UC-6.3.3), SOC dashboard panel \"Operations — Missed Backup Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.3.3 positive (Missed, Backup, Detection): ingest synthetic events into `index=backup` sourcetype='veeam:job' where `count` grouped by `job_name]` satisfies -24h for 'Missed Backup Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.3.3 negative (Backup Detection): ingest benign `backup` / `veeam:job` events where `job_name]` stays below -24h, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Missed Backup Detection'."
+  },
+  "dataSources": "Backup scheduler logs, expected schedule lookup Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Vendor TA, custom correlation — Universal Forwarder (Splunkbase 617)",
   "spl": "| inputlookup backup_schedule.csv\n| join type=left max=1 job_name\n    [search index=backup sourcetype=\"veeam:job\" earliest=-24h\n     | stats latest(_time) as last_run by job_name]\n| where isnull(last_run) OR last_run < relative_time(now(), \"-26h\")\n| table job_name, expected_schedule, last_run",
-  "description": "A backup that doesn't run at all is worse than one that fails — it's invisible. Detection ensures no system is left unprotected.",
-  "value": "A backup that doesn't run at all is worse than one that fails — it's invisible. Detection ensures no system is left unprotected.",
+  "description": "Detects UC-6.3.3 — Missed, Backup, Detection — using `index=backup` sourcetype `veeam:job`, grouped by `job_name]`. Outputs `count` each `the scheduled window`; alert when -24h. Primary focus: Backup Detection. Purpose-built for 'Missed Backup Detection' in Operations workflows.",
+  "value": "UC-6.3.3 operationalises 'Missed Backup Detection' against `veeam:job` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Maintain a lookup table of expected backup schedules. Run a scheduled search comparing expected vs actual runs. Alert when any job misses its window. Correlate with backup server health events.",
   "visualization": "Table (missed jobs with schedule details), Single value (number of missed jobs), Status grid (job name × date).",
   "cimModels": [
@@ -21,13 +27,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Failures during DR test runs, application quiesce timeouts, or VSS provider issues can occur; confirm in the backup console whether a retry succeeded.",
+  "knownFalsePositives": "1. **Maintenance window on `backup` (UC-6.3.3)** — Planned work for 'Missed Backup Detection' shifts `count` over `span=1h` while `job_name]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `veeam:job`** — Scheduled automation elevates `src` without crossing configured threshold for UC-6.3.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `job_name]`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `veeam:job`** — First 48h baseline for UC-6.3.3 on `job_name]` is unstable; join `backup_schedule.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `job_name]`, `exception_reason`, `valid_until`.",
   "equipment": [
     "veeam"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Vendor TA, custom correlation.\n• Ensure the following data sources are available: Backup scheduler logs, expected schedule lookup.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMaintain a lookup table of expected backup schedules. Run a scheduled search comparing expected vs actual runs. Alert when any job misses its window. Correlate with backup server health events.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup backup_schedule.csv\n| join type=left max=1 job_name\n    [search index=backup sourcetype=\"veeam:job\" earliest=-24h\n     | stats latest(_time) as last_run by job_name]\n| where isnull(last_run) OR last_run < relative_time(now(), \"-26h\")\n| table job_name, expected_schedule, last_run\n```\n\nUnderstanding this SPL\n\n**Missed Backup Detection** — A backup that doesn't run at all is worse than one that fails — it's invisible. Detection ensures no system is left unprotected.\n\nDocumented **Data sources**: Backup scheduler logs, expected schedule lookup. **App/TA** (typical add-on context): Vendor TA, custom correlation. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where isnull(last_run) OR last_run < relative_time(now(), \"-26h\")` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Missed Backup Detection**): table job_name, expected_schedule, last_run\n\n\nStep 3 — Validate\nCompare job session state, duration, and transferred bytes with Veeam Backup & Replication or Veeam Enterprise Manager for the same job and time window.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. List media server, proxy, and repository names in the runbook, and when to open a ticket with the application team versus the backup team. Consider visualizations: Table (missed jobs with schedule details), Single value (number of missed jobs), Status grid (job name × date).",
-  "grandmaExplanation": "We help you see which backup runs finished cleanly and which did not, so you are not caught thinking data was protected when a job really failed or stopped early."
+  "equipmentModels": [
+    "veeam_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Vendor TA, custom correlation.\n• Ensure the following data sources are available: Backup scheduler logs, expected schedule lookup.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMaintain a lookup table of expected backup schedules. Run a scheduled search comparing expected vs actual runs. Alert when any job misses its window. Correlate with backup server health events.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup backup_schedule.csv\n| join type=left max=1 job_name\n    [search index=backup sourcetype=\"veeam:job\" earliest=-24h\n     | stats latest(_time) as last_run by job_name]\n| where isnull(last_run) OR last_run < relative_time(now(), \"-26h\")\n| table job_name, expected_schedule, last_run\n```\n\nUnderstanding this SPL\n\n**Missed Backup Detection** — A backup that doesn't run at all is worse than one that fails — it's invisible. Detection ensures no system is left unprotected.\n\nDocumented **Data sources**: Backup scheduler logs, expected schedule lookup. **App/TA** (typical add-on context): Vendor TA, custom correlation. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where isnull(last_run) OR last_run < relative_time(now(), \"-26h\")` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Missed Backup Detection**): table job_name, expected_schedule, last_run\n\n\nStep 3 — Validate\nCompare job session state, duration, and transferred bytes with Veeam Backup & Replication or Veeam Enterprise Manager for the same job and time window.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. List media server, proxy, and repository names in the runbook, and when to open a ticket with the application team versus the backup team. Consider visualizations: Table (missed jobs with schedule details), Single value (number of missed jobs), Status grid (job name × date).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Vendor TA, custom correlation — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=veeam:job into backup. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`job_name]`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you see which backup runs finished cleanly and which did not, so you are not caught thinking data was protected when a job really failed or stopped early.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,31 +9,55 @@
     "Performance"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Ravelry projects (`ravelry:project`), knitCompanion row counters (`knitcompanion:counter`), Shelly smart-plug machine runtime (`shelly:status`), and Ravelry stash entries (`ravelry:stash`).",
-  "app": "Ravelry project and stash exports, knitCompanion row-counter logs, and Shelly plug telemetry for sewing-machine hours sent to Splunk.",
+  "exclusions": "Covers personal hobby monitoring for 'knitCompanion Counter Session Weekly Knit Time Trend' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_knitcompanion_counter_session_weekly_knit_time_t` (UC-25.73.14), SOC dashboard panel \"Personal — knitCompanion Counter Session Weekly Knit Time Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.73.14 positive (knitCompanion, Counter, Session, Weekly, Knit): ingest synthetic events into `index=personal` sourcetype='knitcompanion:counter' where `avg_duration`, `worst_duration` grouped by `_time` satisfies detection threshold for 'knitCompanion Counter Session Weekly Knit Time Trend'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.73.14 negative (Time Trend): ingest benign `personal` / `knitcompanion:counter` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 12 confirms zero alert rows for 'knitCompanion Counter Session Weekly Knit Time Trend'."
+  },
+  "dataSources": "Ravelry projects (`ravelry:project`), knitCompanion row counters (`knitcompanion:counter`), Shelly smart-plug machine runtime (`shelly:status`), and Ravelry stash entries (`ravelry:stash`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Ravelry project and stash exports, knitCompanion row-counter logs, and Shelly plug telemetry for sewing-machine hours sent to Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=knitcompanion:counter knit_minutes=*\n| bin _time span=1w\n| stats avg(knit_minutes) as avg_duration, max(knit_minutes) as worst_duration by _time\n| sort _time",
-  "description": "Trends the average and worst knit time for knitCompanion counter session events each week.",
-  "value": "Weekly timing trends show whether a process is becoming slower, more erratic, or healthier over time.",
+  "description": "Identifies UC-25.73.14 — knitCompanion, Counter, Session, Weekly, Knit — using `index=personal` sourcetype `knitcompanion:counter`, grouped by `_time`. Outputs `avg_duration`, `worst_duration` each `1w`; alert when configured threshold. Primary focus: Time Trend. Purpose-built for 'knitCompanion Counter Session Weekly Knit Time Trend' in Personal workflows.",
+  "value": "Tracking `avg_duration`, `worst_duration` via UC-25.73.14 on `knitcompanion:counter` feeds improves response to 'knitCompanion Counter Session Weekly Knit Time Trend' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Capture knit_minutes on each event and review weekly averages plus worst cases during your personal ops review.",
   "visualization": "Line chart of weekly average knit time with markers for the worst week.",
   "cimModels": [],
   "references": [
     {
       "title": "Ravelry",
-      "url": "https://www.ravelry.com/"
+      "url": "https://www.ravelry.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "knitCompanion",
-      "url": "https://www.knitcompanion.com/"
+      "url": "https://www.knitcompanion.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Shelly API Documentation",
-      "url": "https://shelly-api-docs.shelly.cloud/"
+      "url": "https://shelly-api-docs.shelly.cloud/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It records whether knitCompanion counter session tasks are taking longer than they used to and where the slow weeks were."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.73.14)** — Connector for 'knitCompanion Counter Session Weekly Knit Time Trend' stops polling `knitcompanion:counter`; stale `avg_duration`, `worst_duration` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_duration`, `worst_duration` over `1w` is expected for UC-25.73.14, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `knitcompanion:counter`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'knitCompanion Counter Session Weekly Knit Time Trend'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Fiber Arts & Crafting — typical feeds: Ravelry projects (`ravelry:project`), knitCompanion row counters (`knitcompanion:counter`), Shelly smart-plug machine runtime (`shelly:status`), and Ravelry stash entries (`ravelry:stash`)..\n• **Sourcetypes in this search**: `knitcompanion:counter`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=knitcompanion:counter`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Ravelry project and stash exports, knitCompanion row-counter logs, and Shelly plug telemetry for sewing-machine hours sent to Splunk..\n\n**Author notes:** Capture knit_minutes on each event and review weekly averages plus worst cases during your personal ops review.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"knitcompanion:counter\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=knitcompanion:counter earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **knitCompanion Counter Session Weekly Knit Time Trend** over `personal` data (primarily `sourcetype=knitcompanion:counter`) across the full search range. The `avg, max` aggregation groups by `_time`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `_time`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=knitcompanion:counter knit_minutes=*\n| bin _time span=1w\n| stats avg(knit_minutes) as avg_duration, max(knit_minutes) as worst_duration by _time\n| sort _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=knitcompanion:counter earliest=-7d\n| head 50\n| table _time\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=knitcompanion:counter earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.73.14: Personal evidence` with the following panel layout:\n\n**Panel 1 — Line Chart Of Weekly Average Knit Time With Markers For The Worst Week (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `knitcompanion:counter` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=knitcompanion:counter | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1w` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1w` buckets.",
+  "grandmaExplanation": "It records whether knitCompanion counter session tasks are taking longer than they used to and where the slow weeks were.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

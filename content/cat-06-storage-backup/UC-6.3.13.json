@@ -8,6 +8,8 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Backup RPO and RTO Compliance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_backup_rpo_and_rto_compliance` (UC-6.3.13), SOC dashboard panel \"Operations — Backup RPO and RTO Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "compliance": [
     {
       "regulation": "asd-e8",
@@ -87,11 +89,15 @@
       "evidenceArtifact": "Saved search 'UC-6.3.13' running on Last successful backup time, last restore test duration, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
     }
   ],
-  "dataSources": "Last successful backup time, last restore test duration",
-  "app": "Backup TA + CMDB lookup",
+  "controlTest": {
+    "positiveScenario": "UC-6.3.13 positive (Backup, RPO, and, RTO, Compliance): ingest synthetic events into `index=backup` sourcetype='veeam:job' where `count` grouped by `system_name]` satisfies -7d for 'Backup RPO and RTO Compliance'. Validate lookup `backup_rpo_hours`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.3.13 negative (RTO Compliance): ingest benign `backup` / `veeam:job` events where `system_name]` stays below -7d, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Backup RPO and RTO Compliance'."
+  },
+  "dataSources": "Last successful backup time, last restore test duration Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Backup TA + CMDB lookup — Universal Forwarder (Splunkbase 617)",
   "spl": "| inputlookup cmdb_systems.csv WHERE backup_tier=*\n| join system_name max=0\n    [search index=backup sourcetype=\"veeam:job\" status=\"Success\" earliest=-7d\n     | stats latest(_time) as last_ok by system_name]\n| eval hours_since_ok=round((now()-last_ok)/3600,1)\n| lookup backup_rpo_hours tier OUTPUT rpo_hours\n| where hours_since_ok > rpo_hours\n| table system_name tier hours_since_ok rpo_hours",
-  "description": "Compares actual backup completion time and restore test duration against business RPO/RTO targets per application tier.",
-  "value": "Compares actual backup completion time and restore test duration against business RPO/RTO targets per application tier.",
+  "description": "Surfaces 'Backup RPO and RTO Compliance' patterns (UC-6.3.13) sourced from `index=backup` sourcetype `veeam:job`. Threshold bundle: -7d; aggregation grain: `system_name]`; metrics: `count`. Enrichment path: lookup `backup_rpo_hours`.",
+  "value": "UC-6.3.13 gives Operations teams earlier visibility into RTO Compliance through `veeam:job` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Maintain lookup of RPO hours per tier. Join to last successful backup. Alert when hours_since_ok exceeds RPO. Add parallel search for restore drill duration vs RTO.",
   "visualization": "Table (systems breaching RPO), Gauge (% RPO compliant), Line chart (hours since backup by tier).",
   "cimModels": [
@@ -100,14 +106,39 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `backup` (UC-6.3.13)** — Planned work for 'Backup RPO and RTO Compliance' shifts `count` over `span=1h` while `system_name]` remains in-scope. Applies lookup `backup_rpo_hours`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `veeam:job`** — Scheduled automation elevates `hours_since_ok` without crossing configured threshold for UC-6.3.13. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `system_name]`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `veeam:job`** — First 48h baseline for UC-6.3.13 on `system_name]` is unstable; join `backup_rpo_hours` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `system_name]`, `exception_reason`, `valid_until`.",
   "equipment": [
     "veeam"
   ],
+  "equipmentModels": [
+    "veeam_generic"
+  ],
   "status": "verified",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Backup TA + CMDB lookup.\n• Ensure the following data sources are available: Last successful backup time, last restore test duration.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMaintain lookup of RPO hours per tier. Join to last successful backup. Alert when hours_since_ok exceeds RPO. Add parallel search for restore drill duration vs RTO.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup cmdb_systems.csv WHERE backup_tier=*\n| join system_name max=0\n    [search index=backup sourcetype=\"veeam:job\" status=\"Success\" earliest=-7d\n     | stats latest(_time) as last_ok by system_name]\n| eval hours_since_ok=round((now()-last_ok)/3600,1)\n| lookup backup_rpo_hours tier OUTPUT rpo_hours\n| where hours_since_ok > rpo_hours\n| table system_name tier hours_since_ok rpo_hours\n```\n\nUnderstanding this SPL\n\n**Backup RPO and RTO Compliance** — Compares actual backup completion time and restore test duration against business RPO/RTO targets per application tier.\n\nDocumented **Data sources**: Last successful backup time, last restore test duration. **App/TA** (typical add-on context): Backup TA + CMDB lookup. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **hours_since_ok** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where hours_since_ok > rpo_hours` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Backup RPO and RTO Compliance**): table system_name tier hours_since_ok rpo_hours\n\n\nStep 3 — Validate\nCompare job session state, duration, and transferred bytes with Veeam Backup & Replication or Veeam Enterprise Manager for the same job and time window.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. List media server, proxy, and repository names in the runbook, and when to open a ticket with the application team versus the backup team. Consider visualizations: Table (systems breaching RPO), Gauge (% RPO compliant), Line chart (hours since backup by tier).",
-  "grandmaExplanation": "We help you see which backup runs finished cleanly and which did not, so you are not caught thinking data was protected when a job really failed or stopped early."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Backup TA + CMDB lookup.\n• Ensure the following data sources are available: Last successful backup time, last restore test duration.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMaintain lookup of RPO hours per tier. Join to last successful backup. Alert when hours_since_ok exceeds RPO. Add parallel search for restore drill duration vs RTO.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup cmdb_systems.csv WHERE backup_tier=*\n| join system_name max=0\n    [search index=backup sourcetype=\"veeam:job\" status=\"Success\" earliest=-7d\n     | stats latest(_time) as last_ok by system_name]\n| eval hours_since_ok=round((now()-last_ok)/3600,1)\n| lookup backup_rpo_hours tier OUTPUT rpo_hours\n| where hours_since_ok > rpo_hours\n| table system_name tier hours_since_ok rpo_hours\n```\n\nUnderstanding this SPL\n\n**Backup RPO and RTO Compliance** — Compares actual backup completion time and restore test duration against business RPO/RTO targets per application tier.\n\nDocumented **Data sources**: Last successful backup time, last restore test duration. **App/TA** (typical add-on context): Backup TA + CMDB lookup. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **hours_since_ok** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where hours_since_ok > rpo_hours` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Backup RPO and RTO Compliance**): table system_name tier hours_since_ok rpo_hours\n\n\nStep 3 — Validate\nCompare job session state, duration, and transferred bytes with Veeam Backup & Replication or Veeam Enterprise Manager for the same job and time window.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. List media server, proxy, and repository names in the runbook, and when to open a ticket with the application team versus the backup team. Consider visualizations: Table (systems breaching RPO), Gauge (% RPO compliant), Line chart (hours since backup by tier).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Backup TA + CMDB lookup — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=veeam:job into backup. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`rpo_hours, system_name], tier`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you see which backup runs finished cleanly and which did not, so you are not caught thinking data was protected when a job really failed or stopped early.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

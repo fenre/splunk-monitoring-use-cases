@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "RabbitMQ node log (`rabbit@*.log`) ingested as `sourcetype=rabbitmq:log`",
+  "exclusions": "Covers the detection logic documented for 'RabbitMQ Management Login and Access Denied Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_rabbitmq_management_login_and_access_denied_even` (UC-8.3.34), SOC dashboard panel \"Operations — RabbitMQ Management Login and Access Denied Events\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.3.34 positive (RabbitMQ, Management, Login, and, Access): ingest synthetic events into `index=messaging` sourcetype='rabbitmq:log' where `count` grouped by `host`, `user` satisfies `count` >= 5 for 'RabbitMQ Management Login and Access Denied Events'. Validate filter `\"access denied\" OR \"LOGIN refused\" OR \"failed to authenticat`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.3.34 negative (Denied Events): ingest benign `messaging` / `rabbitmq:log` events where `host`, `user` stays below `count` >= 5, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'RabbitMQ Management Login and Access Denied Events'."
+  },
+  "dataSources": "RabbitMQ node log (`rabbit@*.log`) ingested as `sourcetype=rabbitmq:log` Indexes: messaging. Sourcetypes: rabbitmq:log. Key fields: host, user. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Splunk Universal Forwarder file monitor on RabbitMQ nodes; AMQP Messaging Modular Input (Splunkbase 1812) is complementary for message-plane visibility",
   "spl": "index=messaging sourcetype=\"rabbitmq:log\"\n| search \"access denied\" OR \"LOGIN refused\" OR \"failed to authenticate\" OR \"HTTP access denied\"\n| stats count by host, user\n| where count >= 5",
-  "description": "Failed management logins and HTTP access denials expose credential stuffing, misconfigured monitoring accounts, or accidental exposure of the management port.",
-  "value": "Provides an auditable trail for authentication abuse investigations and catches broken automation before it locks production accounts.",
+  "description": "Surfaces 'RabbitMQ Management Login and Access Denied Events' (UC-8.3.34) using `index=messaging` sourcetype `rabbitmq:log` via filter `\"access denied\" OR \"LOGIN refused\" OR \"failed to authenticat` by aggregating `count` grouped by `host`, `user` over `the scheduled window` and alerting when `count` >= 5. Keywords: RabbitMQ, Management, Login, and, Access. Focuses on Denied Events behaviour so operations teams can triage UC-8.3.34 without ad-hoc log review.",
+  "value": "UC-8.3.34 accelerates insight into Denied Events ('RabbitMQ Management Login and Access Denied Events') by tracking `activity` on `rabbitmq:log` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Forward `rabbit@*.log` from each cluster node. Extract `user` when present. Suppress known scanner subnets via a lookup. Alert on burst counts per 15 minutes; lower thresholds for management-tier hosts.",
   "visualization": "Timeline (failed logins), Table (host, user, count), Single value (failed attempts).",
   "cimModels": [
@@ -22,20 +28,31 @@
   "references": [
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RabbitMQ — Logging",
-      "url": "https://www.rabbitmq.com/docs/logging"
+      "url": "https://www.rabbitmq.com/docs/logging",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RabbitMQ — Management Plugin",
-      "url": "https://www.rabbitmq.com/docs/management"
+      "url": "https://www.rabbitmq.com/docs/management",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "4xx spikes from web crawlers, scanners, or after URL routing and auth policy changes. We correlate with change records and intent.",
+  "knownFalsePositives": "1. **Maintenance window on `messaging` (UC-8.3.34)** — Planned work for 'RabbitMQ Management Login and Access Denied Events' shifts `count` over `span=1h` while `host`, `user` remains in-scope. Applies filter `\"access denied\" OR \"LOGIN refused\" OR \"failed to authenticat`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `rabbitmq:log`** — Scheduled automation elevates `user` without crossing `count` >= 5 for UC-8.3.34. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `user`** — Health checks in `messaging` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `rabbitmq:log`** — First 48h baseline for UC-8.3.34 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "rabbitmq"
+  ],
+  "equipmentModels": [
+    "rabbitmq_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -44,6 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We give you an auditable trail for authentication abuse investigations and catches broken automation before it locks production accounts."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Universal Forwarder file monitor on RabbitMQ nodes; AMQP Messaging Modular Input (Splunkbase 1812) is complementary for message-plane visibility). Enable the modular input or HEC token that writes sourcetype=rabbitmq:log into messaging. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We give you an auditable trail for authentication abuse investigations and catches broken automation before it locks production accounts.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

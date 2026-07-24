@@ -9,48 +9,63 @@
     "Operations"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Homelab services (`kubernetes:pod`, `proxmox:metric`, `vaultwarden:event`, `paperless:document`, `immich:job`, `adguard:query`, `docker:stats`, `truenas:pool`, `nut:ups`, `uptime:probe`).",
-  "app": "Kubernetes homelab clusters, Proxmox, Vaultwarden, Paperless-ngx, Immich, AdGuard Home, Docker, TrueNAS, and NUT metrics via APIs, logs, Telegraf, and Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Vaultwarden Admin Token Age' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_vaultwarden_admin_token_age` (UC-25.8.26), SOC dashboard panel \"Personal — Vaultwarden Admin Token Age\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.8.26 positive (Vaultwarden, Admin, Token, Age): ingest synthetic events into `index=personal` sourcetype='vaultwarden:event' where `count` grouped by `instance` satisfies `rotation_age_days` > 30 for 'Vaultwarden Admin Token Age'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.8.26 negative (Token Age): ingest benign `personal` / `vaultwarden:event` events where `instance` stays below `rotation_age_days` > 30, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 2 confirms zero alert rows for 'Vaultwarden Admin Token Age'."
+  },
+  "dataSources": "Homelab services (`kubernetes:pod`, `proxmox:metric`, `vaultwarden:event`, `paperless:document`, `immich:job`, `adguard:query`, `docker:stats`, `truenas:pool`, `nut:ups`, `uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Kubernetes homelab clusters, Proxmox, Vaultwarden, Paperless-ngx, Immich, AdGuard Home, Docker, TrueNAS, and NUT metrics via APIs, logs, Telegraf, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=vaultwarden:event event=admin_token\n| stats latest(rotation_age_days) as rotation_age_days by instance\n| where rotation_age_days>30\n| sort - rotation_age_days",
-  "description": "Uses Vaultwarden admin-token events telemetry to monitor how long the admin token has gone without rotation in index=personal.",
-  "value": "Splunk turns the feed into an operational check for instances drifting beyond a comfortable secret-rotation age, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Surfaces UC-25.8.26 for Vaultwarden, Admin, Token, Age over `index=personal` sourcetype `vaultwarden:event` with thresholds `rotation_age_days` > 30. Groups `count` by `instance` each `the scheduled window`. Centered on Token Age indicators. Supports repeatable personal triage for 'Vaultwarden Admin Token Age'.",
+  "value": "For 'Vaultwarden Admin Token Age', UC-25.8.26 converts `activity` on `vaultwarden:event` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest Vaultwarden admin-token events data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Instance table of admin-token age.",
   "cimModels": [],
   "references": [
     {
       "title": "Kubernetes",
-      "url": "https://kubernetes.io/docs/"
+      "url": "https://kubernetes.io/docs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Vaultwarden wiki",
-      "url": "https://github.com/dani-garcia/vaultwarden/wiki"
+      "url": "https://github.com/dani-garcia/vaultwarden/wiki",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Paperless-ngx docs",
-      "url": "https://docs.paperless-ngx.com/"
+      "url": "https://docs.paperless-ngx.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Immich docs",
-      "url": "https://immich.app/docs/"
+      "url": "https://immich.app/docs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "AdGuard Home overview",
-      "url": "https://adguard.com/kb/adguard-home/overview/"
+      "url": "https://adguard.com/kb/adguard-home/overview/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Proxmox VE docs",
-      "url": "https://pve.proxmox.com/wiki/Main_Page"
+      "url": "https://pve.proxmox.com/wiki/Main_Page",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TrueNAS docs",
-      "url": "https://www.truenas.com/docs/"
+      "url": "https://www.truenas.com/docs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.8.26)** — Connector for 'Vaultwarden Admin Token Age' stops polling `vaultwarden:event`; stale `count` on `instance` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.8.26, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vaultwarden:event`. Dedup with `stats latest(*) by instance`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `rotation_age_days` > 30 for 'Vaultwarden Admin Token Age'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "docker",
     "hashicorp",
@@ -63,5 +78,12 @@
     "hashicorp_vault",
     "kubernetes_k8s"
   ],
-  "grandmaExplanation": "It blends how long the admin token has gone without rotation so you can spot instances drifting beyond a comfortable secret-rotation age before it becomes annoying."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Home Lab & Self-Hosting — typical feeds: Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), Raspberry Pi host metrics, UPS status via NUT (`nut:ups`)..\n• **Sourcetypes in this search**: `vaultwarden:event`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=vaultwarden:event`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC..\n\n**Author notes:** Ingest Vaultwarden admin-token events data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"vaultwarden:event\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=vaultwarden:event earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Vaultwarden Admin Token Age** over `personal` data (primarily `sourcetype=vaultwarden:event`) across the full search range. It applies numeric thresholds on `rotation_age_days` (> 30) after latest — tune these constants to your household baseline.\n\n**Fields this search depends on:** `instance`, `rotation_age_days`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=vaultwarden:event event=admin_token\n| stats latest(rotation_age_days) as rotation_age_days by instance\n| where rotation_age_days>30\n| sort - rotation_age_days\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=vaultwarden:event earliest=-7d\n| head 50\n| table instance, rotation_age_days\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=vaultwarden:event earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `rotation_age_days` before alerting:\n\n```spl\nindex=personal sourcetype=vaultwarden:event earliest=-30d\n| stats perc50(rotation_age_days) AS p50 perc90(rotation_age_days) AS p90 perc99(rotation_age_days) AS p99 max(rotation_age_days) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.8.26: Personal evidence` with the following panel layout:\n\n**Panel 1 — Instance Table Of Admin-Token Age (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `vaultwarden:event` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=vaultwarden:event | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It blends how long the admin token has gone without rotation so you can spot instances drifting beyond a comfortable secret-rotation age before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

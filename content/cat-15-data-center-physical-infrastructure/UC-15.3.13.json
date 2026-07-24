@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Sensor management interface (battery_level_pct, last_report_time)",
-  "app": "SNMP modular input, custom (sensor API)",
+  "exclusions": "Covers the detection logic documented for 'Environmental Sensor Battery Status' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_environmental_sensor_battery_status` (UC-15.3.13), SOC dashboard panel \"Operations — Environmental Sensor Battery Status\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-15.3.13 positive (Environmental, Sensor, Battery, Status): ingest synthetic events into `index=environment` sourcetype='sensor:battery_status' where `count` grouped by `entity` satisfies `battery_level_pct` < 20, or `hours_since_report` > 24 for 'Environmental Sensor Battery Status'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-15.3.13 negative (Battery Status): ingest benign `environment` / `sensor:battery_status` events where `entity` stays below `battery_level_pct` < 20, or `hours_since_report` > 24, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Environmental Sensor Battery Status'."
+  },
+  "dataSources": "Sensor management interface (battery_level_pct, last_report_time) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "SNMP modular input, custom (sensor API) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=environment sourcetype=\"sensor:battery_status\"\n| eval hours_since_report=round((now()-last_report_time)/3600,1)\n| where battery_level_pct < 20 OR hours_since_report > 24\n| table sensor_id, zone, sensor_type, battery_level_pct, last_report_time, hours_since_report\n| sort battery_level_pct",
-  "description": "Wireless environmental sensor battery health; dead batteries create monitoring gaps and risk undetected temperature or humidity exceedances.",
-  "value": "Wireless environmental sensor battery health; dead batteries create monitoring gaps and risk undetected temperature or humidity exceedances.",
+  "description": "Surfaces UC-15.3.13 for Environmental, Sensor, Battery, Status over `index=environment` sourcetype `sensor:battery_status` with thresholds `battery_level_pct` < 20, or `hours_since_report` > 24. Groups `count` by `entity` each `the scheduled window`. Centered on Battery Status indicators. Supports repeatable operations triage for 'Environmental Sensor Battery Status'.",
+  "value": "For 'Environmental Sensor Battery Status', UC-15.3.13 converts `activity` on `sensor:battery_status` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Poll sensor management interface (SNMP, API) for battery_level_pct and last_report_time. Poll daily or every 6 hours. Alert on battery <20% or no report in 24+ hours (possible dead battery). Maintain sensor inventory with battery replacement schedule. Report on sensors due for battery change.",
   "visualization": "Table (low battery sensors), Gauge (lowest battery %), Bar chart (sensors by battery level), Single value (sensors needing battery replacement).",
   "cimModels": [
@@ -22,16 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Sensor anomalies during cleaning, calibration, or planned environmental changes.",
+  "knownFalsePositives": "1. **Maintenance window on `environment` (UC-15.3.13)** — Planned work for 'Environmental Sensor Battery Status' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `sensor:battery_status`** — Scheduled automation elevates `hours_since_report` without crossing `battery_level_pct` < 20 for UC-15.3.13. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `environment` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `sensor:battery_status`** — First 48h baseline for UC-15.3.13 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "snmp"
   ],
   "equipmentModels": [
     "snmp_generic"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SNMP modular input, custom (sensor API).\n• Ensure the following data sources are available: Sensor management interface (battery_level_pct, last_report_time).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll sensor management interface (SNMP, API) for battery_level_pct and last_report_time. Poll daily or every 6 hours. Alert on battery <20% or no report in 24+ hours (possible dead battery). Maintain sensor inventory with battery replacement schedule. Report on sensors due for battery change.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=environment sourcetype=\"sensor:battery_status\"\n| eval hours_since_report=round((now()-last_report_time)/3600,1)\n| where battery_level_pct < 20 OR hours_since_report > 24\n| table sensor_id, zone, sensor_type, battery_level_pct, last_report_time, hours_since_report\n| sort battery_level_pct\n```\n\nUnderstanding this SPL\n\n**Environmental Sensor Battery Status** — Wireless environmental sensor battery health; dead batteries create monitoring gaps and risk undetected temperature or humidity exceedances.\n\nDocumented **Data sources**: Sensor management interface (battery_level_pct, last_report_time). **App/TA** (typical add-on context): SNMP modular input, custom (sensor API). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: environment; **sourcetype**: sensor:battery_status. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=environment, sourcetype=\"sensor:battery_status\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **hours_since_report** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where battery_level_pct < 20 OR hours_since_report > 24` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Environmental Sensor Battery Status**): table sensor_id, zone, sensor_type, battery_level_pct, last_report_time, hours_since_report\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare with the BMS console for the same equipment, sensors, and time range.\n\n\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (low battery sensors), Gauge (lowest battery %), Bar chart (sensors by battery level), Single value (sensors needing battery replacement).",
-  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access."
+  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

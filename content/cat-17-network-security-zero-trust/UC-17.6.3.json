@@ -9,11 +9,17 @@
     "Risk"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Akamai Guardicore Deception Asset Interaction Alerts (`guardicore:deception`)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_akamai_guardicore_deception_asset_interaction_al` (UC-17.6.3), SOC dashboard panel \"Network — Akamai Guardicore Deception Asset Interaction Alerts (`guardicore:deception`)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.6.3 positive (Akamai, Guardicore, Deception, Asset, Interaction): ingest synthetic events into `index=microseg` sourcetype='guardicore:deception' where `count` grouped by `decoy_name`, `src_ip`, `attack_stage` satisfies -7d for 'Akamai Guardicore Deception Asset Interaction Alerts (`guardicore:deception`)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.6.3 negative (Alerts (`guardicore:deception`)): ingest benign `microseg` / `guardicore:deception` events where `decoy_name`, `src_ip`, `attack_stage` stays below -7d, or exclude the test entity via `network_exception_register.csv`. Variant 8 confirms zero alert rows for 'Akamai Guardicore Deception Asset Interaction Alerts (`guardicore:deception`)'."
+  },
   "dataSources": "Guardicore Centra exports: `guardicore:network`, `guardicore:agent`, `guardicore:incident`, `guardicore:policy`, `guardicore:deception`",
   "app": "Akamai Guardicore Add-on for Splunk (Splunkbase 7426)",
   "spl": "index=microseg sourcetype=\"guardicore:deception\" earliest=-7d\n| stats count by decoy_name, src_ip, attack_stage\n| sort -count",
-  "description": "Any touch of a decoy is high-fidelity malicious activity with near-zero benign noise.",
-  "value": "Security operations teams receive near-zero-false-positive alerts when any entity interacts with deception assets, providing high-confidence early warning of lateral movement, reconnaissance, or active intrusion attempts.",
+  "description": "Identifies UC-17.6.3 — Akamai, Guardicore, Deception, Asset, Interaction — using `index=microseg` sourcetype `guardicore:deception`, grouped by `decoy_name`, `src_ip`, `attack_stage`. Outputs `count` each `the scheduled window`; alert when -7d. Primary focus: Alerts (`guardicore:deception`). Purpose-built for 'Akamai Guardicore Deception Asset Interaction Alerts (`guardicore:deception`)' in Network workflows.",
+  "value": "UC-17.6.3 accelerates insight into Alerts (`guardicore:deception`) ('Akamai Guardicore Deception Asset Interaction Alerts (`guardicore:deception`)') by tracking `activity` on `guardicore:deception` feeds, reducing unauthorized access, segmentation drift, and NAC policy failures before spreadsheet checks hide regressions.",
   "implementation": "Install the add-on, configure API polling intervals appropriate to API limits, and map assets to CMDB for enrichment lookups.",
   "visualization": "Notable events list, map.",
   "cimModels": [],
@@ -22,18 +28,34 @@
   "references": [
     {
       "title": "Splunkbase — Akamai Guardicore Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/7426"
+      "url": "https://splunkbase.splunk.com/app/7426",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Akamai Guardicore documentation",
-      "url": "https://www.akamai.com/products/guardicore"
+      "url": "https://www.akamai.com/products/guardicore",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Microseg blocks from new app deployments, missing exception rules, or planned segmentation rollouts.",
+  "knownFalsePositives": "1. **Maintenance window on `microseg` (UC-17.6.3)** — Planned work for 'Akamai Guardicore Deception Asset Interaction Alerts (`guardicore:deception`)' shifts `count` over `span=1h` while `decoy_name`, `src_ip`, `attack_stage` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `guardicore:deception`** — Scheduled automation elevates `src_ip` without crossing configured threshold for UC-17.6.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `decoy_name`, `src_ip`, `attack_stage`** — Health checks in `microseg` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `guardicore:deception`** — First 48h baseline for UC-17.6.3 on `decoy_name` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `decoy_name`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "guardicore",
     "m365"
+  ],
+  "equipmentModels": [
+    "guardicore_generic",
+    "m365_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -43,5 +65,7 @@
   ],
   "reviewer": "catalog-team",
   "detailedImplementation": "Prerequisites\n• Akamai Guardicore Add-on for Splunk (Splunkbase 7426) v3.x. Guardicore Centra with the Deception module licensed and active. Deception creates lightweight honeypots (decoy assets) that mimic real servers — any interaction with a decoy is by definition suspicious.\n• Deception decoys deployed across segments. Best practice: at least one decoy per segment, mimicking the segment's typical services (e.g., a fake database server in the DB segment, a fake web server in the DMZ).\n• Data in `index=microseg` with `sourcetype=guardicore:deception`. Key fields: `decoy_name`, `decoy_ip`, `src_ip`, `src_asset`, `dst_port`, `protocol`, `interaction_type` (network_scan, connection, login_attempt, data_access), `process_name`.\n• Deception events have near-zero false-positive rates: legitimate users and applications have no reason to contact decoy assets.\n\nStep 1 — Configure data collection\nVerify deception events are arriving:\n```spl\nindex=microseg sourcetype=\"guardicore:deception\" earliest=-7d\n| stats count by decoy_name, interaction_type\n```\nHealthy deception monitoring should show low but non-zero counts — if zero for weeks, either decoys are not deployed, or the environment has no lateral movement activity (good, but verify decoys are reachable).\n\nVerify decoy inventory:\n```spl\nindex=microseg sourcetype=\"guardicore:deception\" earliest=-30d\n| stats dc(decoy_name) as active_decoys dc(src_ip) as interacting_sources\n| eval status=if(active_decoys>0, \"Decoys active\", \"NO DECOYS DETECTED\")\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — All deception interactions:\n```spl\nindex=microseg sourcetype=\"guardicore:deception\" earliest=-7d\n| stats count as interactions values(interaction_type) as types values(dst_port) as ports values(protocol) as protocols earliest(_time) as first_seen latest(_time) as last_seen by src_ip, src_asset, decoy_name\n| eval duration_hours=round((last_seen - first_seen)/3600, 1)\n| eval severity=case(match(mvjoin(types,\",\"), \"(?i)login|data_access\"), \"CRITICAL\", match(mvjoin(types,\",\"), \"(?i)connection\"), \"HIGH\", 1==1, \"MEDIUM\")\n| sort - severity, - interactions\n```\n\nUnderstanding this SPL: Every deception interaction is a high-fidelity alert. The severity escalation is: network scan (medium — reconnaissance), connection attempt (high — active probing), login attempt or data access (critical — the attacker is trying to authenticate or exfiltrate from what they believe is a real server). Duration shows whether this is a one-off probe or sustained activity.\n\nReal-time alerting:\n```spl\nindex=microseg sourcetype=\"guardicore:deception\"\n| stats count values(decoy_name) as decoys values(dst_port) as ports by src_ip\n| where count >= 1\n```\n\nStep 3 — Validate\n(a) In Guardicore Centra: Deception → Interactions. Compare the interaction list with Splunk events.\n(b) Test: from a non-production host, `nmap -sT <decoy_ip>` or `telnet <decoy_ip> 80`. Verify the interaction appears in Splunk within minutes with `interaction_type=network_scan` or `connection`.\n(c) Verify all deployed decoys are reporting: cross-reference the Centra Deception dashboard's decoy list with `| stats dc(decoy_name)` in Splunk.\n\nStep 4 — Operationalize\nDashboard (\"Guardicore — Deception Alerts\"):\n• Row 1 — Single-value tiles: \"Deception interactions (7d)\", \"Sources detected\", \"Critical interactions\".\n• Row 2 — Timeline: interactions over 30 days (any activity = notable).\n• Row 3 — Table: source IP, source asset, decoy name, interaction types, ports, duration.\n\nAlert: **Real-time alert** on any deception interaction. Every touch of a decoy is actionable. Route to SOC as a P2 minimum; escalate to P1 if interaction type includes login or data access.\n\nRunbook:\n1. **Network scan of decoy** — The source host is performing reconnaissance. Check if it is a vulnerability scanner (Nessus, Qualys) — if so, exclude the scanner IP. Otherwise, the host is likely compromised and scanning the network. Isolate immediately.\n2. **Login attempt on decoy** — The attacker has progressed beyond scanning and is attempting authentication. This is an active intrusion. Capture the credentials attempted (Centra logs them). Isolate the source host. Check if the attempted credentials match any real accounts.\n3. **Data access on decoy** — The attacker believes they are accessing real data. Maximum severity. Full incident response: isolate, image, investigate the full kill chain.\n\nStep 5 — Troubleshooting\n• **No deception events ever** — Decoys may not be deployed, or the Deception module is not licensed. Check Centra → Deception → Decoys. If the list is empty, deception needs to be configured.\n• **Legitimate vulnerability scanner triggering alerts** — Add the scanner's IP range to an exclusion list in the search: `| where NOT cidrmatch(\"10.0.0.0/24\", src_ip)`. Do NOT disable deception monitoring for the scanner — instead, filter in Splunk.\n• **Decoy events arriving but `src_asset` is unknown** — The source host does not have a Guardicore agent. The IP is captured but asset details require agent enrollment.",
-  "grandmaExplanation": "We set up fake servers that look real, and if anyone tries to connect to them, we know for sure something suspicious is happening because no real user would ever need those fake servers."
+  "grandmaExplanation": "We set up fake servers that look real, and if anyone tries to connect to them, we know for sure something suspicious is happening because no real user would ever need those fake servers.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Puppet agent reports, Chef client run reports",
-  "app": "Puppet/Chef report forwarding",
+  "exclusions": "Covers the detection logic documented for 'Puppet/Chef Compliance Reports' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_puppet_chef_compliance_reports` (UC-12.4.4), SOC dashboard panel \"Operations — Puppet/Chef Compliance Reports\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.4.4 positive (Puppet, Chef, Compliance, Reports): ingest synthetic events into `index=iac` sourcetype='puppet:report' where `count` grouped by `certname` satisfies `corrective` > 0 for 'Puppet/Chef Compliance Reports'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.4.4 negative (Compliance Reports): ingest benign `iac` / `puppet:report` events where `certname` stays below `corrective` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Puppet/Chef Compliance Reports'."
+  },
+  "dataSources": "Puppet agent reports, Chef client run reports Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Puppet/Chef report forwarding — Universal Forwarder (Splunkbase 617)",
   "spl": "index=iac sourcetype=\"puppet:report\"\n| stats latest(status) as status, latest(corrective_changes) as corrective by certname\n| where status=\"failed\" OR corrective > 0",
-  "description": "Configuration management compliance ensures systems match desired state. Non-compliance indicates security or operational risk.",
-  "value": "Configuration management compliance ensures systems match desired state. Non-compliance indicates security or operational risk.",
+  "description": "Alerts on UC-12.4.4 — Puppet, Chef, Compliance, Reports — using `index=iac` sourcetype `puppet:report`, grouped by `certname`. Outputs `count` each `the scheduled window`; alert when `corrective` > 0. Primary focus: Compliance Reports. Purpose-built for 'Puppet/Chef Compliance Reports' in Operations workflows.",
+  "value": "UC-12.4.4 accelerates insight into Compliance Reports ('Puppet/Chef Compliance Reports') by tracking `activity` on `puppet:report` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Forward Puppet/Chef reports to Splunk. Track agent compliance rates. Alert on failed runs (nodes in non-compliant state). Monitor corrective changes (Puppet remediated drift). Report on fleet compliance percentage.",
   "visualization": "Single value (compliance %), Table (non-compliant nodes), Pie chart (status distribution), Line chart (compliance trend).",
   "cimModels": [
@@ -22,10 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Signals that reflect approved hotfixes, provider upgrades, or brownout tests rather than misuse.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Puppet/Chef report forwarding.\n• Ensure the following data sources are available: Puppet agent reports, Chef client run reports.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward Puppet/Chef reports to Splunk. Track agent compliance rates. Alert on failed runs (nodes in non-compliant state). Monitor corrective changes (Puppet remediated drift). Report on fleet compliance percentage.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=iac sourcetype=\"puppet:report\"\n| stats latest(status) as status, latest(corrective_changes) as corrective by certname\n| where status=\"failed\" OR corrective > 0\n```\n\nUnderstanding this SPL\n\n**Puppet/Chef Compliance Reports** — Configuration management compliance ensures systems match desired state. Non-compliance indicates security or operational risk.\n\nDocumented **Data sources**: Puppet agent reports, Chef client run reports. **App/TA** (typical add-on context): Puppet/Chef report forwarding. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: iac; **sourcetype**: puppet:report. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=iac, sourcetype=\"puppet:report\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by certname** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where status=\"failed\" OR corrective > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with the vendor console or native job history for that tool. Verify field extractions and index permissions.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (compliance %), Table (non-compliant nodes), Pie chart (status distribution), Line chart (compliance trend).",
-  "grandmaExplanation": "We watch infrastructure-as-code runs and policy so changes to systems stay visible and governed."
+  "knownFalsePositives": "1. **Maintenance window on `iac` (UC-12.4.4)** — Planned work for 'Puppet/Chef Compliance Reports' shifts `count` over `span=1h` while `certname` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `puppet:report`** — Scheduled automation elevates `src` without crossing `corrective` > 0 for UC-12.4.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `certname`** — Health checks in `iac` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `puppet:report`** — First 48h baseline for UC-12.4.4 on `certname` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `certname`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Puppet/Chef report forwarding.\n• Ensure the following data sources are available: Puppet agent reports, Chef client run reports.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward Puppet/Chef reports to Splunk. Track agent compliance rates. Alert on failed runs (nodes in non-compliant state). Monitor corrective changes (Puppet remediated drift). Report on fleet compliance percentage.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=iac sourcetype=\"puppet:report\"\n| stats latest(status) as status, latest(corrective_changes) as corrective by certname\n| where status=\"failed\" OR corrective > 0\n```\n\nUnderstanding this SPL\n\n**Puppet/Chef Compliance Reports** — Configuration management compliance ensures systems match desired state. Non-compliance indicates security or operational risk.\n\nDocumented **Data sources**: Puppet agent reports, Chef client run reports. **App/TA** (typical add-on context): Puppet/Chef report forwarding. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: iac; **sourcetype**: puppet:report. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=iac, sourcetype=\"puppet:report\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by certname** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where status=\"failed\" OR corrective > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with the vendor console or native job history for that tool. Verify field extractions and index permissions.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (compliance %), Table (non-compliant nodes), Pie chart (status distribution), Line chart (compliance trend).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Puppet/Chef report forwarding — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=puppet:report into iac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`certname, corrective`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch infrastructure-as-code runs and policy so changes to systems stay visible and governed.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

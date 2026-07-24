@@ -9,23 +9,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Renovation tasks (`reno:task`), budget and receipts (`reno:budget`), material orders (`reno:material`), inspections (`reno:inspection`), contractor logs (`reno:contractor`).",
-  "app": "Home-renovation project management — task boards (Trello, Notion), budget and receipt trackers, material orders, and inspection / permit logs — streamed to Splunk HEC via APIs and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Scope Creep Request Intake' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_scope_creep_request_intake` (UC-25.54.13), SOC dashboard panel \"Personal — Scope Creep Request Intake\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.54.13 positive (Scope, Creep, Request, Intake): ingest synthetic events into `index=personal` sourcetype='reno:task' where `count` grouped by `_time`, `room` satisfies detection threshold for 'Scope Creep Request Intake'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.54.13 negative (Request Intake): ingest benign `personal` / `reno:task` events where `_time`, `room` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 1 confirms zero alert rows for 'Scope Creep Request Intake'."
+  },
+  "dataSources": "Renovation tasks (`reno:task`), budget and receipts (`reno:budget`), material orders (`reno:material`), inspections (`reno:inspection`), contractor logs (`reno:contractor`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Home-renovation project management — task boards (Trello, Notion), budget and receipt trackers, material orders, and inspection / permit logs — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=reno:task scope_change=yes\n| bin _time span=1w\n| stats count as scope_requests by _time room\n| sort - _time",
-  "description": "Measures how many new ideas or late asks are entering the plan after work is underway.",
-  "value": "Scope creep is normal but costly; intake trendlines show when creativity turns into schedule risk.",
+  "description": "Monitors Request Intake activity in UC-25.54.13 ('Scope Creep Request Intake') from `index=personal` sourcetype `reno:task`. Rolls up `count` by `_time`, `room` across `1w` and pages when configured threshold. Covers Scope, Creep, Request, Intake. Personal operators treat UC-25.54.13 as the canonical signal.",
+  "value": "Operators running UC-25.54.13 on `reno:task` feeds shorten triage for Request Intake tied to 'Scope Creep Request Intake', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Flag scope changes in `reno:task` and count them weekly by room.",
   "visualization": "Line chart of weekly scope-change requests by room.",
   "cimModels": [],
   "references": [
     {
       "title": "Project Management Institute — planning basics",
-      "url": "https://www.pmi.org/about/what-is-project-management"
+      "url": "https://www.pmi.org/about/what-is-project-management",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It spots how many extra ideas are being added after the renovation is already moving."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.54.13)** — Connector for 'Scope Creep Request Intake' stops polling `reno:task`; stale `count` on `_time`, `room` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.54.13, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `reno:task`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Scope Creep Request Intake'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Home Renovation & Project Management — typical feeds: Renovation tasks (`reno:task`), budget and receipts (`reno:budget`), material orders (`reno:material`), inspections (`reno:inspection`), contractor logs (`reno:contractor`)..\n• **Sourcetypes in this search**: `reno:task`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=reno:task`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Home-renovation project management — task boards (Trello, Notion), budget and receipt trackers, material orders, and inspection / permit logs — streamed to Splunk HEC via APIs and scripted inputs..\n\n**Author notes:** Flag scope changes in `reno:task` and count them weekly by room.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"reno:task\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=reno:task earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Scope Creep Request Intake** over `personal` data (primarily `sourcetype=reno:task`) across the full search range. The `aggregation` aggregation groups by `_time`, `room`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `_time`, `room`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=reno:task scope_change=yes\n| bin _time span=1w\n| stats count as scope_requests by _time room\n| sort - _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=reno:task earliest=-7d\n| head 50\n| table _time, room\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=reno:task earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.54.13: Personal evidence` with the following panel layout:\n\n**Panel 1 — Line Chart Of Weekly Scope-Change Requests By Room (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `reno:task` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=reno:task | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1w` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1w` buckets.",
+  "grandmaExplanation": "It spots how many extra ideas are being added after the renovation is already moving.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

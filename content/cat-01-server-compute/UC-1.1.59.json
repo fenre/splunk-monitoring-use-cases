@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=syslog` (teamd / libteam state messages)",
-  "app": "`Splunk_TA_nix`",
+  "exclusions": "Covers the detection logic documented for 'Network Team Failover Detection (Linux)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_network_team_failover_detection_linux` (UC-1.1.59), SOC dashboard panel \"Linux — Network Team Failover Detection (Linux)\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.59 positive (Network, Team, Failover, Detection, (Linux)): ingest synthetic events into `index=os` sourcetype='syslog' where `count` grouped by `host`, `team_interface` satisfies `count` > 0 for 'Network Team Failover Detection (Linux)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.59 negative (Detection (Linux)): ingest benign `os` / `syslog` events where `host`, `team_interface` stays below `count` > 0, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 13 confirms zero alert rows for 'Network Team Failover Detection (Linux)'."
+  },
+  "dataSources": "`sourcetype=syslog` (teamd / libteam state messages) Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=os sourcetype=syslog \"teamd\" (\"port\" OR \"link\") (\"down\" OR \"up\" OR \"enabled\" OR \"disabled\")\n| stats count by host, team_interface\n| where count > 0",
-  "description": "Surfaces any teamd log lines about ports or links moving between down, up, enabled, and disabled, grouped by host and team device name, for teams using libteam instead of traditional bonding drivers.",
-  "value": "Team interfaces aggregate links much like bonds; you want the same early warning when a leg drops so you are not a single port failure away from an outage.",
+  "description": "Alerts on UC-1.1.59 — Network, Team, Failover, Detection, (Linux) — using `index=os` sourcetype `syslog`, grouped by `host`, `team_interface`. Outputs `count` each `the scheduled window`; alert when `count` > 0. Primary focus: Detection (Linux). Purpose-built for 'Network Team Failover Detection (Linux)' in Linux workflows.",
+  "value": "UC-1.1.59 gives Linux teams earlier visibility into Detection (Linux) through `syslog` feeds, lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Point syslog collection at the facility teamd already uses. If your distro logs teamd into **journald** only, add a `journald` to **syslog** forwarder. Consider raising `>0` to a five-minute `stats` + threshold when the daemon is very chatty at info level.",
   "visualization": "Alert, Table",
   "cimModels": [
@@ -21,18 +27,40 @@
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Brief log storms during daemon restarts; duplicate lines if you capture both **journald** and **rsyslog**; environments without libteam that match the teamd string in unrelated app logs—tighten with `sourcetype` host allowlists for critical segments.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Network Team Failover Detection (Linux)'. Correlate with apt/yum logs in the same `syslog` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `syslog`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `count` > 0.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux",
     "syslog"
   ],
-  "detailedImplementation": "Prerequisites\n• **teamd** must log to a facility Splunk already ingests; if not, enable **syslog** forwarding from **journald** for `teamd.service` only.\n\nStep 1 — Configure data collection\nAdd **SEDCMD** to extract `team_interface` if the raw text embeds the device name; otherwise alert at host level first and refine later.\n\nStep 2 — Create the search and alert\n`where count>0` is minimal; in production, change to `| where count>5` in a five-minute `bucket` to ignore single stray lines.\n\n**Understanding this SPL** — Boolean match on the verb list; you can split into two saved searches: one for **down/disabled** (page) and one for **up/enabled** (info).\n\n\nStep 3 — Validate\n`teamdctl` state on the host, `ip link show team0`, and switch interface counters should align with the Splunk time window. Use `ping` and `mtr` only as traffic checks, not as proof of LACP/team state.\n\nStep 4 — Operationalize\nCoordinate with the network on physical ports whenever **down** lines appear, even if user traffic still works on the surviving link.\n\n",
-  "grandmaExplanation": "We catch log lines when a “team” of network ports changes who is up or down, so you can fix a flaky port before the backup port is the only one left."
+  "equipmentModels": [
+    "linux_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• **teamd** must log to a facility Splunk already ingests; if not, enable **syslog** forwarding from **journald** for `teamd.service` only.\n\nStep 1 — Configure data collection\nAdd **SEDCMD** to extract `team_interface` if the raw text embeds the device name; otherwise alert at host level first and refine later.\n\nStep 2 — Create the search and alert\n`where count>0` is minimal; in production, change to `| where count>5` in a five-minute `bucket` to ignore single stray lines.\n\n**Understanding this SPL** — Boolean match on the verb list; you can split into two saved searches: one for **down/disabled** (page) and one for **up/enabled** (info).\n\n\nStep 3 — Validate\n`teamdctl` state on the host, `ip link show team0`, and switch interface counters should align with the Splunk time window. Use `ping` and `mtr` only as traffic checks, not as proof of LACP/team state.\n\nStep 4 — Operationalize\nCoordinate with the network on physical ports whenever **down** lines appear, even if user traffic still works on the surviving link.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_nix` — Splunk Add-on for Unix and Linux (Splunkbase 833)). Enable the modular input or HEC token that writes sourcetype=syslog into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, team_interface`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We catch log lines when a “team” of network ports changes who is up or down, so you can fix a flaky port before the backup port is the only one left.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

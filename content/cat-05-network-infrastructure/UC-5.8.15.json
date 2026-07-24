@@ -8,21 +8,43 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Admin Privilege Changes and Permission Escalation (Meraki)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_admin_privilege_changes_and_permission_escalatio` (UC-5.8.15), SOC dashboard panel \"Operations — Admin Privilege Changes and Permission Escalation (Meraki)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.8.15 positive (Admin, Privilege, Changes, and, Permission): ingest synthetic events into `index=meraki` sourcetype='meraki:audit' where `values` grouped by `adminName`, `organizationId` satisfies -30d for 'Admin Privilege Changes and Permission Escalation (Meraki)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.8.15 negative (Escalation (Meraki)): ingest benign `meraki` / `meraki:audit` events where `adminName`, `organizationId` stays below -30d, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Admin Privilege Changes and Permission Escalation (Meraki)'."
+  },
   "dataSources": "Splunk_TA_cisco_meraki (Splunkbase #5580): Audit input (sourcetype=meraki:audit). Admin role / permission changes show up under page='Administrators' or page='Permissions'.",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580)",
   "spl": "index=meraki sourcetype=\"meraki:audit\" earliest=-30d\n    (page=\"Administrators\" OR page=\"Permissions\"\n     OR label=\"*role*\" OR label=\"*permission*\" OR action=\"*admin*\")\n| stats count as priv_change_count,\n        values(label) as targets,\n        values(action) as actions,\n        values(page) as pages,\n        latest(_time) as last_change\n         by adminName, organizationId\n| sort - last_change",
-  "description": "Detects unauthorized privilege changes and permission escalation attempts.",
-  "value": "Security operations teams detect Meraki administrator privilege escalation events, new admin account creation, and role changes to prevent unauthorized access and maintain least-privilege compliance across the Meraki organization.",
+  "description": "Monitors UC-5.8.15 — Admin, Privilege, Changes, and, Permission — using `index=meraki` sourcetype `meraki:audit`, grouped by `adminName`, `organizationId`. Outputs `values` each `the scheduled window`; alert when -30d. Primary focus: Escalation (Meraki). Purpose-built for 'Admin Privilege Changes and Permission Escalation (Meraki)' in Operations workflows.",
+  "value": "UC-5.8.15 gives Operations teams earlier visibility into Escalation (Meraki) through `meraki:audit` feeds, lowering operational risk and delayed incident response.",
   "implementation": "1. Enable the Audit input in Splunk_TA_cisco_meraki. 2. Filter on the Administrators / Permissions pages to surface privilege escalations. 3. The audit event includes oldValue / newValue carrying the previous and new role JSON blob — useful for forensic detail. 4. Trigger a high-priority alert on every privilege change; pair with your IDM for change-control validation.",
   "visualization": "Privilege change timeline; role change audit table; escalation alert dashboard.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Meraki (Splunkbase 5631)",
+      "url": "https://splunkbase.splunk.com/app/5631",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Role updates during onboarding or support escalations are often correct; require ticket correlation for privilege events.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki` (UC-5.8.15)** — Planned work for 'Admin Privilege Changes and Permission Escalation (Meraki)' shifts `values` over `span=1h` while `adminName`, `organizationId` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `meraki:audit`** — Scheduled automation elevates `organizationId` without crossing configured threshold for UC-5.8.15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `adminName`, `organizationId`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `meraki:audit`** — First 48h baseline for UC-5.8.15 on `adminName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `adminName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
@@ -30,6 +52,12 @@
   "equipmentModels": [
     "cisco_meraki"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).\n• Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Audit input (sourcetype=meraki:audit). Admin role / permission changes show up under page='Administrators' or page='Permissions'..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n1. Enable the Audit input in Splunk_TA_cisco_meraki. 2. Filter on the Administrators / Permissions pages to surface privilege escalations. 3. The audit event includes oldValue / newValue carrying the previous and new role JSON blob — useful for forensic detail. 4. Trigger a high-priority alert on every privilege change; pair with your IDM for change-control validation.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=meraki sourcetype=\"meraki:audit\" earliest=-30d\n    (page=\"Administrators\" OR page=\"Permissions\"\n     OR label=\"*role*\" OR label=\"*permission*\" OR action=\"*admin*\")\n| stats count as priv_change_count,\n        values(label) as targets,\n        values(action) as actions,\n        values(page) as pages,\n        latest(_time) as last_change\n         by adminName, organizationId\n| sort - last_change\n```\n\nUnderstanding this SPL\n\n**Admin Privilege Changes and Permission Escalation (Meraki)** — Security operations teams detect Meraki administrator privilege escalation events, new admin account creation, and role changes to prevent unauthorized access and maintain least-privilege compliance across the Meraki organization.\n\nDocumented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Audit input (sourcetype=meraki:audit). Admin role / permission changes show up under page='Administrators' or page='Permissions'. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:audit. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=meraki, sourcetype=\"meraki:audit\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by adminName, organizationId** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Privilege change timeline; role change audit table; escalation alert dashboard.",
-  "grandmaExplanation": "We help you see when someone’s Meraki rights jump up in a way that should not happen, so small mistakes or misuse do not go unnoticed."
+  "grandmaExplanation": "We help you see when someone’s Meraki rights jump up in a way that should not happen, so small mistakes or misuse do not go unnoticed.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

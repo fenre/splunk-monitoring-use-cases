@@ -9,46 +9,70 @@
     "Anomaly"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Endurance activities (`strava:activity`, `garmin:activity`, `coros:activity`, `wahoo:workout`, `trainerroad:workout`, `applefitness:workout`, `concept2:workout`, `zwift:activity`).",
-  "app": "COROS, Wahoo ELEMNT, TrainerRoad, Apple Fitness / HealthKit exports, Concept2 Logbook, Strava, Garmin Connect, and Zwift activity feeds via official APIs, FIT/CSV exports, and Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Hike Elevation Gain per Moving Hour' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_hike_elevation_gain_per_moving_hour` (UC-25.1.25), SOC dashboard panel \"Personal — Hike Elevation Gain per Moving Hour\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.1.25 positive (Hike, Elevation, Gain, per, Moving): ingest synthetic events into `index=personal` sourcetype='garmin:activity' where `climb_m`, `moving_time_hr` grouped by `athlete` satisfies `moving_time_hr` > 0, or `climb_per_hr` > 500 for 'Hike Elevation Gain per Moving Hour'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.1.25 negative (Moving Hour): ingest benign `personal` / `garmin:activity` events where `athlete` stays below `moving_time_hr` > 0, or `climb_per_hr` > 500, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 3 confirms zero alert rows for 'Hike Elevation Gain per Moving Hour'."
+  },
+  "dataSources": "Endurance activities (`strava:activity`, `garmin:activity`, `coros:activity`, `wahoo:workout`, `trainerroad:workout`, `applefitness:workout`, `concept2:workout`, `zwift:activity`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "COROS, Wahoo ELEMNT, TrainerRoad, Apple Fitness / HealthKit exports, Concept2 Logbook, Strava, Garmin Connect, and Zwift activity feeds via official APIs, FIT/CSV exports, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=garmin:activity sport=hike\n| stats sum(elevation_gain_m) as climb_m, sum(moving_time_hr) as moving_time_hr by athlete\n| eval climb_per_hr=round(climb_m/moving_time_hr,1)\n| where moving_time_hr>0 AND climb_per_hr>500\n| sort - climb_per_hr",
-  "description": "Uses Garmin hiking exports telemetry to monitor vertical climbing rate across hiking time in index=personal.",
-  "value": "Splunk turns the feed into an operational check for exceptionally steep or overreaching hike days, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Detects when Moving Hour criteria fire for 'Hike Elevation Gain per Moving Hour' (UC-25.1.25) in `index=personal` sourcetype `garmin:activity`. Pipeline aggregates `climb_m`, `moving_time_hr` by `athlete` over `the scheduled window`. Alert logic enforces `moving_time_hr` > 0, or `climb_per_hr` > 500. Title terms: Hike, Elevation, Gain, per, Moving. Eliminates manual hunting for UC-25.1.25 conditions.",
+  "value": "UC-25.1.25 helps teams contain Hike, Elevation, Gain, per, Moving scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Ingest Garmin hiking exports data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a weekly cadence.",
   "visualization": "Ranked table of climb per moving hour.",
   "cimModels": [],
   "references": [
     {
       "title": "Strava - API reference",
-      "url": "https://developers.strava.com/docs/reference/"
+      "url": "https://developers.strava.com/docs/reference/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "COROS support",
-      "url": "https://support.coros.com/hc/en-us"
+      "url": "https://support.coros.com/hc/en-us",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Wahoo support",
-      "url": "https://support.wahoofitness.com/hc/en-us"
+      "url": "https://support.wahoofitness.com/hc/en-us",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TrainerRoad support",
-      "url": "https://support.trainerroad.com/hc/en-us"
+      "url": "https://support.trainerroad.com/hc/en-us",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Apple HealthKit",
-      "url": "https://developer.apple.com/documentation/healthkit"
+      "url": "https://developer.apple.com/documentation/healthkit",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Concept2 Logbook API",
-      "url": "https://log.concept2.com/developers/documentation"
+      "url": "https://log.concept2.com/developers/documentation",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.1.25)** — Connector for 'Hike Elevation Gain per Moving Hour' stops polling `garmin:activity`; stale `climb_m`, `moving_time_hr` on `athlete` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `climb_m`, `moving_time_hr` over `1w` is expected for UC-25.1.25, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `garmin:activity`. Dedup with `stats latest(*) by athlete`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `moving_time_hr` > 0 for 'Hike Elevation Gain per Moving Hour'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It monitors vertical climbing rate across hiking time so you can spot exceptionally steep or overreaching hike days before it becomes annoying."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Garmin Connect — Garmin Health API or third-party export → HEC.\n• **Subcategory context**: Fitness & Activity Tracking — typical feeds: Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`), Zwift/TrainingPeaks exports..\n• **Sourcetypes in this search**: `garmin:activity`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Garmin Connect** events into `index=personal` with `sourcetype=garmin:activity`.\n\n**Collection method:** Garmin Health API or third-party export → HEC.\n\n**Reference endpoint / path:** `Garmin Connect IQ / Health API activity summaries`.\n\n**Suggested poll interval:** 3600s.\n\n**Key fields to extract:** `activityType, distance, duration, startTimeGMT`.\n\n**Typical connector stack:** Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as files..\n\n**Author notes:** Ingest Garmin hiking exports data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a weekly cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"garmin:activity\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=garmin:activity earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Hike Elevation Gain per Moving Hour** over `personal` data (primarily `sourcetype=garmin:activity`) across the full search range. It applies numeric thresholds on `moving_time_hr` (> 0) after sum — tune these constants to your household baseline.\n\n**Fields this search depends on:** `athlete`, `climb_per_hr`, `moving_time_hr`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=garmin:activity sport=hike\n| stats sum(elevation_gain_m) as climb_m, sum(moving_time_hr) as moving_time_hr by athlete\n| eval climb_per_hr=round(climb_m/moving_time_hr,1)\n| where moving_time_hr>0 AND climb_per_hr>500\n| sort - climb_per_hr\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Garmin Connect → Activities calendar. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=garmin:activity earliest=-7d\n| head 50\n| table athlete, climb_per_hr, moving_time_hr\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=garmin:activity earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `moving_time_hr` before alerting:\n\n```spl\nindex=personal sourcetype=garmin:activity earliest=-30d\n| stats perc50(moving_time_hr) AS p50 perc90(moving_time_hr) AS p90 perc99(moving_time_hr) AS p99 max(moving_time_hr) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.1.25: Personal evidence` with the following panel layout:\n\n**Panel 1 — Ranked Table Of Climb Per Moving Hour (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Garmin Connect — no Garmin Connect events / missing fields:** If `garmin:activity` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Garmin Connect connector script is still running (`systemctl status` or cron log).\n\n**Garmin Connect — NULL values in extracted fields:** The Garmin Connect JSON export shape drifted — compare a raw event (`index=personal sourcetype=garmin:activity | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Garmin Connect — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Garmin Connect — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Garmin Connect APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It monitors vertical climbing rate across hiking time so you can spot exceptionally steep or overreaching hike days before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

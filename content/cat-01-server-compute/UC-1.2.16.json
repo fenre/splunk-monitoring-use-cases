@@ -8,11 +8,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=DhcpSrvLog`, DHCP audit logs",
-  "app": "`Splunk_TA_windows`",
+  "exclusions": "Covers the detection logic documented for 'DHCP Scope Exhaustion' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_dhcp_scope_exhaustion` (UC-1.2.16), SOC dashboard panel \"Linux — DHCP Scope Exhaustion\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.2.16 positive (DHCP, Scope, Exhaustion): ingest synthetic events into `index=dhcp` sourcetype='DhcpSrvLog' where `count` grouped by `Description` satisfies detection threshold for 'DHCP Scope Exhaustion'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.2.16 negative (Scope Exhaustion): ingest benign `dhcp` / `DhcpSrvLog` events where `Description` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 5 confirms zero alert rows for 'DHCP Scope Exhaustion'."
+  },
+  "dataSources": "`sourcetype=DhcpSrvLog`, DHCP audit logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_windows` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dhcp sourcetype=\"DhcpSrvLog\"\n| where EventID=13 OR EventID=14\n| stats count by Description",
-  "description": "When DHCP scopes run out of addresses, new devices can't get network access. Often manifests as \"network down\" complaints.",
-  "value": "Scope exhaustion is a silent brownout for new clients—fixing it fast avoids an invisible outage that support hears as “wifi is weird.”",
+  "description": "Identifies 'DHCP Scope Exhaustion' patterns (UC-1.2.16) sourced from `index=dhcp` sourcetype `DhcpSrvLog`. Threshold bundle: configured threshold; aggregation grain: `Description`; metrics: `count`. Watch terms: DHCP, Scope, Exhaustion.",
+  "value": "UC-1.2.16 gives Linux teams earlier visibility into Scope Exhaustion through `DhcpSrvLog` feeds, lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Forward DHCP server audit logs from `%windir%\\System32\\Dhcp`. Create scripted input running `Get-DhcpServerv4ScopeStatistics` to get scope utilization. Alert when any scope exceeds 90% utilization.",
   "visualization": "Gauge per scope, Table (scope, used, available, % full), Trend line.",
   "cimModels": [
@@ -24,13 +30,38 @@
   "references": [
     {
       "title": "Splunk_TA_windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "New sites, big events, and guest surges can exhaust a scope. Some exhaustion alerts are by design in lab or isolation VLANs; tune with subnet owners.",
+  "knownFalsePositives": "1. **Patch Tuesday on `dhcp`** — Package managers spike `Description` metrics for 'DHCP Scope Exhaustion'. Correlate with apt/yum logs in the same `DhcpSrvLog` window.\n\n2. **Nightly backup I/O on `Description`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `DhcpSrvLog`** — Nagios/Zabbix polls `Description` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `Description` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `Description`, `valid_until`.",
   "equipment": [
     "windows"
   ],
+  "equipmentModels": [
+    "windows_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=DhcpSrvLog`, DHCP audit logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward DHCP server audit logs from `%windir%\\System32\\Dhcp`. Create scripted input running `Get-DhcpServerv4ScopeStatistics` to get scope utilization. Alert when any scope exceeds 90% utilization.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=dhcp sourcetype=\"DhcpSrvLog\"\n| where EventID=13 OR EventID=14\n| stats count by Description\n```\n\nUnderstanding this SPL\n\n**DHCP Scope Exhaustion** — When DHCP scopes run out of addresses, new devices can't get network access. Often manifests as \"network down\" complaints.\n\nDocumented **Data sources**: `sourcetype=DhcpSrvLog`, DHCP audit logs. **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: dhcp; **sourcetype**: DhcpSrvLog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=dhcp, sourcetype=\"DhcpSrvLog\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where EventID=13 OR EventID=14` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by Description** so each row reflects one combination of those dimensions.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Change where nodename=Change.All_Changes\n  by All_Changes.dest span=1h\n| where count>0\n```\n\nUnderstanding this CIM / accelerated SPL\n\nCIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.\n\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge per scope, Table (scope, used, available, % full), Trend line.\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We help you know when a network ran out of addresses to hand out, so new phones and laptops can still get online in busy places."
+  "grandmaExplanation": "We help you know when a network ran out of addresses to hand out, so new phones and laptops can still get online in busy places.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

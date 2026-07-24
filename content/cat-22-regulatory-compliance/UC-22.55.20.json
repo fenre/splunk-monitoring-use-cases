@@ -31,14 +31,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Skip the daily account-audit check; UC-22.55.20 MUST flag `check_status=\"daily_check_overdue\"`.",
-    "negativeScenario": "Execute every check on its cadence; UC-22.55.20 MUST record `check_status=\"compliant\"`."
+    "positiveScenario": "UC-22.55.20 positive (CLC, 50701, Operator, Continuous, Obligations): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `count` grouped by `entity` satisfies detection threshold for 'CLC/TS 50701 Operator Continuous Obligations — daily / weekly / monthly CSMS operational checks evidenced'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.55.20 negative (checks evidenced): ingest benign `target_index` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv`. Variant 8 confirms zero alert rows for 'CLC/TS 50701 Operator Continuous Obligations — daily / weekly / monthly CSMS operational checks evidenced'."
   },
   "dataSources": "KV Store `rail_operator_check_lookup`. Splunk saved search execution logs (`index=_audit`). SOAR check-execution playbook.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup rail_operator_check_lookup\n| where check_status_in_register=\"active\"\n| eval now_ts = now()\n| eval expected_cadence_seconds = case(\n    expected_frequency=\"daily\", 86400 * 1.2,\n    expected_frequency=\"weekly\", 86400 * 8,\n    expected_frequency=\"monthly\", 86400 * 35,\n    1=1, 86400 * 7)\n| eval time_since_last = if(isnotnull(last_executed_at), now_ts - last_executed_at, null())\n| eval check_status = case(\n    isnull(last_executed_at), \"never_executed\",\n    time_since_last > expected_cadence_seconds, \"cadence_overdue\",\n    1=1, \"compliant\")\n| where check_status != \"compliant\"\n| table check_id check_name expected_frequency last_executed_at last_executed_by time_since_last check_status",
-  "description": "Tracks scheduled cyber operational checks against their expected cadence.",
-  "value": "Operational discipline is the most-cited weakness in NSA cyber audits. This UC enforces cadence.",
+  "description": "Identifies UC-22.55.20 — CLC, 50701, Operator, Continuous, Obligations — using `index=target_index` sourcetype `configured sourcetype`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: checks evidenced. Purpose-built for 'CLC/TS 50701 Operator Continuous Obligations — daily / weekly / monthly CSMS operational checks evidenced' in Compliance workflows.",
+  "value": "UC-22.55.20 accelerates insight into checks evidenced ('CLC/TS 50701 Operator Continuous Obligations — daily / weekly / monthly CSMS operational checks evidenced') by tracking `activity` on UC-22.55.20 search results, reducing audit findings, regulatory gaps, and attestation delays before spreadsheet checks hide regressions.",
   "implementation": "(1) Maintain `rail_operator_check_lookup` with every prescribed check. (2) SOAR `rail-operator-check-runner` runs each check; writes last_executed_at. (3) Schedule UC-22.55.20 daily 03:30.",
   "visualization": "(Panel 1) Check-status table. (Panel 2) Overdue queue. (Panel 3) Cadence-trend trend.",
   "cimModels": [
@@ -47,10 +47,31 @@
   "references": [
     {
       "title": "CLC/TS 50701:2021 clause 11.1",
-      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 263",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 4413",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1621",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Alerts",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Alerts",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Check disabled for maintenance** — documented operations note. Suppression: `check_status_override=maintenance_window`.\n\n**Suppression mechanism**: KV Store `clc_22_55_20_exceptions` with documented Ops-Cyber-Lead approval and 7-day maximum grant.",
+  "knownFalsePositives": "1. **Authorised CLC TS 50701 control testing** — Internal audit exercises 'CLC/TS 50701 Operator Continuous Obligations — daily / weekly / monthly CSMS operational checks evidenced' (UC-22.55.20) on `entity` during scheduled clause CLC-TS-50701-c11-1 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `clc_ts_50701_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `clc_ts_50701_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (operational-discipline governance)"
   ],
@@ -78,7 +99,7 @@
     "Splunk Enterprise Security",
     "Splunk SOAR"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk SOAR (Splunkbase 4413).\n- KV Store `rail_operator_check_lookup`.\n\n## Step 1 — Check collection\n\n```ini\n[rail_operator_check_lookup]\nenforceTypes = true\nfield.check_id = string\nfield.check_name = string\nfield.expected_frequency = string\nfield.last_executed_at = number\nfield.last_executed_by = string\nfield.next_due_at = number\nfield.check_status_in_register = string\n```\n\nPrescribed checks at minimum:\n\n- **Daily**: account-audit; detection-rule status; backup-verification.\n- **Weekly**: PAM session review; firewall rule review; vuln scan summary.\n- **Monthly**: incident-response readiness; supplier deliverable status; cyber-safety joint review.\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.20: CLC/TS 50701 Operator Continuous Obligations]\ncron_schedule = 30 3 * * *\ndispatch.earliest_time = -1y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.20,reg=CLC-TS-50701,clause=CLC-TS-50701-c11-1\naction.notable.param.rule_title = Rail operational cyber-check cadence overdue\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `cadence_overdue`** (owner: Ops Cyber Lead, severity P2): execute check immediately; document.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Multi-shift coverage**: ensure daily checks aren't skipped on weekends.\n- **Automated vs manual**: automate as much as possible to reduce human-error miss.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk SOAR (Splunkbase 4413).\n- KV Store `rail_operator_check_lookup`.\n\n## Step 1 — Check collection\n\n```ini\n[rail_operator_check_lookup]\nenforceTypes = true\nfield.check_id = string\nfield.check_name = string\nfield.expected_frequency = string\nfield.last_executed_at = number\nfield.last_executed_by = string\nfield.next_due_at = number\nfield.check_status_in_register = string\n```\n\nPrescribed checks at minimum:\n\n- **Daily**: account-audit; detection-rule status; backup-verification.\n- **Weekly**: PAM session review; firewall rule review; vuln scan summary.\n- **Monthly**: incident-response readiness; supplier deliverable status; cyber-safety joint review.\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.20: CLC/TS 50701 Operator Continuous Obligations]\ncron_schedule = 30 3 * * *\ndispatch.earliest_time = -1y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.20,reg=CLC-TS-50701,clause=CLC-TS-50701-c11-1\naction.notable.param.rule_title = Rail operational cyber-check cadence overdue\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `cadence_overdue`** (owner: Ops Cyber Lead, severity P2): execute check immediately; document.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Multi-shift coverage**: ensure daily checks aren't skipped on weekends.\n- **Automated vs manual**: automate as much as possible to reduce human-error miss.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Common Information Model Add-on (Splunkbase 1621).). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`check_status, expected_cadence_seconds, time_since_last`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We have daily, weekly, and monthly cyber-checks like brushing teeth, vacuuming, and changing the oil. We track every check; if any is overdue, the team is told to do it.",
   "prerequisiteUseCases": [],
   "splunkbaseApps": [

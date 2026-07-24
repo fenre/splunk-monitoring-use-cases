@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=dell:sonicwall:firewall` (syslog), SMA 1000 logs via TA",
+  "exclusions": "Covers the detection logic documented for 'SonicWall Cloud SWG and SMA Access Events (SonicWall)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_sonicwall_cloud_swg_and_sma_access_events_sonicw` (UC-17.3.61), SOC dashboard panel \"Network — SonicWall Cloud SWG and SMA Access Events (SonicWall)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.61 positive (SonicWall, Cloud, SWG, and, SMA): ingest synthetic events into `index=proxy` sourcetype='dell:sonicwall:firewall' where `count` grouped by `cat`, `usr`, `fw_action`, `rule` satisfies -7d for 'SonicWall Cloud SWG and SMA Access Events (SonicWall)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.61 negative (Events (SonicWall)): ingest benign `proxy` / `dell:sonicwall:firewall` events where `cat`, `usr`, `fw_action`, `rule` stays below -7d, or exclude the test entity via `network_exception_register.csv`. Variant 13 confirms zero alert rows for 'SonicWall Cloud SWG and SMA Access Events (SonicWall)'."
+  },
+  "dataSources": "`sourcetype=dell:sonicwall:firewall` (syslog), SMA 1000 logs via TA Indexes: proxy. Sourcetypes: dell:sonicwall:firewall. Key fields: cat, fw_action, rule, usr. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "SonicWall SMA 1000 TA (Splunkbase 6670), `dell:sonicwall:firewall` syslog",
   "spl": "index=proxy sourcetype=\"dell:sonicwall:firewall\" earliest=-7d\n| where fw_action IN (\"block\",\"deny\",\"drop\")\n| stats count by cat, usr, fw_action, rule\n| sort -count",
-  "description": "SonicWall Cloud SWG and Secure Mobile Access (SMA) provide cloud-delivered web security and ZTNA for remote and branch users. Tracking blocked connections, authentication events, and policy actions validates secure access enforcement.",
-  "value": "VPN operations teams monitor SonicWall SMA session health, detecting brute force patterns, credential sharing through concurrent sessions from multiple IPs, and abandoned sessions consuming VPN licenses.",
+  "description": "Alerts on UC-17.3.61 — SonicWall, Cloud, SWG, and, SMA — using `index=proxy` sourcetype `dell:sonicwall:firewall`, grouped by `cat`, `usr`, `fw_action`, `rule`. Outputs `count` each `the scheduled window`; alert when -7d. Primary focus: Events (SonicWall). Purpose-built for 'SonicWall Cloud SWG and SMA Access Events (SonicWall)' in Network workflows.",
+  "value": "UC-17.3.61 gives Network teams earlier visibility into Events (SonicWall) through `dell:sonicwall:firewall` feeds, lowering unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Forward SonicWall Cloud SWG/SMA logs via syslog or use the SMA 1000 TA. Map `cat` (web category) to acceptable-use policy. Alert on authentication failures from SMA. Report on policy enforcement effectiveness.",
   "visualization": "Bar chart (blocks by category), Table (top blocked users), Line chart (daily block trend), Pie chart (action distribution).",
   "cimModels": [
@@ -25,14 +31,26 @@
   "references": [
     {
       "title": "SonicWall SMA 1000 TA",
-      "url": "https://splunkbase.splunk.com/app/6670"
+      "url": "https://splunkbase.splunk.com/app/6670",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Access denied for users in mid-onboarding, role changes pending propagation, or VDI sessions with new device IDs.",
+  "knownFalsePositives": "1. **Vulnerability scanner signature matches** — Qualys/Tenable traffic triggers IPS/threat signatures for 'SonicWall Cloud SWG and SMA Access Events (SonicWall)'. Compare `src` against `scanner_ips` lookup.\n\n2. **Policy push during change window** — New deny rule generates expected blocks. Match firewall commit timestamp in change calendar.\n\n3. **Encrypted traffic inspection gap** — TLS-heavy apps bypass deep inspection; volume drop is operational, not a sensor failure.\n\n4. **Red-team C2 simulation** — Approved exercise from `pen_test_hosts.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `src`, `signature_id`, `valid_until`.",
   "mitreAttack": [
     "T1071.001",
     "T1021"
@@ -41,7 +59,17 @@
     "sonicwall",
     "syslog"
   ],
-  "detailedImplementation": "Prerequisites\n• SonicWall SMA (Secure Mobile Access) logs in `index=sonicwall` with `sourcetype=sonicwall:sma`. Key fields: `msg_id` (SMA-specific message IDs), `user`, `src`, `dst`, `action`, `tunnel_type` (SSL-VPN/NetExtender/Mobile Connect), `auth_method`, `duration`, `bytes_in`, `bytes_out`.\n• SonicWall SMA appliances provide SSL-VPN access for remote workers. NetExtender is the full-tunnel client; Mobile Connect is for phones/tablets. SMA supports MFA and device posture checks.\n\nStep 1 — Configure data collection\nConfigure syslog on SMA: System > Log > Syslog Servers > add Splunk syslog input.\n\nVerify:\n```spl\nindex=sonicwall sourcetype=\"sonicwall:sma\" earliest=-24h\n| stats count by msg_id, action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — VPN session monitoring:\n```spl\nindex=sonicwall sourcetype=\"sonicwall:sma\" earliest=-24h\n| where match(msg_id, \"(?i)login|logon|session\")\n| stats count(eval(match(action, \"(?i)success|allow\"))) as successful count(eval(match(action, \"(?i)fail|deny\"))) as failed dc(src) as source_ips by user\n| eval fail_rate=round(failed/(successful+failed)*100, 1)\n| sort - fail_rate\n```\n\nUnderstanding this SPL: Tracks VPN login success/failure per user. High failure rates may indicate brute force attacks (many failures, many source IPs) or credential issues (one user, one source, many failures). SonicWall SMA msg_id codes identify specific events.\n\nConcurrent session anomaly:\n```spl\nindex=sonicwall sourcetype=\"sonicwall:sma\" earliest=-24h\n| where match(msg_id, \"(?i)session.*start|login.*success\")\n| transaction user maxpause=1h\n| where mvcount(src) > 1\n| table user, src, duration, tunnel_type\n```\n\nStep 3 — Validate\n(a) Connect via NetExtender. Verify login event.\n(b) In SMA: Log > View All. Compare with Splunk.\n\nStep 4 — Operationalize\nDashboard: Row 1 — VPN sessions. Row 2 — Failed logins. Row 3 — Concurrent sessions.\nAlert: Brute force (>10 failures in 5 min from same source).\n\nRunbook:\n1. **Brute force** — Block source IP in SMA firewall rules.\n2. **Concurrent sessions** — Credential sharing or compromise.\n3. **High duration** — Check for abandoned sessions consuming licenses.\n\nStep 5 — Troubleshooting\n• **No SMA events** — Syslog may not be configured on SMA appliance.\n• **`msg_id` numeric** — Map SonicWall message IDs using the SonicWall documentation.",
+  "equipmentModels": [
+    "sonicwall_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• SonicWall SMA (Secure Mobile Access) logs in `index=sonicwall` with `sourcetype=sonicwall:sma`. Key fields: `msg_id` (SMA-specific message IDs), `user`, `src`, `dst`, `action`, `tunnel_type` (SSL-VPN/NetExtender/Mobile Connect), `auth_method`, `duration`, `bytes_in`, `bytes_out`.\n• SonicWall SMA appliances provide SSL-VPN access for remote workers. NetExtender is the full-tunnel client; Mobile Connect is for phones/tablets. SMA supports MFA and device posture checks.\n\nStep 1 — Configure data collection\nConfigure syslog on SMA: System > Log > Syslog Servers > add Splunk syslog input.\n\nVerify:\n```spl\nindex=sonicwall sourcetype=\"sonicwall:sma\" earliest=-24h\n| stats count by msg_id, action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — VPN session monitoring:\n```spl\nindex=sonicwall sourcetype=\"sonicwall:sma\" earliest=-24h\n| where match(msg_id, \"(?i)login|logon|session\")\n| stats count(eval(match(action, \"(?i)success|allow\"))) as successful count(eval(match(action, \"(?i)fail|deny\"))) as failed dc(src) as source_ips by user\n| eval fail_rate=round(failed/(successful+failed)*100, 1)\n| sort - fail_rate\n```\n\nUnderstanding this SPL: Tracks VPN login success/failure per user. High failure rates may indicate brute force attacks (many failures, many source IPs) or credential issues (one user, one source, many failures). SonicWall SMA msg_id codes identify specific events.\n\nConcurrent session anomaly:\n```spl\nindex=sonicwall sourcetype=\"sonicwall:sma\" earliest=-24h\n| where match(msg_id, \"(?i)session.*start|login.*success\")\n| transaction user maxpause=1h\n| where mvcount(src) > 1\n| table user, src, duration, tunnel_type\n```\n\nStep 3 — Validate\n(a) Connect via NetExtender. Verify login event.\n(b) In SMA: Log > View All. Compare with Splunk.\n\nStep 4 — Operationalize\nDashboard: Row 1 — VPN sessions. Row 2 — Failed logins. Row 3 — Concurrent sessions.\nAlert: Brute force (>10 failures in 5 min from same source).\n\nRunbook:\n1. **Brute force** — Block source IP in SMA firewall rules.\n2. **Concurrent sessions** — Credential sharing or compromise.\n3. **High duration** — Check for abandoned sessions consuming licenses.\n\nStep 5 — Troubleshooting\n• **No SMA events** — Syslog may not be configured on SMA appliance.\n• **`msg_id` numeric** — Map SonicWall message IDs using the SonicWall documentation.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (SonicWall SMA 1000 TA (Splunkbase 6670), `dell:sonicwall:firewall` syslog). Enable the modular input or HEC token that writes sourcetype=dell:sonicwall:firewall into proxy. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cat, fw_action, rule, usr`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "SonicWall provides a secure tunnel for people working from home. We watch for signs of trouble — like someone's password being guessed by attackers, or the same login being shared between multiple people, which is both a policy violation and a security risk.",
-  "hardware": "SonicWall SMA 1000 series, SonicWall Cloud SWG, SonicWall NSa/NSsp (with SASE), SonicWall Cloud Edge"
+  "hardware": "SonicWall SMA 1000 series, SonicWall Cloud SWG, SonicWall NSa/NSsp (with SASE), SonicWall Cloud Edge",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,46 +9,70 @@
     "Anomaly"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Endurance activities (`strava:activity`, `garmin:activity`, `coros:activity`, `wahoo:workout`, `trainerroad:workout`, `applefitness:workout`, `concept2:workout`, `zwift:activity`).",
-  "app": "COROS, Wahoo ELEMNT, TrainerRoad, Apple Fitness / HealthKit exports, Concept2 Logbook, Strava, Garmin Connect, and Zwift activity feeds via official APIs, FIT/CSV exports, and Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Ski Day Vertical Drop vs Lift Time' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_ski_day_vertical_drop_vs_lift_time` (UC-25.1.26), SOC dashboard panel \"Personal — Ski Day Vertical Drop vs Lift Time\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.1.26 positive (Ski, Day, Vertical, Drop, Lift): ingest synthetic events into `index=personal` sourcetype='garmin:activity' where `vertical_drop_m`, `lift_time_min` grouped by `athlete`, `resort`, `_time` satisfies `vertical_drop_m` > 0 for 'Ski Day Vertical Drop vs Lift Time'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.1.26 negative (Lift Time): ingest benign `personal` / `garmin:activity` events where `athlete`, `resort`, `_time` stays below `vertical_drop_m` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 7 confirms zero alert rows for 'Ski Day Vertical Drop vs Lift Time'."
+  },
+  "dataSources": "Endurance activities (`strava:activity`, `garmin:activity`, `coros:activity`, `wahoo:workout`, `trainerroad:workout`, `applefitness:workout`, `concept2:workout`, `zwift:activity`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "COROS, Wahoo ELEMNT, TrainerRoad, Apple Fitness / HealthKit exports, Concept2 Logbook, Strava, Garmin Connect, and Zwift activity feeds via official APIs, FIT/CSV exports, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=garmin:activity sport=ski\n| bin _time span=1d\n| stats sum(vertical_drop_m) as vertical_drop_m, sum(lift_time_min) as lift_time_min by athlete resort _time\n| where vertical_drop_m>0\n| sort - vertical_drop_m",
-  "description": "Uses Garmin ski activity exports telemetry to monitor how much vertical each ski day produced relative to lift time in index=personal.",
-  "value": "Splunk turns the feed into an operational check for resort days with poor lift efficiency or standout volume, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Detects UC-25.1.26 — Ski, Day, Vertical, Drop, Lift — using `index=personal` sourcetype `garmin:activity`, grouped by `athlete`, `resort`, `_time`. Outputs `vertical_drop_m`, `lift_time_min` each `1d`; alert when `vertical_drop_m` > 0. Primary focus: Lift Time. Purpose-built for 'Ski Day Vertical Drop vs Lift Time' in Personal workflows.",
+  "value": "UC-25.1.26 operationalises 'Ski Day Vertical Drop vs Lift Time' against `garmin:activity` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Ingest Garmin ski activity exports data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a weekly cadence.",
   "visualization": "Daily resort chart of vertical drop beside lift minutes.",
   "cimModels": [],
   "references": [
     {
       "title": "Strava - API reference",
-      "url": "https://developers.strava.com/docs/reference/"
+      "url": "https://developers.strava.com/docs/reference/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "COROS support",
-      "url": "https://support.coros.com/hc/en-us"
+      "url": "https://support.coros.com/hc/en-us",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Wahoo support",
-      "url": "https://support.wahoofitness.com/hc/en-us"
+      "url": "https://support.wahoofitness.com/hc/en-us",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TrainerRoad support",
-      "url": "https://support.trainerroad.com/hc/en-us"
+      "url": "https://support.trainerroad.com/hc/en-us",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Apple HealthKit",
-      "url": "https://developer.apple.com/documentation/healthkit"
+      "url": "https://developer.apple.com/documentation/healthkit",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Concept2 Logbook API",
-      "url": "https://log.concept2.com/developers/documentation"
+      "url": "https://log.concept2.com/developers/documentation",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.1.26)** — Connector for 'Ski Day Vertical Drop vs Lift Time' stops polling `garmin:activity`; stale `vertical_drop_m`, `lift_time_min` on `athlete`, `resort`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `vertical_drop_m`, `lift_time_min` over `1d` is expected for UC-25.1.26, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `garmin:activity`. Dedup with `stats latest(*) by athlete`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `vertical_drop_m` > 0 for 'Ski Day Vertical Drop vs Lift Time'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It reveals how much vertical each ski day produced relative to lift time so you can spot resort days with poor lift efficiency or standout volume before it becomes annoying."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Garmin Connect — Garmin Health API or third-party export → HEC.\n• **Subcategory context**: Fitness & Activity Tracking — typical feeds: Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`), Zwift/TrainingPeaks exports..\n• **Sourcetypes in this search**: `garmin:activity`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Garmin Connect** events into `index=personal` with `sourcetype=garmin:activity`.\n\n**Collection method:** Garmin Health API or third-party export → HEC.\n\n**Reference endpoint / path:** `Garmin Connect IQ / Health API activity summaries`.\n\n**Suggested poll interval:** 3600s.\n\n**Key fields to extract:** `activityType, distance, duration, startTimeGMT`.\n\n**Typical connector stack:** Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as files..\n\n**Author notes:** Ingest Garmin ski activity exports data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a weekly cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"garmin:activity\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=garmin:activity earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Ski Day Vertical Drop vs Lift Time** over `personal` data (primarily `sourcetype=garmin:activity`) across the full search range. It applies numeric thresholds on `vertical_drop_m` (> 0) after sum — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `athlete`, `resort`, `vertical_drop_m`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=garmin:activity sport=ski\n| bin _time span=1d\n| stats sum(vertical_drop_m) as vertical_drop_m, sum(lift_time_min) as lift_time_min by athlete resort _time\n| where vertical_drop_m>0\n| sort - vertical_drop_m\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Garmin Connect → Activities calendar. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=garmin:activity earliest=-7d\n| head 50\n| table _time, athlete, resort, vertical_drop_m\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=garmin:activity earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `vertical_drop_m` before alerting:\n\n```spl\nindex=personal sourcetype=garmin:activity earliest=-30d\n| stats perc50(vertical_drop_m) AS p50 perc90(vertical_drop_m) AS p90 perc99(vertical_drop_m) AS p99 max(vertical_drop_m) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.1.26: Personal evidence` with the following panel layout:\n\n**Panel 1 — Daily Resort Chart Of Vertical Drop Beside Lift Minutes (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Garmin Connect — no Garmin Connect events / missing fields:** If `garmin:activity` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Garmin Connect connector script is still running (`systemctl status` or cron log).\n\n**Garmin Connect — NULL values in extracted fields:** The Garmin Connect JSON export shape drifted — compare a raw event (`index=personal sourcetype=garmin:activity | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Garmin Connect — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Garmin Connect — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Garmin Connect APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It reveals how much vertical each ski day produced relative to lift time so you can spot resort days with poor lift efficiency or standout volume before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

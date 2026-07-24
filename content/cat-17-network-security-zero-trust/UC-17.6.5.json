@@ -9,11 +9,17 @@
     "Anomaly"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Akamai Guardicore Network Flow Baseline Deviation Detection (`guardicore:network`)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_akamai_guardicore_network_flow_baseline_deviatio` (UC-17.6.5), SOC dashboard panel \"Network — Akamai Guardicore Network Flow Baseline Deviation Detection (`guardicore:network`)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.6.5 positive (Akamai, Guardicore, Network, Flow, Baseline): ingest synthetic events into `index=microseg` sourcetype='guardicore:network' where `med` grouped by `dst_port`, `_time` satisfies -7d for 'Akamai Guardicore Network Flow Baseline Deviation Detection (`guardicore:network`)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.6.5 negative (Detection (`guardicore:network`)): ingest benign `microseg` / `guardicore:network` events where `dst_port`, `_time` stays below -7d, or exclude the test entity via `network_exception_register.csv`. Variant 6 confirms zero alert rows for 'Akamai Guardicore Network Flow Baseline Deviation Detection (`guardicore:network`)'."
+  },
   "dataSources": "Guardicore Centra exports: `guardicore:network`, `guardicore:agent`, `guardicore:incident`, `guardicore:policy`, `guardicore:deception`",
   "app": "Akamai Guardicore Add-on for Splunk (Splunkbase 7426)",
   "spl": "index=microseg sourcetype=\"guardicore:network\" earliest=-7d\n| bin _time span=1h\n| stats count by dst_port, _time\n| eventstats median(count) as med by dst_port\n| eval z=(count-med)/med\n| where z>3",
-  "description": "Sudden tenfold jumps on unusual ports may be C2 or ransomware staging.",
-  "value": "Security analysts detect statistically significant deviations from normal east-west traffic patterns, catching C2 communication, ransomware staging, or unauthorized service deployments before they escalate into incidents.",
+  "description": "Identifies Detection (`guardicore:network`) anomalies for UC-17.6.5 with window `1h` on `index=microseg` sourcetype `guardicore:network`. Combines `med` by `dst_port`, `_time` and compares against -7d. Mapped to keywords Akamai, Guardicore, Network, Flow, Baseline for dashboard routing.",
+  "value": "Alerting on Akamai, Guardicore, Network, Flow, Baseline through UC-17.6.5 reduces unauthorized access, segmentation drift, and NAC policy failures by surfacing `med` early.",
   "implementation": "Install the add-on, configure API polling intervals appropriate to API limits, and map assets to CMDB for enrichment lookups.",
   "visualization": "Timechart (z-score), table.",
   "cimModels": [],
@@ -22,18 +28,34 @@
   "references": [
     {
       "title": "Splunkbase — Akamai Guardicore Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/7426"
+      "url": "https://splunkbase.splunk.com/app/7426",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Akamai Guardicore documentation",
-      "url": "https://www.akamai.com/products/guardicore"
+      "url": "https://www.akamai.com/products/guardicore",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Microseg blocks from new app deployments, missing exception rules, or planned segmentation rollouts.",
+  "knownFalsePositives": "1. **Maintenance window on `microseg` (UC-17.6.5)** — Planned work for 'Akamai Guardicore Network Flow Baseline Deviation Detection (`guardicore:network`)' shifts `med` over `span=1h` while `dst_port`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `median` on `guardicore:network`** — Scheduled automation elevates `_time` without crossing configured threshold for UC-17.6.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dst_port`, `_time`** — Health checks in `microseg` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `guardicore:network`** — First 48h baseline for UC-17.6.5 on `dst_port` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `dst_port`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "guardicore",
     "m365"
+  ],
+  "equipmentModels": [
+    "guardicore_generic",
+    "m365_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -43,5 +65,7 @@
   ],
   "reviewer": "catalog-team",
   "detailedImplementation": "Prerequisites\n• Akamai Guardicore Add-on for Splunk (Splunkbase 7426) v3.x collecting network flow events.\n• Data in `index=microseg` with `sourcetype=guardicore:network`. Key fields: `src_ip`, `dst_ip`, `dst_port`, `protocol`, `bytes_sent`, `bytes_received`, `action`, `src_segment`, `dst_segment`, `process_name`.\n• At least 7 days of historical flow data to establish a meaningful baseline. 30 days is preferred for capturing weekly patterns.\n• Guardicore's Reveal feature provides flow visibility regardless of enforcement mode — this UC works in both Reveal and Enforce modes.\n\nStep 1 — Configure data collection\nVerify flow data volume and coverage:\n```spl\nindex=microseg sourcetype=\"guardicore:network\" earliest=-24h\n| stats count dc(src_ip) as sources dc(dst_ip) as destinations dc(dst_port) as ports by src_segment\n| sort - count\n```\nEach segment should show consistent flow volumes. A segment with zero flows may have agents in a non-reporting state.\n\nStep 2 — Create the search and alert\n\nPrimary search — Flow volume anomaly by destination port:\n```spl\nindex=microseg sourcetype=\"guardicore:network\" earliest=-7d\n| bin _time span=1h\n| stats count as flows by _time, dst_port, dst_segment\n| eventstats avg(flows) as avg_flows stdev(flows) as stdev_flows by dst_port, dst_segment\n| eval zscore=if(stdev_flows>0, (flows - avg_flows)/stdev_flows, 0)\n| where zscore > 3 AND flows > 50\n| eval anomaly=dst_segment.\":\".dst_port.\" — \".flows.\" flows (avg=\".round(avg_flows,0).\", z=\".round(zscore,1).\")\"\n| sort - zscore\n```\n\nUnderstanding this SPL: Calculates a z-score for each destination port and segment combination against a 7-day hourly baseline. A z-score above 3 means the traffic volume is more than 3 standard deviations above normal. Common triggers: ransomware staging (sudden SMB/445 spike), C2 communication (unusual port activity), or a legitimate deployment.\n\nNew port detection (never-before-seen traffic):\n```spl\nindex=microseg sourcetype=\"guardicore:network\" earliest=-24h\n| stats count by dst_port, dst_segment\n| join type=left dst_port, dst_segment [\n    search index=microseg sourcetype=\"guardicore:network\" earliest=-31d latest=-1d\n    | stats count as hist_count by dst_port, dst_segment\n]\n| where isnull(hist_count)\n| sort - count\n```\n\nStep 3 — Validate\n(a) Pick an anomaly from the search results. In Guardicore Centra: Reveal > select the destination segment > filter by the port > verify the traffic spike is visible.\n(b) Cross-reference with change management: if a deployment or migration happened in the window, the anomaly is expected.\n(c) Verify baseline stability: run the search with `| where zscore > 2` and check if the results make operational sense.\n\nStep 4 — Operationalize\nDashboard (\"Guardicore — Flow Baseline Anomalies\"):\n• Row 1 — Single-value: \"Active anomalies\", \"New ports detected (24h)\".\n• Row 2 — Table: segment, port, current flow volume, baseline avg, z-score, processes involved.\n• Row 3 — Timechart: anomalous port traffic overlaid with the baseline band (avg +/- 2 sigma).\n\nAlert: Trigger when any port/segment combination exceeds z-score 4 with flow count > 100. This represents an extreme deviation — investigate immediately.\n\nRunbook:\n1. **SMB (445) or RDP (3389) spike** — High-risk ports. Check if the source IPs are authorized administrators. If not, potential ransomware or lateral movement. Isolate the segment.\n2. **High-port anomaly (>1024)** — May be a new application or C2. Check the `process_name` field — legitimate applications use known binaries; C2 often uses cmd, powershell, or custom binaries.\n3. **DNS (53) spike** — Possible DNS tunneling or DGA activity. Correlate with DNS analytics.\n\nStep 5 — Troubleshooting\n• **Too many anomalies** — The baseline period may include unusual events. Extend to 30 days for a more stable baseline.\n• **Z-score calculation returns null** — Not enough data points. Need at least 7 days of hourly data for meaningful statistics.\n• **Anomalies during maintenance windows** — Create a `gc_maintenance.csv` lookup and filter out maintenance periods.",
-  "grandmaExplanation": "We learn what normal traffic looks like inside our network, and when something suddenly changes — like a tenfold jump on an unusual connection — we investigate because it could mean trouble."
+  "grandmaExplanation": "We learn what normal traffic looks like inside our network, and when something suddenly changes — like a tenfold jump on an unusual connection — we investigate because it could mean trouble.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

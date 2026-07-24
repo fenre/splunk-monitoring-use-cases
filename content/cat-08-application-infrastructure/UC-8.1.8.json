@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Apache mod_status, NGINX stub_status, IIS performance counters",
-  "app": "Scripted input (Apache `server-status`, NGINX `stub_status`)",
+  "exclusions": "Covers the detection logic documented for 'Connection Pool Saturation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_connection_pool_saturation` (UC-8.1.8), SOC dashboard panel \"Operations — Connection Pool Saturation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.1.8 positive (Connection, Pool, Saturation): ingest synthetic events into `index=web` sourcetype='apache:server_status' where `worker_pct` grouped by `host` satisfies `worker_pct` > 80 for 'Connection Pool Saturation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.8 negative (Pool Saturation): ingest benign `web` / `apache:server_status` events where `host` stays below `worker_pct` > 80, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Connection Pool Saturation'."
+  },
+  "dataSources": "Apache mod_status, NGINX stub_status, IIS performance counters Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Scripted input (Apache `server-status`, NGINX `stub_status`) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"apache:server_status\"\n| eval pct_busy=round(BusyWorkers/(BusyWorkers+IdleWorkers)*100,1)\n| timechart span=5m avg(pct_busy) as worker_pct by host\n| where worker_pct > 80",
-  "description": "Saturated worker threads/processes cause request queuing and timeouts. Monitoring enables proactive scaling.",
-  "value": "Saturated worker threads/processes cause request queuing and timeouts. Monitoring enables proactive scaling.",
+  "description": "Detects UC-8.1.8 — Connection, Pool, Saturation — using `index=web` sourcetype `apache:server_status`, grouped by `host`. Outputs `worker_pct` each `5m`; alert when `worker_pct` > 80. Primary focus: Pool Saturation. Purpose-built for 'Connection Pool Saturation' in Operations workflows.",
+  "value": "UC-8.1.8 operationalises 'Connection Pool Saturation' against `apache:server_status` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Enable Apache `mod_status` or NGINX `stub_status` module. Poll via scripted input every minute. Alert when busy workers exceed 80% of total. Correlate with request rate to distinguish capacity limits from slow backends.",
   "visualization": "Gauge (% workers busy), Line chart (worker utilization over time), Table (hosts at capacity).",
   "cimModels": [
@@ -22,14 +28,26 @@
   "references": [
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
+  "knownFalsePositives": "1. **Maintenance window on `web` (UC-8.1.8)** — Planned work for 'Connection Pool Saturation' shifts `worker_pct` over `span=5m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `apache:server_status`** — Scheduled automation elevates `pct_busy` without crossing `worker_pct` > 80 for UC-8.1.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `apache:server_status`** — First 48h baseline for UC-8.1.8 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "nginx"
@@ -38,6 +56,12 @@
     "apache_httpd",
     "nginx_open"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Scripted input (Apache `server-status`, NGINX `stub_status`).\n• Ensure the following data sources are available: Apache mod_status, NGINX stub_status, IIS performance counters.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable Apache `mod_status` or NGINX `stub_status` module. Poll via scripted input every minute. Alert when busy workers exceed 80% of total. Correlate with request rate to distinguish capacity limits from slow backends.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=web sourcetype=\"apache:server_status\"\n| eval pct_busy=round(BusyWorkers/(BusyWorkers+IdleWorkers)*100,1)\n| timechart span=5m avg(pct_busy) as worker_pct by host\n| where worker_pct > 80\n```\n\nUnderstanding this SPL\n\n**Connection Pool Saturation** — Saturated worker threads/processes cause request queuing and timeouts. Monitoring enables proactive scaling.\n\nDocumented **Data sources**: Apache mod_status, NGINX stub_status, IIS performance counters. **App/TA** (typical add-on context): Scripted input (Apache `server-status`, NGINX `stub_status`). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: web; **sourcetype**: apache:server_status. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=web, sourcetype=\"apache:server_status\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **pct_busy** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by host** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where worker_pct > 80` — typically the threshold or rule expression for this monitoring goal.\n\n\n\nStep 3 — Validate\nCompare with web server access logs on disk (Apache, NGINX, or W3C) for the same time range, or tail the same sourcetype in Search, to confirm status codes, URIs, and counts.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (% workers busy), Line chart (worker utilization over time), Table (hosts at capacity).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We watch for signs that saturated worker threads/processes cause request queuing and timeouts."
+  "grandmaExplanation": "We watch for signs that saturated worker threads/processes cause request queuing and timeouts.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,6 +9,8 @@
     "Compliance"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Covers the detection logic documented for 'Cisco ISE Patch and Upgrade Health — Pre/Post-Upgrade Validation' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_cisco_ise_patch_and_upgrade_health_pre_post_upgr` (UC-17.1.49), SOC dashboard panel \"Network — Cisco ISE Patch and Upgrade Health — Pre/Post-Upgrade Validation\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "pci-dss",
@@ -73,14 +75,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "On a lab ISE, install a patch that intentionally rolls back. ISE emits 51021. UC-17.1.49 fires.",
-    "negativeScenario": "Successful patch emits 51020 only. UC-17.1.49 does not fire."
+    "positiveScenario": "UC-17.1.49 positive (Cisco, ISE, Patch, and, Upgrade): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `count` grouped by `node`, `MessageCode` satisfies detection threshold for 'Cisco ISE Patch and Upgrade Health — Pre/Post-Upgrade Validation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.49 negative (Upgrade Validation): ingest benign `nac` / `cisco:ise:syslog` events where `node`, `MessageCode` stays below detection threshold, or exclude the test entity via `network_exception_register.csv`. Variant 0 confirms zero alert rows for 'Cisco ISE Patch and Upgrade Health — Pre/Post-Upgrade Validation'."
   },
   "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Administrative and Operational Audit* + *Internal Operations Diagnostics*. Codes — `51020` (patch installed), `51021` (patch rolled back), `51022` (upgrade to new version started), `51023` (upgrade completed), `51024` (upgrade failed), `51025` (bulk admin operation start). Health metrics during/after — auth-success rate (5400 vs 5440-5447 ratio), MnT lag, replication state. ISE OpenAPI `/api/v1/upgrade/status` polled every 15 min during upgrade window.",
   "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
   "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (51020, 51021, 51022, 51023, 51024))\n  OR (index=nac sourcetype=\"cisco:ise:upgrade_status\")\n| stats count latest(_time) as last_event by node, MessageCode\n| eval status = case(MessageCode==\"51023\", \"upgrade_success\", MessageCode==\"51024\", \"upgrade_failed\", MessageCode==\"51020\", \"patch_success\", MessageCode==\"51021\", \"patch_rollback\", MessageCode==\"51022\", \"upgrade_started\")\n| where status IN (\"upgrade_failed\", \"patch_rollback\")",
-  "description": "Detects ISE patch rollbacks, failed upgrades, and degraded post-upgrade health (auth-success rate drop or replication lag spike) within 24h after an upgrade event.",
-  "value": "ISE upgrades are months-long projects across many nodes; a single failed step can leave the deployment in a degraded state. Detecting the failure within minutes shortens the recovery window. The post-upgrade health-check arm of this UC catches subtle regressions — a new ISE release breaking an obscure auth flow that only shows up in production.",
+  "description": "Identifies 'Cisco ISE Patch and Upgrade Health — Pre/Post-Upgrade Validation' (UC-17.1.49) using `index=nac` sourcetype `cisco:ise:syslog` by aggregating `count` grouped by `node`, `MessageCode` over `the scheduled window` and alerting when configured threshold. Keywords: Cisco, ISE, Patch, and, Upgrade. Focuses on Upgrade Validation behaviour so network teams can triage UC-17.1.49 without ad-hoc log review.",
+  "value": "UC-17.1.49 accelerates insight into Upgrade Validation ('Cisco ISE Patch and Upgrade Health — Pre/Post-Upgrade Validation') by tracking `activity` on `cisco:ise:syslog` feeds, reducing unauthorized access, segmentation drift, and NAC policy failures before spreadsheet checks hide regressions.",
   "implementation": "Confirm logging categories above are at INFO. Deploy the upgrade-status poller (only active during upgrade windows). Schedule the search every 5 min during upgrade windows; daily otherwise.",
   "visualization": "(1) Single value: pending/in-flight upgrades. (2) Pre/post comparison panel: auth-success rate trend over 7 days bracketing the upgrade. (3) Top-N: nodes with longest upgrade duration.",
   "cimModels": [
@@ -90,14 +92,26 @@
   "references": [
     {
       "title": "Cisco ISE 3.4 Upgrade Guide",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco ISE Patches",
-      "url": "https://software.cisco.com/download/home/283801620"
+      "url": "https://software.cisco.com/download/home/283801620",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) **Patch rollback during testing** — Lab patch rollback fires; tag and exclude. (b) **In-progress upgrade** — In a rolling upgrade, individual nodes report 'failed' transiently while waiting for the cluster to converge; only alert on terminal-state failures (51024).",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'Cisco ISE Patch and Upgrade Health — Pre/Post-Upgrade Validation'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "N/A (platform lifecycle — ISE upgrade rehearsal monitoring, no adversary technique)"
   ],
@@ -115,7 +129,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Logging categories at INFO.\n• Upgrade-status poller for windows.\n\nStep 1 — Configure data collection\nValidate event flow.\n\nStep 2 — Create the search\nSearch in `spl` field.\n\nStep 3 — Validate\nProvoke as above.\n\nStep 4 — Operationalize\nDashboard \"ISE — Patch & Upgrade Lifecycle\":\n• Patch/upgrade history table.\n• Pre/post auth-success comparison.\n• Top-N upgrade-duration outliers.\n\nIncident response: high-urgency PagerDuty on 51024 / 51021.\n\nStep 5 — Troubleshooting\n• **Upgrade stuck** — `application configure ise > 13` and inspect upgrade logs.\n• **Patch rollback recurring** — Patch incompatible with existing customisation; engage TAC.\n• **Post-upgrade auth drop** — Specific identity-store integration broken by the upgrade; review release notes.",
+  "detailedImplementation": "Prerequisites\n• Logging categories at INFO.\n• Upgrade-status poller for windows.\n\nStep 1 — Configure data collection\nValidate event flow.\n\nStep 2 — Create the search\nSearch in `spl` field.\n\nStep 3 — Validate\nProvoke as above.\n\nStep 4 — Operationalize\nDashboard \"ISE — Patch & Upgrade Lifecycle\":\n• Patch/upgrade history table.\n• Pre/post auth-success comparison.\n• Top-N upgrade-duration outliers.\n\nIncident response: high-urgency PagerDuty on 51024 / 51021.\n\nStep 5 — Troubleshooting\n• **Upgrade stuck** — `application configure ise > 13` and inspect upgrade logs.\n• **Patch rollback recurring** — Patch incompatible with existing customisation; engage TAC.\n• **Post-upgrade auth drop** — Specific identity-store integration broken by the upgrade; review release notes.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog, cisco:ise:upgrade_status into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`MessageCode, node, status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "When ISE installs a software update or patch, we watch closely to make sure it succeeds and that user logins keep working afterwards. If the update fails or breaks something, we ring the bell immediately.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

@@ -9,28 +9,42 @@
     "Security"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "`index=web sourcetype=access_combined` or `index=network sourcetype=pan:traffic` — verification that servers and firewalls log source port alongside IPv6 source address and accurate timestamps for user attribution. RFC 6302 (BCP 162) establishes that logging source port is essential for identifying users behind shared IPv6 addresses:\n\n**Why source ports matter for IPv6:**\n1. **NAT64/CGN environments.** When multiple users share a single IPv6 address through NAT64 or Carrier-Grade NAT, the source port is the only differentiator. Without source port, a law enforcement request for 'who used address 2001:db8::1 at 14:30?' is unanswerable.\n2. **Privacy extensions.** RFC 8981 temporary addresses rotate, but during the overlap period, the same host uses both old and new addresses. Source port helps correlate sessions across address changes.\n3. **Shared hosting.** Multiple services on the same IPv6 host use different source ports.\n4. **Forensic accuracy.** RFC 6302 requires: source address + source port + timestamp (with NTP accuracy) + protocol. Without all four fields, attribution is unreliable.\n\n**Common logging failures:**\n- Web servers logging `%h` (client IP) but not source port\n- Firewalls logging 5-tuple but with inaccurate timestamps\n- Load balancers stripping source port in X-Forwarded-For headers\n- CDNs providing IPv6 client address without source port",
-  "app": "Multiple — web servers, firewalls, load balancers",
+  "exclusions": "Covers the detection logic documented for 'IPv6 Source Port Logging for User Attribution (RFC 6302 / BCP 162)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ipv6_source_port_logging_for_user_attribution_rf` (UC-5.20.94), SOC dashboard panel \"Operations — IPv6 Source Port Logging for User Attribution (RFC 6302 / BCP 162)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.94 positive (IPv6, Source, Port, Logging, for): ingest synthetic events into `index=web` sourcetype='access_combined' where `count` grouped by `host` satisfies `port_logging_pct` > 0 for 'IPv6 Source Port Logging for User Attribution (RFC 6302 / BCP 162)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.94 negative (BCP 162)): ingest benign `web` / `access_combined` events where `host` stays below `port_logging_pct` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'IPv6 Source Port Logging for User Attribution (RFC 6302 / BCP 162)'."
+  },
+  "dataSources": "`index=web sourcetype=access_combined` or `index=network sourcetype=pan:traffic` — verification that servers and firewalls log source port alongside IPv6 source address and accurate timestamps for user attribution. RFC 6302 (BCP 162) establishes that logging source port is essential for identifying users behind shared IPv6 addresses:\n\n**Why source ports matter for IPv6:**\n1. **NAT64/CGN environments.** When multiple users share a single IPv6 address through NAT64 or Carrier-Grade NAT, the source port is the only differentiator. Without source port, a law enforcement request for 'who used address 2001:db8::1 at 14:30?' is unanswerable.\n2. **Privacy extensions.** RFC 8981 temporary addresses rotate, but during the overlap period, the same host uses both old and new addresses. Source port helps correlate sessions across address changes.\n3. **Shared hosting.** Multiple services on the same IPv6 host use different source ports.\n4. **Forensic accuracy.** RFC 6302 requires: source address + source port + timestamp (with NTP accuracy) + protocol. Without all four fields, attribution is unreliable.\n\n**Common logging failures:**\n- Web servers logging `%h` (client IP) but not source port\n- Firewalls logging 5-tuple but with inaccurate timestamps\n- Load balancers stripping source port in X-Forwarded-For headers\n- CDNs providing IPv6 client address without source port Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Multiple — web servers, firewalls, load balancers — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"access_combined\" earliest=-24h\n| eval has_src_port=if(isnotnull(clientPort) OR match(_raw, \":\\d{1,5}\\s\"), 1, 0)\n| eval has_ipv6_client=if(match(clientip, \":\"), 1, 0)\n| where has_ipv6_client=1\n| stats count as total_requests count(eval(has_src_port=1)) as with_port count(eval(has_src_port=0)) as without_port by host\n| eval port_logging_pct=round(with_port / total_requests * 100, 1)\n| eval status=case(\n    port_logging_pct=100, \"COMPLIANT — all IPv6 requests include source port\",\n    port_logging_pct > 0, \"PARTIAL — \" . without_port . \" IPv6 requests missing source port\",\n    1=1, \"NON-COMPLIANT — NO source port logging for IPv6 clients\")\n| eval rfc6302_compliance=if(port_logging_pct=100, \"PASS\", \"FAIL — RFC 6302 (BCP 162) requires source port for attribution\")\n| sort port_logging_pct",
-  "description": "Verifies that servers, firewalls, and network devices log source port numbers alongside IPv6 source addresses with accurate timestamps, as required by RFC 6302 (BCP 162). Source port logging is essential for user attribution in environments with shared IPv6 addresses (NAT64, CGN, privacy extensions). Without source port, it is impossible to attribute network activity to a specific user or device.",
-  "value": "RFC 6302 compliance is the foundation of IPv6 forensic capability. Without source port logging, law enforcement requests, abuse complaints, and internal investigations involving IPv6 addresses are unanswerable when addresses are shared. Many organisations discover this gap only when they receive their first IPv6-related legal request and cannot identify the user. Proactive verification prevents this costly and potentially legally-significant discovery.",
+  "description": "Monitors UC-5.20.94 — IPv6, Source, Port, Logging, for — using `index=web` sourcetype `access_combined`, grouped by `host`. Outputs `count` each `the scheduled window`; alert when `port_logging_pct` > 0. Primary focus: BCP 162). Purpose-built for 'IPv6 Source Port Logging for User Attribution (RFC 6302 / BCP 162)' in Operations workflows.",
+  "value": "Operators running UC-5.20.94 on `access_combined` feeds shorten triage for BCP 162) tied to 'IPv6 Source Port Logging for User Attribution (RFC 6302 / BCP 162)', lowering operational risk and delayed incident response.",
   "implementation": "Audit web server, firewall, and load balancer log formats for source port inclusion. Verify NTP synchronisation accuracy. Create a compliance report showing which systems comply with RFC 6302.",
   "visualization": "(1) Single-value: systems with RFC 6302-compliant IPv6 logging. (2) Table: per-system log format audit results. (3) Bar chart: compliance rate by system category (web server, firewall, LB). (4) Trend: compliance improvement over time.",
   "references": [
     {
       "title": "RFC 6302 — Logging Recommendations for Internet-Facing Servers (BCP 162)",
-      "url": "https://www.rfc-editor.org/rfc/rfc6302"
+      "url": "https://www.rfc-editor.org/rfc/rfc6302",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.6.1.5 — logging requirements)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 6269 — Issues with IP Address Sharing (motivation for source port logging)",
-      "url": "https://www.rfc-editor.org/rfc/rfc6269"
+      "url": "https://www.rfc-editor.org/rfc/rfc6269",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Direct connections without NAT.** When IPv6 hosts connect directly (no NAT64/CGN), the IPv6 address alone uniquely identifies the host. Source port is still recommended but less critical for attribution in this scenario.\n\n**ICMP/ICMPv6 traffic.** ICMP does not have ports. RFC 6302 source port requirement applies to TCP and UDP traffic only.\n\n**Internal-only services.** Services that are never internet-facing and serve only authenticated internal users may have lower RFC 6302 priority, since user identity is established by authentication rather than network attribution.",
+  "knownFalsePositives": "1. **Maintenance window on `web` (UC-5.20.94)** — Planned work for 'IPv6 Source Port Logging for User Attribution (RFC 6302 / BCP 162)' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `access_combined`** — Scheduled automation elevates `has_src_port` without crossing `port_logging_pct` > 0 for UC-5.20.94. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `access_combined`** — First 48h baseline for UC-5.20.94 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "linux",

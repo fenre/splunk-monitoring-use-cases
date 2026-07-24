@@ -9,11 +9,17 @@
     "Reliability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Alert system logs indexed as `truenas:alert` with notifier errors",
-  "app": "TrueNAS alert services + syslog forwarder",
+  "exclusions": "Covers the detection logic documented for 'TrueNAS alert notification delivery failures for email SNMP and webhooks' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_truenas_alert_notification_delivery_failures_for` (UC-6.2.56), SOC dashboard panel \"Operations — TrueNAS alert notification delivery failures for email SNMP and webhooks\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.2.56 positive (TrueNAS, alert, notification, delivery, failures): ingest synthetic events into `index=storage` sourcetype='truenas:alert' where `count` grouped by `hostname`, `channel` satisfies `failures` > 0 for 'TrueNAS alert notification delivery failures for email SNMP and webhooks'. Validate filter `\"notification failed\" OR \"smtp error\" OR \"webhook\" OR snmp O`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.56 negative (and webhooks): ingest benign `storage` / `truenas:alert` events where `hostname`, `channel` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'TrueNAS alert notification delivery failures for email SNMP and webhooks'."
+  },
+  "dataSources": "Alert system logs indexed as `truenas:alert` with notifier errors Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "TrueNAS alert services + syslog forwarder — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"truenas:alert\" earliest=-24h\n| search \"notification failed\" OR \"smtp error\" OR \"webhook\" OR snmp OR \"alert send\"\n| eval channel=coalesce(notifier, channel, transport)\n| stats count as failures latest(_time) as last_fail by hostname, channel\n| where failures > 0\n| sort - failures",
-  "description": "If alerting channels fail silently, operators miss pool degradations until users complain. Monitoring the notifier proves the control plane works.",
-  "value": "Closes the last-mile gap in observability for remote edge TrueNAS deployments.",
+  "description": "Surfaces UC-6.2.56 — TrueNAS, alert, notification, delivery, failures — using `index=storage` sourcetype `truenas:alert`, grouped by `hostname`, `channel`. Outputs `count` each `the scheduled window`; alert when `failures` > 0. Filter chain includes filter `\"notification failed\" OR \"smtp error\" OR \"webhook\" OR snmp O`. Purpose-built for 'TrueNAS alert notification delivery failures for email SNMP and webhooks' in Operations workflows.",
+  "value": "Alerting on TrueNAS, alert, notification, delivery, failures through UC-6.2.56 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Test webhooks with synthetic alerts weekly. Dedupe on `message_id` if present.",
   "visualization": "Table (channel, failures), timeline.",
   "cimModels": [
@@ -22,14 +28,26 @@
   "references": [
     {
       "title": "TrueNAS SCALE API documentation",
-      "url": "https://www.truenas.com/docs/scale/scaletutorials/toptoolbar/"
+      "url": "https://www.truenas.com/docs/scale/scaletutorials/toptoolbar/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TrueNAS CORE/SCALE docs — alerts",
-      "url": "https://www.truenas.com/docs/"
+      "url": "https://www.truenas.com/docs/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.2.56)** — Planned work for 'TrueNAS alert notification delivery failures for email SNMP and webhooks' shifts `count` over `span=1h` while `hostname`, `channel` remains in-scope. Applies filter `\"notification failed\" OR \"smtp error\" OR \"webhook\" OR snmp O`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `truenas:alert`** — Scheduled automation elevates `channel` without crossing `failures` > 0 for UC-6.2.56. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `hostname`, `channel`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `truenas:alert`** — First 48h baseline for UC-6.2.56 on `hostname` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `hostname`, `exception_reason`, `valid_until`.",
   "equipment": [
     "snmp",
     "syslog",
@@ -46,5 +64,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We help you see how object storage is growing, who can reach it, and when something is exposed or mis-tagged, so cloud storage stays under control."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (TrueNAS alert services + syslog forwarder — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=truenas:alert into storage. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`channel, failures, hostname`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you see how object storage is growing, who can reach it, and when something is exposed or mis-tagged, so cloud storage stays under control.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

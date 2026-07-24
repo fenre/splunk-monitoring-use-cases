@@ -8,11 +8,17 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`aws:billing:cur`",
-  "app": "CUR",
+  "exclusions": "Covers the detection logic documented for 'Cost Allocation Tag Compliance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_cost_allocation_tag_compliance` (UC-20.1.19), SOC dashboard panel \"Operations — Cost Allocation Tag Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-20.1.19 positive (Cost, Allocation, Tag, Compliance): ingest synthetic events into `index=cloud_billing` sourcetype='aws:billing:cur' where `total_cost` grouped by `entity` satisfies -30d for 'Cost Allocation Tag Compliance'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-20.1.19 negative (Tag Compliance): ingest benign `cloud_billing` / `aws:billing:cur` events where `entity` stays below -30d, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'Cost Allocation Tag Compliance'."
+  },
+  "dataSources": "`aws:billing:cur` Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "CUR — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=cloud_billing sourcetype=\"aws:billing:cur\" earliest=-30d\n| eval cost=tonumber(lineItem_UnblendedCost)\n| eval has_app=isnotnull(resourceTags_user_Application) AND resourceTags_user_Application!=\"\"\n| eval has_cc=isnotnull(resourceTags_user_CostCenter) AND resourceTags_user_CostCenter!=\"\"\n| stats sum(eval(if(has_app AND has_cc,cost,0))) as tagged_cost sum(cost) as total_cost\n| eval tag_compliance_pct=round(100*tagged_cost/total_cost,1)",
-  "description": "Percentage of monthly spend that is **untagged** or missing required keys (`Application`, `CostCenter`, `Environment`).",
-  "value": "Percentage of monthly spend that is **untagged** or missing required keys (`Application`, `CostCenter`, `Environment`).",
+  "description": "Identifies UC-20.1.19 — Cost, Allocation, Tag, Compliance — using `index=cloud_billing` sourcetype `aws:billing:cur`, grouped by `entity`. Outputs `total_cost` each `the scheduled window`; alert when -30d. Primary focus: Tag Compliance. Purpose-built for 'Cost Allocation Tag Compliance' in Operations workflows.",
+  "value": "Operators running UC-20.1.19 on `aws:billing:cur` feeds shorten triage for Tag Compliance tied to 'Cost Allocation Tag Compliance', lowering operational risk and delayed incident response.",
   "implementation": "Expand required keys per policy. Break down by OU/account. Drive tagging enforcement at CI/CD.",
   "visualization": "Single value (tag compliance %), Pie chart (tagged vs untagged $), Table (worst accounts).",
   "cimModels": [
@@ -22,10 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1876",
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Tag gaps during new project onboarding, contractor-deployed resources, or pre-policy resources.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: CUR.\n• Ensure the following data sources are available: `aws:billing:cur`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nExpand required keys per policy. Break down by OU/account. Drive tagging enforcement at CI/CD.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud_billing sourcetype=\"aws:billing:cur\" earliest=-30d\n| eval cost=tonumber(lineItem_UnblendedCost)\n| eval has_app=isnotnull(resourceTags_user_Application) AND resourceTags_user_Application!=\"\"\n| eval has_cc=isnotnull(resourceTags_user_CostCenter) AND resourceTags_user_CostCenter!=\"\"\n| stats sum(eval(if(has_app AND has_cc,cost,0))) as tagged_cost sum(cost) as total_cost\n| eval tag_compliance_pct=round(100*tagged_cost/total_cost,1)\n```\n\nUnderstanding this SPL\n\n**Cost Allocation Tag Compliance** — Percentage of monthly spend that is **untagged** or missing required keys (`Application`, `CostCenter`, `Environment`).\n\nDocumented **Data sources**: `aws:billing:cur`. **App/TA** (typical add-on context): CUR. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud_billing; **sourcetype**: aws:billing:cur. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud_billing, sourcetype=\"aws:billing:cur\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **cost** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **has_app** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **has_cc** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• `eval` defines or adjusts **tag_compliance_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\ncompare with Cost Explorer; compare with the cloud billing console for the same scope, accounts, and time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (tag compliance %), Pie chart (tagged vs untagged $), Table (worst accounts).",
-  "grandmaExplanation": "Cost and capacity tools watch how much we spend on cloud and the data center, and where we have spare or strained capacity."
+  "knownFalsePositives": "1. **Maintenance window on `cloud_billing` (UC-20.1.19)** — Planned work for 'Cost Allocation Tag Compliance' shifts `total_cost` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:billing:cur`** — Scheduled automation elevates `cost` without crossing configured threshold for UC-20.1.19. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cloud_billing` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:billing:cur`** — First 48h baseline for UC-20.1.19 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: CUR.\n• Ensure the following data sources are available: `aws:billing:cur`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nExpand required keys per policy. Break down by OU/account. Drive tagging enforcement at CI/CD.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud_billing sourcetype=\"aws:billing:cur\" earliest=-30d\n| eval cost=tonumber(lineItem_UnblendedCost)\n| eval has_app=isnotnull(resourceTags_user_Application) AND resourceTags_user_Application!=\"\"\n| eval has_cc=isnotnull(resourceTags_user_CostCenter) AND resourceTags_user_CostCenter!=\"\"\n| stats sum(eval(if(has_app AND has_cc,cost,0))) as tagged_cost sum(cost) as total_cost\n| eval tag_compliance_pct=round(100*tagged_cost/total_cost,1)\n```\n\nUnderstanding this SPL\n\n**Cost Allocation Tag Compliance** — Percentage of monthly spend that is **untagged** or missing required keys (`Application`, `CostCenter`, `Environment`).\n\nDocumented **Data sources**: `aws:billing:cur`. **App/TA** (typical add-on context): CUR. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud_billing; **sourcetype**: aws:billing:cur. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud_billing, sourcetype=\"aws:billing:cur\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **cost** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **has_app** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **has_cc** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• `eval` defines or adjusts **tag_compliance_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\ncompare with Cost Explorer; compare with the cloud billing console for the same scope, accounts, and time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (tag compliance %), Pie chart (tagged vs untagged $), Table (worst accounts).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (CUR — Splunk Add-on for Amazon Web Services (Splunkbase 1876)). Enable the modular input or HEC token that writes sourcetype=aws:billing:cur into cloud_billing. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user, action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "Cost and capacity tools watch how much we spend on cloud and the data center, and where we have spare or strained capacity.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

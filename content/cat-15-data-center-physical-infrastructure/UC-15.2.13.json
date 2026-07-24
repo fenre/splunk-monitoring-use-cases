@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=\"bms:ahu\"` (filter_dp_pa, fan_speed_pct)",
-  "app": "BMS AHU points",
+  "exclusions": "Covers the detection logic documented for 'Air Handler Filter Differential Pressure' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_air_handler_filter_differential_pressure` (UC-15.2.13), SOC dashboard panel \"Operations — Air Handler Filter Differential Pressure\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-15.2.13 positive (Air, Handler, Filter, Differential, Pressure): ingest synthetic events into `index=cooling` sourcetype='bms:ahu' where `count` grouped by `entity` satisfies detection threshold for 'Air Handler Filter Differential Pressure'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-15.2.13 negative (Differential Pressure): ingest benign `cooling` / `bms:ahu` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Air Handler Filter Differential Pressure'."
+  },
+  "dataSources": "`sourcetype=\"bms:ahu\"` (filter_dp_pa, fan_speed_pct) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "BMS AHU points — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cooling sourcetype=\"bms:ahu\"\n| where filter_dp_pa > max_filter_dp_pa * 0.85\n| table ahu_id, filter_dp_pa, max_filter_dp_pa, fan_speed_pct",
-  "description": "High ΔP across filters increases fan energy and reduces airflow; indicates change-out due.",
-  "value": "High ΔP across filters increases fan energy and reduces airflow; indicates change-out due.",
+  "description": "Detects Differential Pressure activity in UC-15.2.13 ('Air Handler Filter Differential Pressure') from `index=cooling` sourcetype `bms:ahu`. Rolls up `count` by `entity` across `the scheduled window` and pages when configured threshold. Covers Air, Handler, Filter, Differential, Pressure. Operations operators treat UC-15.2.13 as the canonical signal.",
+  "value": "Operators running UC-15.2.13 on `bms:ahu` feeds shorten triage for Differential Pressure tied to 'Air Handler Filter Differential Pressure', lowering operational risk and delayed incident response.",
   "implementation": "Set change-out threshold at ~85% of max rated ΔP. Correlate rising ΔP with fan speed increases.",
   "visualization": "Line chart (filter ΔP), Table (AHUs due for filter change), Gauge (ΔP % of limit).",
   "cimModels": [
@@ -22,10 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "HVAC alarms during scheduled maintenance, filter replacements, or outdoor temperature swings.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: BMS AHU points.\n• Ensure the following data sources are available: `sourcetype=\"bms:ahu\"` (filter_dp_pa, fan_speed_pct).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nSet change-out threshold at ~85% of max rated ΔP. Correlate rising ΔP with fan speed increases.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cooling sourcetype=\"bms:ahu\"\n| where filter_dp_pa > max_filter_dp_pa * 0.85\n| table ahu_id, filter_dp_pa, max_filter_dp_pa, fan_speed_pct\n```\n\nUnderstanding this SPL\n\n**Air Handler Filter Differential Pressure** — High ΔP across filters increases fan energy and reduces airflow; indicates change-out due.\n\nDocumented **Data sources**: `sourcetype=\"bms:ahu\"` (filter_dp_pa, fan_speed_pct). **App/TA** (typical add-on context): BMS AHU points. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cooling; **sourcetype**: bms:ahu. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cooling, sourcetype=\"bms:ahu\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where filter_dp_pa > max_filter_dp_pa * 0.85` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Air Handler Filter Differential Pressure**): table ahu_id, filter_dp_pa, max_filter_dp_pa, fan_speed_pct\n\n\nStep 3 — Validate\nCompare with the BMS console for the same equipment, sensors, and time range.\n\n\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (filter ΔP), Table (AHUs due for filter change), Gauge (ΔP % of limit).",
-  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access."
+  "knownFalsePositives": "1. **Maintenance window on `cooling` (UC-15.2.13)** — Planned work for 'Air Handler Filter Differential Pressure' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `bms:ahu`** — Scheduled automation elevates `src` without crossing configured threshold for UC-15.2.13. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cooling` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `bms:ahu`** — First 48h baseline for UC-15.2.13 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: BMS AHU points.\n• Ensure the following data sources are available: `sourcetype=\"bms:ahu\"` (filter_dp_pa, fan_speed_pct).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nSet change-out threshold at ~85% of max rated ΔP. Correlate rising ΔP with fan speed increases.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cooling sourcetype=\"bms:ahu\"\n| where filter_dp_pa > max_filter_dp_pa * 0.85\n| table ahu_id, filter_dp_pa, max_filter_dp_pa, fan_speed_pct\n```\n\nUnderstanding this SPL\n\n**Air Handler Filter Differential Pressure** — High ΔP across filters increases fan energy and reduces airflow; indicates change-out due.\n\nDocumented **Data sources**: `sourcetype=\"bms:ahu\"` (filter_dp_pa, fan_speed_pct). **App/TA** (typical add-on context): BMS AHU points. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cooling; **sourcetype**: bms:ahu. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cooling, sourcetype=\"bms:ahu\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where filter_dp_pa > max_filter_dp_pa * 0.85` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Air Handler Filter Differential Pressure**): table ahu_id, filter_dp_pa, max_filter_dp_pa, fan_speed_pct\n\n\nStep 3 — Validate\nCompare with the BMS console for the same equipment, sensors, and time range.\n\n\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (filter ΔP), Table (AHUs due for filter change), Gauge (ΔP % of limit).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (BMS AHU points — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=bms:ahu into cooling. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user, action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

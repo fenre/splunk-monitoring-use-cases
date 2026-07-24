@@ -8,35 +8,60 @@
     "Inventory"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Amazon order records (`amazon:order`), meal-plan inventory (`mealplan:item`), and pharmacy refill events (`pharmacy:refill`).",
-  "app": "Household logistics telemetry from Amazon order history, meal-plan inventory tools, and pharmacy refill portals sent to Splunk HEC via exports and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Order-to-Consumption Lag for Pantry Goods' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_order_to_consumption_lag_for_pantry_goods` (UC-25.36.28), SOC dashboard panel \"Personal — Order-to-Consumption Lag for Pantry Goods\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.36.28 positive (Order, Consumption, Lag, for, Pantry): ingest synthetic events into `index=personal` sourcetype='mealplan:item' where `avg_consume_delay_days` grouped by `category` satisfies detection threshold for 'Order-to-Consumption Lag for Pantry Goods'. Validate filter `consume_delay_days=*`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.36.28 negative (Pantry Goods): ingest benign `personal` / `mealplan:item` events where `category` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 9 confirms zero alert rows for 'Order-to-Consumption Lag for Pantry Goods'."
+  },
+  "dataSources": "Amazon order records (`amazon:order`), meal-plan inventory (`mealplan:item`), and pharmacy refill events (`pharmacy:refill`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Household logistics telemetry from Amazon order history, meal-plan inventory tools, and pharmacy refill portals sent to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=mealplan:item\n| search consume_delay_days=*\n| stats avg(consume_delay_days) as avg_consume_delay_days perc90(consume_delay_days) as p90_consume_delay_days count as samples by category\n| sort 0 - avg_consume_delay_days",
-  "description": "Measures order-to-consumption lag by category.",
-  "value": "Lag from purchase to use shows which goods are being stocked thoughtfully and which are just sitting.",
+  "description": "Detects UC-25.36.28 — Order, Consumption, Lag, for, Pantry — using `index=personal` sourcetype `mealplan:item`, grouped by `category`. Outputs `avg_consume_delay_days` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `consume_delay_days=*`. Purpose-built for 'Order-to-Consumption Lag for Pantry Goods' in Personal workflows.",
+  "value": "Operators running UC-25.36.28 on `mealplan:item` feeds shorten triage for Pantry Goods tied to 'Order-to-Consumption Lag for Pantry Goods', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Send the relevant duration field for order-to-consumption lag to `index=personal` and review both average and p90 latency instead of relying on single examples.",
   "visualization": "Table of average and p90 order-to-consumption lag.",
   "cimModels": [],
   "references": [
     {
       "title": "Amazon",
-      "url": "https://www.amazon.com/"
+      "url": "https://www.amazon.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Mealie",
-      "url": "https://mealie.io/"
+      "url": "https://mealie.io/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Paprika",
-      "url": "https://www.paprikaapp.com/"
+      "url": "https://www.paprikaapp.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CVS Pharmacy",
-      "url": "https://www.cvs.com/"
+      "url": "https://www.cvs.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It blends how long order-to-consumption lag usually takes, so slowdowns are obvious instead of anecdotal."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.36.28)** — Connector for 'Order-to-Consumption Lag for Pantry Goods' stops polling `mealplan:item`; stale `avg_consume_delay_days` on `category` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_consume_delay_days` over `1w` is expected for UC-25.36.28, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mealplan:item`. Dedup with `stats latest(*) by category`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Order-to-Consumption Lag for Pantry Goods'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Household Supplies & Logistics — typical feeds: Consumable levels (`supply:level`), parcels (`delivery:parcel`), bin collections (`bincollection:event`), gift-card balances (`giftcard:balance`)..\n• **Sourcetypes in this search**: `mealplan:item`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=mealplan:item`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Household logistics feeds — smart-scale consumable trackers, parcel/delivery tracking APIs, council bin-collection calendars, and gift-card balance logs — sent to Splunk HEC via scripted inputs and MQTT..\n\n**Author notes:** Send the relevant duration field for order-to-consumption lag to `index=personal` and review both average and p90 latency instead of relying on single examples.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"mealplan:item\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=mealplan:item earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Order-to-Consumption Lag for Pantry Goods** over `personal` data (primarily `sourcetype=mealplan:item`) across the full search range. The `avg, perc90` aggregation groups by `category`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `category`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=mealplan:item\n| search consume_delay_days=*\n| stats avg(consume_delay_days) as avg_consume_delay_days perc90(consume_delay_days) as p90_consume_delay_days count as samples by category\n| sort 0 - avg_consume_delay_days\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=mealplan:item earliest=-7d\n| head 50\n| table category\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=mealplan:item earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.36.28: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Average And P90 Order-To-Consumption Lag (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `mealplan:item` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=mealplan:item | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It blends how long order-to-consumption lag usually takes, so slowdowns are obvious instead of anecdotal.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

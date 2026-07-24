@@ -9,27 +9,55 @@
     "Configuration"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=network` `sourcetype=\"citrix:netscaler:cs\"` fields `cs_vserver`, `policy_name`, `hits`, `target_lbvserver`, `priority`",
-  "app": "Custom scripted input polling Citrix ADC NITRO API",
+  "exclusions": "Covers the detection logic documented for 'Citrix ADC Content Switching Policy Hit Rate (NetScaler)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_citrix_adc_content_switching_policy_hit_rate_net` (UC-5.3.19), SOC dashboard panel \"Operations — Citrix ADC Content Switching Policy Hit Rate (NetScaler)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.3.19 positive (Citrix, ADC, Content, Switching, Policy): ingest synthetic events into `index=network` sourcetype='citrix:netscaler:cs' where `vserver_total_hits` grouped by `cs_vserver`, `policy_name`, `host` satisfies `vserver_total_hits` > 0 for 'Citrix ADC Content Switching Policy Hit Rate (NetScaler)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.3.19 negative (Rate (NetScaler)): ingest benign `network` / `citrix:netscaler:cs` events where `cs_vserver`, `policy_name`, `host` stays below `vserver_total_hits` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Citrix ADC Content Switching Policy Hit Rate (NetScaler)'."
+  },
+  "dataSources": "`index=network` `sourcetype=\"citrix:netscaler:cs\"` fields `cs_vserver`, `policy_name`, `hits`, `target_lbvserver`, `priority` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input polling Citrix ADC NITRO API — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"citrix:netscaler:cs\"\n| stats latest(hits) as total_hits, latest(target_lbvserver) as target, latest(priority) as priority by cs_vserver, policy_name, host\n| eventstats sum(total_hits) as vserver_total_hits by cs_vserver\n| eval hit_pct=if(vserver_total_hits>0, round(total_hits/vserver_total_hits*100,1), 0)\n| sort cs_vserver, priority\n| table cs_vserver, policy_name, priority, target, total_hits, hit_pct",
-  "description": "Content switching vServers route HTTP/HTTPS requests to different load-balancing vServers based on URL patterns, headers, cookies, or other request attributes. Misconfigured content switching policies result in traffic hitting the default (catch-all) policy or being routed to the wrong back-end. Monitoring policy hit rates validates that routing rules are working as intended and identifies policies that are never triggered (candidate for cleanup or misconfiguration).",
-  "value": "Application delivery teams validate Citrix ADC content switching policy hit rates against expected baselines, detecting misconfigured or zero-hit policies that indicate incorrect traffic routing.",
+  "description": "Surfaces 'Citrix ADC Content Switching Policy Hit Rate (NetScaler)' (UC-5.3.19) using `index=network` sourcetype `citrix:netscaler:cs` by aggregating `vserver_total_hits` grouped by `cs_vserver`, `policy_name`, `host` over `the scheduled window` and alerting when `vserver_total_hits` > 0. Keywords: Citrix, ADC, Content, Switching, Policy. Focuses on Rate (NetScaler) behaviour so operations teams can triage UC-5.3.19 without ad-hoc log review.",
+  "value": "UC-5.3.19 accelerates insight into Rate (NetScaler) ('Citrix ADC Content Switching Policy Hit Rate (NetScaler)') by tracking `vserver_total_hits` on `citrix:netscaler:cs` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Poll the NITRO API `csvserver_cspolicy_binding` to get bound policies with hit counts. Alternatively, enable AppFlow on content switching vServers to capture per-request routing decisions. Run the scripted input every 15 minutes. Flag: policies with zero hits over 7 days (never triggered — misconfigured or obsolete), the default policy receiving more than 20% of traffic (indicates missing specific rules), and sudden shifts in policy hit distribution (routing change after configuration update). Content switching is critical for multi-tenant environments where different applications share a single VIP.",
   "visualization": "Bar chart (hit rate by policy), Table (policies with hit counts), Timechart (default policy hit rate trending).",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Rule reorder, content-switch tests, and new paths can change hit mix without a misconfiguration.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.3.19)** — Planned work for 'Citrix ADC Content Switching Policy Hit Rate (NetScaler)' shifts `vserver_total_hits` over `span=1h` while `cs_vserver`, `policy_name`, `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `citrix:netscaler:cs`** — Scheduled automation elevates `policy_name` without crossing `vserver_total_hits` > 0 for UC-5.3.19. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cs_vserver`, `policy_name`, `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `citrix:netscaler:cs`** — First 48h baseline for UC-5.3.19 on `cs_vserver` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cs_vserver`, `exception_reason`, `valid_until`.",
   "equipment": [
     "citrix"
   ],
   "equipmentModels": [
     "citrix_netscaler"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* Splunk Add-on for Citrix NetScaler (`Splunk_TA_citrix-netscaler`, Splunkbase 2770). Citrix ADC content switching (CS) logs in `index=netscaler`. Key fields: `cs_vserver`, `cs_policy`, `target_lb_vserver`, `url`, `host_header`, `hit_count`.\n* Content switching routes traffic to different lb vservers based on HTTP headers, URL, or expressions. Policy hits confirm traffic is being routed as intended. Low or zero hits on expected policies indicate misconfiguration or traffic pattern changes.\n\nStep 1 -- Configure data collection\nVerify CS data:\n```spl\nindex=netscaler (sourcetype=\"citrix:netscaler:syslog\" OR sourcetype=\"citrix:netscaler:perf\") (\"content switching\" OR \"cs_\" OR \"cspolicy\" OR \"CS_VSERVER\") earliest=-4h\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Content switching policy hit analysis:**\n```spl\nindex=netscaler (sourcetype=\"citrix:netscaler:syslog\" OR sourcetype=\"citrix:netscaler:perf\") (\"content switching\" OR \"cs_\" OR \"cspolicy\") earliest=-4h\n| eval cs_vs=coalesce(cs_vserver, csvserver)\n| eval policy=coalesce(cs_policy, cspolicy, policyname)\n| eval target=coalesce(target_lb_vserver, targetlbvserver, target)\n| eval hits=coalesce(hit_count, hits, totalhits)\n| stats sum(hits) as total_hits latest(hits) as current_hits by host, cs_vs, policy, target\n| lookup citrix_cs_policies.csv cs_vs, policy OUTPUT expected_hits_per_hour, application\n| eval hit_rate=if(isnotnull(expected_hits_per_hour), round(100*total_hits/expected_hits_per_hour, 1), null())\n| eval status=case(total_hits=0, \"NO_HITS -- policy not matching\", isnotnull(hit_rate) AND hit_rate < 20, \"LOW -- significantly below expected\", 1==1, \"OK\")\n| where status != \"OK\"\n| sort status, -total_hits\n```\n\nStep 3 -- Validate\n(a) On ADC CLI: `show cs vserver <vs>` -- check bound policies and hit counts.\n(b) Send a request matching a specific CS policy and verify the hit counter increments.\n(c) Verify that traffic is reaching the expected target lb vserver.\n\nStep 4 -- Operationalize\nDashboard (\"Citrix ADC -- Content Switching\"):\n* Row 1 -- Single-value: \"CS vservers\", \"Policies with zero hits\", \"Total policy hits\".\n* Row 2 -- Policy hit analysis table with expected vs actual.\n\nAlerting:\n* Warning (expected policy with zero hits for > 1 hour): traffic not being routed as intended.\n\nStep 5 -- Troubleshooting\n\n* **Policy has zero hits** -- Check: (1) policy expression syntax: `show cs policy <policy>`, (2) policy priority (lower number = higher priority -- a higher-priority policy may be matching first), (3) traffic actually reaching the CS vserver.\n\n* **Traffic going to wrong target** -- CS policies are evaluated in priority order. The first matching policy wins. Check priority: `show cs vserver <vs> -bindings`.\n\n* **Policy hits decreased after config change** -- New or modified policies may have changed the matching order. Review the change log.",
-  "grandmaExplanation": "We see how content switching rules are used so rewrites, new paths, and test rules do not sit unused while people blame the network."
+  "grandmaExplanation": "We see how content switching rules are used so rewrites, new paths, and test rules do not sit unused while people blame the network.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

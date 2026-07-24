@@ -8,6 +8,8 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'SNMP Authentication Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_snmp_authentication_failures` (UC-5.1.14), SOC dashboard panel \"Operations — SNMP Authentication Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "compliance": [
     {
       "regulation": "cjis",
@@ -43,21 +45,41 @@
       "evidenceArtifact": "Saved search 'UC-5.1.14' running on sourcetype=cisco:ios, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
     }
   ],
-  "dataSources": "`sourcetype=cisco:ios`",
-  "app": "`TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog",
+  "controlTest": {
+    "positiveScenario": "UC-5.1.14 positive (SNMP, Authentication, Failures): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `count` grouped by `host`, `src` satisfies detection threshold for 'SNMP Authentication Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.1.14 negative (Authentication Failures): ingest benign `network` / `cisco:ios` events where `host`, `src` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'SNMP Authentication Failures'."
+  },
+  "dataSources": "`sourcetype=cisco:ios` Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network sourcetype=\"cisco:ios\" \"%SNMP-3-AUTHFAIL\"\n| rex \"from (?<src>\\S+)\" | stats count by host, src | sort -count",
-  "description": "Failed SNMP auth indicates unauthorized polling or reconnaissance.",
-  "value": "Security teams detect SNMP authentication failures across network devices, identifying brute-force attempts, unauthorized scanning, and misconfigured monitoring tools with stale credentials.",
+  "description": "Identifies UC-5.1.14 — SNMP, Authentication, Failures — using `index=network` sourcetype `cisco:ios`, grouped by `host`, `src`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Authentication Failures. Purpose-built for 'SNMP Authentication Failures' in Operations workflows.",
+  "value": "Alerting on SNMP, Authentication, Failures through UC-5.1.14 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Forward syslog. Alert on repeated failures from unknown sources.",
   "visualization": "Table, Map, Timeline.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Legitimate NMS IP moves, new pollers, or SNMPv3 key rotations look like failures until the device ACL and views are updated.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.1.14)** — Planned work for 'SNMP Authentication Failures' shifts `count` over `span=1h` while `host`, `src` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ios`** — Scheduled automation elevates `src` without crossing configured threshold for UC-5.1.14. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `src`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.1.14 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "snmp",
@@ -68,6 +90,10 @@
     "snmp_generic"
   ],
   "status": "verified",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "premiumApps": [
     {
       "name": "Splunk User Behavior Analytics",
@@ -75,7 +101,9 @@
       "note": "UBA"
     }
   ],
-  "detailedImplementation": "Prerequisites\n* SNMP authentication failure messages. Data in `index=network` with `sourcetype=cisco:ios` or vendor-specific sourcetypes. Key mnemonics: Cisco `%SNMP-3-AUTHFAIL`; SNMP trap `authenticationFailure`.\n* SNMP authentication failures: indicate incorrect community strings (SNMPv2c) or USM credentials (SNMPv3) being used against network devices. Could be: misconfigured monitoring tools, old community strings, or unauthorized SNMP scanning/brute-force attempts.\n\nStep 1 -- Configure data collection\n```\n# Cisco IOS -- enable SNMP auth failure logging\nsnmp-server enable traps snmp authentication\nlogging host <splunk-syslog-ip>\n\n# Best practice: use SNMPv3 with authentication and encryption\nsnmp-server group MONITOR v3 priv\nsnmp-server user splunkmon MONITOR v3 auth sha <auth-pass> priv aes 128 <priv-pass>\n```\nVerify:\n```spl\nindex=network earliest=-24h\n| where match(_raw, \"(?i)SNMP.*AUTH|snmp.*authentication.*fail|AUTHFAIL\")\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- SNMP authentication failure analysis:**\n```spl\nindex=network earliest=-24h\n| where match(_raw, \"(?i)SNMP.*AUTH|snmp.*authentication.*fail|AUTHFAIL\")\n| rex field=_raw \"(?i)(?:from|host|IP)\\s+(?<source_ip>\\d+\\.\\d+\\.\\d+\\.\\d+)\"\n| eval src=coalesce(source_ip, src_ip, src)\n| eval device=coalesce(host, device_name)\n| iplocation src prefix=src_\n| bin _time span=1h\n| stats count as failures dc(device) as devices_targeted values(device) as targets by src, src_Country\n| eval severity=case(\n    failures > 100, \"CRITICAL -- SNMP brute-force attempt\",\n    devices_targeted > 10, \"WARNING -- SNMP scanning across multiple devices\",\n    failures > 20, \"WARNING -- repeated SNMP auth failures\",\n    1==1, \"INFO\")\n| where severity != \"INFO\"\n| sort severity, -failures\n```\n\nStep 3 -- Validate\n(a) CLI: `show snmp` -- check SNMP configuration and community strings.\n(b) Verify source IPs against known monitoring systems (Splunk, SolarWinds, PRTG, LibreNMS).\n(c) Check if old community strings are still configured on monitoring tools.\n\nStep 4 -- Operationalize\nDashboard (\"Network -- SNMP Auth Failures\"):\n* Row 1 -- Single-value: \"Auth failures (24h)\", \"Unique sources\", \"Devices targeted\".\n* Row 2 -- SNMP auth failure timeline by source.\n\nAlert: Critical (>100 failures from single source): brute-force or scan.\n\nStep 5 -- Troubleshooting\n\n* **Known monitoring tool causing failures** -- Update community string or SNMPv3 credentials on the monitoring tool. Verify SNMP version matches (v2c vs v3).\n\n* **Unknown source IP** -- Investigate: may be unauthorized scanning. Block at ACL: `access-list 99 deny host <ip>` applied to SNMP access: `snmp-server community <string> RO 99`.\n\n* **Migrate to SNMPv3** -- SNMPv2c community strings are sent in plaintext. Migrate to SNMPv3 with auth+priv for secure monitoring.",
+  "detailedImplementation": "Prerequisites\n* SNMP authentication failure messages. Data in `index=network` with `sourcetype=cisco:ios` or vendor-specific sourcetypes. Key mnemonics: Cisco `%SNMP-3-AUTHFAIL`; SNMP trap `authenticationFailure`.\n* SNMP authentication failures: indicate incorrect community strings (SNMPv2c) or USM credentials (SNMPv3) being used against network devices. Could be: misconfigured monitoring tools, old community strings, or unauthorized SNMP scanning/brute-force attempts.\n\nStep 1 -- Configure data collection\n```\n# Cisco IOS -- enable SNMP auth failure logging\nsnmp-server enable traps snmp authentication\nlogging host <splunk-syslog-ip>\n\n# Best practice: use SNMPv3 with authentication and encryption\nsnmp-server group MONITOR v3 priv\nsnmp-server user splunkmon MONITOR v3 auth sha <auth-pass> priv aes 128 <priv-pass>\n```\nVerify:\n```spl\nindex=network earliest=-24h\n| where match(_raw, \"(?i)SNMP.*AUTH|snmp.*authentication.*fail|AUTHFAIL\")\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- SNMP authentication failure analysis:**\n```spl\nindex=network earliest=-24h\n| where match(_raw, \"(?i)SNMP.*AUTH|snmp.*authentication.*fail|AUTHFAIL\")\n| rex field=_raw \"(?i)(?:from|host|IP)\\s+(?<source_ip>\\d+\\.\\d+\\.\\d+\\.\\d+)\"\n| eval src=coalesce(source_ip, src_ip, src)\n| eval device=coalesce(host, device_name)\n| iplocation src prefix=src_\n| bin _time span=1h\n| stats count as failures dc(device) as devices_targeted values(device) as targets by src, src_Country\n| eval severity=case(\n    failures > 100, \"CRITICAL -- SNMP brute-force attempt\",\n    devices_targeted > 10, \"WARNING -- SNMP scanning across multiple devices\",\n    failures > 20, \"WARNING -- repeated SNMP auth failures\",\n    1==1, \"INFO\")\n| where severity != \"INFO\"\n| sort severity, -failures\n```\n\nStep 3 -- Validate\n(a) CLI: `show snmp` -- check SNMP configuration and community strings.\n(b) Verify source IPs against known monitoring systems (Splunk, SolarWinds, PRTG, LibreNMS).\n(c) Check if old community strings are still configured on monitoring tools.\n\nStep 4 -- Operationalize\nDashboard (\"Network -- SNMP Auth Failures\"):\n* Row 1 -- Single-value: \"Auth failures (24h)\", \"Unique sources\", \"Devices targeted\".\n* Row 2 -- SNMP auth failure timeline by source.\n\nAlert: Critical (>100 failures from single source): brute-force or scan.\n\nStep 5 -- Troubleshooting\n\n* **Known monitoring tool causing failures** -- Update community string or SNMPv3 credentials on the monitoring tool. Verify SNMP version matches (v2c vs v3).\n\n* **Unknown source IP** -- Investigate: may be unauthorized scanning. Block at ACL: `access-list 99 deny host <ip>` applied to SNMP access: `snmp-server community <string> RO 99`.\n\n* **Migrate to SNMPv3** -- SNMPv2c community strings are sent in plaintext. Migrate to SNMPv3 with auth+priv for secure monitoring.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ios into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, src`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We help you know early when something looks wrong with snmp authentication failures so the team can act before it grows into a bigger outage.",
-  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360"
+  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

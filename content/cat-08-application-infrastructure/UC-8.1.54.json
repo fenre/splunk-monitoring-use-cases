@@ -9,11 +9,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`mntr` follower sync fields (`zk_synced_followers`, `zk_followers`, `zk_pending_syncs`) on `zookeeper:mntr`",
-  "app": "Central collector aggregating `mntr` per host",
+  "exclusions": "Covers the detection logic documented for 'ZooKeeper Follower Sync Lag vs Quorum Leader' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_zookeeper_follower_sync_lag_vs_quorum_leader` (UC-8.1.54), SOC dashboard panel \"Operations — ZooKeeper Follower Sync Lag vs Quorum Leader\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.1.54 positive (ZooKeeper, Follower, Sync, Lag, Quorum): ingest synthetic events into `index=infrastructure` sourcetype='zookeeper:mntr' where `count` grouped by `entity` satisfies `lag` > 0, or `pending` > 10 for 'ZooKeeper Follower Sync Lag vs Quorum Leader'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.54 negative (Quorum Leader): ingest benign `infrastructure` / `zookeeper:mntr` events where `entity` stays below `lag` > 0, or `pending` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'ZooKeeper Follower Sync Lag vs Quorum Leader'."
+  },
+  "dataSources": "`mntr` follower sync fields (`zk_synced_followers`, `zk_followers`, `zk_pending_syncs`) on `zookeeper:mntr` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Central collector aggregating `mntr` per host — Universal Forwarder (Splunkbase 617)",
   "spl": "index=infrastructure sourcetype=\"zookeeper:mntr\"\n| eval followers=tonumber(zk_followers)\n| eval synced=tonumber(zk_synced_followers)\n| eval pending=tonumber(zk_pending_syncs)\n| eval lag=followers-synced\n| where zk_server_state=\"leader\" AND (lag>0 OR pending>10)\n| table _time, host, followers, synced, pending, lag",
-  "description": "When the leader reports fewer synced followers than quorum size or rising pending syncs, new proposals are at risk and read-after-write consistency degrades for sensitive clients.",
-  "value": "Prevents split-brain-like symptoms in stacks that assume strong ZK session semantics during failures.",
+  "description": "Monitors UC-8.1.54 — ZooKeeper, Follower, Sync, Lag, Quorum — using `index=infrastructure` sourcetype `zookeeper:mntr`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `lag` > 0, or `pending` > 10. Primary focus: Quorum Leader. Purpose-built for 'ZooKeeper Follower Sync Lag vs Quorum Leader' in Operations workflows.",
+  "value": "Operators running UC-8.1.54 on `zookeeper:mntr` feeds shorten triage for Quorum Leader tied to 'ZooKeeper Follower Sync Lag vs Quorum Leader', lowering operational risk and delayed incident response.",
   "implementation": "Only leader nodes emit follower counts—filter `zk_server_state` in parser. Poll frequently during changes. Join with `zookeeper:ruok` health checks. Alert when lag persists >2 polling intervals.",
   "visualization": "Line chart (synced vs followers), Single value (pending syncs).",
   "cimModels": [
@@ -23,13 +29,33 @@
   "references": [
     {
       "title": "ZooKeeper Admin Guide",
-      "url": "https://zookeeper.apache.org/doc/current/zookeeperAdmin.html"
+      "url": "https://zookeeper.apache.org/doc/current/zookeeperAdmin.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
+  "knownFalsePositives": "1. **Maintenance window on `infrastructure` (UC-8.1.54)** — Planned work for 'ZooKeeper Follower Sync Lag vs Quorum Leader' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `zookeeper:mntr`** — Scheduled automation elevates `followers` without crossing `lag` > 0 for UC-8.1.54. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `infrastructure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zookeeper:mntr`** — First 48h baseline for UC-8.1.54 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "m365",
     "zookeeper"
+  ],
+  "equipmentModels": [
+    "m365_generic",
+    "zookeeper_generic"
   ],
   "status": "draft",
   "lastReviewed": "2025-06-01",
@@ -38,6 +64,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We help you prevent split-brain-like symptoms in stacks that assume strong ZK session semantics during failures."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Central collector aggregating `mntr` per host — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=zookeeper:mntr into infrastructure. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`lag, pending`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you prevent split-brain-like symptoms in stacks that assume strong ZK session semantics during failures.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

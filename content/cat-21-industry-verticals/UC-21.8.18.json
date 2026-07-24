@@ -10,16 +10,16 @@
   ],
   "splunkPillar": "Observability",
   "industry": "Telecommunications",
-  "exclusions": "Exclude planned maintenance windows, DR exercises, vendor pack updates, and seasonal demand patterns via asset/schedule lookup.",
-  "evidence": "Saved search `21_8_18_evidence` archived to restricted audit index.",
+  "exclusions": "Covers the detection logic documented for 'Roaming Partner Settlement and Inter-Carrier Billing Verification' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_roaming_partner_settlement_and_inter_carrier_bil` (UC-21.8.18), SOC dashboard panel \"Operations — Roaming Partner Settlement and Inter-Carrier Billing Verification\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Replay sample `scada:alarm` events into `index=roaming`. Confirm UC-21.8.18 search returns >=1 row.",
-    "negativeScenario": "Replay benign `scada:alarm` traffic without alert markers. Confirm the search returns zero rows."
+    "positiveScenario": "UC-21.8.18 positive (Roaming, Partner, Settlement, and, Inter): ingest synthetic events into `index=roaming` sourcetype='tap:record' where `tap_charges`, `cdr_charges` grouped by `roaming_partner`, `billing_period`, `]` satisfies detection threshold for 'Roaming Partner Settlement and Inter-Carrier Billing Verification'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-21.8.18 negative (Billing Verification): ingest benign `roaming` / `tap:record` events where `roaming_partner`, `billing_period`, `]` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'Roaming Partner Settlement and Inter-Carrier Billing Verification'."
   },
   "dataSources": "`index=roaming` `sourcetype=scada:alarm`",
-  "app": "Deploy **heavy forwarder** with `monitor:///opt/roaming/TAP/incoming/*.rap` (or `.out` per hub convention) and companion `props.conf` transforming binary-friendly intermediate CSV if an external converter is used. Use **Splunk DB Connect** for curated `cdr:roaming` extracts from mediation when TAP is not yet available. For NRTRDE, schedule frequent small-batch polls. **Do not** mix TAP binary directly without a supported parser — use clearinghouse-provided ASCII **CDR layouts** or vendor middleware. Optional: **Kafka** ingestion for real-time TAP streaming feeds from modernization programs.",
-  "spl": "index=roaming sourcetype=\"scada:alarm\" sourcetype=tap:record\n| stats count as event_count dc(host) as distinct_assets by substation_id\n| where event_count > 0\n| table _time substation_id alarm_id priority shelved",
-  "description": "Compares transferred-account-procedure style partner charge files against home-network roaming rated events by partner and billing period, surfacing record-count drift and charge mismatches ahead of clearinghouse submission deadlines.",
+  "app": "Deploy **heavy forwarder** with `monitor:///opt/roaming/TAP/incoming/*.rap` (or `.out` per hub convention) and companion `props.conf` transforming binary-friendly intermediate CSV if an external converter is used. Use **Splunk DB Connect** for curated `cdr:roaming` extracts from mediation when TAP is not yet available. For NRTRDE, schedule frequent small-batch polls. **Do not** mix TAP binary directly without a supported parser — use clearinghouse-provided ASCII **CDR layouts** or vendor middleware. Optional: **Kafka** ingestion for real-time TAP streaming feeds from modernization programs. — Universal Forwarder (Splunkbase 617)",
+  "spl": "index=roaming sourcetype=tap:record\n| stats count as tap_events, sum(charge_amount) as tap_charges by roaming_partner, billing_period\n| join type=left roaming_partner, billing_period [\n    search index=cdr sourcetype=cdr:roaming\n    | stats count as cdr_events, sum(rated_amount) as cdr_charges by roaming_partner, billing_period\n  ]\n| eval record_gap=tap_events-cdr_events, charge_diff=round(tap_charges-cdr_charges, 2)\n| where abs(record_gap) > 100 OR abs(charge_diff) > 1000\n| sort -abs(charge_diff)",
+  "description": "Monitors UC-21.8.18 — Roaming, Partner, Settlement, and, Inter — using `index=roaming` sourcetype `tap:record`, grouped by `roaming_partner`, `billing_period`, `]`. Outputs `tap_charges`, `cdr_charges` each `the scheduled window`; alert when configured threshold. Primary focus: Billing Verification. Purpose-built for 'Roaming Partner Settlement and Inter-Carrier Billing Verification' in Operations workflows.",
   "value": "Operations and risk leaders in Telecommunications use signals from Roaming Partner Settlement and Inter-Carrier Billing Verification to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Normalize partner identifiers (MCC/MNC or commercial codes) across both feeds; align `billing_period` cutoffs to clearinghouse calendars; adjust static thresholds for large hub partners versus small island operators.",
   "visualization": "**Row 1 — KPI tiles**: largest `charge_diff` this period, count of partners over threshold, total `record_gap`, NRTRDE vs TAP lag indicator. **Row 2 — Trend**: timechart of `sum(charge_diff)` by `roaming_partner` per `billing_period`. **Row 3 — Detail table**: `roaming_partner`, `billing_period`, `tap_events`, `cdr_events`, `record_gap`, `charge_diff` with drilldown to `imsi`-level investigative search (policy permitting). **Row 4 — Supplementary**: heatmap partner × period for `record_gap`, plus overlay of clearinghouse ticket IDs from KV lookup.",
@@ -30,26 +30,31 @@
   "references": [
     {
       "title": "Splunk Lantern — Use Case Explorer: Communications",
-      "url": "https://lantern.splunk.com/Splunk_Platform/UCE/Communications_and_Media"
+      "url": "https://lantern.splunk.com/Splunk_Platform/UCE/Communications_and_Media",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TMForum — Revenue Assurance Maturity Model (RA-MM)",
-      "url": "https://www.tmforum.org/resources/standard/revenue-assurance-maturity-model/"
+      "url": "https://www.tmforum.org/resources/standard/revenue-assurance-maturity-model/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "3GPP TS 32.297 — CDR File Format and Transfer",
-      "url": "https://www.3gpp.org/DynaReport/32297.htm"
+      "url": "https://www.3gpp.org/DynaReport/32297.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "GSMA TAP3 Standard — Transferred Account Procedure",
-      "url": "https://www.gsma.com/aboutus/"
+      "url": "https://www.gsma.com/aboutus/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ITU-T E.425 — IP Network Performance Objectives",
-      "url": "https://www.itu.int/rec/T-REC-E.425"
+      "url": "https://www.itu.int/rec/T-REC-E.425",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**(1) File sequencing latency** — home rated roaming CDRs often land hours before clearinghouse TAP/RAP batches finish validation; Splunk compares partially loaded partner files and shows artificial record gaps until the release completes. Mitigation: require `tap_file_sequence` completeness flags, widen the billing_period join tolerance by one ingestion bucket, or delay alerts until manifests show **closed**. **(2) Currency rounding and FX pivot timing** — TAP amounts may carry six decimal places whereas internal GSM/5G roaming rating rounds at two decimals, or treasury posts FX pivots days after TAP generation. Mitigation: unify on a pivot currency with published FX tables keyed to clearing date, tolerating micro-epsilon deltas. **(3) Hubbed partners and batched settlement** — roaming hubs aggregate tens of bilateral streams; benign volume crosses naïve static thresholds. Mitigation: per-partner adaptive baselines (median + k×sigma) and standalone hub dashboards. **(4) Retail promotions / zero-rated roaming** — rated events exist while TAP temporarily shows charges awaiting reversal workflows. Mitigation: join `promotional_roam` lookups on IMSI/msisdn + billing_period. **(5) Test IMSI/IR.21 ranges** — inter-operator labs leak into production TAP drops. Mitigation: interconnect-managed exclusion lookups and golden MSISDN allowlists separate from mediation tests. **(6) Clearinghouse reject/resubmit cycles** — release attempts oscillate counts without underlying fraud. Mitigation: ingest `tap_release_attempt`, alert only once finance marks the period cleared, and dedupe natural keys across retries. **(7) MCC/MNC or commercial alias drift** — post-merger partner codes remap while historic keys linger in Splunk lookups. Mitigation: fortnightly alias refresh sourced from interconnect CMDB feeds. **(8) IMS/voice-vs-data granularity mismatch** — data-only PDP/PDU roaming records may lag voice MO/MT TAP lines causing apparent gaps unrelated to leakage. Mitigation: split alerts by `record_type` buckets with tolerances reflecting product mix. **(9) Steered roaming / IREG trials** — temporary steering changes traffic via alternate partners while home CDRs still attribute old partner identifiers mid-test. Mitigation: `steering_calendar` lookups maintained by interconnect product teams. **(10) Statutory mandated roaming charge adjustments** posted weeks later can reopen settled periods legitimately — treat as informational unless breach of signed-off tolerance after regulatory true-up ingestion.",
+  "knownFalsePositives": "1. **Maintenance window on `roaming` (UC-21.8.18)** — Planned work for 'Roaming Partner Settlement and Inter-Carrier Billing Verification' shifts `tap_charges`, `cdr_charges` over `span=1h` while `roaming_partner`, `billing_period`, `]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `tap:record`** — Scheduled automation elevates `billing_period` without crossing configured threshold for UC-21.8.18. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `roaming_partner`, `billing_period`, `]`** — Health checks in `roaming` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `tap:record`** — First 48h baseline for UC-21.8.18 on `roaming_partner` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `roaming_partner`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1078"
   ],
@@ -60,7 +65,9 @@
     "syslog"
   ],
   "equipmentModels": [
-    "asterisk_alarm"
+    "asterisk_generic",
+    "db_connect_generic",
+    "kafka_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-30",

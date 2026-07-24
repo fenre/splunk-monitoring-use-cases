@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=OktaIM2:log` (`user.privilege.grant`, `group.privilege*`)",
-  "app": "`Splunk_TA_okta`",
+  "exclusions": "Covers the detection logic documented for 'Okta New Admin Creation' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `iam_okta_new_admin_creation` (UC-9.5.6), SOC dashboard panel \"IAM — Okta New Admin Creation\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-9.5.6 positive (Okta, New, Admin, Creation): ingest synthetic events into `index=okta` sourcetype='OktaIM2:log' where `count` grouped by `entity` satisfies detection threshold for 'Okta New Admin Creation'. Validate eventType `user.privilege.grant`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.5.6 negative (Admin Creation): ingest benign `okta` / `OktaIM2:log` events where `entity` stays below detection threshold, or exclude the test entity via `iam_exception_register.csv`. Variant 10 confirms zero alert rows for 'Okta New Admin Creation'."
+  },
+  "dataSources": "`sourcetype=OktaIM2:log` (`user.privilege.grant`, `group.privilege*`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_okta` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=okta sourcetype=\"OktaIM2:log\"\n| where eventType=\"user.privilege.grant\" OR like(eventType,\"group.privilege%\")\n| eval tgt=lower(mvjoin('target{}.displayName',\" \"))\n| where like(tgt,\"%admin%\") OR like(tgt,\"%super%\")\n| table _time, actor.alternateId, target{}.displayName, target{}.type",
-  "description": "New super-admin or role assignments are high-value targets for attackers; immediate notification enables rapid validation.",
-  "value": "New super-admin or role assignments are high-value targets for attackers; immediate notification enables rapid validation.",
+  "description": "Monitors UC-9.5.6 — Okta, New, Admin, Creation — using `index=okta` sourcetype `OktaIM2:log`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes eventType `user.privilege.grant`. Purpose-built for 'Okta New Admin Creation' in IAM workflows.",
+  "value": "For 'Okta New Admin Creation', UC-9.5.6 converts `activity` on `OktaIM2:log` feeds into actionable rows and reduces account takeover risk, help-desk load, and audit findings.",
   "implementation": "Parse `target` for admin roles and groups. Use lookups for approved role-assignment paths. Alert on any new admin grant or role elevation. Include `actor` and `client.ipAddress` for triage.",
   "visualization": "Table (who, what role, when), Timeline, Single value (admin grants today).",
   "cimModels": [
@@ -23,20 +29,41 @@
   "references": [
     {
       "title": "Splunk_TA_okta",
-      "url": "https://splunkbase.splunk.com/app/6553"
+      "url": "https://splunkbase.splunk.com/app/6553",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned change windows, maintenance, approved automation, and known good service accounts; correlate with change tickets and identity team communication.",
+  "knownFalsePositives": "1. **Maintenance window on `okta` (UC-9.5.6)** — Planned work for 'Okta New Admin Creation' shifts `count` over `span=1h` while `host` remains in-scope. eventType=user.privilege.grant Applies eventType `user.privilege.grant`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `OktaIM2:log`** — Scheduled automation elevates `tgt` without crossing configured threshold for UC-9.5.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `okta` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `OktaIM2:log`** — First 48h baseline for UC-9.5.6 on `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1098.003"
   ],
   "equipment": [
     "okta"
   ],
+  "equipmentModels": [
+    "okta_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_okta`.\n• Ensure the following data sources are available: `sourcetype=OktaIM2:log` (`user.privilege.grant`, `group.privilege*`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nParse `target` for admin roles and groups. Use lookups for approved role-assignment paths. Alert on any new admin grant or role elevation. Include `actor` and `client.ipAddress` for triage.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=okta sourcetype=\"OktaIM2:log\"\n| where eventType=\"user.privilege.grant\" OR like(eventType,\"group.privilege%\")\n| eval tgt=lower(mvjoin('target{}.displayName',\" \"))\n| where like(tgt,\"%admin%\") OR like(tgt,\"%super%\")\n| table _time, actor.alternateId, target{}.displayName, target{}.type\n```\n\nUnderstanding this SPL\n\n**Okta New Admin Creation** — New super-admin or role assignments are high-value targets for attackers; immediate notification enables rapid validation.\n\nDocumented **Data sources**: `sourcetype=OktaIM2:log` (`user.privilege.grant`, `group.privilege*`). **App/TA** (typical add-on context): `Splunk_TA_okta`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: okta; **sourcetype**: OktaIM2:log. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=okta, sourcetype=\"OktaIM2:log\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where eventType=\"user.privilege.grant\" OR like(eventType,\"group.privilege%\")` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **tgt** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where like(tgt,\"%admin%\") OR like(tgt,\"%super%\")` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Okta New Admin Creation**): table _time, actor.alternateId, target{}.displayName, target{}.type\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Okta New Admin Creation** — New super-admin or role assignments are high-value targets for attackers; immediate notification enables rapid validation.\n\nDocumented **Data sources**: `sourcetype=OktaIM2:log` (`user.privilege.grant`, `group.privilege*`). **App/TA** (typical add-on context): `Splunk_TA_okta`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Change.All_Changes` — enable acceleration for that model.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nCompare Splunk results with the Okta admin console and System Log for the same users, outcomes, and time window, then adjust thresholds to normal org traffic.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (who, what role, when), Timeline, Single value (admin grants today).",
-  "grandmaExplanation": "We use Okta sign-in records so we can see failed logins, risky sessions, and admin changes in one place."
+  "grandmaExplanation": "We use Okta sign-in records so we can see failed logins, risky sessions, and admin changes in one place.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

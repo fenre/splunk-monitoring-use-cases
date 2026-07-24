@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`/proc/pressure/cpu`, `/proc/pressure/memory`, `/proc/pressure/io`",
-  "app": "`Splunk_TA_nix` (scripted input)",
+  "exclusions": "Covers the detection logic documented for 'Linux Cgroup Resource Pressure (PSI)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_linux_cgroup_resource_pressure_psi` (UC-1.1.123), SOC dashboard panel \"Linux — Linux Cgroup Resource Pressure (PSI)\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.123 positive (Linux, Cgroup, Resource, Pressure, (PSI)): ingest synthetic events into `index=os` sourcetype='psi' where `count` grouped by `host`, `cgroup`, `resource` satisfies `pressure` > 20 for 'Linux Cgroup Resource Pressure (PSI)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.123 negative (Pressure (PSI)): ingest benign `os` / `psi` events where `host`, `cgroup`, `resource` stays below `pressure` > 20, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 9 confirms zero alert rows for 'Linux Cgroup Resource Pressure (PSI)'."
+  },
+  "dataSources": "`/proc/pressure/cpu`, `/proc/pressure/memory`, `/proc/pressure/io` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` (scripted input) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=psi host=* cgroup=*\n| stats latest(avg10) as pressure by host, cgroup, resource\n| where pressure > 20\n| sort -pressure",
-  "description": "Monitor Pressure Stall Information (PSI) for CPU, memory, and I/O at cgroup level to detect resource contention before it causes application latency.",
-  "value": "Monitor Pressure Stall Information (PSI) for CPU, memory, and I/O at cgroup level to detect resource contention before it causes application latency.",
+  "description": "Identifies UC-1.1.123 — Linux, Cgroup, Resource, Pressure, (PSI) — using `index=os` sourcetype `psi`, grouped by `host`, `cgroup`, `resource`. Outputs `count` each `the scheduled window`; alert when `pressure` > 20. Primary focus: Pressure (PSI). Purpose-built for 'Linux Cgroup Resource Pressure (PSI)' in Linux workflows.",
+  "value": "Operators running UC-1.1.123 on `psi` feeds shorten triage for Pressure (PSI) tied to 'Linux Cgroup Resource Pressure (PSI)', lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Create a scripted input that reads `/proc/pressure/cpu`, `/proc/pressure/memory`, and `/proc/pressure/io`. Parse avg10, avg60, avg300, and total fields (format: `avg10=0.00 avg60=0.00 avg300=0.00 total=12345`). Optionally collect per-cgroup PSI from `/sys/fs/cgroup/<cgroup>/cpu.pressure` etc. Run every 60 seconds. Alert when avg10 exceeds 10% or avg60 exceeds 5% for any resource.",
   "visualization": "Line chart (pressure over time by resource), Table of hosts with elevated pressure, Gauge per resource type.",
   "cimModels": [
@@ -21,13 +27,38 @@
   "references": [
     {
       "title": "Splunk_TA_nix",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Kernel <=5.0 may lack full PSI; some platforms expose only system-wide files. `some` vs `full` line semantics differ for I/O—match your doc before thresholding. Container churn can briefly spike one cgroup while siblings are fine.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Linux Cgroup Resource Pressure (PSI)'. Correlate with apt/yum logs in the same `psi` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `psi`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `pressure` > 20.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix` (scripted input).\n• Ensure the following data sources are available: `/proc/pressure/cpu`, `/proc/pressure/memory`, `/proc/pressure/io`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate a scripted input that reads `/proc/pressure/cpu`, `/proc/pressure/memory`, and `/proc/pressure/io`. Parse avg10, avg60, avg300, and total fields (format: `avg10=0.00 avg60=0.00 avg300=0.00 total=12345`). Optionally collect per-cgroup PSI from `/sys/fs/cgroup/<cgroup>/cpu.pressure` etc. Run every 60 seconds. Alert when avg10 exceeds 10% or avg60 exceeds 5% for any resource.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=psi host=* cgroup=*\n| stats latest(avg10) as pressure by host, cgroup, resource\n| where pressure > 20\n| sort -pressure\n```\n\nUnderstanding this SPL\n\n**Linux Cgroup Resource Pressure (PSI)** — Monitor Pressure Stall Information (PSI) for CPU, memory, and I/O at cgroup level to detect resource contention before it causes application latency.\n\nDocumented **Data sources**: `/proc/pressure/cpu`, `/proc/pressure/memory`, `/proc/pressure/io`. **App/TA** (typical add-on context): `Splunk_TA_nix` (scripted input). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: psi. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=psi. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, cgroup, resource** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where pressure > 20` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (pressure over time by resource), Table of hosts with elevated pressure, Gauge per resource type.\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We use Linux PSI metrics so cgroups that wait on CPU, memory, or disk show up before user-facing latency spikes."
+  "grandmaExplanation": "We use Linux PSI metrics so cgroups that wait on CPU, memory, or disk show up before user-facing latency spikes.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

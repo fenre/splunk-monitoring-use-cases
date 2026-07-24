@@ -8,24 +8,50 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=proxy` `sourcetype=varnish:stats` JSON from `varnishstat -j`",
-  "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes",
+  "exclusions": "Covers the detection logic documented for 'Varnish Thread Pool Queue Length (thread_queue_len)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_varnish_thread_pool_queue_length_thread_queue_le` (UC-5.14.11), SOC dashboard panel \"Operations — Varnish Thread Pool Queue Length (thread_queue_len)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.14.11 positive (Varnish, Thread, Pool, Queue, Length): ingest synthetic events into `index=proxy` sourcetype='varnish:stats' where `thread_queue_len` grouped by `host` satisfies `tql` > 0 for 'Varnish Thread Pool Queue Length (thread_queue_len)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.14.11 negative (Length (thread_queue_len)): ingest benign `proxy` / `varnish:stats` events where `host` stays below `tql` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Varnish Thread Pool Queue Length (thread_queue_len)'."
+  },
+  "dataSources": "`index=proxy` `sourcetype=varnish:stats` JSON from `varnishstat -j` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"varnish:stats\"\n| eval tql=tonumber(thread_queue_len)\n| where tql > 0\n| timechart span=1m max(tql) as thread_queue_len by host",
-  "description": "Queued threads mean requests wait before VCL runs.",
-  "value": "Operations teams monitor Varnish thread pool queue depth and thread creation failures, detecting request processing bottlenecks before dropped connections occur.",
+  "description": "Monitors UC-5.14.11 for Varnish, Thread, Pool, Queue, Length over `index=proxy` sourcetype `varnish:stats` with thresholds `tql` > 0. Groups `thread_queue_len` by `host` each `1m`. Centered on Length (thread_queue_len) indicators. Supports repeatable operations triage for 'Varnish Thread Pool Queue Length (thread_queue_len)'.",
+  "value": "For 'Varnish Thread Pool Queue Length (thread_queue_len)', UC-5.14.11 converts `thread_queue_len` on `varnish:stats` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Poll every 30s via scripted input to HEC; flatten counter names per version.",
   "visualization": "Time series for rates and latency, top/dedup for hotspots, single-value alerts on health thresholds.",
   "cimModels": [],
   "references": [
     {
       "title": "Vendor documentation",
-      "url": "https://varnish-cache.org/docs/trunk/reference/varnishstat.html"
+      "url": "https://varnish-cache.org/docs/trunk/reference/varnishstat.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Edge cases: multi-vendor mixes and ad hoc feeds can include lab traffic and partial visibility that mimics issues until scopes are defined. Tuning tip: match this to «Varnish Thread Pool Queue Length (thread_queue_len)» and exclude change windows, scans, and lab VLANs you already expect.",
+  "knownFalsePositives": "1. **Maintenance window on `proxy` (UC-5.14.11)** — Planned work for 'Varnish Thread Pool Queue Length (thread_queue_len)' shifts `thread_queue_len` over `span=1m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `varnish:stats`** — Scheduled automation elevates `tql` without crossing `tql` > 0 for UC-5.14.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `varnish:stats`** — First 48h baseline for UC-5.14.11 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog",
     "varnish"
+  ],
+  "equipmentModels": [
+    "syslog_generic",
+    "varnish_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -35,5 +61,7 @@
   ],
   "reviewer": "catalog-team",
   "detailedImplementation": "Prerequisites\n* Varnish statistics collected via `varnishstat` or Varnish's Prometheus exporter forwarded to Splunk. Key counters: `MAIN.thread_queue_len` (requests waiting for a thread), `MAIN.threads`, `MAIN.threads_limited`, `MAIN.threads_created`, `MAIN.threads_destroyed`, `MAIN.threads_failed`. Data in `index=proxy` with `sourcetype=varnish:stats`.\n* Varnish thread pools: configurable via `-p thread_pool_min`, `-p thread_pool_max`, `-p thread_pools`. When all threads are busy, new requests queue. `thread_queue_len > 0` sustained means Varnish is under thread pressure. If the queue exceeds `thread_pool_queue_limit`, requests are dropped.\n\nStep 1 -- Configure data collection\nCollect varnishstat periodically:\n```bash\n# Cron or scripted input every 60s\nvarnishstat -1 -j > /var/log/varnish/varnishstat.json\n```\nOr use Splunk scripted input:\n```\n# inputs.conf\n[script:///opt/splunk/etc/apps/TA-varnish/bin/varnishstat_collect.sh]\ninterval = 60\nsourcetype = varnish:stats\nindex = proxy\n```\nVerify:\n```spl\nindex=proxy sourcetype=\"varnish:stats\" earliest=-4h\n| spath input=_raw path=\"MAIN.thread_queue_len.value\" output=queue_len\n| stats avg(queue_len) as avg_queue max(queue_len) as max_queue\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Thread pool saturation:**\n```spl\nindex=proxy sourcetype=\"varnish:stats\" earliest=-4h\n| spath input=_raw path=\"MAIN.thread_queue_len.value\" output=queue_len\n| spath input=_raw path=\"MAIN.threads.value\" output=active_threads\n| spath input=_raw path=\"MAIN.threads_limited.value\" output=threads_limited\n| spath input=_raw path=\"MAIN.threads_failed.value\" output=threads_failed\n| eval queue_len=tonumber(queue_len), active_threads=tonumber(active_threads), threads_limited=tonumber(threads_limited), threads_failed=tonumber(threads_failed)\n| bin _time span=5m\n| stats avg(queue_len) as avg_queue max(queue_len) as max_queue avg(active_threads) as avg_threads latest(threads_limited) as limited latest(threads_failed) as failed by _time\n| eval severity=case(max_queue > 100, \"CRITICAL -- deep thread queue (max=\".max_queue.\")\", avg_queue > 10, \"HIGH -- sustained queuing\", limited > 0, \"WARNING -- thread creation limited\", failed > 0, \"CRITICAL -- thread creation failures\", 1==1, \"OK\")\n| where severity != \"OK\"\n| table _time, avg_threads, avg_queue, max_queue, limited, failed, severity\n```\n\nStep 3 -- Validate\n(a) `varnishstat -1 | grep -E \"thread_queue_len|threads|threads_limited\"`.\n(b) Load test to exhaust threads and verify queue_len increases.\n(c) Check configured limits: `varnishadm param.show thread_pool_max`.\n\nStep 4 -- Operationalize\nDashboard (\"Varnish -- Thread Pool\"):\n* Row 1 -- Single-value: \"Queue length\", \"Active threads\", \"Limited events\", \"Failed events\".\n* Row 2 -- Thread queue timechart.\n\nAlerting:\n* Critical (queue_len > 100 or threads_failed > 0): requests being dropped.\n* High (queue_len > 10 sustained): approaching saturation.\n\nStep 5 -- Troubleshooting\n\n* **Queue growing but threads not at max** -- Thread creation is being throttled by `thread_pool_add_delay` (default 0). Check with `varnishadm param.show thread_pool_add_delay`.\n\n* **threads_limited > 0** -- `thread_pool_max` has been reached. Increase it: `varnishadm param.set thread_pool_max 5000`. Monitor memory impact.\n\n* **threads_failed > 0** -- OS-level limit. Check: `ulimit -u` (max user processes) and `/proc/sys/kernel/threads-max`.",
-  "grandmaExplanation": "We watch varnish thread pool queue length (thread_queue_len) and catch issues early, before they turn into outages for the people who rely on the network."
+  "grandmaExplanation": "We watch varnish thread pool queue length (thread_queue_len) and catch issues early, before they turn into outages for the people who rely on the network.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

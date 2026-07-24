@@ -9,11 +9,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`systemctl list-units` output, systemd journal",
-  "app": "`Splunk_TA_nix` (scripted input)",
+  "exclusions": "Covers the detection logic documented for 'Systemd Unit State Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_systemd_unit_state_monitoring` (UC-1.1.122), SOC dashboard panel \"Linux — Systemd Unit State Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.122 positive (Systemd, Unit, State, Monitoring): ingest synthetic events into `index=os` sourcetype='systemd_units' where `total_restarts` grouped by `host`, `Unit` satisfies `NRestarts` > 0, or `total_restarts` > 5 for 'Systemd Unit State Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.122 negative (State Monitoring): ingest benign `os` / `systemd_units` events where `host`, `Unit` stays below `NRestarts` > 0, or `total_restarts` > 5, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 1 confirms zero alert rows for 'Systemd Unit State Monitoring'."
+  },
+  "dataSources": "`systemctl list-units` output, systemd journal Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` (scripted input) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=systemd_units host=* NRestarts>0\n| stats sum(NRestarts) as total_restarts by host, Unit\n| where total_restarts > 5\n| sort -total_restarts",
-  "description": "Track failed/inactive systemd services, auto-restart counts, and service startup time to prevent cascading failures and identify misconfigured or unhealthy units.",
-  "value": "Track failed/inactive systemd services, auto-restart counts, and service startup time to prevent cascading failures and identify misconfigured or unhealthy units.",
+  "description": "Detects State Monitoring activity in UC-1.1.122 ('Systemd Unit State Monitoring') from `index=os` sourcetype `systemd_units`. Rolls up `total_restarts` by `host`, `Unit` across `the scheduled window` and pages when `NRestarts` > 0, or `total_restarts` > 5. Covers Systemd, Unit, State, Monitoring. Linux operators treat UC-1.1.122 as the canonical signal.",
+  "value": "Operators running UC-1.1.122 on `systemd_units` feeds shorten triage for State Monitoring tied to 'Systemd Unit State Monitoring', lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Create a scripted input that runs `systemctl list-units --all --no-pager --plain` and `systemctl show --property=ActiveState,SubState,NRestarts` for critical units. Parse ActiveState, SubState, and NRestarts. Run every 60 seconds. For startup time, use `systemd-analyze` output. Alert on any failed units; alert when NRestarts exceeds 5 in 1 hour for critical services.",
   "visualization": "Table (failed/inactive units by host), Single value (count of failed units), Timechart of restart counts.",
   "cimModels": [
@@ -22,13 +28,38 @@
   "references": [
     {
       "title": "Splunk_TA_nix",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "`NRestarts` is cumulative in many versions—reset expectations after upgrades. Short bursts from health checks on aggressive `RestartSec` can exceed five without user impact. Scope the search to a lookup of `Unit` names that actually matter to SLAs.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Systemd Unit State Monitoring'. Correlate with apt/yum logs in the same `systemd_units` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `sum` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `systemd_units`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `NRestarts` > 0.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix` (scripted input).\n• Ensure the following data sources are available: `systemctl list-units` output, systemd journal.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate a scripted input that runs `systemctl list-units --all --no-pager --plain` and `systemctl show --property=ActiveState,SubState,NRestarts` for critical units. Parse ActiveState, SubState, and NRestarts. Run every 60 seconds. For startup time, use `systemd-analyze` output. Alert on any failed units; alert when NRestarts exceeds 5 in 1 hour for critical services.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=systemd_units host=* NRestarts>0\n| stats sum(NRestarts) as total_restarts by host, Unit\n| where total_restarts > 5\n| sort -total_restarts\n```\n\nUnderstanding this SPL\n\n**Systemd Unit State Monitoring** — Track failed/inactive systemd services, auto-restart counts, and service startup time to prevent cascading failures and identify misconfigured or unhealthy units.\n\nDocumented **Data sources**: `systemctl list-units` output, systemd journal. **App/TA** (typical add-on context): `Splunk_TA_nix` (scripted input). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: systemd_units. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=systemd_units. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, Unit** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where total_restarts > 5` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (failed/inactive units by host), Single value (count of failed units), Timechart of restart counts.\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We read systemd’s restart counts and unit states so flapping services get fixed before they take down the whole host."
+  "grandmaExplanation": "We read systemd’s restart counts and unit states so flapping services get fixed before they take down the whole host.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

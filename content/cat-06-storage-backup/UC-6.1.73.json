@@ -9,11 +9,17 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Protection group / pod replication metrics in `purestorage:array` or `purestorage:volume` with schedule timestamps",
-  "app": "Pure Storage Unified Add-on for Splunk (5513)",
+  "exclusions": "Covers the detection logic documented for 'Pure Storage protection group replication schedule adherence' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_pure_storage_protection_group_replication_schedu` (UC-6.1.73), SOC dashboard panel \"Operations — Pure Storage protection group replication schedule adherence\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.1.73 positive (Pure, Storage, protection, group, replication): ingest synthetic events into `index=storage` sourcetype='purestorage:array' where `count` grouped by `pg`, `array_name` satisfies `skew_sec` > 3600 for 'Pure Storage protection group replication schedule adherence'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.1.73 negative (schedule adherence): ingest benign `storage` / `purestorage:array` events where `pg`, `array_name` stays below `skew_sec` > 3600, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Pure Storage protection group replication schedule adherence'."
+  },
+  "dataSources": "Protection group / pod replication metrics in `purestorage:array` or `purestorage:volume` with schedule timestamps Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Pure Storage Unified Add-on for Splunk (5513) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage (sourcetype=\"purestorage:array\" OR sourcetype=\"purestorage:volume\")\n| eval pg=coalesce(protection_group_name, pod_name, pg_name)\n| eval last_sync=coalesce(last_replicated_time, last_sync_epoch, last_snapshot_time)\n| eval skew_sec=_time-strptime(last_sync, \"%Y-%m-%dT%H:%M:%SZ\")\n| where isnotnull(pg) AND (isnull(last_sync) OR skew_sec > 3600)\n| stats latest(last_sync) as last_sync latest(skew_sec) as skew by pg, array_name\n| sort - skew",
-  "description": "Missed replication slots break asynchronous RPO even when instantaneous lag looks fine. Comparing last successful sync to the policy schedule catches silent scheduler failures.",
-  "value": "Protects DR test success rates and contractual RPO reporting for remote protection groups.",
+  "description": "Monitors 'Pure Storage protection group replication schedule adherence' patterns (UC-6.1.73) sourced from `index=storage` sourcetype `purestorage:array`. Threshold bundle: `skew_sec` > 3600; aggregation grain: `pg`, `array_name`; metrics: `count`. Watch terms: Pure, Storage, protection, group, replication.",
+  "value": "UC-6.1.73 gives Operations teams earlier visibility into schedule adherence through `purestorage:array` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Normalize ISO timestamps with `strptime` and timezone. Join expected `cron` schedule from a lookup for precise skew; start with simple 1-hour skew alert.",
   "visualization": "Timeline of skew, table (PG, last_sync, skew_sec).",
   "cimModels": [
@@ -22,16 +28,31 @@
   "references": [
     {
       "title": "Pure Storage Unified Add-on for Splunk (Splunkbase)",
-      "url": "https://splunkbase.splunk.com/app/5513"
+      "url": "https://splunkbase.splunk.com/app/5513",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Pure Storage Splunk reference",
-      "url": "https://support.purestorage.com/Solutions/Splunk/Splunk_Reference/Array_Monitoring_on_Splunk_with_PureStorage_Unified_App_and_TA"
+      "url": "https://support.purestorage.com/Solutions/Splunk/Splunk_Reference/Array_Monitoring_on_Splunk_with_PureStorage_Unified_App_and_TA",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.1.73)** — Planned work for 'Pure Storage protection group replication schedule adherence' shifts `count` over `span=1h` while `pg`, `array_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `purestorage:array`** — Scheduled automation elevates `array_name` without crossing `skew_sec` > 3600 for UC-6.1.73. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pg`, `array_name`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `purestorage:array`** — First 48h baseline for UC-6.1.73 on `pg` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pg`, `exception_reason`, `valid_until`.",
   "equipment": [
     "pure_storage"
+  ],
+  "equipmentModels": [
+    "pure_storage_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We track copy and mirror health so a planned outage or a bad link does not leave you with an old or broken remote copy when you need it most."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Pure Storage Unified Add-on for Splunk (5513) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=purestorage:array, purestorage:volume into storage. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`array_name, last_sync, pg, skew_sec`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We track copy and mirror health so a planned outage or a bad link does not leave you with an old or broken remote copy when you need it most.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

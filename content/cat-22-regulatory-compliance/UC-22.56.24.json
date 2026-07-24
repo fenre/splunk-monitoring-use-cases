@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Simulate AiTM phishing event against TSA-personnel UPN. UC-22.56.24 MUST flag within 1h.",
-    "negativeScenario": "Simulated phishing test tagged `simulation=true`. UC-22.56.24 MUST NOT escalate."
+    "positiveScenario": "UC-22.56.24 positive (TSA, multi, modal, phishing, credential): ingest synthetic events into `index=target_index` sourcetype='mscs:o365:atp' where `values` grouped by `upn` satisfies `events` > 0 for 'TSA-SD multi-modal phishing + credential-harvesting surveillance with CC + sector-ISAC reporting'. Validate lookup `tsa_personnel_lookup`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.56.24 negative (ISAC reporting): ingest benign `target_index` / `mscs:o365:atp` events where `upn` stays below `events` > 0, or exclude the test entity via `compliance_exception_register.csv`. Variant 8 confirms zero alert rows for 'TSA-SD multi-modal phishing + credential-harvesting surveillance with CC + sector-ISAC reporting'."
   },
   "dataSources": "Microsoft Defender for Office 365 (`o365:management:purview`, `mscs:o365:atp`). Proofpoint (`proofpoint:tap:campaign`). Microsoft Entra ID Identity Protection (`azure:eventhub:idprotection`). Reported-phishing mailbox (`o365:management:UserSubmission`).",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110), Splunk Add-on for Proofpoint TAP (Splunkbase 3776).",
   "spl": "(sourcetype=mscs:o365:atp OR sourcetype=proofpoint:tap:campaign OR sourcetype=azure:eventhub:idprotection)\n| eval upn = coalesce(recipient_email, userPrincipalName)\n| lookup tsa_personnel_lookup upn AS upn OUTPUT tsa_in_scope role modality\n| where tsa_in_scope=true\n| where event_type IN (\"phishing_delivered\",\"adversaryInTheMiddle\",\"riskySignIn\",\"impossibleTravel\",\"unfamiliarLocation\")\n| eval simulation = coalesce(simulation, \"false\")\n| where simulation=\"false\"\n| stats count as events values(event_type) as event_types values(role) as role values(modality) as modality by upn\n| where events > 0\n| table upn role modality events event_types",
-  "description": "Detects credential-harvesting events targeting TSA-regulated personnel; routes to CC for ISAC sharing.",
-  "value": "Phishing-driven credential compromise is the most common predicate to TSA-reportable cyber events; rapid containment matters.",
+  "description": "Identifies UC-22.56.24 — TSA, multi, modal, phishing, credential — using `index=target_index` sourcetype `mscs:o365:atp`, grouped by `upn`. Outputs `values` each `the scheduled window`; alert when `events` > 0. Filter chain includes lookup `tsa_personnel_lookup`. Purpose-built for 'TSA-SD multi-modal phishing + credential-harvesting surveillance with CC + sector-ISAC reporting' in Compliance workflows.",
+  "value": "UC-22.56.24 accelerates insight into ISAC reporting ('TSA-SD multi-modal phishing + credential-harvesting surveillance with CC + sector-ISAC reporting') by tracking `activity` on `mscs:o365:atp` feeds, reducing audit findings, regulatory gaps, and attestation delays before spreadsheet checks hide regressions.",
   "implementation": "(1) Populate `tsa_personnel_lookup`. (2) Schedule UC-22.56.24 hourly. (3) Build the `TSA Phishing Surveillance` dashboard.",
   "visualization": "(Panel 1) Affected personnel by modality. (Panel 2) Event-type trend. (Panel 3) Contained vs in-progress. (Panel 4) ISAC sharing log.",
   "cimModels": [
@@ -47,10 +47,36 @@
   "references": [
     {
       "title": "CISA Phishing Resistance Guide",
-      "url": "https://www.cisa.gov/news-events/cybersecurity-advisories/aa22-074a"
+      "url": "https://www.cisa.gov/news-events/cybersecurity-advisories/aa22-074a",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 263",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 3110",
+      "url": "https://splunkbase.splunk.com/app/3110",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 3776",
+      "url": "https://splunkbase.splunk.com/app/3776",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Email",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Email",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Simulated phishing**: SOC training simulations must be tagged.\n2. **Legitimate impossible travel**: VPN-related; tune via Entra ID conditional access.\n\n**Suppression mechanism**: KV Store `tsa_22_56_24_exceptions`.",
+  "knownFalsePositives": "1. **Authorised TSA SURFACE control testing** — Internal audit exercises 'TSA-SD multi-modal phishing + credential-harvesting surveillance with CC + sector-ISAC reporting' (UC-22.56.24) on `upn` during scheduled clause TSA-SCAS-phishing-credential sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `mscs:o365:atp` without crossing `events` > 0. Cross-check engagement letter in `tsa_surface_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `upn`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `upn` during normal service delivery.\n\n**Suppression mechanism:** `tsa_surface_exception_register.csv` keyed on `upn`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "T1566",
     "T1556",
@@ -88,7 +114,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + Microsoft + Proofpoint TAs.\n- KV Store `tsa_personnel_lookup`.\n\n## Step 1 — Personnel register\n\n```ini\n[tsa_personnel_lookup]\nfield.upn = string\nfield.tsa_in_scope = string\nfield.role = string\nfield.modality = string\nfield.criticality = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.24: TSA Phishing Surveillance]\ncron_schedule = */60 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.24,reg=TSA-Surface,clause=TSA-SD-multi-phishing-credential\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**Phishing against TSA-CC** (owner: SOC + CC, severity P1):\n1. Within 1 hour: revoke session, force credential reset.\n2. Within 4 hours: scope investigation.\n3. Within 24 hours: share TLP:GREEN indicators with sector ISAC.\n\n## Step 4 — Troubleshooting\n\n- **Roaming users**: tune impossible-travel thresholds.\n- **Conditional access fatigue**: ensure CA policies block, not just warn.\n\n**TSA-specific failure modes**:\n- **Cross-modal phishing campaigns**: oil/gas + rail/aviation may share threat actors; coordinate cross-ISAC.\n- **C-suite spear-phishing**: CISO / CC / CFO frequently targeted; pre-position step-up controls.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + Microsoft + Proofpoint TAs.\n- KV Store `tsa_personnel_lookup`.\n\n## Step 1 — Personnel register\n\n```ini\n[tsa_personnel_lookup]\nfield.upn = string\nfield.tsa_in_scope = string\nfield.role = string\nfield.modality = string\nfield.criticality = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.24: TSA Phishing Surveillance]\ncron_schedule = */60 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.24,reg=TSA-Surface,clause=TSA-SD-multi-phishing-credential\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**Phishing against TSA-CC** (owner: SOC + CC, severity P1):\n1. Within 1 hour: revoke session, force credential reset.\n2. Within 4 hours: scope investigation.\n3. Within 24 hours: share TLP:GREEN indicators with sector ISAC.\n\n## Step 4 — Troubleshooting\n\n- **Roaming users**: tune impossible-travel thresholds.\n- **Conditional access fatigue**: ensure CA policies block, not just warn.\n\n**TSA-specific failure modes**:\n- **Cross-modal phishing campaigns**: oil/gas + rail/aviation may share threat actors; coordinate cross-ISAC.\n- **C-suite spear-phishing**: CISO / CC / CFO frequently targeted; pre-position step-up controls.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Microsoft Cloud Services (Splunkbase 3110), Splunk Add-on for Proofpoint TAP (Splunkbase 3776).). Enable the modular input or HEC token that writes sourcetype=mscs:o365:atp, proofpoint:tap:campaign, azure:eventhub:idprotection into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`events, tsa_in_scope role modality, upn`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Crooks try to trick our pipeline, rail, and airport staff into giving up their passwords. We catch those attempts within an hour and warn the rest of the industry.",
   "prerequisiteUseCases": [
     "UC-22.56.4"

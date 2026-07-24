@@ -9,6 +9,8 @@
     "Configuration"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Cisco ISE Profiler Probe Quality and Endpoint-Classification Coverage' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_cisco_ise_profiler_probe_quality_and_endpoint_cl` (UC-17.1.55), SOC dashboard panel \"Network — Cisco ISE Profiler Probe Quality and Endpoint-Classification Coverage\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "nis2",
@@ -49,14 +51,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Disable the DHCP probe on a PSN. Within 30 min, classification confidence drops. UC-17.1.55 fires showing `dhcp` probe with `health=degraded`.",
-    "negativeScenario": "Re-enable the probe. Health returns to 'healthy'."
+    "positiveScenario": "UC-17.1.55 positive (Cisco, ISE, Profiler, Probe, Quality): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `unique_endpoints`, `avg_confidence` grouped by `probe_type` satisfies `probe_failures` > 0, `rate_limits` > 0, or `avg_confidence` < 70 for 'Cisco ISE Profiler Probe Quality and Endpoint-Classification Coverage'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.55 negative (Classification Coverage): ingest benign `nac` / `cisco:ise:syslog` events where `probe_type` stays below `probe_failures` > 0, `rate_limits` > 0, or `avg_confidence` < 70, or exclude the test entity via `network_exception_register.csv`. Variant 3 confirms zero alert rows for 'Cisco ISE Profiler Probe Quality and Endpoint-Classification Coverage'."
   },
   "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Profiler* category — codes `80001` (endpoint profiled), `80002` (endpoint reprofiled), `80003` (probe failure), `80004` (probe rate-limit), `80010` (profiler-feed update). Probes covered: DHCP, RADIUS, SNMP, NMAP, NetFlow, HTTP, DNS, AD, Active Probing. Field: `probe_type`, `endpoint_mac`, `device_type`, `confidence_score`. ISE OpenAPI `/api/v1/profile/feed` polled every 6h, written to `index=nac sourcetype=cisco:ise:profiler_feed`.",
   "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
   "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (80001, 80003, 80004))\n  OR (index=nac sourcetype=\"cisco:ise:profiler_feed\")\n| stats count, dc(endpoint_mac) as unique_endpoints, count(eval(MessageCode==\"80003\")) as probe_failures, count(eval(MessageCode==\"80004\")) as rate_limits, avg(confidence_score) as avg_confidence by probe_type\n| eval health = case(probe_failures > 0 OR rate_limits > 0, \"degraded\", avg_confidence < 70, \"low_confidence\", true(), \"healthy\")\n| where health != \"healthy\"",
-  "description": "Detects probe failures, rate-limits, and low-confidence endpoint classifications across ISE's profiler probe types. When probes are unhealthy, endpoints are mis-classified, leading to wrong authorization profiles.",
-  "value": "Profiler is how ISE knows what kind of device just authenticated — printer, IP phone, IoT sensor, laptop. Wrong classification means wrong authorization profile (and possibly wrong VLAN, wrong dACL). Catching probe degradation preserves classification fidelity.",
+  "description": "Identifies when Classification Coverage criteria fire for 'Cisco ISE Profiler Probe Quality and Endpoint-Classification Coverage' (UC-17.1.55) in `index=nac` sourcetype `cisco:ise:syslog`. Pipeline aggregates `unique_endpoints`, `avg_confidence` by `probe_type` over `the scheduled window`. Alert logic enforces `probe_failures` > 0, `rate_limits` > 0, or `avg_confidence` < 70. Title terms: Cisco, ISE, Profiler, Probe, Quality. Eliminates manual hunting for UC-17.1.55 conditions.",
+  "value": "UC-17.1.55 helps teams contain Cisco, ISE, Profiler, Probe, Quality scenarios and reduce unauthorized access, segmentation drift, and NAC policy failures before incidents compound.",
   "implementation": "Confirm *Profiler* category at INFO. Schedule every 30 min, search window `-2h@h to @h`, trigger on count > 0.",
   "visualization": "(1) Per-probe health tile. (2) Confidence score distribution per probe. (3) Top-N: device types with low confidence.",
   "cimModels": [],
@@ -64,10 +66,31 @@
   "references": [
     {
       "title": "Cisco ISE 3.4 — Endpoint Profiling",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "NIS2 Directive — EUR-Lex",
+      "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32022L2555",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1915",
+      "url": "https://splunkbase.splunk.com/app/1915",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Security (Splunkbase 1352)",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) **NMAP probe firewall block** — Some networks block active scanning; tag and exclude. (b) **DHCP probe coverage gap** — DHCP probe requires SPAN or DHCP relay; coverage may be partial. (c) **NetFlow probe rate-limit during traffic peak** — During a traffic spike, NetFlow probe may be rate-limited; expected.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'Cisco ISE Profiler Probe Quality and Endpoint-Classification Coverage'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "N/A (data-quality monitoring — measures ISE profiler probe reliability, no adversary technique)"
   ],
@@ -89,7 +112,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• ISE Profiler enabled with multiple probe types active.\n• `device_inventory.csv` for cross-reference.\n\nStep 1 — Configure data collection\nEnable *Profiler* category at INFO.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 30 min.\n\nStep 3 — Validate\nProvoke as above.\n\nStep 4 — Operationalize\nDashboard \"ISE — Profiler Probe Health\":\n• Per-probe health tile.\n• Confidence distribution.\n• Top-N low-confidence device types.\n\nStep 5 — Troubleshooting\n• **All probes show degraded** — PSN resource saturation; cross-ref UC-17.1.29.\n• **DHCP probe absent** — DHCP relay not configured to forward DHCP to PSN.\n• **NMAP probe disabled** — Either by policy (firewall) or PSN config.",
+  "detailedImplementation": "Prerequisites\n• ISE Profiler enabled with multiple probe types active.\n• `device_inventory.csv` for cross-reference.\n\nStep 1 — Configure data collection\nEnable *Profiler* category at INFO.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 30 min.\n\nStep 3 — Validate\nProvoke as above.\n\nStep 4 — Operationalize\nDashboard \"ISE — Profiler Probe Health\":\n• Per-probe health tile.\n• Confidence distribution.\n• Top-N low-confidence device types.\n\nStep 5 — Troubleshooting\n• **All probes show degraded** — PSN resource saturation; cross-ref UC-17.1.29.\n• **DHCP probe absent** — DHCP relay not configured to forward DHCP to PSN.\n• **NMAP probe disabled** — Either by policy (firewall) or PSN config.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog, cisco:ise:profiler_feed into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`avg_confidence, health, probe_failures, probe_type`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "ISE figures out what each device is — phone, printer, laptop — using several different methods. We check each method is working; if one is broken, ISE may be guessing wrong about what kind of device just connected.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

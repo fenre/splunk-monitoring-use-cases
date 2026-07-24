@@ -9,26 +9,55 @@
     "Reliability"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue (`emporia:circuit`).",
-  "app": "Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, and smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Storm-Watch Reserve Compliance' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_storm_watch_reserve_compliance` (UC-25.6.16), SOC dashboard panel \"Personal — Storm-Watch Reserve Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.6.16 positive (Storm, Watch, Reserve, Compliance): ingest synthetic events into `index=personal` sourcetype='powerwall:aggregate' where `max_soc` grouped by `_time` satisfies `max_soc` < 90 for 'Storm-Watch Reserve Compliance'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.6.16 negative (Reserve Compliance): ingest benign `personal` / `powerwall:aggregate` events where `_time` stays below `max_soc` < 90, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 15 confirms zero alert rows for 'Storm-Watch Reserve Compliance'."
+  },
+  "dataSources": "SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue (`emporia:circuit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, and smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=powerwall:aggregate mode=storm_watch\n| bin _time span=1d\n| stats max(battery_soc_pct) as max_soc by _time\n| where max_soc<90\n| sort - _time",
-  "description": "Checks whether storm-watch or backup-reserve behaviour actually filled the battery to a high enough level before bad weather arrived.",
-  "value": "A backup battery only protects you if the reserve policy did what you expected; this turns trust in automation into a verifiable control.",
+  "description": "Surfaces UC-25.6.16 — Storm, Watch, Reserve, Compliance — using `index=personal` sourcetype `powerwall:aggregate`, grouped by `_time`. Outputs `max_soc` each `1d`; alert when `max_soc` < 90. Primary focus: Reserve Compliance. Purpose-built for 'Storm-Watch Reserve Compliance' in Personal workflows.",
+  "value": "UC-25.6.16 operationalises 'Storm-Watch Reserve Compliance' against `powerwall:aggregate` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Forward battery mode and state-of-charge; review each storm-watch day and tune reserve settings if the pack never gets sufficiently full.",
   "visualization": "Daily table of storm-watch days and maximum state of charge reached.",
   "cimModels": [],
   "references": [
     {
       "title": "Tesla Powerwall owner resources",
-      "url": "https://www.tesla.com/support/energy/powerwall"
+      "url": "https://www.tesla.com/support/energy/powerwall",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.6.16)** — Connector for 'Storm-Watch Reserve Compliance' stops polling `powerwall:aggregate`; stale `max_soc` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max_soc` over `1d` is expected for UC-25.6.16, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `powerwall:aggregate`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `max_soc` < 90 for 'Storm-Watch Reserve Compliance'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It surfaces whether the house battery really filled up for storm backup when bad weather mode turned on."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Home Energy & Solar — typical feeds: SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Tesla Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue circuits (`emporia:circuit`), Sense .\n• **Sourcetypes in this search**: `powerwall:aggregate`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=powerwall:aggregate`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC..\n\n**Author notes:** Forward battery mode and state-of-charge; review each storm-watch day and tune reserve settings if the pack never gets sufficiently full.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"powerwall:aggregate\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=powerwall:aggregate earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Storm-Watch Reserve Compliance** over `personal` data (primarily `sourcetype=powerwall:aggregate`) across the full search range. It applies numeric thresholds on `max_soc` (< 90) after max — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `max_soc`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=powerwall:aggregate mode=storm_watch\n| bin _time span=1d\n| stats max(battery_soc_pct) as max_soc by _time\n| where max_soc<90\n| sort - _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=powerwall:aggregate earliest=-7d\n| head 50\n| table _time, max_soc\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=powerwall:aggregate earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `max_soc` before alerting:\n\n```spl\nindex=personal sourcetype=powerwall:aggregate earliest=-30d\n| stats perc50(max_soc) AS p50 perc90(max_soc) AS p90 perc99(max_soc) AS p99 max(max_soc) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.6.16: Personal evidence` with the following panel layout:\n\n**Panel 1 — Daily Table Of Storm-Watch Days And Maximum State Of Charge Reached (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `powerwall:aggregate` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=powerwall:aggregate | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It surfaces whether the house battery really filled up for storm backup when bad weather mode turned on.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

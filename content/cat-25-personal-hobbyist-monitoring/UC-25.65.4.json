@@ -9,35 +9,60 @@
     "Safety"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Victron telemetry (`victron:telemetry`), iOverlander place logs (`ioverlander:place`), Garmin inReach messages (`inreach:message`), and Mopeka propane readings (`mopeka:tank`).",
-  "app": "Victron Cerbo GX telemetry, iOverlander place exports, Garmin inReach check-ins, and Mopeka propane sensors streamed into Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Off-Grid Check-In Silence' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_off_grid_check_in_silence` (UC-25.65.4), SOC dashboard panel \"Personal — Off-Grid Check-In Silence\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.65.4 positive (Off, Grid, Check, Silence): ingest synthetic events into `index=personal` sourcetype='inreach:message' where `last_checkin` grouped by `contact_name` satisfies `hours_since_checkin` > 24 for 'Off-Grid Check-In Silence'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.65.4 negative (In Silence): ingest benign `personal` / `inreach:message` events where `contact_name` stays below `hours_since_checkin` > 24, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 15 confirms zero alert rows for 'Off-Grid Check-In Silence'."
+  },
+  "dataSources": "Victron telemetry (`victron:telemetry`), iOverlander place logs (`ioverlander:place`), Garmin inReach messages (`inreach:message`), and Mopeka propane readings (`mopeka:tank`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Victron Cerbo GX telemetry, iOverlander place exports, Garmin inReach check-ins, and Mopeka propane sensors streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=inreach:message\n| stats max(_time) as last_checkin by contact_name\n| eval hours_since_checkin=round((now()-last_checkin)/3600,1)\n| where hours_since_checkin>24\n| sort - hours_since_checkin",
-  "description": "Alerts when an expected inReach check-in has not been sent within the promised interval.",
-  "value": "Silence is a meaningful signal in off-grid travel because missed check-ins are exactly what loved ones worry about.",
+  "description": "Identifies UC-25.65.4 — Off, Grid, Check, Silence — using `index=personal` sourcetype `inreach:message`, grouped by `contact_name`. Outputs `last_checkin` each `the scheduled window`; alert when `hours_since_checkin` > 24. Primary focus: In Silence. Purpose-built for 'Off-Grid Check-In Silence' in Personal workflows.",
+  "value": "UC-25.65.4 operationalises 'Off-Grid Check-In Silence' against `inreach:message` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Schedule a daily search against inReach message history and align the threshold with your stated check-in cadence.",
   "visualization": "Table of contacts with hours since last check-in.",
   "cimModels": [],
   "references": [
     {
       "title": "Victron Cerbo GX",
-      "url": "https://www.victronenergy.com/panel-systems-remote-monitoring/cerbo-gx"
+      "url": "https://www.victronenergy.com/panel-systems-remote-monitoring/cerbo-gx",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "iOverlander",
-      "url": "https://ioverlander.com/"
+      "url": "https://ioverlander.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Garmin inReach",
-      "url": "https://www.garmin.com/en-US/c/outdoor-recreation/satellite-communicators/"
+      "url": "https://www.garmin.com/en-US/c/outdoor-recreation/satellite-communicators/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Mopeka Tank Monitoring",
-      "url": "https://www.mopeka.com/"
+      "url": "https://www.mopeka.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It spots when the usual satellite check-in has not happened and someone may want to follow up."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.65.4)** — Connector for 'Off-Grid Check-In Silence' stops polling `inreach:message`; stale `last_checkin` on `contact_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_checkin` over `1w` is expected for UC-25.65.4, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `inreach:message`. Dedup with `stats latest(*) by contact_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since_checkin` > 24 for 'Off-Grid Check-In Silence'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Camping, Overlanding & RV — typical feeds: Victron telemetry (`victron:telemetry`), iOverlander place logs (`ioverlander:place`), Garmin inReach messages (`inreach:message`), and Mopeka propane readings (`mopeka:tank`)..\n• **Sourcetypes in this search**: `inreach:message`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=inreach:message`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Victron Cerbo GX telemetry, iOverlander place exports, Garmin inReach check-ins, and Mopeka propane sensors streamed into Splunk HEC..\n\n**Author notes:** Schedule a daily search against inReach message history and align the threshold with your stated check-in cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"inreach:message\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=inreach:message earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Off-Grid Check-In Silence** over `personal` data (primarily `sourcetype=inreach:message`) across the full search range. It applies numeric thresholds on `hours_since_checkin` (> 24) after max — tune these constants to your household baseline.\n\n**Fields this search depends on:** `contact_name`, `hours_since_checkin`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=inreach:message\n| stats max(_time) as last_checkin by contact_name\n| eval hours_since_checkin=round((now()-last_checkin)/3600,1)\n| where hours_since_checkin>24\n| sort - hours_since_checkin\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=inreach:message earliest=-7d\n| head 50\n| table contact_name, hours_since_checkin\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=inreach:message earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `hours_since_checkin` before alerting:\n\n```spl\nindex=personal sourcetype=inreach:message earliest=-30d\n| stats perc50(hours_since_checkin) AS p50 perc90(hours_since_checkin) AS p90 perc99(hours_since_checkin) AS p99 max(hours_since_checkin) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.65.4: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Contacts With Hours Since Last Check-In (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `inreach:message` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=inreach:message | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It spots when the usual satellite check-in has not happened and someone may want to follow up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

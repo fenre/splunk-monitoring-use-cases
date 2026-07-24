@@ -9,6 +9,8 @@
     "Security"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Covers the detection logic documented for 'ISE RADIUS Change-of-Authorization (CoA) Failure Detection' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_ise_radius_change_of_authorization_coa_failure_d` (UC-17.1.56), SOC dashboard panel \"Network — ISE RADIUS Change-of-Authorization (CoA) Failure Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "nis2",
@@ -49,14 +51,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Misconfigure CoA shared secret on a lab NAD. Apply ANC quarantine to an endpoint on that NAD. ISE emits 5419 (CoA failed) and the NAD emits %RADIUS-3-COA_NACK. UC-17.1.56 fires.",
-    "negativeScenario": "Fix the shared secret. Quarantine succeeds via 5417/5418. Alert clears."
+    "positiveScenario": "UC-17.1.56 positive (ISE, RADIUS, Change, Authorization, (CoA)): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `count` grouped by `NAS-IP-Address`, `action`, `coa_action` satisfies `count` > 5 for 'ISE RADIUS Change-of-Authorization (CoA) Failure Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.56 negative (Failure Detection): ingest benign `nac` / `cisco:ise:syslog` events where `NAS-IP-Address`, `action`, `coa_action` stays below `count` > 5, or exclude the test entity via `network_exception_register.csv`. Variant 13 confirms zero alert rows for 'ISE RADIUS Change-of-Authorization (CoA) Failure Detection'."
   },
   "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Authentication* category — CoA codes `5417` (CoA initiated), `5418` (CoA succeeded), `5419` (CoA failed), `5420` (CoA timeout), `5421` (CoA NAS not responding). Fields: `coa_action` (port-bounce|port-shutdown|reauth|disconnect), `NAS-IP-Address`, `endpoint_mac`, `error_code`. NAD-side: `index=network sourcetype=cisco:ios` `%RADIUS-3-COA_NACK`. CIM mapping: `Change.action`.",
   "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)) + Cisco network TA.",
   "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (5417, 5419, 5420, 5421))\n  OR (index=network sourcetype=\"cisco:ios\" \"%RADIUS-3-COA\")\n| eval action = case(MessageCode==\"5417\", \"initiated\", MessageCode==\"5419\", \"failed\", MessageCode==\"5420\", \"timeout\", MessageCode==\"5421\", \"nas_no_response\", like(_raw, \"%COA_NACK%\"), \"nas_nack\")\n| stats count by NAS-IP-Address, action, coa_action\n| where action != \"initiated\" AND count > 5",
-  "description": "Detects RADIUS CoA failures, timeouts, and NAS no-response events at scale. CoA is how ISE pushes runtime authorization changes (quarantine, reauth, port-bounce) to NADs — failures mean the enforcement action didn't reach the device.",
-  "value": "When SOAR pushes a quarantine to ISE and ISE pushes a CoA to the NAD that fails, the endpoint *remains uncontained*. CoA failure detection is the closure validation for incident-response automation.",
+  "description": "Detects UC-17.1.56 — ISE, RADIUS, Change, Authorization, (CoA) — using `index=nac` sourcetype `cisco:ise:syslog`, grouped by `NAS-IP-Address`, `action`, `coa_action`. Outputs `count` each `the scheduled window`; alert when `count` > 5. Primary focus: Failure Detection. Purpose-built for 'ISE RADIUS Change-of-Authorization (CoA) Failure Detection' in Network workflows.",
+  "value": "UC-17.1.56 gives Network teams earlier visibility into Failure Detection through `cisco:ise:syslog` feeds, lowering unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Confirm *Authentication* category at INFO. Schedule every 5 min, search window `-15m@m to @m`, throttle suppression on `NAS-IP-Address` for 30 min.",
   "visualization": "(1) Single value: CoA failures last 1h. (2) Top-N NADs by failure count. (3) Failure-class breakdown.",
   "cimModels": [
@@ -66,14 +68,26 @@
   "references": [
     {
       "title": "RFC 5176 — Dynamic Authorization Extensions to RADIUS",
-      "url": "https://datatracker.ietf.org/doc/rfc5176/"
+      "url": "https://datatracker.ietf.org/doc/rfc5176/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco ISE 3.4 — RADIUS CoA",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) **NAD reload** — During NAD reload, CoA pkts time out; suppress within scheduled change window. (b) **CoA shared-secret mismatch** — One-time misconfiguration; permanent failure on that NAD. Triage as config issue, not transient. (c) **Older NAD without CoA support** — Some legacy gear doesn't support CoA; tag and exclude.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'ISE RADIUS Change-of-Authorization (CoA) Failure Detection'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "T1499.004"
   ],
@@ -92,7 +106,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• NAD configured with `aaa server radius dynamic-author` (and matching shared secret).\n• `nad_inventory.csv` with `nas_ip`, `coa_supported`.\n\nStep 1 — Configure data collection\nValidate event flow.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 5 min.\n\nStep 3 — Validate\nProvoke as above.\n\nStep 4 — Operationalize\nDashboard \"ISE — CoA Health\":\n• Single value: failures last 1h.\n• Top-N NADs.\n• Failure-class.\n\nAlerting: PagerDuty medium on sustained CoA failure for one NAD.\n\nStep 5 — Troubleshooting\n• **Shared-secret mismatch** — Realign on NAD and ISE.\n• **NAS no response** — UDP/3799 (or 1700) blocked.\n• **CoA initiated but NAD doesn't enforce** — NAD has `aaa authorization network ... default group ...` not configured to honour CoA.",
+  "detailedImplementation": "Prerequisites\n• NAD configured with `aaa server radius dynamic-author` (and matching shared secret).\n• `nad_inventory.csv` with `nas_ip`, `coa_supported`.\n\nStep 1 — Configure data collection\nValidate event flow.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 5 min.\n\nStep 3 — Validate\nProvoke as above.\n\nStep 4 — Operationalize\nDashboard \"ISE — CoA Health\":\n• Single value: failures last 1h.\n• Top-N NADs.\n• Failure-class.\n\nAlerting: PagerDuty medium on sustained CoA failure for one NAD.\n\nStep 5 — Troubleshooting\n• **Shared-secret mismatch** — Realign on NAD and ISE.\n• **NAS no response** — UDP/3799 (or 1700) blocked.\n• **CoA initiated but NAD doesn't enforce** — NAD has `aaa authorization network ... default group ...` not configured to honour CoA.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)) + Cisco network TA.). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog, cisco:ios into nac, network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`NAS-IP-Address, action, coa_action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "When ISE tells a switch 'kick this person off the network' via a special message, we make sure the switch actually heard the message and acted on it.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

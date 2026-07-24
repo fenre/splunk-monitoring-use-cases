@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "ES notable events with analyst disposition",
-  "app": "Splunk ES",
+  "exclusions": "Covers the detection logic documented for 'False Positive Rate Tracking' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_false_positive_rate_tracking` (UC-10.7.6), SOC dashboard panel \"Security Infra — False Positive Rate Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.7.6 positive (False, Positive, Rate, Tracking): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `count` grouped by `source` satisfies `fp_rate` > 30 for 'False Positive Rate Tracking'. Validate macro `notable`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.7.6 negative (Rate Tracking): ingest benign `target_index` / `target_sourcetype` events where `source` stays below `fp_rate` > 30, or exclude the test entity via `soc_exception_register.csv`. Variant 9 confirms zero alert rows for 'False Positive Rate Tracking'."
+  },
+  "dataSources": "ES notable events with analyst disposition Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk ES — Universal Forwarder (Splunkbase 617)",
   "spl": "`notable` status=\"Closed\"\n| stats count(eval(disposition=\"True Positive\")) as tp, count(eval(disposition=\"False Positive\")) as fp by source\n| eval fp_rate=round(fp/(tp+fp)*100,1)\n| where fp_rate > 30\n| sort -fp_rate",
-  "description": "High false positive rates cause alert fatigue, leading analysts to miss real threats. Tracking drives detection rule optimization.",
-  "value": "High false positive rates cause alert fatigue, leading analysts to miss real threats. Tracking drives detection rule optimization.",
+  "description": "Surfaces UC-10.7.6 — False, Positive, Rate, Tracking — using `index=target_index` sourcetype `configured sourcetype`, grouped by `source`. Outputs `count` each `the scheduled window`; alert when `fp_rate` > 30. Filter chain includes macro `notable`. Purpose-built for 'False Positive Rate Tracking' in Security Infra workflows.",
+  "value": "Operators running UC-10.7.6 on macro `notable` shorten triage for Rate Tracking tied to 'False Positive Rate Tracking', lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Ensure analysts set dispositions when closing notables (TP, FP, Benign). Calculate FP rate per detection rule. Flag rules with >30% FP rate for tuning. Track overall FP rate as a SOC quality metric. Target <20% FP rate.",
   "visualization": "Bar chart (FP rate by rule), Line chart (overall FP trend), Table (rules needing tuning), Gauge (overall FP rate).",
   "cimModels": [
@@ -22,10 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "FPR changes when tuning rules, onboarding new data, or running quality initiatives; a temporary rise can mean better classification, not worse detections.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ES.\n• Ensure the following data sources are available: ES notable events with analyst disposition.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnsure analysts set dispositions when closing notables (TP, FP, Benign). Calculate FP rate per detection rule. Flag rules with >30% FP rate for tuning. Track overall FP rate as a SOC quality metric. Target <20% FP rate.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n`notable` status=\"Closed\"\n| stats count(eval(disposition=\"True Positive\")) as tp, count(eval(disposition=\"False Positive\")) as fp by source\n| eval fp_rate=round(fp/(tp+fp)*100,1)\n| where fp_rate > 30\n| sort -fp_rate\n```\n\nUnderstanding this SPL\n\n**False Positive Rate Tracking** — High false positive rates cause alert fatigue, leading analysts to miss real threats. Tracking drives detection rule optimization.\n\nDocumented **Data sources**: ES notable events with analyst disposition. **App/TA** (typical add-on context): Splunk ES. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Invokes macro `notable` — in Search, use the UI or expand to inspect the underlying SPL.\n• `stats` rolls up events into metrics; results are split **by source** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **fp_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where fp_rate > 30` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nReconcile the search with disposition records in the ES Incident Review queue and with tuning tickets. Compare FPR changes to new content releases, data onboarding, and analyst training—not only to attack volume.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (FP rate by rule), Line chart (overall FP trend), Table (rules needing tuning), Gauge (overall FP rate).",
-  "grandmaExplanation": "We use this for False Positive Rate Tracking so leadership can see trends and the SOC can see workload and quality over time."
+  "knownFalsePositives": "1. **Active major incident triage** — Analysts leave notables open while pivoting on parent campaign for 'False Positive Rate Tracking'. Check open MAJ ticket and `index=risk` contributions.\n\n2. **Correlation rule tuning** — Recent Content Management edit recategorises urgency. Compare `lastModified` on correlation search.\n\n3. **Risk-Based Alerting aggregation** — Individual rule fires consolidated into informational notables; per-rule count drops while risk score remains elevated.\n\n4. **Holiday on-call gap** — Valid aged notables during staffing gap; escalate paging rather than suppress rule globally.\n\n**Suppression mechanism:** ES Notable Event Suppression or `soc_exception_register.csv` keyed on `rule_name`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk ES.\n• Ensure the following data sources are available: ES notable events with analyst disposition.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnsure analysts set dispositions when closing notables (TP, FP, Benign). Calculate FP rate per detection rule. Flag rules with >30% FP rate for tuning. Track overall FP rate as a SOC quality metric. Target <20% FP rate.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n`notable` status=\"Closed\"\n| stats count(eval(disposition=\"True Positive\")) as tp, count(eval(disposition=\"False Positive\")) as fp by source\n| eval fp_rate=round(fp/(tp+fp)*100,1)\n| where fp_rate > 30\n| sort -fp_rate\n```\n\nUnderstanding this SPL\n\n**False Positive Rate Tracking** — High false positive rates cause alert fatigue, leading analysts to miss real threats. Tracking drives detection rule optimization.\n\nDocumented **Data sources**: ES notable events with analyst disposition. **App/TA** (typical add-on context): Splunk ES. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Invokes macro `notable` — in Search, use the UI or expand to inspect the underlying SPL.\n• `stats` rolls up events into metrics; results are split **by source** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **fp_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where fp_rate > 30` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nReconcile the search with disposition records in the ES Incident Review queue and with tuning tickets. Compare FPR changes to new content releases, data onboarding, and analyst training—not only to attack volume.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (FP rate by rule), Line chart (overall FP trend), Table (rules needing tuning), Gauge (overall FP rate).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk ES — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`fp_rate, source`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this for False Positive Rate Tracking so leadership can see trends and the SOC can see workload and quality over time.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

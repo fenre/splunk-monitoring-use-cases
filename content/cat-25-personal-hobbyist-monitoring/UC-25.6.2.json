@@ -9,26 +9,55 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue (`emporia:circuit`).",
-  "app": "Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, and smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Solar Panel Underperformance Detection' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_solar_panel_underperformance_detection` (UC-25.6.2), SOC dashboard panel \"Personal — Solar Panel Underperformance Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.6.2 positive (Solar, Panel, Underperformance, Detection): ingest synthetic events into `index=personal` sourcetype='enphase:production' where `avg_power`, `fleet_avg` grouped by `inverter_serial` satisfies `pct_of_fleet` < 80 for 'Solar Panel Underperformance Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.6.2 negative (Underperformance Detection): ingest benign `personal` / `enphase:production` events where `inverter_serial` stays below `pct_of_fleet` < 80, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 8 confirms zero alert rows for 'Solar Panel Underperformance Detection'."
+  },
+  "dataSources": "SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue (`emporia:circuit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, and smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=enphase:production\n| stats avg(power_w) as avg_power by inverter_serial\n| eventstats avg(avg_power) as fleet_avg\n| eval pct_of_fleet=round(100*avg_power/fleet_avg,1)\n| where pct_of_fleet<80\n| sort pct_of_fleet",
-  "description": "Compares each micro-inverter or panel against the average of the array and flags any that consistently underperform, pointing at shading, dirt, or a fault.",
-  "value": "A single failing panel can go unnoticed for months; peer comparison surfaces it so you can clean, unshade, or warranty-claim it.",
+  "description": "Surfaces UC-25.6.2 — Solar, Panel, Underperformance, Detection — using `index=personal` sourcetype `enphase:production`, grouped by `inverter_serial`. Outputs `avg_power`, `fleet_avg` each `the scheduled window`; alert when `pct_of_fleet` < 80. Primary focus: Underperformance Detection. Purpose-built for 'Solar Panel Underperformance Detection' in Personal workflows.",
+  "value": "UC-25.6.2 accelerates insight into Underperformance Detection ('Solar Panel Underperformance Detection') by tracking `avg_power`, `fleet_avg` on `enphase:production` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Ingest per-panel production; schedule daily over daylight hours and alert when a panel lags its peers.",
   "visualization": "Bar chart of panels by percentage of array average.",
   "cimModels": [],
   "references": [
     {
       "title": "Enphase — Enlighten API",
-      "url": "https://developer.enphase.com/docs"
+      "url": "https://developer.enphase.com/docs",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.6.2)** — Connector for 'Solar Panel Underperformance Detection' stops polling `enphase:production`; stale `avg_power`, `fleet_avg` on `inverter_serial` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_power`, `fleet_avg` over `1w` is expected for UC-25.6.2, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `enphase:production`. Dedup with `stats latest(*) by inverter_serial`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `pct_of_fleet` < 80 for 'Solar Panel Underperformance Detection'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It compares each solar panel to the others and flags any that are lazy, which usually means dirt, shade, or a fault."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Home Energy & Solar — typical feeds: SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Tesla Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue circuits (`emporia:circuit`), Sense .\n• **Sourcetypes in this search**: `enphase:production`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=enphase:production`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC..\n\n**Author notes:** Ingest per-panel production; schedule daily over daylight hours and alert when a panel lags its peers.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"enphase:production\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=enphase:production earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Solar Panel Underperformance Detection** over `personal` data (primarily `sourcetype=enphase:production`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `inverter_serial`, `pct_of_fleet`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=enphase:production\n| stats avg(power_w) as avg_power by inverter_serial\n| eventstats avg(avg_power) as fleet_avg\n| eval pct_of_fleet=round(100*avg_power/fleet_avg,1)\n| where pct_of_fleet<80\n| sort pct_of_fleet\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=enphase:production earliest=-7d\n| head 50\n| table inverter_serial, pct_of_fleet\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=enphase:production earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `pct_of_fleet` before alerting:\n\n```spl\nindex=personal sourcetype=enphase:production earliest=-30d\n| stats perc50(pct_of_fleet) AS p50 perc90(pct_of_fleet) AS p90 perc99(pct_of_fleet) AS p99 max(pct_of_fleet) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.6.2: Personal evidence` with the following panel layout:\n\n**Panel 1 — Bar Chart Of Panels By Percentage Of Array Average (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `enphase:production` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=enphase:production | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It compares each solar panel to the others and flags any that are lazy, which usually means dirt, shade, or a fault.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

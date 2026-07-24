@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Citrix ShareFile DLP Policy Violation Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_citrix_sharefile_dlp_policy_violation_tracking` (UC-2.6.71), SOC dashboard panel \"Linux — Citrix ShareFile DLP Policy Violation Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.6.71 positive (Citrix, ShareFile, DLP, Policy, Violation): ingest synthetic events into `index=sharefile` sourcetype='citrix:sharefile:dlp' where `fp_tags`, `class_mismatches` grouped by `_time`, `policy_id`, `user` satisfies `blocks` > 0, `warns` > 0, or `class_mismatches` > 0 for 'Citrix ShareFile DLP Policy Violation Tracking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.6.71 negative (Violation Tracking): ingest benign `sharefile` / `citrix:sharefile:dlp` events where `_time`, `policy_id`, `user` stays below `blocks` > 0, `warns` > 0, or `class_mismatches` > 0, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 14 confirms zero alert rows for 'Citrix ShareFile DLP Policy Violation Tracking'."
+  },
   "dataSources": "`index=sharefile` `sourcetype=\"citrix:sharefile:dlp\"` or DLP/secure collaboration feed; fields `action` (block|warn|audit), `policy_id`, `policy_name`, `classification_mismatch`, `file_path`, `user`, `false_positive` (if your feed tags analyst overrides) Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
   "app": "No official Splunk TA for ShareFile. Ingest audit trail via ShareFile REST API (https://api.sharefile.com) to HEC with a custom scripted input or Splunk Add-on Builder. Suggested custom sourcetype: `citrix:sharefile:audit`. Optionally correlate with Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated risk indicators.",
   "spl": "index=sharefile sourcetype=\"citrix:sharefile:dlp\" earliest=-24h\n| eval action=lower(coalesce(action, outcome, \"unknown\")), is_fp=if(match(lower(false_positive),\"(?i)true|yes|1\"),1,0), mismatch=if(match(lower(classification_mismatch),\"(?i)true|yes|1\"),1,0)\n| bin _time span=1h\n| stats count as hits, sum(eval(action=\"block\")) as blocks, sum(eval(action=\"warn\")) as warns, sum(is_fp) as fp_tags, sum(mismatch) as class_mismatches by _time, policy_id, user\n| eval block_rate=round(100*blocks/hits,2), warn_rate=round(100*warns/hits,2)\n| where blocks>0 OR warns>0 OR class_mismatches>0\n| table _time, policy_id, user, hits, block_rate, warn_rate, fp_tags, class_mismatches",
-  "description": "Data loss prevention in ShareFile surfaces policy hits, enforcements (block vs warn), and classification outcomes. Tracking hit volume, block and warn rates, trends that look like false positives, and file classification mismatches helps security and privacy teams prove control effectiveness, tune policies, and respond before regulated data leaves approved channels.",
-  "value": "Data loss prevention in ShareFile surfaces policy hits, enforcements (block vs warn), and classification outcomes. Tracking hit volume, block and warn rates, trends that look like false positives, and file classification mismatches helps security and privacy teams prove control effectiveness, tune policies, and respond before regulated data leaves approved channels.",
+  "description": "Identifies UC-2.6.71 — Citrix, ShareFile, DLP, Policy, Violation — using `index=sharefile` sourcetype `citrix:sharefile:dlp`, grouped by `_time`, `policy_id`, `user`. Outputs `fp_tags`, `class_mismatches` each `1h`; alert when `blocks` > 0, `warns` > 0, or `class_mismatches` > 0. Primary focus: Violation Tracking. Purpose-built for 'Citrix ShareFile DLP Policy Violation Tracking' in Linux workflows.",
+  "value": "Alerting on Citrix, ShareFile, DLP, Policy, Violation through UC-2.6.71 reduces capacity incidents, patch regressions, and service outages by surfacing `fp_tags`, `class_mismatches` early.",
   "implementation": "Ingest DLP or ShareFile security events with stable policy identifiers. Retain long enough for compliance reporting. Create hourly rollups and weekly anomaly review for `false_positive` spikes. For mismatches, join to label or sensitivity taxonomy in a lookup. Escalate sudden block-rate drops (possible policy bypass) and sustained warn-only surges (possible business friction).",
   "visualization": "Stacked bar: block vs warn by policy; timechart: false-positive tagged rate; table: top users and policies by hits; line: classification mismatch count.",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Citrix — Data loss prevention for ShareFile",
-      "url": "https://docs.citrix.com/en-us/"
+      "url": "https://docs.citrix.com/en-us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 6280",
+      "url": "https://splunkbase.splunk.com/app/6280",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Citrix environments often coordinate broker, VDA, gateway, and profile layers; a single noisy component may clear when maintenance or a publish job completes.",
+  "knownFalsePositives": "1. **Patch Tuesday on `sharefile`** — Package managers spike `_time` metrics for 'Citrix ShareFile DLP Policy Violation Tracking'. Correlate with apt/yum logs in the same `citrix:sharefile:dlp` window.\n\n2. **Nightly backup I/O on `_time`** — Predictable `sum` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `citrix:sharefile:dlp`** — Nagios/Zabbix polls `_time` and mimics sustained load without crossing `blocks` > 0.\n\n4. **New host onboarding** — `_time` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `_time`, `valid_until`.",
   "mitreAttack": [
     "T1567",
     "T1039"
@@ -33,7 +55,16 @@
   "equipment": [
     "citrix"
   ],
+  "equipmentModels": [
+    "citrix_generic"
+  ],
   "lastReviewed": "2026-04-24",
-  "detailedImplementation": "Prerequisites\n• DLP or ShareFile policy events in Splunk with `action`, `policy_id`, and user identity. Optional lookup for business unit and data owner per policy.\n\nStep 1 — Configure data collection\nMap vendor fields to `action` and a boolean for analyst-marked false positives if available. Enrich with group from identity if possible.\n\nStep 2 — Create the search and alert\nBuild the base SPL, then add alerts: spike in `class_mismatches`, sudden drop in blocks with steady uploads, or false-positive count rising week over week for one policy (tuning needed).\n\nStep 3 — Validate\nReconcile event counts to the admin console for a sample day. Test with a controlled warn-only policy in a lab if allowed.\n\nStep 4 — Operationalize\nPublish monthly compliance view of policy effectiveness; hand off tuning tasks to the data governance team with Splunk links.",
-  "grandmaExplanation": "We count when sensitive file rules are tripped, what happened next, and when labels do not line up with what the rules expect — so you catch risky sharing and weak rules before a leak or audit surprise."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• DLP or ShareFile policy events in Splunk with `action`, `policy_id`, and user identity. Optional lookup for business unit and data owner per policy.\n\nStep 1 — Configure data collection\nMap vendor fields to `action` and a boolean for analyst-marked false positives if available. Enrich with group from identity if possible.\n\nStep 2 — Create the search and alert\nBuild the base SPL, then add alerts: spike in `class_mismatches`, sudden drop in blocks with steady uploads, or false-positive count rising week over week for one policy (tuning needed).\n\nStep 3 — Validate\nReconcile event counts to the admin console for a sample day. Test with a controlled warn-only policy in a lab if allowed.\n\nStep 4 — Operationalize\nPublish monthly compliance view of policy effectiveness; hand off tuning tasks to the data governance team with Splunk links.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (No official Splunk TA for ShareFile. Ingest audit trail via ShareFile REST API (https://api.sharefile.com) to HEC with a custom scripted input or Splunk Add-on Builder. Suggested custom sourcetype: `citrix:sharefile:audit`. Optionally correlate with Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated risk indicators.). Enable the modular input or HEC token that writes sourcetype=citrix:sharefile:dlp into sharefile. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, blocks, class_mismatches, policy_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We count when sensitive file rules are tripped, what happened next, and when labels do not line up with what the rules expect — so you catch risky sharing and weak rules before a leak or audit surprise.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

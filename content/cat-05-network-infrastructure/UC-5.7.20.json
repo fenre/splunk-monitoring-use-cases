@@ -10,24 +10,42 @@
     "Operations"
   ],
   "splunkPillar": "Platform",
+  "exclusions": "Covers the detection logic documented for 'NetFlow v5 vs v9/IPFIX Template Coverage Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_netflow_v5_vs_v9_ipfix_template_coverage_audit` (UC-5.7.20), SOC dashboard panel \"Operations — NetFlow v5 vs v9/IPFIX Template Coverage Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.7.20 positive (NetFlow, IPFIX, Template, Coverage, Audit): ingest synthetic events into `index=netflow` sourcetype='target_sourcetype' where `distinct_templates`, `sourcetypes`, `bytes` grouped by `nf_ver`, `exporter`, `host` satisfies `distinct_templates` >= 3 for 'NetFlow v5 vs v9/IPFIX Template Coverage Audit'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.7.20 negative (Coverage Audit): ingest benign `netflow` / `target_sourcetype` events where `nf_ver`, `exporter`, `host` stays below `distinct_templates` >= 3, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'NetFlow v5 vs v9/IPFIX Template Coverage Audit'."
+  },
   "dataSources": "`index=netflow` ingested through Splunk Add-on for NetFlow (Splunkbase 1838) exposing `version`, `nf_version`, or `netflow_version` alongside `template_id`, `observation_domain_id`, `host`, `exporter_ip`, `sourcetype` (`netflow`, `stream:ipfix`, `stream:netflow`); optional `fields_present` when augmented via custom transforms.",
   "app": "Splunk Add-on for NetFlow (Splunkbase 1838)",
   "spl": "index=netflow earliest=-24h\n| eval nf_ver=coalesce(version, nf_version, netflow_version, \"UNKNOWN\")\n| eval tmpl=coalesce(template_id, flowset_id, \"NONE\")\n| eval exporter=coalesce(exporter_ip, agent, \"UNSPECIFIED\")\n| stats count dc(tmpl) as distinct_templates values(tmpl) as template_list dc(sourcetype) as sourcetypes sum(bytes) as bytes\n  by nf_ver exporter host\n| eval gb=round(bytes/1073741824, 3)\n| eval coverage_flag=case(\n    nf_ver=\"5\" OR nf_ver=\"v5\" OR nf_ver=\"V5\", \"LEGACY_FIXED_SCHEMA\",\n    nf_ver=\"9\" OR nf_ver=\"v9\" OR nf_ver=\"V9\" OR nf_ver=\"10\" OR nf_ver=\"IPFIX\" OR nf_ver=\"ipfix\", if(distinct_templates>=3, \"TEMPLATE_HEALTHY\", \"LOW_TEMPLATE_DIVERSITY\"),\n    true(), \"VERSION_PARSE_REVIEW\"\n)\n| sort nf_ver -count\n| head 200",
-  "description": "Aggregates observed NetFlow protocol generations, template identifiers, and byte volumes per exporter so engineers can spot outdated fixed-schema collectors, missing flexible templates, or parsers stuck on unknown versions.",
-  "value": "Platform owners accelerate migrations toward Internet Protocol Flow Information Export-capable exporters, justify firewall rule updates for template traffic, and produce audit trails proving sensitive fields remain populated after upgrades.",
+  "description": "Identifies Coverage Audit activity in UC-5.7.20 ('NetFlow v5 vs v9/IPFIX Template Coverage Audit') from `index=netflow` sourcetype `configured sourcetype`. Rolls up `distinct_templates`, `sourcetypes`, `bytes` by `nf_ver`, `exporter`, `host` across `the scheduled window` and pages when `distinct_templates` >= 3. Covers NetFlow, IPFIX, Template, Coverage, Audit. Operations operators treat UC-5.7.20 as the canonical signal.",
+  "value": "Operators running UC-5.7.20 on UC-5.7.20 search results shorten triage for Coverage Audit tied to 'NetFlow v5 vs v9/IPFIX Template Coverage Audit', lowering operational risk and delayed incident response.",
   "implementation": "Schedule daily audit; reconcile against configuration management intended versions; gate hardware refresh milestones on healthy template diversity; alert when legacy version five dominates critical sites.",
   "visualization": "Pie chart of bytes by nf_ver; heatmap exporters × distinct_templates; timeline of LOW_TEMPLATE_DIVERSITY incidents.",
   "references": [
     {
       "title": "RFC 3954 — Cisco Systems NetFlow Services Export Version 9",
-      "url": "https://www.rfc-editor.org/rfc/rfc3954"
+      "url": "https://www.rfc-editor.org/rfc/rfc3954",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 7011 — Specification for IP Flow Information Export (IPFIX)",
-      "url": "https://www.rfc-editor.org/rfc/rfc7011"
+      "url": "https://www.rfc-editor.org/rfc/rfc7011",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Maintenance windows briefly collapse template diversity while exporters reload. Multi-slot routers export independent streams that appear redundant until folded by observation domain. Synthetic replay labs skew distributions.",
+  "knownFalsePositives": "1. **Maintenance window on `netflow` (UC-5.7.20)** — Planned work for 'NetFlow v5 vs v9/IPFIX Template Coverage Audit' shifts `distinct_templates`, `sourcetypes`, `bytes` over `span=1h` while `nf_ver`, `exporter`, `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `configured_sourcetype`** — Scheduled automation elevates `exporter` without crossing `distinct_templates` >= 3 for UC-5.7.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `nf_ver`, `exporter`, `host`** — Health checks in `netflow` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.7.20 on `nf_ver` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `nf_ver`, `exception_reason`, `valid_until`.",
   "equipment": [
     "netflow"
   ],
@@ -43,7 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Inventory of mandated information elements such as application identifiers and interface indices.\n• Lab packet captures validating Splunk’s decoded `version` field naming.\n• Capacity planning numbers for template-record overhead.\n\nStep 1 — Configure data collection\nEnable debug-template logging temporarily during migrations; capture exporter clocks and observation domain identifiers for multi-tenant collectors.\n\nStep 2 — Create the search\nExtend with `| where coverage_flag=\"LOW_TEMPLATE_DIVERSITY\" AND gb>10` for prioritized remediation. Push outputs into a metrics index for trending.\n\nStep 3 — Validate\nCompare Splunk metrics to `show flow exporter statistics` on Cisco devices during cutover weekends.\n\nStep 4 — Operationalize\nExecutive PDF summarizes percentage of bytes still on version five; automation opens firewall-change tasks when new template ports appear.\n\nStep 5 — Troubleshooting\nParsing UNKNOWN versions usually indicates fragmented datagrams—increase maximum transmission unit checks on forwarding paths. Duplicate template IDs across domains require composite keys—append observation domain to stats grouping.",
+  "detailedImplementation": "Prerequisites\n• Inventory of mandated information elements such as application identifiers and interface indices.\n• Lab packet captures validating Splunk’s decoded `version` field naming.\n• Capacity planning numbers for template-record overhead.\n\nStep 1 — Configure data collection\nEnable debug-template logging temporarily during migrations; capture exporter clocks and observation domain identifiers for multi-tenant collectors.\n\nStep 2 — Create the search\nExtend with `| where coverage_flag=\"LOW_TEMPLATE_DIVERSITY\" AND gb>10` for prioritized remediation. Push outputs into a metrics index for trending.\n\nStep 3 — Validate\nCompare Splunk metrics to `show flow exporter statistics` on Cisco devices during cutover weekends.\n\nStep 4 — Operationalize\nExecutive PDF summarizes percentage of bytes still on version five; automation opens firewall-change tasks when new template ports appear.\n\nStep 5 — Troubleshooting\nParsing UNKNOWN versions usually indicates fragmented datagrams—increase maximum transmission unit checks on forwarding paths. Duplicate template IDs across domains require composite keys—append observation domain to stats grouping.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for NetFlow (Splunkbase 1838)). Enable the modular input or HEC token that writes sourcetype=see SPL into netflow. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`coverage_flag, distinct_templates, exporter, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We check whether our traffic summaries arrive in the older fixed form or the newer flexible form and whether each sender shares enough variety of templates. That tells planners who still owes an upgrade so fields do not quietly vanish.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

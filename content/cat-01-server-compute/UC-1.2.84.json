@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 17, 18)",
-  "app": "`Splunk_TA_windows`, Sysmon required",
+  "exclusions": "Covers the detection logic documented for 'Sysmon Named Pipe Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_sysmon_named_pipe_monitoring` (UC-1.2.84), SOC dashboard panel \"Linux — Sysmon Named Pipe Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.2.84 positive (Sysmon, Named, Pipe, Monitoring): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Microsoft-Windows-Sysmon/Operational' where `count` grouped by `entity` satisfies detection threshold for 'Sysmon Named Pipe Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.2.84 negative (Pipe Monitoring): ingest benign `wineventlog` / `WinEventLog:Microsoft-Windows-Sysmon/Operational` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 0 confirms zero alert rows for 'Sysmon Named Pipe Monitoring'."
+  },
+  "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 17, 18) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_windows`, Sysmon required — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Microsoft-Windows-Sysmon/Operational\"\n  EventCode IN (17, 18)\n| where match(PipeName, \"(?i)(MSSE-|msagent_|postex_|status_|mojo\\.|cobaltstrike|beacon)\")\n| table _time, host, EventCode, PipeName, Image, User\n| sort -_time",
-  "description": "Named pipes are used for inter-process communication and by tools like Cobalt Strike, Mimikatz, and PsExec. Detecting unusual named pipes reveals C2 and lateral movement.",
-  "value": "Named pipes are normal for Windows IPC but also a lane for tool-style activity. The search highlights unusual server-side pipe traffic worth triage before lateral spread.",
+  "description": "Identifies 'Sysmon Named Pipe Monitoring' (UC-1.2.84) using `index=wineventlog` sourcetype `WinEventLog:Microsoft-Windows-Sysmon/Operational` by aggregating `count` grouped by `entity` over `the scheduled window` and alerting when configured threshold. Keywords: Sysmon, Named, Pipe, Monitoring. Focuses on Pipe Monitoring behaviour so linux teams can triage UC-1.2.84 without ad-hoc log review.",
+  "value": "UC-1.2.84 accelerates insight into Pipe Monitoring ('Sysmon Named Pipe Monitoring') by tracking `activity` on `WinEventLog:Microsoft-Windows-Sysmon/Operational` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
   "implementation": "Deploy Sysmon with PipeCreated (17) and PipeConnected (18) monitoring. Known malicious pipe names: `MSSE-*` (Metasploit), `msagent_*` (Cobalt Strike), `postex_*` (Cobalt Strike post-exploitation), `status_*` (default Cobalt Strike). Also detect PsExec pipes (`PSEXESVC`). Baseline normal pipes per application role, then alert on anomalies.",
   "visualization": "Table (pipe events), Bar chart (top pipe names), Timeline, Alert on known-bad patterns.",
   "cimModels": [
@@ -23,13 +29,38 @@
   "references": [
     {
       "title": "Splunk_TA_windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Endpoint",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Defender, SQL, backup, and remote management tools. Baseline by `Image` and pipe name allowlists; expect noise on app and RDS session hosts.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'Sysmon Named Pipe Monitoring'. Correlate with apt/yum logs in the same `WinEventLog:Microsoft-Windows-Sysmon/Operational` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Microsoft-Windows-Sysmon/Operational`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],
+  "equipmentModels": [
+    "windows_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`, Sysmon required.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 17, 18).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy Sysmon with PipeCreated (17) and PipeConnected (18) monitoring. Known malicious pipe names: `MSSE-*` (Metasploit), `msagent_*` (Cobalt Strike), `postex_*` (Cobalt Strike post-exploitation), `status_*` (default Cobalt Strike). Also detect PsExec pipes (`PSEXESVC`). Baseline normal pipes per application role, then alert on anomalies.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:Microsoft-Windows-Sysmon/Operational\"\n  EventCode IN (17, 18)\n| where match(PipeName, \"(?i)(MSSE-|msagent_|postex_|status_|mojo\\.|cobaltstrike|beacon)\")\n| table _time, host, EventCode, PipeName, Image, User\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Sysmon Named Pipe Monitoring** — Named pipes are used for inter-process communication and by tools like Cobalt Strike, Mimikatz, and PsExec. Detecting unusual named pipes reveals C2 and lateral movement.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 17, 18). **App/TA** (typical add-on context): `Splunk_TA_windows`, Sysmon required. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:Microsoft-Windows-Sysmon/Operational. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:Microsoft-Windows-Sysmon/Operational\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where match(PipeName, \"(?i)(MSSE-|msagent_|postex_|status_|mojo\\.|cobaltstrike|beacon)\")` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Sysmon Named Pipe Monitoring**): table _time, host, EventCode, PipeName, Image, User\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (pipe events), Bar chart (top pipe names), Timeline, Alert on known-bad patterns.",
-  "grandmaExplanation": "We watch the hidden pipes programs use to talk to each other on Windows so we can notice odd pipe activity that often rides along with sneaky tools moving between machines."
+  "grandmaExplanation": "We watch the hidden pipes programs use to talk to each other on Windows so we can notice odd pipe activity that often rides along with sneaky tools moving between machines.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,42 +9,65 @@
     "Risk"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Water telemetry (`watermeter:flow`, `flo:event`, `rachio:zone`, `maytronics:robot`, `watersoftener:status`, `pool:chemistry`, `irrigation:zone`, `waterpressure:reading`).",
-  "app": "Flo by Moen, Rachio, Flume, Maytronics Dolphin, pool sensors, water softener sensors, and irrigation controllers via vendor APIs, MQTT, and Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Flo Automatic Shutoff Event Summary' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_flo_automatic_shutoff_event_summary` (UC-25.19.23), SOC dashboard panel \"Personal — Flo Automatic Shutoff Event Summary\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.19.23 positive (Flo, Automatic, Shutoff, Event, Summary): ingest synthetic events into `index=personal` sourcetype='flo:event' where `count` grouped by `home`, `_time` satisfies `auto_shutoffs` > 0 for 'Flo Automatic Shutoff Event Summary'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.19.23 negative (Event Summary): ingest benign `personal` / `flo:event` events where `home`, `_time` stays below `auto_shutoffs` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 4 confirms zero alert rows for 'Flo Automatic Shutoff Event Summary'."
+  },
+  "dataSources": "Water telemetry (`watermeter:flow`, `flo:event`, `rachio:zone`, `maytronics:robot`, `watersoftener:status`, `pool:chemistry`, `irrigation:zone`, `waterpressure:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Flo by Moen, Rachio, Flume, Maytronics Dolphin, pool sensors, water softener sensors, and irrigation controllers via vendor APIs, MQTT, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=flo:event event=auto_shutoff\n| bin _time span=1mon\n| stats count as auto_shutoffs by home _time\n| where auto_shutoffs>0\n| sort - auto_shutoffs",
-  "description": "Uses Flo shutoff events telemetry to monitor automatic shutoffs by month in index=personal.",
-  "value": "Splunk turns the feed into an operational check for whether leak protection is frequently intervening, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Monitors risk tied to Flo, Automatic, Shutoff, Event, Summary through UC-25.19.23 on `index=personal` sourcetype `flo:event`. Summarises `count` grouped by `home`, `_time` across `1m` before applying `auto_shutoffs` > 0. Operators tune 'Flo Automatic Shutoff Event Summary' using UC-25.19.23 runbook steps.",
+  "value": "Tracking `activity` via UC-25.19.23 on `flo:event` feeds improves response to 'Flo Automatic Shutoff Event Summary' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest Flo shutoff events data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Monthly chart of Flo automatic shutoffs.",
   "cimModels": [],
   "references": [
     {
       "title": "Flo by Moen",
-      "url": "https://shop.moen.com/pages/flo-smart-water-monitor-and-shutoff"
+      "url": "https://shop.moen.com/pages/flo-smart-water-monitor-and-shutoff",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Rachio API",
-      "url": "https://rachio.readme.io/docs"
+      "url": "https://rachio.readme.io/docs",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Flume personal API",
-      "url": "https://help.flumewater.com/en/articles/3457857-flume-personal-api"
+      "url": "https://help.flumewater.com/en/articles/3457857-flume-personal-api",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Maytronics",
-      "url": "https://www.maytronics.com/en-us/"
+      "url": "https://www.maytronics.com/en-us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "OpenSprinkler API",
-      "url": "https://openthings.freshdesk.com/support/solutions/articles/5000821298-opensprinkler-api"
+      "url": "https://openthings.freshdesk.com/support/solutions/articles/5000821298-opensprinkler-api",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.19.23)** — Connector for 'Flo Automatic Shutoff Event Summary' stops polling `flo:event`; stale `count` on `home`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1m` is expected for UC-25.19.23, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `flo:event`. Dedup with `stats latest(*) by home`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew `auto_shutoffs` > 0 for 'Flo Automatic Shutoff Event Summary'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It lists automatic shutoffs by month so you can spot whether leak protection is frequently intervening before it becomes annoying."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Water, Plumbing & Utilities — typical feeds: Whole-home water flow (`watermeter:flow`), sump pump (`sumppump:event`), well pump (`wellpump:event`), pool/spa chemistry (`pool:chemistry`), water softener (`watersoftener:status`), irrigation zones .\n• **Sourcetypes in this search**: `flo:event`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=flo:event`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Smart water meters (Flume/Flo/HomeWizard), sump- and well-pump sensors, pool/spa controllers, water-softener and irrigation controllers via vendor APIs, MQTT, and HEC..\n\n**Author notes:** Ingest Flo shutoff events data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"flo:event\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=flo:event earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Flo Automatic Shutoff Event Summary** over `personal` data (primarily `sourcetype=flo:event`) across the full search range. It applies numeric thresholds on `auto_shutoffs` (> 0) after aggregation — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `auto_shutoffs`, `home`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=flo:event event=auto_shutoff\n| bin _time span=1mon\n| stats count as auto_shutoffs by home _time\n| where auto_shutoffs>0\n| sort - auto_shutoffs\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=flo:event earliest=-7d\n| head 50\n| table _time, auto_shutoffs, home\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=flo:event earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `auto_shutoffs` before alerting:\n\n```spl\nindex=personal sourcetype=flo:event earliest=-30d\n| stats perc50(auto_shutoffs) AS p50 perc90(auto_shutoffs) AS p90 perc99(auto_shutoffs) AS p99 max(auto_shutoffs) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.19.23: Personal evidence` with the following panel layout:\n\n**Panel 1 — Monthly Chart Of Flo Automatic Shutoffs (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `flo:event` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=flo:event | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1m` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1m` buckets.",
+  "grandmaExplanation": "It lists automatic shutoffs by month so you can spot whether leak protection is frequently intervening before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

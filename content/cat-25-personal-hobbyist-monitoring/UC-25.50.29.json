@@ -8,35 +8,60 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Sharing activity (`sustain:share`), repairs (`sustain:repair`), compost logs (`sustain:compost`), solar telemetry (`sustain:solar`), sustainability audits (`sustain:audit`).",
-  "app": "Sustainability telemetry — Olio sharing activity, Repair Cafe repair logs, compost-weight records, and solar-offset telemetry — streamed to Splunk HEC via APIs, exports, and smart-home integrations.",
+  "exclusions": "Covers personal hobby monitoring for 'Community Share vs Disposal Balance' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_community_share_vs_disposal_balance` (UC-25.50.29), SOC dashboard panel \"Personal — Community Share vs Disposal Balance\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.50.29 positive (Community, Share, Disposal, Balance): ingest synthetic events into `index=personal` sourcetype='sustain:share' where `total` grouped by `disposition` satisfies detection threshold for 'Community Share vs Disposal Balance'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.50.29 negative (Disposal Balance): ingest benign `personal` / `sustain:share` events where `disposition` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 5 confirms zero alert rows for 'Community Share vs Disposal Balance'."
+  },
+  "dataSources": "Sharing activity (`sustain:share`), repairs (`sustain:repair`), compost logs (`sustain:compost`), solar telemetry (`sustain:solar`), sustainability audits (`sustain:audit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Sustainability telemetry — Olio sharing activity, Repair Cafe repair logs, compost-weight records, and solar-offset telemetry — streamed to Splunk HEC via APIs, exports, and smart-home integrations. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=sustain:share disposition=*\n| stats count as items by disposition\n| eventstats sum(items) as total\n| eval share_pct=round(100*items/total,1)\n| sort - share_pct",
-  "description": "Shows how shared-item outcomes split across disposition for reuse versus disposal.",
-  "value": "Share-of-total views make it easier to see imbalance, over-concentration, and neglected areas inside reuse versus disposal.",
+  "description": "Alerts on 'Community Share vs Disposal Balance' patterns (UC-25.50.29) sourced from `index=personal` sourcetype `sustain:share`. Threshold bundle: configured threshold; aggregation grain: `disposition`; metrics: `total`. Watch terms: Community, Share, Disposal, Balance.",
+  "value": "UC-25.50.29 gives Personal teams earlier visibility into Disposal Balance through `sustain:share` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Capture each shared-item outcomes event in `sustain:share` and normalize `disposition` so Splunk can compute the share by disposition.",
   "visualization": "Table of disposition with item count and share percentage.",
   "cimModels": [],
   "references": [
     {
       "title": "Olio",
-      "url": "https://olioapp.com/"
+      "url": "https://olioapp.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Repair Cafe",
-      "url": "https://www.repaircafe.org/en/"
+      "url": "https://www.repaircafe.org/en/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Home Assistant",
-      "url": "https://www.home-assistant.io/"
+      "url": "https://www.home-assistant.io/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Enphase",
-      "url": "https://enphase.com/"
+      "url": "https://enphase.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It blends how shared-item outcomes are divided across disposition so you can tell if one part of reuse versus disposal is taking over."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.50.29)** — Connector for 'Community Share vs Disposal Balance' stops polling `sustain:share`; stale `total` on `disposition` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `total` over `1w` is expected for UC-25.50.29, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `sustain:share`. Dedup with `stats latest(*) by disposition`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Community Share vs Disposal Balance'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "dell_emc"
+  ],
+  "equipmentModels": [
+    "dell_emc_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Sustainability & Zero-Waste — typical feeds: Carbon estimates (`carbon:estimate`), recycling weight (`recycling:weight`), food waste (`foodwaste:log`), repairs (`repair:event`)..\n• **Sourcetypes in this search**: `sustain:share`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=sustain:share`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Sustainability telemetry — carbon-footprint apps, home recycling scales, food-waste logs, and repair / reuse journals — streamed to Splunk HEC via APIs, MQTT, and scripted inputs..\n\n**Author notes:** Capture each shared-item outcomes event in `sustain:share` and normalize `disposition` so Splunk can compute the share by disposition.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"sustain:share\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=sustain:share earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Community Share vs Disposal Balance** over `personal` data (primarily `sourcetype=sustain:share`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `disposition`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=sustain:share disposition=*\n| stats count as items by disposition\n| eventstats sum(items) as total\n| eval share_pct=round(100*items/total,1)\n| sort - share_pct\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=sustain:share earliest=-7d\n| head 50\n| table disposition\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=sustain:share earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.50.29: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Disposition With Item Count And Share Percentage (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `sustain:share` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=sustain:share | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It blends how shared-item outcomes are divided across disposition so you can tell if one part of reuse versus disposal is taking over.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

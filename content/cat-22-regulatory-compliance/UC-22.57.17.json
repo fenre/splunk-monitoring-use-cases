@@ -1,0 +1,126 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.57.17",
+  "title": "SG Cyber Act prescribed cybersecurity incident reporting to Commissioner — readiness and submission evidence",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "industry": "CII",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes non-CII incidents. Excludes events where the CII Officer documents below-threshold determination. Excludes informal information-sharing under voluntary programs.",
+  "evidence": "Saved search `UC-22.57.17` archived every 5 minutes to `audit_evidence` with `csa_clause=\"SG-CA-s14(1)\"`. Every row pins (incident_id, cii_id, awareness_time, csa_initial_at, hours_to_initial, csa_detailed_at, days_to_detailed, initial_status, detailed_status).",
+  "compliance": [
+    {
+      "regulation": "sg-cyber-act",
+      "version": "2018-amended-2024",
+      "clause": "SG-CA-s14(1)",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Cybersecurity Act §14 imposes (a) initial notification to the Commissioner within 2 hours of becoming aware of a prescribed cybersecurity incident, and (b) detailed report within 14 days. This UC operationalises both clocks with awareness-time, SOAR-driven submission, and evidence retention.",
+      "controlObjective": "Proves both the 2-hour initial notification and the 14-day detailed report are submitted to CSA NCIRC.",
+      "evidenceArtifact": "Saved search, `CSA NCIRC Reporting Health` dashboard, CSA submission receipts for both initial and detailed.",
+      "obligationRef": "sg-cyber-act@2018-amended-2024#SG-CA-s14(1)",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Trigger synthetic IR ticket with `csa_cii_in_scope=true` and `awareness_time=now()-90min`. Within 5 minutes UC-22.57.17 MUST escalate to `initial_status=clock_burning`.",
+    "negativeScenario": "Submit within 2h initial + 14d detailed. UC-22.57.17 MUST record both as `on_time`."
+  },
+  "dataSources": "ServiceNow Security Incident Response with `csa_cii_in_scope`, `csa_cii_id`, `awareness_time`, `csa_initial_at`, `csa_initial_receipt`, `csa_detailed_at`, `csa_detailed_receipt`. KV Store `csa_cii_designation_lookup`. SOAR `csa_ncirc_submission` playbook (handles both initial and detailed). HEC `csa:ncirc:submission` for receipt callbacks.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928).",
+  "spl": "index=itsm sourcetype=\"snow:sn_si_incident\" csa_cii_in_scope=true csa_reportable_category=*\n| eval awareness_time = coalesce(csa_awareness_time, opened_at)\n| eval csa_initial_at = strptime(csa_initial_at, \"%Y-%m-%dT%H:%M:%S\")\n| eval csa_detailed_at = strptime(csa_detailed_at, \"%Y-%m-%dT%H:%M:%S\")\n| eval hours_to_initial = case(\n    isnotnull(csa_initial_at), round((csa_initial_at - awareness_time) / 3600, 2),\n    1=1, round((now() - awareness_time) / 3600, 2))\n| eval days_to_detailed = case(\n    isnotnull(csa_detailed_at), round((csa_detailed_at - awareness_time) / 86400, 2),\n    1=1, round((now() - awareness_time) / 86400, 2))\n| eval initial_status = case(\n    isnotnull(csa_initial_at) AND hours_to_initial <= 2, \"on_time\",\n    isnotnull(csa_initial_at) AND hours_to_initial > 2, \"late\",\n    isnull(csa_initial_at) AND hours_to_initial > 1.5 AND hours_to_initial <= 2, \"clock_burning\",\n    isnull(csa_initial_at) AND hours_to_initial > 2, \"missed\",\n    1=1, \"in_window\")\n| eval detailed_status = case(\n    isnotnull(csa_detailed_at) AND days_to_detailed <= 14, \"on_time\",\n    isnotnull(csa_detailed_at) AND days_to_detailed > 14, \"late\",\n    isnull(csa_detailed_at) AND days_to_detailed > 13, \"due_soon\",\n    isnull(csa_detailed_at) AND days_to_detailed > 14, \"missed\",\n    1=1, \"in_window\")\n| where initial_status IN (\"clock_burning\",\"missed\",\"late\") OR detailed_status IN (\"due_soon\",\"missed\",\"late\")\n| table incident_id csa_cii_id awareness_time csa_initial_at hours_to_initial initial_status csa_detailed_at days_to_detailed detailed_status",
+  "description": "Tracks Cybersecurity Act §14(1) prescribed-incident reporting readiness — 2-hour initial NCIRC notification plus 14-day detailed report — distinct from CII Reg. 5.",
+  "value": "§14(1) creates personal liability for the CII Officer on both clocks; this UC is the Act-level evidence chain auditors request first.",
+  "implementation": "(1) Add SIR custom fields. (2) Populate `csa_cii_designation_lookup`. (3) SOAR `csa_ncirc_submission` for both initial (Form A) and detailed (Form B). (4) Schedule UC-22.57.17 every 5 minutes. (5) Build the `CSA NCIRC Reporting Health` dashboard.",
+  "visualization": "(Panel 1) Live initial clock-burn. (Panel 2) Detailed clock-burn (14 days). (Panel 3) p50 / p95 hours-to-initial. (Panel 4) Late + missed table.",
+  "cimModels": [
+    "Alerts",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "Cybersecurity Act 2018 §14",
+      "url": "https://sso.agc.gov.sg/Act/CA2018?ProvIds=pr14-"
+    },
+    {
+      "title": "CSA Incident Reporting Procedures",
+      "url": "https://www.csa.gov.sg/our-programmes/csa-collaboration-and-sharing/incident-reporting"
+    },
+    {
+      "title": "Cyber Security Agency of Singapore — Legislation",
+      "url": "https://www.csa.gov.sg/legislation"
+    },
+    {
+      "title": "Splunk SOAR (Splunkbase 4413)",
+      "url": "https://splunkbase.splunk.com/app/4413"
+    }
+  ],
+  "knownFalsePositives": "1. **Planned maintenance window** — documented change windows in lookup `csa_22_57_17_exceptions` suppress benign activity during approved work.\n\n2. **Pen-test / red-team activity** — engagements with agreed rules-of-engagement marker excluded via lookup `csa_22_57_17_exceptions`.\n\n3. **Vendor remote-access sessions** — authorised vendor PAM sessions cross-reference lookup `csa_22_57_17_exceptions` before alerting.\n\n4. **Regulatory transition / grace period** — time-bound exception register entry in lookup `csa_22_57_17_exceptions` with documented approver and expiry.\n\n**Suppression mechanism**: filter results with lookup `csa_22_57_17_exceptions` (time-bound exception register); rows must carry `approved_by` and `valid_until` epoch fields.",
+  "mitreAttack": [
+    "N/A (regulatory reporting)"
+  ],
+  "requiredFields": [
+    "incident_id",
+    "csa_cii_id",
+    "awareness_time",
+    "initial_status",
+    "detailed_status"
+  ],
+  "equipment": [
+    "servicenow",
+    "splunk-es",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "ServiceNow SIR (Vancouver / Washington / Xanadu)",
+    "Splunk ES 7.x",
+    "Splunk SOAR 6.x (csa_ncirc_submission playbook)"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-07-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Compliance SME Panel (finalized; pending verification)",
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + SOAR + ServiceNow TAs.\n- HEC token `csa:ncirc:submission`.\n- ServiceNow SIR with custom fields.\n\n## Step 1 — SIR fields\n\nAdd `csa_cii_in_scope` (bool), `csa_cii_id` (string), `csa_reportable_category` (choice), `csa_awareness_time` (datetime), `csa_initial_at` (datetime), `csa_initial_receipt` (string), `csa_detailed_at` (datetime), `csa_detailed_receipt` (string), `csa_officer` (string).\n\n## Step 2 — SOAR playbook `csa_ncirc_submission`\n\nTwo entry points:\n- `initial`: on notable from UC-22.57.17 with `initial_status=clock_burning`, generate Form A (incident_summary, observed_indicators, current_impact), route to CII Officer for sign-off, submit to NCIRC portal, capture receipt.\n- `detailed`: on notable from UC-22.57.17 with `detailed_status=due_soon`, generate Form B (full root-cause, scope, remediation, lessons), submit, capture receipt.\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.57.17: CSA NCIRC Reporting Clock]\ncron_schedule = */5 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.17,reg=SG-Cyber-Act,clause=SG-CA-s14(1)(1)\nalert.severity = 5\n```\n\n## Step 4 — Runbooks\n\n**`initial_status=clock_burning`** (owner: Designated CII Officer, severity P1):\n1. Within 15 min: officer verifies category.\n2. Within 30 min: initiate SOAR.\n3. Within 1 hour: SOAR confirms receipt.\n4. Within 14 days: detailed report.\n\n**`initial_status=missed`** (severity P1+):\n1. Initiate manual submission with documented justification.\n2. Escalate to CISO + General Counsel within 30 min.\n3. Engage Commissioner liaison within 2 hours.\n4. Post-mortem within 7 days.\n\n## Step 5 — Troubleshooting\n\n- **Reclassification mid-window**: a non-reportable event reclassified up may need clock-reset; document the determination.\n- **CSA NCIRC portal outage**: backup channel is email to `incident@csa.gov.sg`.\n\n**SG-specific failure modes**:\n- **Sector regulator parallel**: certain CIIs (banking, healthcare) have parallel sector-regulator clocks (MAS, MOH); coordinate with sector liaison.\n- **2024 amendment additions**: FDI / ESCI / CIISP may have different clocks under §16A; see UC-22.57.10.\n\n## Step 5 — Troubleshooting\n\n**Product-specific failure modes**:\n\n- **ServiceNow SIR custom-field drift** — if `csa_awareness_time` or `tsa_awareness_time` is NULL, verify the Security Incident Response workflow still writes the field on state transition to `In Progress`; compare against the vendor UI on the open ticket.\n- **KV Store sync lag** — if the lookup row updates but the saved search still surfaces stale status, confirm the `outputlookup` command completed (`| rest /services/data/transforms/lookup-table-files` shows matching row count).\n- **HEC token / modular-input silence** — run `index=_internal sourcetype=splunkd component=AggregatorMiningProcessor` for the source; no events for >2× the expected poll interval indicates an API or forwarder failure.\n- **Summary-index routing gaps** — validate `action.summary_index._name = audit_evidence` and RBAC role `compliance-analyst` retains write on the destination index.",
+  "grandmaExplanation": "If a cyber-incident hits an important Singapore system, we have to tell the cyber agency within two hours, then send a full report within two weeks. The clock is watched every five minutes.",
+  "prerequisiteUseCases": [
+    "UC-22.57.1"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}

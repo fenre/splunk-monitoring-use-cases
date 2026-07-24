@@ -9,21 +9,43 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=fgt_event`, `sourcetype=fortinet_fortios_event`",
+  "exclusions": "Covers the detection logic documented for 'FortiGate Security Fabric Health Monitoring (Fortinet)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_fortigate_security_fabric_health_monitoring_fort` (UC-5.2.44), SOC dashboard panel \"Operations — FortiGate Security Fabric Health Monitoring (Fortinet)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.2.44 positive (FortiGate, Security, Fabric, Health, Monitoring): ingest synthetic events into `index=firewall` sourcetype='target_sourcetype' where `count` grouped by `device`, `type`, `subtype`, `logdesc` satisfies detection threshold for 'FortiGate Security Fabric Health Monitoring (Fortinet)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.2.44 negative (Monitoring (Fortinet)): ingest benign `firewall` / `target_sourcetype` events where `device`, `type`, `subtype`, `logdesc` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'FortiGate Security Fabric Health Monitoring (Fortinet)'."
+  },
+  "dataSources": "`sourcetype=fgt_event`, `sourcetype=fortinet_fortios_event` Indexes: firewall. Sourcetypes: fgt_event, fortinet_fortios_event. Key fields: device, level, logdesc, msg, subtype, type. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`TA-fortinet_fortigate` (Splunkbase 2846)",
   "spl": "index=firewall sourcetype IN (\"fgt_event\",\"fortinet_fortios_event\")\n  (lower(_raw) LIKE \"%fabric%\" OR lower(logdesc) LIKE \"%fabric%\" OR lower(msg) LIKE \"%fabric%\"\n   OR match(_raw, \"(?i)FortiManager|FortiAnalyzer|authorization failed|certificate.*fabric\"))\n| eval device=coalesce(devname, dvc, host)\n| stats count by device type subtype logdesc msg level\n| sort -count",
-  "description": "Security Fabric ties FortiGate to FortiManager, FortiAnalyzer, FortiSandbox, EMS, and downstream FortiGates for synchronized policy, logging, and threat intelligence. When fabric connectivity or authorization breaks, you lose centralized management, shared object updates, and automated sandbox verdict workflows—often silently until someone notices missing logs or stale objects. Monitoring root and downstream fabric membership, heartbeat, and authorization errors gives early warning before operations and compliance gaps widen.",
-  "value": "Operations teams monitor FortiGate Security Fabric component health across FortiManager, FortiAnalyzer, FortiSandbox, and EMS connections, detecting integration failures that degrade centralized management and threat response.",
+  "description": "Identifies 'FortiGate Security Fabric Health Monitoring (Fortinet)' (UC-5.2.44) using `index=firewall` sourcetype `configured sourcetype` by aggregating `count` grouped by `device`, `type`, `subtype`, `logdesc` over `the scheduled window` and alerting when configured threshold. Keywords: FortiGate, Security, Fabric, Health, Monitoring. Focuses on Monitoring (Fortinet) behaviour so operations teams can triage UC-5.2.44 without ad-hoc log review.",
+  "value": "UC-5.2.44 accelerates insight into Monitoring (Fortinet) ('FortiGate Security Fabric Health Monitoring (Fortinet)') by tracking `activity` on UC-5.2.44 search results, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Ensure FortiOS event logging includes system and fabric-related categories (varies by version). Install `TA-fortinet_fortigate` and send logs via syslog or reliable forwarding. Create alerts for authorization failures, certificate issues, or loss of FortiManager reachability strings in `logdesc`/`msg`. Validate FortiManager/Analyzer versions and time sync. Test by temporarily blocking management paths in a lab to confirm detection.",
   "visualization": "Table (device, subtype, message), Timeline (fabric errors), Status grid (root vs leaf FortiGate health).",
   "cimModels": [],
   "references": [
     {
       "title": "Splunkbase app 2846",
-      "url": "https://splunkbase.splunk.com/app/2846"
+      "url": "https://splunkbase.splunk.com/app/2846",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Broker reconnects, backup links, and FortiManager pushes can all register as fabric or event noise.",
+  "knownFalsePositives": "1. **Maintenance window on `firewall` (UC-5.2.44)** — Planned work for 'FortiGate Security Fabric Health Monitoring (Fortinet)' shifts `count` over `span=1h` while `device`, `type`, `subtype`, `logdesc` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `type` without crossing configured threshold for UC-5.2.44. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `device`, `type`, `subtype`, `logdesc`** — Health checks in `firewall` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.2.44 on `device` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `device`, `exception_reason`, `valid_until`.",
   "equipment": [
     "fortinet",
     "m365",
@@ -33,7 +55,13 @@
     "fortinet_fortianalyzer",
     "fortinet_fortigate"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* FortiGate Security Fabric status logs. Data in `index=fortinet` or `index=firewall` with `sourcetype=fgt_log` or `sourcetype=fgt_event`. The Fortinet TA for Splunk (Splunk_TA_fortinet_fortigate) provides field extraction. Key fields: `logid`, `subtype`, `msg`, `status`, `devname`, `devid`.\n* Security Fabric: FortiGate connects to FortiManager (central management), FortiAnalyzer (logging/reporting), FortiSandbox (zero-day detection), FortiClient EMS (endpoint compliance), and downstream FortiGates (fabric hierarchy). Fabric status is reported via system event logs (logid=0100032XXX series). CLI: `diagnose sys csf`.\n\nStep 1 -- Configure data collection\n```\n# FortiGate CLI -- enable syslog to Splunk\nconfig log syslogd setting\n    set status enable\n    set server <splunk-syslog-ip>\n    set port 514\n    set facility local7\n    set format default\nend\n\n# Enable event logging for Security Fabric\nconfig log setting\n    set resolve-ip enable\n    set resolve-port enable\n    set log-invalid-packet enable\nend\n```\nVerify:\n```spl\nindex=fortinet sourcetype=\"fgt_event\" earliest=-4h\n| where match(subtype, \"(?i)system\") AND match(msg, \"(?i)fabric|csf|fortimanager|fortianalyzer|fortisandbox|ems\")\n| stats count by msg, status\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Security Fabric component health:**\n```spl\nindex=fortinet sourcetype=\"fgt_event\" earliest=-4h\n| where match(msg, \"(?i)fabric|csf|fortimanager|fortianalyzer|fortisandbox|ems|fortiguard\")\n| eval component=case(\n    match(msg, \"(?i)fortimanager|fmg\"), \"FortiManager\",\n    match(msg, \"(?i)fortianalyzer|faz\"), \"FortiAnalyzer\",\n    match(msg, \"(?i)fortisandbox\"), \"FortiSandbox\",\n    match(msg, \"(?i)ems|forticlient\"), \"FortiClient EMS\",\n    match(msg, \"(?i)fortiguard\"), \"FortiGuard\",\n    match(msg, \"(?i)downstream|upstream|fabric.*device\"), \"Fabric Device\",\n    1==1, \"Security Fabric\")\n| eval health=case(\n    match(status, \"(?i)success|connect|up|established\"), \"HEALTHY\",\n    match(status, \"(?i)fail|error|disconnect|down|timeout\"), \"UNHEALTHY\",\n    match(msg, \"(?i)fail|error|disconnect|unreachable|timeout\"), \"UNHEALTHY\",\n    1==1, \"UNKNOWN\")\n| stats count as events count(eval(health=\"UNHEALTHY\")) as failures latest(health) as current_health latest(_time) as last_event by devname, component\n| eval severity=case(\n    current_health=\"UNHEALTHY\" AND component=\"FortiManager\", \"CRITICAL -- FortiManager connection lost\",\n    current_health=\"UNHEALTHY\" AND component=\"FortiAnalyzer\", \"HIGH -- FortiAnalyzer logging disrupted\",\n    current_health=\"UNHEALTHY\", \"WARNING -- \".component.\" unhealthy\",\n    failures > 5, \"INFO -- intermittent failures detected\",\n    1==1, \"OK\")\n| where severity != \"OK\"\n| eval last_event_time=strftime(last_event, \"%Y-%m-%d %H:%M:%S\")\n| sort severity\n```\n\nStep 3 -- Validate\n(a) CLI: `diagnose sys csf` -- show Fabric topology and status.\n(b) CLI: `execute ping <fortimanager-ip>` -- verify management connectivity.\n(c) FortiManager: check device status shows all FortiGates connected.\n\nStep 4 -- Operationalize\nDashboard (\"FortiGate -- Security Fabric Health\"):\n* Row 1 -- Single-value: \"Fabric components healthy\", \"Unhealthy components\", \"Fabric devices\".\n* Row 2 -- Fabric component status table.\n* Row 3 -- Fabric health event timeline.\n\nAlert: Critical (FortiManager or FortiAnalyzer disconnected): management and logging disrupted.\n\nStep 5 -- Troubleshooting\n\n* **FortiManager connection lost** -- Check: (1) network reachability (`exec ping`), (2) TCP 541 (FGFM protocol) is open, (3) FortiManager is not at capacity, (4) serial number is registered in FortiManager.\n\n* **FortiAnalyzer logging disrupted** -- Verify: `diagnose log test` generates test logs. Check FortiAnalyzer disk space and quota. TCP 514/UDP 514 connectivity.\n\n* **FortiGuard update failures** -- Check DNS resolution (`exec ping update.fortiguard.net`). Verify FortiGuard license is valid. Consider using FortiManager as local FortiGuard distribution point.",
   "grandmaExplanation": "We track fabric and platform health messages on FortiGate so split links, sync issues, and serial oddities are visible before they become wide outages.",
-  "hardware": "Fortinet FortiGate 60F/100F/200F/400F/600F/1000F/1800F/2600F/3500F/3700F/4400F, FortiManager, FortiAnalyzer"
+  "hardware": "Fortinet FortiGate 60F/100F/200F/400F/600F/1000F/1800F/2600F/3500F/3700F/4400F, FortiManager, FortiAnalyzer",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

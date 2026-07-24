@@ -8,21 +8,43 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'DHCP Snooping Violations (Meraki MS)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_dhcp_snooping_violations_meraki_ms` (UC-5.1.43), SOC dashboard panel \"Operations — DHCP Snooping Violations (Meraki MS)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.1.43 positive (DHCP, Snooping, Violations, (Meraki, MS)): ingest synthetic events into `index=meraki` sourcetype='meraki' where `values` grouped by `host` satisfies `block_count` > 0 for 'DHCP Snooping Violations (Meraki MS)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.1.43 negative ((Meraki MS)): ingest benign `meraki` / `meraki` events where `host` stays below `block_count` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'DHCP Snooping Violations (Meraki MS)'."
+  },
   "dataSources": "SC4S Meraki vendor pack (sourcetype=meraki) receiving Meraki MS switch syslog. Meraki MS DHCP guard emits messages of the form 'Blocked DHCP server response from <mac> on VLAN <id>' as type=events when an unauthorised DHCP server is detected on the access switch.",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype=\"meraki\" (does not require the API TA).",
   "spl": "index=meraki sourcetype=\"meraki\" type=events \"Blocked DHCP server response\"\n    earliest=-24h\n| rex \"Blocked DHCP server response from (?<server_mac>[0-9A-Fa-f:]+) on VLAN (?<vlan_id>\\d+)\"\n| stats count as block_count,\n        values(server_mac) as blocked_servers,\n        values(vlan_id) as vlans\n         by host\n| where block_count > 0\n| sort - block_count",
-  "description": "Detects unauthorized DHCP servers and spoofing attempts that disrupt network address allocation.",
-  "value": "Security teams detect rogue DHCP servers and DHCP snooping violations on Meraki MS switches, preventing unauthorized DHCP responses that cause IP address conflicts and man-in-the-middle attacks.",
+  "description": "Identifies UC-5.1.43 for DHCP, Snooping, Violations, (Meraki, MS) over `index=meraki` sourcetype `meraki` with thresholds `block_count` > 0. Groups `values` by `host` each `the scheduled window`. Centered on (Meraki MS) indicators. Supports repeatable operations triage for 'DHCP Snooping Violations (Meraki MS)'.",
+  "value": "For 'DHCP Snooping Violations (Meraki MS)', UC-5.1.43 converts `activity` on `meraki` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "1. Configure SC4S for MS syslog and enable DHCP server response blocking in Meraki Dashboard -> Switch -> DHCP servers & ARP. 2. Use rex to extract the rogue DHCP server's MAC and the VLAN id. 3. Trigger an alert on every blocked DHCP response — these are real incidents and should be investigated immediately.",
   "visualization": "Table of violations; timeline of events; affected port details.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "New VoIP, cameras, and docked laptops may appear on the wrong access VLAN until you update trusted ports and DHCP helpers.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki` (UC-5.1.43)** — Planned work for 'DHCP Snooping Violations (Meraki MS)' shifts `values` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `meraki`** — Scheduled automation elevates `src` without crossing `block_count` > 0 for UC-5.1.43. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `meraki`** — First 48h baseline for UC-5.1.43 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
@@ -30,6 +52,12 @@
   "equipmentModels": [
     "cisco_meraki"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype=\"meraki\" (does not require the API TA)..\n• Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki) receiving Meraki MS switch syslog. Meraki MS DHCP guard emits messages of the form 'Blocked DHCP server response from <mac> on VLAN <id>' as type=events when an unauthorised DHCP server is detected on the access switch..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n1. Configure SC4S for MS syslog and enable DHCP server response blocking in Meraki Dashboard -> Switch -> DHCP servers & ARP. 2. Use rex to extract the rogue DHCP server's MAC and the VLAN id. 3. Trigger an alert on every blocked DHCP response — these are real incidents and should be investigated immediately.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=meraki sourcetype=\"meraki\" type=events \"Blocked DHCP server response\"\n    earliest=-24h\n| rex \"Blocked DHCP server response from (?<server_mac>[0-9A-Fa-f:]+) on VLAN (?<vlan_id>\\d+)\"\n| stats count as block_count,\n        values(server_mac) as blocked_servers,\n        values(vlan_id) as vlans\n         by host\n| where block_count > 0\n| sort - block_count\n```\n\nUnderstanding this SPL\n\n**DHCP Snooping Violations (Meraki MS)** — Security teams detect rogue DHCP servers and DHCP snooping violations on Meraki MS switches, preventing unauthorized DHCP responses that cause IP address conflicts and man-in-the-middle attacks.\n\nDocumented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki) receiving Meraki MS switch syslog. Meraki MS DHCP guard emits messages of the form 'Blocked DHCP server response from <mac> on VLAN <id>' as type=events when an unauthorised DHCP server is detected on the access switch. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype=\"meraki\" (does not require the API TA). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=meraki, sourcetype=\"meraki\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts fields with `rex` (regular expression).\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where block_count > 0` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of violations; timeline of events; affected port details.",
-  "grandmaExplanation": "We help you know early when something looks wrong with dhcp snooping violations so the team can act before it grows into a bigger outage."
+  "grandmaExplanation": "We help you know early when something looks wrong with dhcp snooping violations so the team can act before it grows into a bigger outage.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

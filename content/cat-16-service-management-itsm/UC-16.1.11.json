@@ -8,11 +8,17 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "ITSM ticket state change history",
-  "app": "Custom (ITSM API — ServiceNow, Jira Service Management)",
+  "exclusions": "Covers the detection logic documented for 'Problem Ticket Reopening Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_problem_ticket_reopening_rate` (UC-16.1.11), SOC dashboard panel \"Operations — Problem Ticket Reopening Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-16.1.11 positive (Problem, Ticket, Reopening, Rate): ingest synthetic events into `index=itsm` sourcetype='snow:incident:audit' where `reopened`, `total` grouped by `number`, `metric` satisfies -30d for 'Problem Ticket Reopening Rate'. Validate filter `index=itsm sourcetype=\"snow:incident\" state=\"closed\" earlies`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.1.11 negative (Reopening Rate): ingest benign `itsm` / `snow:incident:audit` events where `number`, `metric` stays below -30d, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Problem Ticket Reopening Rate'."
+  },
+  "dataSources": "ITSM ticket state change history Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom (ITSM API — ServiceNow, Jira Service Management) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"snow:incident:audit\" field_name=\"state\"\n| eval reopened=if(match(old_value,\"closed|6\") AND not(match(new_value,\"closed|6\")), 1, 0)\n| where reopened=1\n| stats count as reopened_count by number\n| eval metric=\"reopened\"\n| append [| search index=itsm sourcetype=\"snow:incident\" state=\"closed\" earliest=-30d | stats count as total_closed | eval metric=\"total\"]\n| stats sum(reopened_count) as reopened, sum(total_closed) as total by metric\n| stats sum(reopened) as reopened, sum(total_closed) as total\n| eval reopen_rate=round(reopened/total*100, 1)",
-  "description": "Tickets closed then reopened indicate poor resolution quality, incomplete fixes, or inadequate testing. Tracking reopening rate drives resolution discipline and reduces repeat work.",
-  "value": "Tickets closed then reopened indicate poor resolution quality, incomplete fixes, or inadequate testing. Tracking reopening rate drives resolution discipline and reduces repeat work.",
+  "description": "Monitors risk tied to Problem, Ticket, Reopening, Rate through UC-16.1.11 on `index=itsm` sourcetype `snow:incident:audit`. Summarises `reopened`, `total` grouped by `number`, `metric` across `the scheduled window` before applying -30d. Operators tune 'Problem Ticket Reopening Rate' using UC-16.1.11 runbook steps.",
+  "value": "Tracking `reopened`, `total` via UC-16.1.11 on `snow:incident:audit` feeds improves response to 'Problem Ticket Reopening Rate' and reduces operational risk and delayed incident response.",
   "implementation": "Ingest ITSM audit/history tables capturing state transitions. For ServiceNow, use `sys_audit` or `incident_state_history`; for Jira, use `changelog` or REST API history. Identify incidents with state sequence: closed → reopened (or new/in_progress). Calculate reopening rate as reopened / total closed over rolling 30 days. Alert when rate exceeds 5%. Break down by assignment group and category to target improvement. Correlate with resolution notes to identify patterns (e.g., \"workaround\" vs \"root cause fixed\").",
   "visualization": "Single value (reopen rate %), Bar chart (reopen rate by assignment group), Line chart (reopen rate trend), Table (reopened tickets with resolution notes).",
   "cimModels": [
@@ -22,14 +28,40 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Reopens and repeats that share one flaky root cause, and tickets that only look the same in the short text field; problem review still helps sort them.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm` (UC-16.1.11)** — Planned work for 'Problem Ticket Reopening Rate' shifts `reopened`, `total` over `span=1h` while `number`, `metric` remains in-scope. Applies filter `index=itsm sourcetype=\"snow:incident\" state=\"closed\" earlies`. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `snow:incident:audit`** — Scheduled automation elevates `metric` without crossing configured threshold for UC-16.1.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `number`, `metric`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:incident:audit`** — First 48h baseline for UC-16.1.11 on `number` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `number`, `exception_reason`, `valid_until`.",
   "equipment": [
     "jira",
     "servicenow"
   ],
+  "equipmentModels": [
+    "jira_generic",
+    "servicenow_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (ITSM API — ServiceNow, Jira Service Management).\n• Ensure the following data sources are available: ITSM ticket state change history.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest ITSM audit/history tables capturing state transitions. For ServiceNow, use `sys_audit` or `incident_state_history`; for Jira, use `changelog` or REST API history. Identify incidents with state sequence: closed → reopened (or new/in_progress). Calculate reopening rate as reopened / total closed over rolling 30 days. Alert when rate exceeds 5%. Break down by assignment group and category to target improvement. Correlate with resolution notes to identify patterns (e.g., \"workaround\" vs \"root…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsm sourcetype=\"snow:incident:audit\" field_name=\"state\"\n| eval reopened=if(match(old_value,\"closed|6\") AND not(match(new_value,\"closed|6\")), 1, 0)\n| where reopened=1\n| stats count as reopened_count by number\n| eval metric=\"reopened\"\n| append [| search index=itsm sourcetype=\"snow:incident\" state=\"closed\" earliest=-30d | stats count as total_closed | eval metric=\"total\"]\n| stats sum(reopened_count) as reopened, sum(total_closed) as total by metric\n| stats sum(reopened) as reopened, sum(total_closed) as total\n| eval reopen_rate=round(reopened/total*100, 1)\n```\n\nUnderstanding this SPL\n\n**Problem Ticket Reopening Rate** — Tickets closed then reopened indicate poor resolution quality, incomplete fixes, or inadequate testing. Tracking reopening rate drives resolution discipline and reduces repeat work.\n\nDocumented **Data sources**: ITSM ticket state change history. **App/TA** (typical add-on context): Custom (ITSM API — ServiceNow, Jira Service Management). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsm; **sourcetype**: snow:incident:audit. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsm, sourcetype=\"snow:incident:audit\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **reopened** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where reopened=1` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by number** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **metric** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Appends rows from a subsearch with `append`.\n• `stats` rolls up events into metrics; results are split **by metric** so each row reflects one combination of those dimensions.\n• `stats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• `eval` defines or adjusts **reopen_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\nCompare with the Jira issue page, board, or service project view for the same dates. Confirm issue keys, status, and assignment fields; reconcile timestamp fields you use in the report.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (reopen rate %), Bar chart (reopen rate by assignment group), Line chart (reopen rate trend), Table (reopened tickets with resolution notes).",
-  "grandmaExplanation": "We count how often a problem case gets opened again, so we know if we truly fixed the cause or only quieted the symptom."
+  "grandmaExplanation": "We count how often a problem case gets opened again, so we know if we truly fixed the cause or only quieted the symptom.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

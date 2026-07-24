@@ -9,11 +9,17 @@
     "Audit"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=openstack` `sourcetype=\"openstack:keystone\"` — `protocol`, `idp_id`, `remote_user`, `mapped_group`, `http_status`, `event`",
-  "app": "Keystone federation logs (Mellon/SAML/OIDC)",
+  "exclusions": "Covers the detection logic documented for 'OpenStack Keystone Federation IdP Login and Mapping Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_openstack_keystone_federation_idp_login_and_mapp` (UC-2.9.12), SOC dashboard panel \"Linux — OpenStack Keystone Federation IdP Login and Mapping Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.9.12 positive (OpenStack, Keystone, Federation, IdP, Login): ingest synthetic events into `index=openstack` sourcetype='openstack:keystone' where `count` grouped by `idp_id`, `protocol` satisfies `hs` >= 401 for 'OpenStack Keystone Federation IdP Login and Mapping Failures'. Validate filter `match(lower(_raw), \"(?i)federat`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.9.12 negative (Mapping Failures): ingest benign `openstack` / `openstack:keystone` events where `idp_id`, `protocol` stays below `hs` >= 401, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 13 confirms zero alert rows for 'OpenStack Keystone Federation IdP Login and Mapping Failures'."
+  },
+  "dataSources": "`index=openstack` `sourcetype=\"openstack:keystone\"` — `protocol`, `idp_id`, `remote_user`, `mapped_group`, `http_status`, `event` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Keystone federation logs (Mellon/SAML/OIDC) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=openstack sourcetype=\"openstack:keystone\" earliest=-24h\n| search match(lower(_raw), \"(?i)federat|saml|oidc|mapped\")\n| eval hs=tonumber(http_status)\n| where hs>=401 OR match(lower(_raw), \"(?i)mapping.*fail|assertion\")\n| stats count as fed_fails by idp_id, protocol",
-  "description": "Federation regressions lock out enterprise users without touching local passwords. Mapping failures after IdP cert rotations are common.",
-  "value": "Reduces enterprise SSO outages and speeds joint debugging with identity teams.",
+  "description": "Monitors UC-2.9.12 — OpenStack, Keystone, Federation, IdP, Login — using `index=openstack` sourcetype `openstack:keystone`, grouped by `idp_id`, `protocol`. Outputs `count` each `the scheduled window`; alert when `hs` >= 401. Filter chain includes filter `match(lower(_raw), \"(?i)federat`. Purpose-built for 'OpenStack Keystone Federation IdP Login and Mapping Failures' in Linux workflows.",
+  "value": "UC-2.9.12 gives Linux teams earlier visibility into Mapping Failures through `openstack:keystone` feeds, lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Tag IdP id on events. Alert on failure bursts. Maintain mapping version control links in tickets.",
   "visualization": "Timechart federation failures; breakdown by IdP; sample assertions redacted.",
   "cimModels": [
@@ -22,12 +28,31 @@
   "references": [
     {
       "title": "Keystone Federation",
-      "url": "https://docs.openstack.org/keystone/latest/admin/federation/"
+      "url": "https://docs.openstack.org/keystone/latest/admin/federation/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "OpenStack metrics may swing during image builds, large migrations, or control-plane rolling updates; verify services are healthy in parallel before declaring data-plane failure.",
+  "knownFalsePositives": "1. **Patch Tuesday on `openstack`** — Package managers spike `idp_id` metrics for 'OpenStack Keystone Federation IdP Login and Mapping Failures'. Correlate with apt/yum logs in the same `openstack:keystone` window.\n\n2. **Nightly backup I/O on `idp_id`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `openstack:keystone`** — Nagios/Zabbix polls `idp_id` and mimics sustained load without crossing `hs` >= 401.\n\n4. **New host onboarding** — `idp_id` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `idp_id`, `valid_until`.",
   "equipment": [
     "openstack"
+  ],
+  "equipmentModels": [
+    "openstack_generic"
   ],
   "status": "verified",
   "lastReviewed": "2025-06-01",
@@ -36,5 +61,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We monitor the building blocks of your private cloud—computers, networks, disks, and logins—so new systems come up reliably and people are not locked out when something upstream hiccups."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Keystone federation logs (Mellon/SAML/OIDC) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=openstack:keystone into openstack. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`hs, idp_id, protocol`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We monitor the building blocks of your private cloud—computers, networks, disks, and logins—so new systems come up reliably and people are not locked out when something upstream hiccups.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

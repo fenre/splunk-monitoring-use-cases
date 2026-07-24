@@ -8,24 +8,42 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'API Response Time Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_api_response_time_monitoring` (UC-5.9.40), SOC dashboard panel \"Operations — API Response Time Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.9.40 positive (API, Response, Time, Monitoring): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `avg_duration` grouped by `thousandeyes.test.name` satisfies `avg_duration_s` > 2 for 'API Response Time Monitoring'. Validate macro `stream_index`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.9.40 negative (Time Monitoring): ingest benign `target_index` / `target_sourcetype` events where `thousandeyes.test.name` stays below `avg_duration_s` > 2, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'API Response Time Monitoring'."
+  },
   "dataSources": "`index=thousandeyes_metrics sourcetype=cisco:thousandeyes:metric` with `thousandeyes.test.type=\"api\"`. OTel v2 metrics: `api.duration` (seconds, total API test duration), `api.step.duration` (seconds, per-step duration). Per-step attributes: `server.address`, `http.request.method`, `thousandeyes.test.step`.",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported.",
   "spl": "`stream_index` thousandeyes.test.type=\"api\"\n| stats avg(api.duration) as avg_duration p95(api.duration) as p95_duration by thousandeyes.test.name\n| eval avg_duration_s=round(avg_duration,2), p95_duration_s=round(p95_duration,2)\n| where avg_duration_s > 2\n| sort -avg_duration_s",
-  "description": "Tracks total API test duration and per-step duration to identify slow API workflows and pinpoint which specific API call is the bottleneck. Flags API tests where total execution exceeds 2 seconds.",
-  "value": "API tests simulate multi-step workflows. If the overall test takes 5 seconds but step 3 (database query) takes 4 of those seconds, the bottleneck is identified immediately. Without per-step timing, teams waste time investigating the wrong endpoint. This UC provides the breakdown needed to optimize API performance and enforce SLA targets per endpoint.",
+  "description": "Surfaces UC-5.9.40 — API, Response, Time, Monitoring — using `index=target_index` sourcetype `configured sourcetype`, grouped by `thousandeyes.test.name`. Outputs `avg_duration` each `the scheduled window`; alert when `avg_duration_s` > 2. Filter chain includes macro `stream_index`. Purpose-built for 'API Response Time Monitoring' in Operations workflows.",
+  "value": "For 'API Response Time Monitoring', UC-5.9.40 converts `avg_duration` on macro `stream_index` into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Same API tests as UC-5.9.39. Duration is measured alongside completion.",
   "visualization": "(1) Bar chart: API test total duration. (2) Stacked bar: per-step duration breakdown. (3) Timechart: duration trending. (4) Table: slowest steps across all tests.",
   "references": [
     {
       "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
-      "url": "https://splunkbase.splunk.com/app/7719"
+      "url": "https://splunkbase.splunk.com/app/7719",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes OTel v2 — API metrics",
-      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics"
+      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Duration not reported on failure.** `api.duration` may not be emitted for failed tests. Check completion first.\n\n**Variable server-side processing.** Some API calls have inherently variable response times (database-heavy queries, batch operations). Establish per-test baselines.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index` (UC-5.9.40)** — Planned work for 'API Response Time Monitoring' shifts `avg_duration` over `span=1h` while `thousandeyes.test.name` remains in-scope. Applies macro `stream_index`. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `avg_duration_s` without crossing `avg_duration_s` > 2 for UC-5.9.40. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `thousandeyes.test.name`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.9.40 on `thousandeyes.test.name` is unstable; join `stream_index` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `thousandeyes.test.name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

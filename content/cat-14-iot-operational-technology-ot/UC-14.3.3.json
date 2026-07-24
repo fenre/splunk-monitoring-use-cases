@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=edge-hub-data` (metrics index), `sourcetype=edge_hub` — built-in VOC sensor (optional, <1s response, IAQ score)",
-  "app": "Splunk Edge Hub (optional air quality sensor), Splunk OT Intelligence",
+  "exclusions": "Covers the detection logic documented for 'Air Quality & VOC Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_air_quality_voc_monitoring` (UC-14.3.3), SOC dashboard panel \"Operations — Air Quality & VOC Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.3.3 positive (Air, Quality, VOC, Monitoring): ingest synthetic events into `index=edge-hub-data` sourcetype='target_sourcetype' where `value` grouped by `metric_name`, `extracted_host` satisfies detection threshold for 'Air Quality & VOC Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.3.3 negative (VOC Monitoring): ingest benign `edge-hub-data` / `target_sourcetype` events where `metric_name`, `extracted_host` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Air Quality & VOC Monitoring'."
+  },
+  "dataSources": "`index=edge-hub-data` (metrics index), `sourcetype=edge_hub` — built-in VOC sensor (optional, <1s response, IAQ score) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Edge Hub (optional air quality sensor), Splunk OT Intelligence — Universal Forwarder (Splunkbase 617)",
   "spl": "| mstats avg(_value) as value\n  where index=edge-hub-data AND metric_name IN (voc, humidity, temperature)\n  span=15m by metric_name, extracted_host",
-  "description": "Indoor air quality affects occupant health and productivity. Edge Hub's optional VOC sensor provides IAQ scoring for workplace wellness monitoring.",
-  "value": "Indoor air quality affects occupant health and productivity. Edge Hub's optional VOC sensor provides IAQ scoring for workplace wellness monitoring.",
+  "description": "Detects UC-14.3.3 — Air, Quality, VOC, Monitoring — using `index=edge-hub-data` sourcetype `configured sourcetype`, grouped by `metric_name`, `extracted_host`. Outputs `value` each `15m`; alert when configured threshold. Primary focus: VOC Monitoring. Purpose-built for 'Air Quality & VOC Monitoring' in Operations workflows.",
+  "value": "UC-14.3.3 operationalises 'Air Quality & VOC Monitoring' against UC-14.3.3 search results so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Deploy Edge Hub with optional VOC/air quality sensor module. The sensor provides IAQ (Indoor Air Quality) score with <1 second response time. Data streams as metrics to `edge-hub-data` index. Note: Edge Hub measures VOC and IAQ score — it does not have a CO2 or PM2.5 sensor natively. For CO2/PM2.5, connect external sensors via MQTT or I²C. Alert when IAQ score exceeds thresholds. Correlate with humidity sensor data for comfort indexing.",
   "visualization": "Line chart (IAQ score over time), Gauge (current IAQ), Multi-metric dashboard (VOC + humidity + temperature).",
   "cimModels": [
@@ -22,18 +28,44 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "AQI spikes during cooking, cleaning, paint or solvent use, or HVAC maintenance.",
+  "knownFalsePositives": "1. **Maintenance window on `edge-hub-data` (UC-14.3.3)** — Planned work for 'Air Quality & VOC Monitoring' shifts `value` over `span=15m` while `metric_name`, `extracted_host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `extracted_host` without crossing configured threshold for UC-14.3.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `metric_name`, `extracted_host`** — Health checks in `edge-hub-data` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-14.3.3 on `metric_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `metric_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "edge_hub",
     "mqtt"
+  ],
+  "equipmentModels": [
+    "edge_hub_generic",
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     "Splunk Edge Hub",
     "Splunk OT Intelligence"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (optional air quality sensor), Splunk OT Intelligence.\n• Ensure the following data sources are available: `index=edge-hub-data` (metrics index), `sourcetype=edge_hub` — built-in VOC sensor (optional, <1s response, IAQ score).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy Edge Hub with optional VOC/air quality sensor module. The sensor provides IAQ (Indoor Air Quality) score with <1 second response time. Data streams as metrics to `edge-hub-data` index. Note: Edge Hub measures VOC and IAQ score — it does not have a CO2 or PM2.5 sensor natively. For CO2/PM2.5, connect external sensors via MQTT or I²C. Alert when IAQ score exceeds thresholds. Correlate with humidity sensor data for comfort indexing.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| mstats avg(_value) as value\n  where index=edge-hub-data AND metric_name IN (voc, humidity, temperature)\n  span=15m by metric_name, extracted_host\n```\n\nUnderstanding this SPL\n\n**Air Quality & VOC Monitoring** — Indoor air quality affects occupant health and productivity. Edge Hub's optional VOC sensor provides IAQ scoring for workplace wellness monitoring.\n\nDocumented **Data sources**: `index=edge-hub-data` (metrics index), `sourcetype=edge_hub` — built-in VOC sensor (optional, <1s response, IAQ score). **App/TA** (typical add-on context): Splunk Edge Hub (optional air quality sensor), Splunk OT Intelligence. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-data.\n\n**Pipeline walkthrough**\n\n• Uses `mstats` to query metrics indexes (pre-aggregated metric data).\n\n\nNote: for mstats, confirm the metrics indexes in the search exist and your role can run mstats. This is separate from CIM data model acceleration.\n\nStep 3 — Validate\nConfirm metric or event volume in the time range, then compare trends and device status to the Splunk Edge Hub admin UI or the mobile app for the same devices. Verify metric names, hosts, and time skew.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (IAQ score over time), Gauge (current IAQ), Multi-metric dashboard (VOC + humidity + temperature).",
-  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with fumes, dust, and other air quality issues near people before harm, damage, or wasted effort piles up."
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (optional air quality sensor), Splunk OT Intelligence.\n• Ensure the following data sources are available: `index=edge-hub-data` (metrics index), `sourcetype=edge_hub` — built-in VOC sensor (optional, <1s response, IAQ score).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy Edge Hub with optional VOC/air quality sensor module. The sensor provides IAQ (Indoor Air Quality) score with <1 second response time. Data streams as metrics to `edge-hub-data` index. Note: Edge Hub measures VOC and IAQ score — it does not have a CO2 or PM2.5 sensor natively. For CO2/PM2.5, connect external sensors via MQTT or I²C. Alert when IAQ score exceeds thresholds. Correlate with humidity sensor data for comfort indexing.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| mstats avg(_value) as value\n  where index=edge-hub-data AND metric_name IN (voc, humidity, temperature)\n  span=15m by metric_name, extracted_host\n```\n\nUnderstanding this SPL\n\n**Air Quality & VOC Monitoring** — Indoor air quality affects occupant health and productivity. Edge Hub's optional VOC sensor provides IAQ scoring for workplace wellness monitoring.\n\nDocumented **Data sources**: `index=edge-hub-data` (metrics index), `sourcetype=edge_hub` — built-in VOC sensor (optional, <1s response, IAQ score). **App/TA** (typical add-on context): Splunk Edge Hub (optional air quality sensor), Splunk OT Intelligence. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-data.\n\n**Pipeline walkthrough**\n\n• Uses `mstats` to query metrics indexes (pre-aggregated metric data).\n\n\nNote: for mstats, confirm the metrics indexes in the search exist and your role can run mstats. This is separate from CIM data model acceleration.\n\nStep 3 — Validate\nConfirm metric or event volume in the time range, then compare trends and device status to the Splunk Edge Hub admin UI or the mobile app for the same devices. Verify metric names, hosts, and time skew.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (IAQ score over time), Gauge (current IAQ), Multi-metric dashboard (VOC + humidity + temperature).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Edge Hub (optional air quality sensor), Splunk OT Intelligence — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=see SPL into edge-hub-data. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`extracted_host, metric_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with fumes, dust, and other air quality issues near people before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

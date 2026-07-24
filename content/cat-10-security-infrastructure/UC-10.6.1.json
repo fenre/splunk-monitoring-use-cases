@@ -8,11 +8,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Vulnerability scan results (severity, CVE, affected asset)",
+  "exclusions": "Covers the detection logic documented for 'Critical Vulnerability Trending' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_critical_vulnerability_trending` (UC-10.6.1), SOC dashboard panel \"Security Infra — Critical Vulnerability Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.6.1 positive (Critical, Vulnerability, Trending): ingest synthetic events into `index=vulnerability` sourcetype='tenable:vuln' where `unique_vulns` grouped by `severity` satisfies detection threshold for 'Critical Vulnerability Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.6.1 negative (Vulnerability Trending): ingest benign `vulnerability` / `tenable:vuln` events where `severity` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv`. Variant 5 confirms zero alert rows for 'Critical Vulnerability Trending'."
+  },
+  "dataSources": "Vulnerability scan results (severity, CVE, affected asset) Indexes: vulnerability. Sourcetypes: tenable:vuln. Key fields: severity. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Tenable Add-On for Splunk` (Splunkbase 4060), `Qualys Technology Add-on (TA) for Splunk` (Splunkbase 2964)",
   "spl": "index=vulnerability sourcetype=\"tenable:vuln\"\n| where severity IN (\"Critical\",\"High\")\n| timechart span=1d dc(cve_id) as unique_vulns by severity",
-  "description": "Tracking critical vulnerabilities over time measures security posture improvement and identifies remediation stalls.",
-  "value": "Tracking critical vulnerabilities over time measures security posture improvement and identifies remediation stalls.",
+  "description": "Surfaces 'Critical Vulnerability Trending' patterns (UC-10.6.1) sourced from `index=vulnerability` sourcetype `tenable:vuln`. Threshold bundle: configured threshold; aggregation grain: `severity`; metrics: `unique_vulns`. Watch terms: Critical, Vulnerability, Trending.",
+  "value": "UC-10.6.1 gives Security Infra teams earlier visibility into Vulnerability Trending through `tenable:vuln` feeds, lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Ingest scan results from vulnerability management platform. Track unique vulnerabilities by severity over time. Alert when critical count exceeds threshold or increases. Report on remediation progress weekly.",
   "visualization": "Line chart (vuln count trend by severity), Single value (critical vuln count), Bar chart (top CVEs), Table (critical vulnerabilities).",
   "cimModels": [
@@ -23,22 +29,40 @@
   "references": [
     {
       "title": "Splunkbase app 4060",
-      "url": "https://splunkbase.splunk.com/app/4060"
+      "url": "https://splunkbase.splunk.com/app/4060",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase app 2964",
-      "url": "https://splunkbase.splunk.com/app/2964"
+      "url": "https://splunkbase.splunk.com/app/2964",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Vulnerabilities",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Vulnerabilities"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Vulnerabilities",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Critical CVEs may show on legacy systems undergoing controlled lifecycle (e.g., end-of-life ICS gear with documented compensating controls). Some scanner detections are unauthenticated and produce false positives.",
+  "knownFalsePositives": "1. **Maintenance window on `vulnerability` (UC-10.6.1)** — Planned work for 'Critical Vulnerability Trending' shifts `unique_vulns` over `span=1d` while `severity` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `tenable:vuln`** — Scheduled automation elevates `src` without crossing configured threshold for UC-10.6.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `severity`** — Health checks in `vulnerability` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `tenable:vuln`** — First 48h baseline for UC-10.6.1 on `severity` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `severity`, `exception_reason`, `valid_until`.",
   "equipment": [
     "qualys",
     "tenable"
   ],
+  "equipmentModels": [
+    "qualys_generic",
+    "tenable_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Tenable Add-On for Splunk` (Splunkbase 4060), `Qualys Technology Add-on (TA) for Splunk` (Splunkbase 2964).\n• Ensure the following data sources are available: Vulnerability scan results (severity, CVE, affected asset).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest scan results from vulnerability management platform. Track unique vulnerabilities by severity over time. Alert when critical count exceeds threshold or increases. Report on remediation progress weekly.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vulnerability sourcetype=\"tenable:vuln\"\n| where severity IN (\"Critical\",\"High\")\n| timechart span=1d dc(cve_id) as unique_vulns by severity\n```\n\nUnderstanding this SPL\n\n**Critical Vulnerability Trending** — Tracking critical vulnerabilities over time measures security posture improvement and identifies remediation stalls.\n\nDocumented **Data sources**: Vulnerability scan results (severity, CVE, affected asset). **App/TA** (typical add-on context): `Tenable Add-On for Splunk` (Splunkbase 4060), `Qualys Technology Add-on (TA) for Splunk` (Splunkbase 2964). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vulnerability; **sourcetype**: tenable:vuln. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vulnerability, sourcetype=\"tenable:vuln\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where severity IN (\"Critical\",\"High\")` — typically the threshold or rule expression for this monitoring goal.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by severity** — ideal for trending and alerting on this use case.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats count from datamodel=Vulnerabilities.Vulnerabilities where Vulnerabilities.severity IN (\"critical\",\"high\") by Vulnerabilities.cve,Vulnerabilities.dest\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Critical Vulnerability Trending** — Tracking critical vulnerabilities over time measures security posture improvement and identifies remediation stalls.\n\nDocumented **Data sources**: Vulnerability scan results (severity, CVE, affected asset). **App/TA** (typical add-on context): `Tenable Add-On for Splunk` (Splunkbase 4060), `Qualys Technology Add-on (TA) for Splunk` (Splunkbase 2964). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Vulnerabilities.Vulnerabilities` — enable acceleration for that model.\n• Groups by CVE and destination so you can compare counts to your index search and vendor console.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nCompare severities, CVEs, and affected hosts in Splunk with the same time range in Tenable.io and in Qualys VMDR or Cloud Agent UI. For a few sampled CVEs, compare details with NIST NVD. Verify field extractions, lookups, and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (vuln count trend by severity), Single value (critical vuln count), Bar chart (top CVEs), Table (critical vulnerabilities).",
-  "grandmaExplanation": "We watch how many serious, known software flaws on our systems trend over time so we can focus patching, track progress, and see when we are getting stuck."
+  "grandmaExplanation": "We watch how many serious, known software flaws on our systems trend over time so we can focus patching, track progress, and see when we are getting stuck.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

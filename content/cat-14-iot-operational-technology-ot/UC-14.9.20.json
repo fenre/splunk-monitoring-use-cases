@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:health`",
+  "exclusions": "Covers the detection logic documented for 'Cyber Vision Sensor Health and Resource Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_cyber_vision_sensor_health_and_resource_monitori` (UC-14.9.20), SOC dashboard panel \"Operations — Cyber Vision Sensor Health and Resource Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.9.20 positive (Cyber, Vision, Sensor, Health, and): ingest synthetic events into `index=nozomi` sourcetype='nozomi:health' where `count` grouped by `entity` satisfies `cpu_percent` > 80, `memory_percent` > 80, or `disk_percent` > 80 for 'Cyber Vision Sensor Health and Resource Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.9.20 negative (Resource Monitoring): ingest benign `nozomi` / `nozomi:health` events where `entity` stays below `cpu_percent` > 80, `memory_percent` > 80, or `disk_percent` > 80, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'Cyber Vision Sensor Health and Resource Monitoring'."
+  },
+  "dataSources": "`sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:health` Indexes: nozomi. Sourcetypes: nozomi:health. Key fields: cpu_percent, disk_percent, memory_percent. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)",
   "spl": "index=nozomi sourcetype=\"nozomi:health\"\n| table _time, appliance_id, cpu_percent, memory_percent, disk_percent, version\n| where cpu_percent > 80 OR memory_percent > 80 OR disk_percent > 80\n| sort -cpu_percent",
-  "description": "OT security sensors and appliances need monitoring themselves — high CPU, memory, or disk usage events fire when resources exceed thresholds. Degraded sensors may miss traffic, creating blind spots in OT visibility.",
-  "value": "OT security sensors and appliances need monitoring themselves — high CPU, memory, or disk usage events fire when resources exceed thresholds. Degraded sensors may miss traffic, creating blind spots in OT visibility.",
+  "description": "Surfaces UC-14.9.20 — Cyber, Vision, Sensor, Health, and — using `index=nozomi` sourcetype `nozomi:health`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `cpu_percent` > 80, `memory_percent` > 80, or `disk_percent` > 80. Primary focus: Resource Monitoring. Purpose-built for 'Cyber Vision Sensor Health and Resource Monitoring' in Operations workflows.",
+  "value": "Operators running UC-14.9.20 on `nozomi:health` feeds shorten triage for Resource Monitoring tied to 'Cyber Vision Sensor Health and Resource Monitoring', lowering operational risk and delayed incident response.",
   "implementation": "Both platforms expose sensor/appliance health metrics. **Cyber Vision:** Pre-filtered at 80% threshold via syslog. **Nozomi:** Guardian exposes health data via the `nozomi:health` sourcetype. Alert on high resource usage. Track trends per sensor. High CPU may indicate excessive traffic (DDoS, broadcast storm). Plan capacity upgrades or traffic optimization.",
   "visualization": "Sensor health dashboard; CPU/memory/disk gauges per sensor; resource trend lines; sensor fleet status map.",
   "cimModels": [
@@ -22,18 +28,40 @@
   "references": [
     {
       "title": "Splunkbase app 5748",
-      "url": "https://splunkbase.splunk.com/app/5748"
+      "url": "https://splunkbase.splunk.com/app/5748",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase app 6905",
-      "url": "https://splunkbase.splunk.com/app/6905"
+      "url": "https://splunkbase.splunk.com/app/6905",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Sensor resource use spikes during traffic storms, pcap replays, or index maintenance on the appliance.",
+  "knownFalsePositives": "1. **Maintenance window on `nozomi` (UC-14.9.20)** — Planned work for 'Cyber Vision Sensor Health and Resource Monitoring' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `nozomi:health`** — Scheduled automation elevates `src` without crossing `cpu_percent` > 80 for UC-14.9.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `nozomi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nozomi:health`** — First 48h baseline for UC-14.9.20 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
   ],
+  "equipmentModels": [
+    "cisco_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905).\n• Ensure the following data sources are available: `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:health`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBoth platforms expose sensor/appliance health metrics. **Cyber Vision:** Pre-filtered at 80% threshold via syslog. **Nozomi:** Guardian exposes health data via the `nozomi:health` sourcetype. Alert on high resource usage. Track trends per sensor. High CPU may indicate excessive traffic (DDoS, broadcast storm). Plan capacity upgrades or traffic optimization.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=nozomi sourcetype=\"nozomi:health\"\n| table _time, appliance_id, cpu_percent, memory_percent, disk_percent, version\n| where cpu_percent > 80 OR memory_percent > 80 OR disk_percent > 80\n| sort -cpu_percent\n```\n\nUnderstanding this SPL\n\n**Cyber Vision Sensor Health and Resource Monitoring** — OT security sensors and appliances need monitoring themselves — high CPU, memory, or disk usage events fire when resources exceed thresholds. Degraded sensors may miss traffic, creating blind spots in OT visibility.\n\nDocumented **Data sources**: `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:health`. **App/TA** (typical add-on context): `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: nozomi; **sourcetype**: nozomi:health. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=nozomi, sourcetype=\"nozomi:health\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Pipeline stage (see **Cyber Vision Sensor Health and Resource Monitoring**): table _time, appliance_id, cpu_percent, memory_percent, disk_percent, version\n• Filters the current rows with `where cpu_percent > 80 OR memory_percent > 80 OR disk_percent > 80` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nRun the search for a time range that should include both routine and change activity, then compare the same assets, flows, and alerts in the Cisco Cyber Vision UI and in Nozomi Guardian or CMC, matching whichever source the event came from. Reconcile severities, counts, and key fields in both tools.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Sensor health dashboard; CPU/memory/disk gauges per sensor; resource trend lines; sensor fleet status map.",
-  "grandmaExplanation": "We track sensor and platform health in our OT security stack so a starving appliance does not create blind spots on the line."
+  "grandmaExplanation": "We track sensor and platform health in our OT security stack so a starving appliance does not create blind spots on the line.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,24 +9,43 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), UPS status via NUT (`nut:ups`).",
-  "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Home Lab Disk Space Runway' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_home_lab_disk_space_runway` (UC-25.8.1), SOC dashboard panel \"Personal — Home Lab Disk Space Runway\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.8.1 positive (Home, Lab, Disk, Space, Runway): ingest synthetic events into `index=personal` sourcetype='truenas:pool' where `count` grouped by `pool` satisfies `used_pct` > 80 for 'Home Lab Disk Space Runway'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.8.1 negative (Space Runway): ingest benign `personal` / `truenas:pool` events where `pool` stays below `used_pct` > 80, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 2 confirms zero alert rows for 'Home Lab Disk Space Runway'."
+  },
+  "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), UPS status via NUT (`nut:ups`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=truenas:pool\n| stats latest(used_pct) as used_pct, latest(free_gb) as free_gb by pool\n| where used_pct>80\n| sort - used_pct",
-  "description": "Watches your NAS pools for filling disks and flags any above a safe threshold before a full pool corrupts downloads or stops backups.",
-  "value": "A full storage pool is one of the fastest ways to break a home lab; an early warning gives you time to prune or expand.",
+  "description": "Surfaces UC-25.8.1 for Home, Lab, Disk, Space, Runway over `index=personal` sourcetype `truenas:pool` with thresholds `used_pct` > 80. Groups `count` by `pool` each `the scheduled window`. Centered on Space Runway indicators. Supports repeatable personal triage for 'Home Lab Disk Space Runway'.",
+  "value": "For 'Home Lab Disk Space Runway', UC-25.8.1 converts `activity` on `truenas:pool` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Forward TrueNAS/Synology pool stats; schedule hourly and alert when a pool crosses your capacity threshold.",
   "visualization": "Table of pools by used percentage with a runway estimate.",
   "cimModels": [],
   "references": [
     {
       "title": "TrueNAS — Documentation Hub",
-      "url": "https://www.truenas.com/docs/"
+      "url": "https://www.truenas.com/docs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.8.1)** — Connector for 'Home Lab Disk Space Runway' stops polling `truenas:pool`; stale `count` on `pool` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.8.1, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `truenas:pool`. Dedup with `stats latest(*) by pool`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `used_pct` > 80 for 'Home Lab Disk Space Runway'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "docker",
     "proxmox",
@@ -36,5 +55,12 @@
   "equipmentModels": [
     "snmp_ups"
   ],
-  "grandmaExplanation": "It warns you when the storage in your home server is filling up, before it gets full and things break."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Home Lab & Self-Hosting — typical feeds: Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), Raspberry Pi host metrics, UPS status via NUT (`nut:ups`)..\n• **Sourcetypes in this search**: `truenas:pool`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=truenas:pool`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC..\n\n**Author notes:** Forward TrueNAS/Synology pool stats; schedule hourly and alert when a pool crosses your capacity threshold.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"truenas:pool\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=truenas:pool earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Home Lab Disk Space Runway** over `personal` data (primarily `sourcetype=truenas:pool`) across the full search range. It applies numeric thresholds on `used_pct` (> 80) after latest — tune these constants to your household baseline.\n\n**Fields this search depends on:** `pool`, `used_pct`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=truenas:pool\n| stats latest(used_pct) as used_pct, latest(free_gb) as free_gb by pool\n| where used_pct>80\n| sort - used_pct\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=truenas:pool earliest=-7d\n| head 50\n| table pool, used_pct\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=truenas:pool earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `used_pct` before alerting:\n\n```spl\nindex=personal sourcetype=truenas:pool earliest=-30d\n| stats perc50(used_pct) AS p50 perc90(used_pct) AS p90 perc99(used_pct) AS p99 max(used_pct) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.8.1: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Pools By Used Percentage With A Runway Estimate (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `truenas:pool` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=truenas:pool | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It warns you when the storage in your home server is filling up, before it gets full and things break.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

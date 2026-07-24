@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`rs.status()` members[].`stateStr`, `name`, `health`, `optimeDate` (JSON export)",
-  "app": "mongosh scripted input, MongoDB Atlas metrics API forwarded to Splunk, or DB Connect export",
+  "exclusions": "Covers the detection logic documented for 'MongoDB Replica Set Member State Degradation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_mongodb_replica_set_member_state_degradation` (UC-7.2.27), SOC dashboard panel \"Operations — MongoDB Replica Set Member State Degradation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.2.27 positive (MongoDB, Replica, Set, Member, State): ingest synthetic events into `index=database` sourcetype='mongodb:rs_status' where `count` grouped by `name`, `set_name`, `host` satisfies detection threshold for 'MongoDB Replica Set Member State Degradation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.2.27 negative (State Degradation): ingest benign `database` / `mongodb:rs_status` events where `name`, `set_name`, `host` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'MongoDB Replica Set Member State Degradation'."
+  },
+  "dataSources": "`rs.status()` members[].`stateStr`, `name`, `health`, `optimeDate` (JSON export) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "mongosh scripted input, MongoDB Atlas metrics API forwarded to Splunk, or DB Connect export — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"mongodb:rs_status\"\n| where stateStr IN (\"STARTUP\",\"STARTUP2\",\"RECOVERING\",\"ROLLBACK\",\"DOWN\",\"UNKNOWN\") OR health==0 OR health==\"0\"\n| stats latest(stateStr) as state latest(health) as health by name, set_name, host\n| sort state",
-  "description": "Replica set members not in PRIMARY or SECONDARY healthy states indicate elections, sync loss, or network partitions—core MongoDB availability monitoring.",
-  "value": "Shortens downtime by detecting bad member states before application drivers exhaust their server selection timeouts.",
+  "description": "Detects UC-7.2.27 — MongoDB, Replica, Set, Member, State — using `index=database` sourcetype `mongodb:rs_status`, grouped by `name`, `set_name`, `host`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: State Degradation. Purpose-built for 'MongoDB Replica Set Member State Degradation' in Operations workflows.",
+  "value": "UC-7.2.27 accelerates insight into State Degradation ('MongoDB Replica Set Member State Degradation') by tracking `activity` on `mongodb:rs_status` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Poll rs.status() every 30–60s from a monitoring user. Normalize stateStr and health booleans. Suppress alerts during planned step-downs using change calendar. Track optime lag between primary and secondaries in a companion panel.",
   "visualization": "Table (member, state, health), Timeline (state changes), Single value (degraded members).",
   "cimModels": [
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "MongoDB Replica Set Member States",
-      "url": "https://www.mongodb.com/docs/manual/reference/replica-states/"
+      "url": "https://www.mongodb.com/docs/manual/reference/replica-states/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned failovers, network maintenance, or heavy bulk replication can extend lag for a time without an outage; align the alert with the DR runbook and change window.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.2.27)** — Planned work for 'MongoDB Replica Set Member State Degradation' shifts `count` over `span=1h` while `name`, `set_name`, `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `mongodb:rs_status`** — Scheduled automation elevates `set_name` without crossing configured threshold for UC-7.2.27. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `name`, `set_name`, `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mongodb:rs_status`** — First 48h baseline for UC-7.2.27 on `name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "mongodb"
@@ -39,5 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We follow MongoDB operations, replication, and resource usage so we can keep queries and writes reliable as sharding and data volume grow."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (mongosh scripted input, MongoDB Atlas metrics API forwarded to Splunk, or DB Connect export — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=mongodb:rs_status into database. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, name, set_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We follow MongoDB operations, replication, and resource usage so we can keep queries and writes reliable as sharding and data volume grow.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

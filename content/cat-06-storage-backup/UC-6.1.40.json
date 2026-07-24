@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Dell EMC PowerMax RDF/A Replication Lag' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_dell_emc_powermax_rdf_a_replication_lag` (UC-6.1.40), SOC dashboard panel \"Operations — Dell EMC PowerMax RDF/A Replication Lag\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.1.40 positive (Dell, EMC, PowerMax, RDF, Replication): ingest synthetic events into `index=storage` sourcetype='dellemc:vmax:rest' where `count` grouped by `array_id`, `rdf_group_name` satisfies `lag_sec` > 300 for 'Dell EMC PowerMax RDF/A Replication Lag'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.1.40 negative (Replication Lag): ingest benign `storage` / `dellemc:vmax:rest` events where `array_id`, `rdf_group_name` stays below `lag_sec` > 300, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Dell EMC PowerMax RDF/A Replication Lag'."
+  },
   "dataSources": "Unisphere for PowerMax REST metrics ingested as `sourcetype=dellemc:vmax:rest` with RDF/A group performance enabled",
   "app": "Dell EMC PowerMax Add-on for Splunk (Splunkbase 3416)",
   "spl": "index=storage sourcetype=\"dellemc:vmax:rest\" r1_r2_lag_time=*\n| stats latest(r1_r2_lag_time) as lag_sec by array_id rdf_group_name\n| where lag_sec > 300\n| eval lag_min=round(lag_sec/60,1)\n| sort - lag_sec",
-  "description": "`r1_r2_lag_time` tracks how far asynchronous RDF mirrors fall behind; sustained lag breaches RPO commitments for mainframe and open-systems DR pairs on PowerMax.",
-  "value": "Surfaces WAN compression issues, RDF director faults, or workload spikes before remote sites are too stale for failover approvals.",
+  "description": "Monitors Replication Lag activity in UC-6.1.40 ('Dell EMC PowerMax RDF/A Replication Lag') from `index=storage` sourcetype `dellemc:vmax:rest`. Rolls up `count` by `array_id`, `rdf_group_name` across `the scheduled window` and pages when `lag_sec` > 300. Covers Dell, EMC, PowerMax, RDF, Replication. Operations operators treat UC-6.1.40 as the canonical signal.",
+  "value": "Operators running UC-6.1.40 on `dellemc:vmax:rest` feeds shorten triage for Replication Lag tied to 'Dell EMC PowerMax RDF/A Replication Lag', lowering operational risk and delayed incident response.",
   "implementation": "In the TA input, enable RDF Group (or RDF/A) KPI/custom metrics including `R1_R2_Lag_Time`. Confirm events include `reporting_level` and `array_id`. Set thresholds from the business RPO (e.g., 5 minutes warn, 15 minutes critical) and exclude maintenance windows with a lookup.",
   "visualization": "Line chart (lag trend), table (RDF group, lag minutes), single value (worst lag).",
   "cimModels": [
@@ -22,16 +28,31 @@
   "references": [
     {
       "title": "Dell EMC PowerMax Add-on for Splunk (Splunkbase)",
-      "url": "https://splunkbase.splunk.com/app/3416"
+      "url": "https://splunkbase.splunk.com/app/3416",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "PowerMax for Splunk — configuration (sourcetype dellemc:vmax:rest)",
-      "url": "https://powermax-for-splunk.readthedocs.io/en/stable/configuration.html"
+      "url": "https://powermax-for-splunk.readthedocs.io/en/stable/configuration.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Lag may increase during initial baseline transfers, scheduled resyncs, large volume moves, or upstream throttling.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.1.40)** — Planned work for 'Dell EMC PowerMax RDF/A Replication Lag' shifts `count` over `span=1h` while `array_id`, `rdf_group_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `dellemc:vmax:rest`** — Scheduled automation elevates `rdf_group_name` without crossing `lag_sec` > 300 for UC-6.1.40. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `array_id`, `rdf_group_name`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dellemc:vmax:rest`** — First 48h baseline for UC-6.1.40 on `array_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `array_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "dell_emc"
+  ],
+  "equipmentModels": [
+    "dell_emc_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -40,5 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We track copy and mirror health so a planned outage or a bad link does not leave you with an old or broken remote copy when you need it most."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Dell EMC PowerMax Add-on for Splunk (Splunkbase 3416)). Enable the modular input or HEC token that writes sourcetype=dellemc:vmax:rest into storage. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`array_id, lag_sec, rdf_group_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We track copy and mirror health so a planned outage or a bad link does not leave you with an old or broken remote copy when you need it most.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,25 +9,43 @@
     "Performance"
   ],
   "splunkPillar": "Platform",
+  "exclusions": "Covers the detection logic documented for 'Infoblox Grid Replication Lag Timestamps and Member Queue Signals (Infoblox)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_infoblox_grid_replication_lag_timestamps_and_mem` (UC-5.15.7), SOC dashboard panel \"Operations — Infoblox Grid Replication Lag Timestamps and Member Queue Signals (Infoblox)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.15.7 positive (Infoblox, Grid, Replication, Lag, Timestamps): ingest synthetic events into `index=netops` sourcetype='infoblox:audit' where `max_lag_ms` grouped by `member`, `host` satisfies `lag_value` > 30000 for 'Infoblox Grid Replication Lag Timestamps and Member Queue Signals (Infoblox)'. Validate filter `(replication OR sync OR \"grid replication\" OR lag OR delayed`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.15.7 negative (Signals (Infoblox)): ingest benign `netops` / `infoblox:audit` events where `member`, `host` stays below `lag_value` > 30000, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'Infoblox Grid Replication Lag Timestamps and Member Queue Signals (Infoblox)'."
+  },
   "dataSources": "`index=netops` `sourcetype=infoblox:audit` Grid replication notices mentioning lag, queue depth, serial divergence; optionally SNMP polled metrics forwarded separately—this UC focuses on syslog-derived latency phrases and timestamps emitted by NIOS 8.4+.",
   "app": "Splunk Add-on for Infoblox (Splunk_TA_infoblox, Splunkbase 2934)",
   "spl": "index=netops sourcetype=\"infoblox:audit\" earliest=-6h\n| search (replication OR sync OR \"grid replication\" OR lag OR delayed OR queue OR backlog)\n| rex field=_raw \"(?i)(?:(\\\\d+)\\\\s*(?:ms|sec|second)|lag[^0-9]{0,12}(?<lag_value>\\\\d+))\"\n| rex field=_raw \"(?i)member[\\\\s:=]+(?<member>[^\\\\s,;]+)\"\n| eval severity=case(isnotnull(lag_value) AND lag_value>30000, \"critical\", match(_raw,\"(?i)fail|error|disconnect\"), \"critical\", match(_raw,\"(?i)warn|slow\"), \"warning\", 1==1, \"info\")\n| stats latest(_time) as last_seen values(severity) as sev max(lag_value) as max_lag_ms values(_raw) as samples by member host\n| sort - max_lag_ms",
-  "description": "This monitoring pattern extracts quantitative lag hints and qualitative backlog phrases from Infoblox audit feeds so operators spot replication delays earlier than GUI-only polling across stretched grids.",
-  "value": "Platform reliability teams reduce split-configuration windows that silently strand DHCP reservations or RPZ updates on isolated members, preserving consistent policy enforcement during WAN impairment.",
+  "description": "Monitors UC-5.15.7 — Infoblox, Grid, Replication, Lag, Timestamps — using `index=netops` sourcetype `infoblox:audit`, grouped by `member`, `host`. Outputs `max_lag_ms` each `the scheduled window`; alert when `lag_value` > 30000. Filter chain includes filter `(replication OR sync OR \"grid replication\" OR lag OR delayed`. Purpose-built for 'Infoblox Grid Replication Lag Timestamps and Member Queue Signals (Infoblox)' in Operations workflows.",
+  "value": "Operators running UC-5.15.7 on `infoblox:audit` feeds shorten triage for Signals (Infoblox) tied to 'Infoblox Grid Replication Lag Timestamps and Member Queue Signals (Infoblox)', lowering operational risk and delayed incident response.",
   "implementation": "Broaden audit syslog severity to capture informational replication telemetry, normalize member identifiers, parse numeric delays when present, correlate with UC‑5.15.3 dashboards, page when lag crosses WAN-adjusted SLOs.",
   "visualization": "Timeline of replication warnings, table (member, max_lag_ms, last_seen), single-value tiles for members exceeding SLA.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk Documentation — Sourcetypes for the Splunk Add-on for Infoblox",
-      "url": "https://docs.splunk.com/Documentation/AddOns/released/Infoblox/Sourcetypes"
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/Infoblox/Sourcetypes",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Infoblox NIOS — Grid replication",
-      "url": "https://docs.infoblox.com/"
+      "url": "https://docs.infoblox.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Planned upgrades:** Rolling restart chatter resembles lag—suppress via maintenance lookup.**Large IXFR bursts:** Temporary backlog messages occur during legitimate bulk DNS pushes.**Regex false captures:** Random numbers in unrelated tokens may populate `lag_value` until patterns tightened.",
+  "knownFalsePositives": "1. **Maintenance window on `netops` (UC-5.15.7)** — Planned work for 'Infoblox Grid Replication Lag Timestamps and Member Queue Signals (Infoblox)' shifts `max_lag_ms` over `span=1h` while `member`, `host` remains in-scope. Applies filter `(replication OR sync OR \"grid replication\" OR lag OR delayed`. Cross-check CMDB CHG.\n\n2. **Batch `values` on `infoblox:audit`** — Scheduled automation elevates `host` without crossing `lag_value` > 30000 for UC-5.15.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `member`, `host`** — Health checks in `netops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `infoblox:audit`** — First 48h baseline for UC-5.15.7 on `member` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `member`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "infoblox",
@@ -45,7 +63,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Audit syslog from Grid Master plus remote members as feasible.\n• Documented baseline phrases per NIOS patch level—regex tuning inevitable.\n• Network RTT context per site for interpreting lag magnitudes.\n\nStep 1 — Configure data collection\nMirror Step 1 from UC‑5.15.3 while ensuring TCP syslog for loss-sensitive bursts during massive zone pushes.\n\nStep 2 — Create the search and alert\nLayer numeric extraction (`lag_value`) atop keyword searches; pair with `transaction` spanning member pairs if logs include sequence IDs. Trigger alerts when `max_lag_ms` exceeds tiered thresholds.\n\nStep 3 — Validate\nDuring maintenance windows, inject controlled delay (rate-limit lab link) and confirm Splunk surfaces escalating lag strings consistent with Infoblox CLI `show replication` trends.\n\nStep 4 — Operationalize\nTimeline visualization annotated with WAN faults, integration with ITSI episodes including downstream DNS KPIs.\n\nStep 5 — Troubleshooting\n**Missing numeric tokens:** rely on severity keywords until SNMP overlay exists.**Clock skew:** reconcile NTP before trusting millisecond parses.**Verbose audits:** throttle benign informational floods via allowlists.",
+  "detailedImplementation": "Prerequisites\n• Audit syslog from Grid Master plus remote members as feasible.\n• Documented baseline phrases per NIOS patch level—regex tuning inevitable.\n• Network RTT context per site for interpreting lag magnitudes.\n\nStep 1 — Configure data collection\nMirror Step 1 from UC‑5.15.3 while ensuring TCP syslog for loss-sensitive bursts during massive zone pushes.\n\nStep 2 — Create the search and alert\nLayer numeric extraction (`lag_value`) atop keyword searches; pair with `transaction` spanning member pairs if logs include sequence IDs. Trigger alerts when `max_lag_ms` exceeds tiered thresholds.\n\nStep 3 — Validate\nDuring maintenance windows, inject controlled delay (rate-limit lab link) and confirm Splunk surfaces escalating lag strings consistent with Infoblox CLI `show replication` trends.\n\nStep 4 — Operationalize\nTimeline visualization annotated with WAN faults, integration with ITSI episodes including downstream DNS KPIs.\n\nStep 5 — Troubleshooting\n**Missing numeric tokens:** rely on severity keywords until SNMP overlay exists.**Clock skew:** reconcile NTP before trusting millisecond parses.**Verbose audits:** throttle benign informational floods via allowlists.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Infoblox (Splunk_TA_infoblox, Splunkbase 2934)). Enable the modular input or HEC token that writes sourcetype=infoblox:audit into netops. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, lag_value, member, severity`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We read the machines’ own diary entries about being slow to share updates, so every office keeps the same network rules instead of drifting apart quietly.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

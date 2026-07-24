@@ -9,11 +9,17 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`db.currentOp({\"command.createIndexes\": {$exists: true}})` snapshots ingested as `mongodb:currentop`",
-  "app": "Splunk Add-on for MongoDB or custom scripted input polling `currentOp` every 30–60s",
+  "exclusions": "Covers the detection logic documented for 'MongoDB Index Build Progress via CurrentOp' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_mongodb_index_build_progress_via_currentop` (UC-7.1.52), SOC dashboard panel \"Operations — MongoDB Index Build Progress via CurrentOp\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.1.52 positive (MongoDB, Index, Build, Progress, via): ingest synthetic events into `index=database` sourcetype='mongodb:currentop' where `count` grouped by `entity` satisfies `total` > 0, `pct` < 95, or `secs_running` > 900 for 'MongoDB Index Build Progress via CurrentOp'. Validate filter `op=\"command\" AND match(_raw,\"createIndexes\")`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.52 negative (via CurrentOp): ingest benign `database` / `mongodb:currentop` events where `entity` stays below `total` > 0, `pct` < 95, or `secs_running` > 900, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'MongoDB Index Build Progress via CurrentOp'."
+  },
+  "dataSources": "`db.currentOp({\"command.createIndexes\": {$exists: true}})` snapshots ingested as `mongodb:currentop` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for MongoDB or custom scripted input polling `currentOp` every 30–60s — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"mongodb:currentop\"\n| search op=\"command\" AND match(_raw,\"createIndexes\")\n| eval done=tonumber(mvindex('progress.done',0))\n| eval total=tonumber(mvindex('progress.total',0))\n| eval pct=if(total>0, round(100*done/total,1), null())\n| where isnotnull(pct) AND pct < 95 AND secs_running > 900\n| table _time, host, ns, secs_running, pct, opid",
-  "description": "Long-running index builds with stalled `progress` fields tie up resources and can block deployments or maintenance. Watching `progress.done` versus `progress.total` alongside runtime distinguishes healthy long builds from stuck operations before they overlap peak traffic.",
-  "value": "Reduces the chance of surprise storage and CPU saturation during change windows and helps DBAs decide when to kill or reschedule a build.",
+  "description": "Alerts on risk tied to MongoDB, Index, Build, Progress, via through UC-7.1.52 on `index=database` sourcetype `mongodb:currentop`. Summarises `count` grouped by `entity` across `the scheduled window` before applying `total` > 0, `pct` < 95, or `secs_running` > 900. Operators tune 'MongoDB Index Build Progress via CurrentOp' using UC-7.1.52 runbook steps.",
+  "value": "Tracking `activity` via UC-7.1.52 on `mongodb:currentop` feeds improves response to 'MongoDB Index Build Progress via CurrentOp' and reduces operational risk and delayed incident response.",
   "implementation": "Poll `currentOp` via mongosh or the TA’s operational input; flatten `progress.done`, `progress.total`, `secs_running`, `ns`, and `opid` into indexed fields in `props.conf` (KV/JSON extraction). Exclude `idleSessionTimeout` noise. Dashboard with threshold: runtime >15m and completion <95%. Alert only outside approved maintenance if builds are rare in production.",
   "visualization": "Bar chart (pct complete by opid), Table (ns, secs_running, pct), Line chart (pct over time per opid).",
   "cimModels": [
@@ -22,14 +28,26 @@
   "references": [
     {
       "title": "MongoDB — currentOp",
-      "url": "https://www.mongodb.com/docs/manual/reference/command/currentOp/"
+      "url": "https://www.mongodb.com/docs/manual/reference/command/currentOp/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "MongoDB — index builds",
-      "url": "https://www.mongodb.com/docs/manual/core/index-creation/"
+      "url": "https://www.mongodb.com/docs/manual/core/index-creation/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Maintenance work (ANALYZE, VACUUM, REINDEX, index builds) and ETL or large report jobs may show up as long-running or blocking — compare with the maintenance and batch schedule.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.1.52)** — Planned work for 'MongoDB Index Build Progress via CurrentOp' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `op=\"command\" AND match(_raw,\"createIndexes\")`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `mongodb:currentop`** — Scheduled automation elevates `done` without crossing `total` > 0 for UC-7.1.52. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mongodb:currentop`** — First 48h baseline for UC-7.1.52 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "mongodb"
   ],
@@ -43,5 +61,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We surface slow and blocking queries so we can fix the worst offenders first and keep applications and batch jobs within the response times we promise."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for MongoDB or custom scripted input polling `currentOp` every 30–60s — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=mongodb:currentop into database. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`pct, secs_running, total`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We surface slow and blocking queries so we can fix the worst offenders first and keep applications and batch jobs within the response times we promise.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

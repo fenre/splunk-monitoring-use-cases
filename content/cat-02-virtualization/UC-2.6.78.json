@@ -10,11 +10,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=xd` `sourcetype=\"citrix:session:recording:server\"` (service up, IIS app pool, admin API), `sourcetype=\"citrix:session:recording:storage\"` (free space, file age), `sourcetype=\"citrix:session:recording:search\"` (indexing lag, playback requests); Windows performance or `sourcetype=WinHostMon` for disk Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf.",
-  "app": "No official Splunk TA for Citrix Session Recording. Ingest via Windows Event Logs from the Session Recording Server (Splunk Add-on for Microsoft Windows), IIS logs from the SR web player, and optionally SR database queries via Splunk DB Connect.",
+  "exclusions": "Covers the detection logic documented for 'Citrix Session Recording Pipeline and Storage Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_citrix_session_recording_pipeline_and_storage_he` (UC-2.6.78), SOC dashboard panel \"Linux — Citrix Session Recording Pipeline and Storage Health\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.6.78 positive (Citrix, Session, Recording, Pipeline, and): ingest synthetic events into `index=xd` sourcetype='citrix:session:recording:server' where `risk_disk`, `max_lag`, `down_ev` grouped by `_time`, `host` satisfies `max_lag` > 300 for 'Citrix Session Recording Pipeline and Storage Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.6.78 negative (Storage Health): ingest benign `xd` / `citrix:session:recording:server` events where `_time`, `host` stays below `max_lag` > 300, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 12 confirms zero alert rows for 'Citrix Session Recording Pipeline and Storage Health'."
+  },
+  "dataSources": "`index=xd` `sourcetype=\"citrix:session:recording:server\"` (service up, IIS app pool, admin API), `sourcetype=\"citrix:session:recording:storage\"` (free space, file age), `sourcetype=\"citrix:session:recording:search\"` (indexing lag, playback requests); Windows performance or `sourcetype=WinHostMon` for disk Note: field names in SPL are suggested conventions for custom ingestion; actual field names depend on your parsing configuration in props.conf/transforms.conf. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "No official Splunk TA for Citrix Session Recording. Ingest via Windows Event Logs from the Session Recording Server (Splunk Add-on for Microsoft Windows), IIS logs from the SR web player, and optionally SR database queries via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=xd (sourcetype=\"citrix:session:recording:server\" OR sourcetype=\"citrix:session:recording:storage\" OR sourcetype=\"citrix:session:recording:search\") earliest=-24h\n| eval g=tonumber(free_gb), low_disk=if((isnotnull(g) AND g<10) OR match(_raw, \"(?i)low.?space|disk.?full\"),1,0), lag_sec=tonumber(index_lag_sec), down=if(match(_raw, \"(?i)service.?(not.?(start|run)|down|stop|fail)\"),1,0)\n| bin _time span=5m\n| stats max(low_disk) as risk_disk, max(lag_sec) as max_lag, max(down) as down_ev by _time, host\n| where risk_disk=1 OR max_lag>300 OR down_ev=1\n| table _time, host, risk_disk, max_lag, down_ev",
-  "description": "Session recording is often a compliance and insider-risk control. The recording service, search index, and long-term file storage must be healthy, searchable within agreed latency, and large enough to retain evidence. Failures in any tier create a gap where activity is not provable even though policy requires recording. Monitoring capacity and playback availability closes that gap operationally and for audits.",
-  "value": "Session recording is often a compliance and insider-risk control. The recording service, search index, and long-term file storage must be healthy, searchable within agreed latency, and large enough to retain evidence. Failures in any tier create a gap where activity is not provable even though policy requires recording. Monitoring capacity and playback availability closes that gap operationally and for audits.",
+  "description": "Identifies UC-2.6.78 — Citrix, Session, Recording, Pipeline, and — using `index=xd` sourcetype `citrix:session:recording:server`, grouped by `_time`, `host`. Outputs `risk_disk`, `max_lag`, `down_ev` each `5m`; alert when `max_lag` > 300. Primary focus: Storage Health. Purpose-built for 'Citrix Session Recording Pipeline and Storage Health' in Linux workflows.",
+  "value": "Tracking `risk_disk`, `max_lag`, `down_ev` via UC-2.6.78 on `citrix:session:recording:server` feeds improves response to 'Citrix Session Recording Pipeline and Storage Health' and reduces capacity incidents, patch regressions, and service outages.",
   "implementation": "Separate alerts: infrastructure (service down, disk, SQL), pipeline lag (ingest to searchable), and product errors on playback. Plan retention tiering: hot, warm, and archive. Test restore and playback quarterly. If storage is object-backed, add bucket health and cost monitors outside Splunk and link the dashboard here.",
   "visualization": "Gauges: free space and index lag; timeline: down events; table: last successful backup or archive job per site if logged.",
   "cimModels": [
@@ -23,10 +29,26 @@
   "references": [
     {
       "title": "Citrix — Session Recording architecture and storage",
-      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/"
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Session and launch time spikes may track image updates, profile migrations, or broker outages; compare to the same app on other sites before blaming the network only.",
+  "knownFalsePositives": "1. **Patch Tuesday on `xd`** — Package managers spike `_time` metrics for 'Citrix Session Recording Pipeline and Storage Health'. Correlate with apt/yum logs in the same `citrix:session:recording:server` window.\n\n2. **Nightly backup I/O on `_time`** — Predictable `max` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `citrix:session:recording:server`** — Nagios/Zabbix polls `_time` and mimics sustained load without crossing `max_lag` > 300.\n\n4. **New host onboarding** — `_time` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `_time`, `valid_until`.",
   "mitreAttack": [
     "T1562"
   ],
@@ -35,7 +57,18 @@
     "db_connect",
     "iis"
   ],
+  "equipmentModels": [
+    "citrix_generic",
+    "db_connect_generic",
+    "iis_generic"
+  ],
   "lastReviewed": "2026-04-24",
-  "detailedImplementation": "Prerequisites: Centralized Windows or platform logs and disk metrics from the Session Recording cluster; agreed max search delay (SLO) from compliance. Step 1: Configure data collection — Install forwarders on each recording node; props.conf stanzas [citrix:session:recording:server], [citrix:session:recording:storage], [citrix:session:recording:search] with EXTRACT for free_gb, index_lag_sec, and service state; tag host with site in a lookup session_recording_site_map.csv. Step 2: Create the search and alert — Severe: service down for two poll cycles; warning: free space <20% for one hour or index_lag>300s (tune to your SLO, starting stricter and relaxing after baseline). Step 3: Validate — After a controlled load test, run `index=xd (sourcetype=\"citrix:session:recording:*\") earliest=-2h | stats max(index_lag_sec) as lag, min(free_gb) as disk by host` and compare to the SR admin console. Step 4: Operationalize — Add to the compliance control pack with owner sign-off; if evidence gaps or lag persist, escalate to Citrix Session Recording and storage administrators.",
-  "grandmaExplanation": "We keep an eye on session Recording Pipeline and Storage Health and raise the alarm before it drags down real work or real outages start."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites: Centralized Windows or platform logs and disk metrics from the Session Recording cluster; agreed max search delay (SLO) from compliance. Step 1: Configure data collection — Install forwarders on each recording node; props.conf stanzas [citrix:session:recording:server], [citrix:session:recording:storage], [citrix:session:recording:search] with EXTRACT for free_gb, index_lag_sec, and service state; tag host with site in a lookup session_recording_site_map.csv. Step 2: Create the search and alert — Severe: service down for two poll cycles; warning: free space <20% for one hour or index_lag>300s (tune to your SLO, starting stricter and relaxing after baseline). Step 3: Validate — After a controlled load test, run `index=xd (sourcetype=\"citrix:session:recording:*\") earliest=-2h | stats max(index_lag_sec) as lag, min(free_gb) as disk by host` and compare to the SR admin console. Step 4: Operationalize — Add to the compliance control pack with owner sign-off; if evidence gaps or lag persist, escalate to Citrix Session Recording and storage administrators.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (No official Splunk TA for Citrix Session Recording. Ingest via Windows Event Logs from the Session Recording Server (Splunk Add-on for Microsoft Windows), IIS logs from the SR web player, and optionally SR database queries via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=citrix:session:recording:server, citrix:session:recording:storage, citrix:session:recording:search into xd. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, host, max_lag`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We keep an eye on session Recording Pipeline and Storage Health and raise the alarm before it drags down real work or real outages start.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

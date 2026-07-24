@@ -8,21 +8,43 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=snmp:interface`",
-  "app": "SNMP Modular Input, IF-MIB, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog",
+  "exclusions": "Covers the detection logic documented for 'Interface Error Rates' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_interface_error_rates` (UC-5.1.2), SOC dashboard panel \"Operations — Interface Error Rates\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.1.2 positive (Interface, Error, Rates): ingest synthetic events into `index=network` sourcetype='snmp:interface' where `count` grouped by `host`, `ifDescr` satisfies `delta` > 0 for 'Interface Error Rates'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.1.2 negative (Error Rates): ingest benign `network` / `snmp:interface` events where `host`, `ifDescr` stays below `delta` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Interface Error Rates'."
+  },
+  "dataSources": "`sourcetype=snmp:interface` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "SNMP Modular Input, IF-MIB, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"snmp:interface\"\n| streamstats current=f last(ifInErrors) as prev by host, ifDescr\n| eval delta = ifInErrors - prev | where delta > 0\n| table _time host ifDescr delta",
-  "description": "CRC errors, drops indicate cabling, transceiver, or duplex issues.",
-  "value": "Operations teams track interface error rates (CRC, input/output errors, discards) as delta counters to detect physical layer degradation and congestion before they cause outages.",
+  "description": "Identifies UC-5.1.2 — Interface, Error, Rates — using `index=network` sourcetype `snmp:interface`, grouped by `host`, `ifDescr`. Outputs `count` each `the scheduled window`; alert when `delta` > 0. Primary focus: Error Rates. Purpose-built for 'Interface Error Rates' in Operations workflows.",
+  "value": "UC-5.1.2 operationalises 'Interface Error Rates' against `snmp:interface` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Poll IF-MIB (ifInErrors, ifOutErrors, ifInDiscards) at 300s. Use `streamstats` for delta. Alert on increasing counts.",
   "visualization": "Line chart (error rate), Table, Heatmap across devices.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Brief error increments during transceiver replacement, software upgrades, or known-noisy access segments can look like a fault. Baseline by interface role before paging.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.1.2)** — Planned work for 'Interface Error Rates' shifts `count` over `span=1h` while `host`, `ifDescr` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `snmp:interface`** — Scheduled automation elevates `ifDescr` without crossing `delta` > 0 for UC-5.1.2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `ifDescr`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:interface`** — First 48h baseline for UC-5.1.2 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "snmp",
@@ -31,6 +53,10 @@
   "equipmentModels": [
     "cisco_ios",
     "snmp_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     {
@@ -41,5 +67,7 @@
   ],
   "detailedImplementation": "Prerequisites\n* SNMP polling or syslog data with interface error counters. Data in `index=network` with `sourcetype=cisco:ios`, SNMP MIB data, or `sourcetype=perfmon:network`. Key fields: `ifInErrors`, `ifOutErrors`, `ifInDiscards`, `ifOutDiscards`, `ifCRCErrors`, `interface`, `host`.\n* Interface errors: CRC errors (bad cable/optics), input errors (frame errors, runts, giants), output errors (collisions, late collisions), discards (buffer overflow, QoS policy drops). Non-zero and increasing error counters indicate physical layer problems or congestion.\n\nStep 1 -- Configure data collection\n```\n# SNMP polling via Splunk Add-on for SNMP or SC4SNMP\n# Poll IF-MIB counters every 5 minutes:\n# ifInErrors (.1.3.6.1.2.1.2.2.1.14)\n# ifOutErrors (.1.3.6.1.2.1.2.2.1.20)\n# ifInDiscards (.1.3.6.1.2.1.2.2.1.13)\n# ifOutDiscards (.1.3.6.1.2.1.2.2.1.19)\n\n# inputs.conf (SNMP poller)\n[snmp_interface_errors]\ninterval = 300\nsourcetype = snmp:interface:errors\nindex = network\n```\nVerify:\n```spl\nindex=network sourcetype=\"snmp:interface:errors\" earliest=-1h\n| stats latest(ifInErrors) latest(ifOutErrors) by host, ifName\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Interface error rate trending:**\n```spl\nindex=network earliest=-4h\n| eval in_errors=tonumber(coalesce(ifInErrors, input_errors, in_errors))\n| eval out_errors=tonumber(coalesce(ifOutErrors, output_errors, out_errors))\n| eval in_discards=tonumber(coalesce(ifInDiscards, input_discards))\n| eval out_discards=tonumber(coalesce(ifOutDiscards, output_discards))\n| eval interface=coalesce(ifName, interface, port)\n| eval device=coalesce(host, device_name)\n| bin _time span=5m\n| stats latest(in_errors) as in_err latest(out_errors) as out_err latest(in_discards) as in_disc latest(out_discards) as out_disc by _time, device, interface\n| sort device, interface, _time\n| streamstats current=f last(in_err) as prev_in_err last(out_err) as prev_out_err last(in_disc) as prev_in_disc last(out_disc) as prev_out_disc by device, interface\n| eval delta_in_err=in_err - prev_in_err\n| eval delta_out_err=out_err - prev_out_err\n| eval delta_in_disc=in_disc - prev_in_disc\n| eval delta_out_disc=out_disc - prev_out_disc\n| eval total_delta=delta_in_err + delta_out_err + delta_in_disc + delta_out_disc\n| where total_delta > 0\n| eval severity=case(\n    delta_in_err > 100 OR delta_out_err > 100, \"CRITICAL -- high error rate\",\n    total_delta > 50, \"WARNING -- elevated errors/discards\",\n    total_delta > 10, \"INFO -- low-level errors detected\",\n    1==1, \"OK\")\n| where severity != \"OK\"\n| table _time, device, interface, delta_in_err, delta_out_err, delta_in_disc, delta_out_disc, severity\n| sort severity, -total_delta\n```\n\nStep 3 -- Validate\n(a) CLI: `show interface <intf>` -- check error counter details (CRC, frame, overrun, underrun).\n(b) Compare SNMP counter deltas with syslog error messages.\n(c) Check optics: `show interface transceiver` for light level issues.\n\nStep 4 -- Operationalize\nDashboard (\"Network -- Interface Errors\"):\n* Row 1 -- Single-value: \"Interfaces with errors\", \"Total error delta (4h)\".\n* Row 2 -- Error rate timechart by interface.\n* Row 3 -- Top error interfaces table.\n\nAlert: Critical (>100 errors/5min on critical interface): physical layer investigation.\n\nStep 5 -- Troubleshooting\n\n* **CRC errors increasing** -- Bad cable, damaged SFP, or dirty fiber connector. Replace cable/optics. Check `show interface transceiver` for Rx/Tx power levels.\n\n* **Input discards** -- Interface receive buffer overflow. Possible cause: traffic burst exceeding interface speed, or QoS not configured to prioritize critical traffic.\n\n* **Output discards** -- Egress congestion. Interface is oversubscribed. Consider: traffic shaping, QoS, or upgrading link capacity.",
   "grandmaExplanation": "We count interface errors on switches and routers so we can spot bad cables or optics before they become real outages for everyone on that link.",
-  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360"
+  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

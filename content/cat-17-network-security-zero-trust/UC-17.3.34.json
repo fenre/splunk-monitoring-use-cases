@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=netskope:alert` (malware/threat alerts)",
+  "exclusions": "Covers the detection logic documented for 'Netskope Threat Protection Events' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_netskope_threat_protection_events` (UC-17.3.34), SOC dashboard panel \"Network — Netskope Threat Protection Events\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.34 positive (Netskope, Threat, Protection, Events): ingest synthetic events into `index=casb` sourcetype='netskope:alert' where `count` grouped by `alert_type`, `threat_name`, `user`, `app_name` satisfies -24h for 'Netskope Threat Protection Events'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.34 negative (Protection Events): ingest benign `casb` / `netskope:alert` events where `alert_type`, `threat_name`, `user`, `app_name` stays below -24h, or exclude the test entity via `network_exception_register.csv`. Variant 6 confirms zero alert rows for 'Netskope Threat Protection Events'."
+  },
+  "dataSources": "`sourcetype=netskope:alert` (malware/threat alerts) Indexes: casb. Sourcetypes: netskope:alert. Key fields: action, alert_type, app_name, threat_name, user. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Netskope Add-on for Splunk (Splunkbase 3808)",
   "spl": "index=casb sourcetype=\"netskope:alert\" alert_type IN (\"Malware\", \"malsite\", \"Compromised Credential\") earliest=-24h\n| stats count by alert_type, threat_name, user, app_name, action\n| sort -count",
-  "description": "Netskope inspects web and cloud traffic for malware, phishing, and exploits inline. Threat events reveal attack vectors targeting users through sanctioned and unsanctioned cloud apps — a blind spot for traditional perimeter firewalls.",
-  "value": "Security operations teams analyze Netskope threat protection events across malware, phishing, and behavioral anomalies, detecting infected files in cloud storage, active phishing campaigns targeting employees, and UEBA-flagged compromised account behavior.",
+  "description": "Monitors Protection Events anomalies for UC-17.3.34 with window `the scheduled window` on `index=casb` sourcetype `netskope:alert`. Combines `count` by `alert_type`, `threat_name`, `user`, `app_name` and compares against -24h. Mapped to keywords Netskope, Threat, Protection, Events for dashboard routing.",
+  "value": "Alerting on Netskope, Threat, Protection, Events through UC-17.3.34 reduces unauthorized access, segmentation drift, and NAC policy failures by surfacing `activity` early.",
   "implementation": "Configure threat alert iterator. Correlate `threat_name` with threat intel feeds. Alert on any malware block events. Escalate compromised credential alerts immediately. Report on threat type distribution for security posture assessment.",
   "visualization": "Bar chart (threats by type), Table (affected users), Timeline (threat events), Pie chart (threat categories).",
   "cimModels": [],
@@ -21,14 +27,26 @@
   "references": [
     {
       "title": "Netskope Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3808"
+      "url": "https://splunkbase.splunk.com/app/3808",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Malware",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Malware"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Malware",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes from new SaaS rollouts, automated workflows, sanctioned bulk uploads, or M&A integration.",
+  "knownFalsePositives": "1. **Maintenance window on `casb` (UC-17.3.34)** — Planned work for 'Netskope Threat Protection Events' shifts `count` over `span=1h` while `alert_type`, `threat_name`, `user`, `app_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `netskope:alert`** — Scheduled automation elevates `threat_name` without crossing configured threshold for UC-17.3.34. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `alert_type`, `threat_name`, `user`, `app_name`** — Health checks in `casb` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netskope:alert`** — First 48h baseline for UC-17.3.34 on `alert_type` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `alert_type`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1071.001",
     "T1568.002"
@@ -36,7 +54,16 @@
   "equipment": [
     "netskope"
   ],
-  "detailedImplementation": "Prerequisites\n• Netskope threat events in `index=netskope` with `sourcetype=netskope:alerts` or `sourcetype=netskope:events`. Key fields: `alert_type` (malware/phishing/anomaly), `threat_match_field`, `severity`, `malware_name`, `malware_type`, `detection_engine`, `app`, `user`, `file_name`, `action` (alert/block/quarantine).\n• Netskope threat protection includes: anti-malware (file scanning with ML and sandboxing), CTEP (Cloud Threat Exchange), UEBA (user and entity behavior analytics), and phishing detection. Events come from both inline inspection and API-based scanning of cloud storage.\n\nStep 1 — Configure data collection\nVerify threat events:\n```spl\nindex=netskope sourcetype=\"netskope:alerts\" alert_type IN (\"malware\", \"Malware\") earliest=-7d\n| stats count by malware_name, malware_type, action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Threat landscape:\n```spl\nindex=netskope sourcetype=\"netskope:alerts\" earliest=-7d\n| where alert_type IN (\"malware\", \"Malware\", \"phishing\", \"anomaly\")\n| stats count dc(user) as users by alert_type, severity, malware_name, action\n| sort severity, - count\n```\n\nUnderstanding this SPL: Shows the threat landscape across malware, phishing, and behavioral anomalies. Malware detections in cloud storage (API scanning) reveal infected files already uploaded. Inline malware blocks prevent new infections. Phishing detections indicate users being targeted. Anomaly alerts from UEBA indicate unusual behavior patterns.\n\nCloud storage infected files:\n```spl\nindex=netskope sourcetype=\"netskope:alerts\" alert_type IN (\"malware\", \"Malware\") earliest=-30d\n| where isnotnull(app)\n| stats count by app, malware_type, action\n| sort - count\n```\n\nStep 3 — Validate\n(a) Upload an EICAR test file to a Netskope-monitored cloud app. Verify detection.\n(b) In Netskope: Incidents > Malware. Compare with Splunk.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Threat type distribution. Row 2 — Malware by cloud app. Row 3 — Targeted users.\nAlert: Immediate on malware block. Daily digest for anomaly alerts.\n\nRunbook:\n1. **Malware in cloud storage** — Quarantine the file. Notify file owner. Scan shared folders.\n2. **Phishing targeting multiple users** — Active campaign. Alert security team.\n3. **UEBA anomaly** — Investigate user's recent activity for compromise indicators.\n\nStep 5 — Troubleshooting\n• **No malware events** — Threat protection may not be enabled. Check Netskope Real-time Protection > Threat.\n• **Only 'alert' actions, no 'block'** — Threat protection may be in alert-only mode.",
+  "equipmentModels": [
+    "netskope_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Netskope threat events in `index=netskope` with `sourcetype=netskope:alerts` or `sourcetype=netskope:events`. Key fields: `alert_type` (malware/phishing/anomaly), `threat_match_field`, `severity`, `malware_name`, `malware_type`, `detection_engine`, `app`, `user`, `file_name`, `action` (alert/block/quarantine).\n• Netskope threat protection includes: anti-malware (file scanning with ML and sandboxing), CTEP (Cloud Threat Exchange), UEBA (user and entity behavior analytics), and phishing detection. Events come from both inline inspection and API-based scanning of cloud storage.\n\nStep 1 — Configure data collection\nVerify threat events:\n```spl\nindex=netskope sourcetype=\"netskope:alerts\" alert_type IN (\"malware\", \"Malware\") earliest=-7d\n| stats count by malware_name, malware_type, action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Threat landscape:\n```spl\nindex=netskope sourcetype=\"netskope:alerts\" earliest=-7d\n| where alert_type IN (\"malware\", \"Malware\", \"phishing\", \"anomaly\")\n| stats count dc(user) as users by alert_type, severity, malware_name, action\n| sort severity, - count\n```\n\nUnderstanding this SPL: Shows the threat landscape across malware, phishing, and behavioral anomalies. Malware detections in cloud storage (API scanning) reveal infected files already uploaded. Inline malware blocks prevent new infections. Phishing detections indicate users being targeted. Anomaly alerts from UEBA indicate unusual behavior patterns.\n\nCloud storage infected files:\n```spl\nindex=netskope sourcetype=\"netskope:alerts\" alert_type IN (\"malware\", \"Malware\") earliest=-30d\n| where isnotnull(app)\n| stats count by app, malware_type, action\n| sort - count\n```\n\nStep 3 — Validate\n(a) Upload an EICAR test file to a Netskope-monitored cloud app. Verify detection.\n(b) In Netskope: Incidents > Malware. Compare with Splunk.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Threat type distribution. Row 2 — Malware by cloud app. Row 3 — Targeted users.\nAlert: Immediate on malware block. Daily digest for anomaly alerts.\n\nRunbook:\n1. **Malware in cloud storage** — Quarantine the file. Notify file owner. Scan shared folders.\n2. **Phishing targeting multiple users** — Active campaign. Alert security team.\n3. **UEBA anomaly** — Investigate user's recent activity for compromise indicators.\n\nStep 5 — Troubleshooting\n• **No malware events** — Threat protection may not be enabled. Check Netskope Real-time Protection > Threat.\n• **Only 'alert' actions, no 'block'** — Threat protection may be in alert-only mode.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Netskope Add-on for Splunk (Splunkbase 3808)). Enable the modular input or HEC token that writes sourcetype=netskope:alert into casb. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`action, alert_type, app_name, threat_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We scan files in the cloud and web traffic for malware and phishing attacks. When we find a dangerous file already uploaded to our cloud storage, we quarantine it. When we see phishing attacks targeting our people, we alert everyone. And when someone's account starts behaving strangely, we investigate.",
-  "hardware": "Netskope Security Cloud, Netskope Client"
+  "hardware": "Netskope Security Cloud, Netskope Client",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "All existing monitoring indexes (`index=os`, `index=network`, `index=app`, `index=db`), ITSI entity/service model",
-  "app": "Splunk IT Service Intelligence (ITSI), or custom KV Store + scheduled searches",
+  "exclusions": "Covers the detection logic documented for 'Cross-Service Business Process Health Score' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_cross_service_business_process_health_score` (UC-16.3.1), SOC dashboard panel \"Operations — Cross-Service Business Process Health Score\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-16.3.1 positive (Cross, Service, Business, Process, Health): ingest synthetic events into `index=monitoring` sourcetype='target_sourcetype' where `essential_min`, `avg_status` grouped by `process_name`, `_time` satisfies `bpi_score` < 50, or `bpi_score` < 80 for 'Cross-Service Business Process Health Score'. Validate lookup `business_process_components.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.3.1 negative (Health Score): ingest benign `monitoring` / `target_sourcetype` events where `process_name`, `_time` stays below `bpi_score` < 50, or `bpi_score` < 80, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Cross-Service Business Process Health Score'."
+  },
+  "dataSources": "All existing monitoring indexes (`index=os`, `index=network`, `index=app`, `index=db`), ITSI entity/service model Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk IT Service Intelligence (ITSI), or custom KV Store + scheduled searches — Universal Forwarder (Splunkbase 617)",
   "spl": "index=monitoring sourcetype IN (server_health, app_health, db_health, network_health)\n| eval component_status=case(\n    status=\"critical\", 0,\n    status=\"high\",     1,\n    status=\"medium\",   2,\n    status=\"ok\",       3,\n    true(),            3)\n| lookup business_process_components.csv component_name AS service OUTPUT process_name, is_essential\n| stats min(component_status) as essential_min\n       avg(component_status) as avg_status\n  by process_name, _time\n| eval bpi_score=round((avg_status / 3) * 100, 1)\n| eval bpi_state=case(\n    essential_min=0, \"DOWN\",\n    bpi_score < 50,  \"DEGRADED\",\n    bpi_score < 80,  \"AT RISK\",\n    true(),          \"HEALTHY\")\n| table _time, process_name, bpi_score, bpi_state, essential_min",
-  "description": "Individual component alerts do not communicate business impact. A BPI model aggregates the health of all components that together constitute a business capability (e.g., \"Order Processing = web tier + database + payment gateway + message queue\"). When any essential member fails, the business process is immediately flagged as degraded or down — mirroring Nagios BPI groups with essential member logic. Operations teams see business impact, not raw host counts.",
-  "value": "Individual component alerts do not communicate business impact. A BPI model aggregates the health of all components that together constitute a business capability (e.g., \"Order Processing = web tier + database + payment gateway + message queue\"). When any essential member fails, the business process is immediately flagged as degraded or down — mirroring Nagios BPI groups with essential member logic. Operations teams see business impact, not raw host counts.",
+  "description": "Surfaces UC-16.3.1 — Cross, Service, Business, Process, Health — using `index=monitoring` sourcetype `configured sourcetype`, grouped by `process_name`, `_time`. Outputs `essential_min`, `avg_status` each `the scheduled window`; alert when `bpi_score` < 50, or `bpi_score` < 80. Filter chain includes lookup `business_process_components.csv`. Purpose-built for 'Cross-Service Business Process Health Score' in Operations workflows.",
+  "value": "UC-16.3.1 operationalises 'Cross-Service Business Process Health Score' against lookup `business_process_components.csv` so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Build a lookup (`business_process_components.csv`) mapping infrastructure components to business processes, with an `is_essential` flag (essential = single point of failure). Run as a scheduled search every 5 minutes. Feed results into a KV Store for dashboard consumption. For full capability, use ITSI Service Analyzer with KPI threshold-based health scores — ITSI natively implements BPI-equivalent logic with adaptive thresholding and episode-based alerting. Alert when `bpi_state=DOWN` (essential member failed) or `bpi_score` drops below 60 for >10 minutes.",
   "visualization": "Service Analyzer glass table (ITSI), Radial gauge (health score per process), Sankey diagram (component → process → business unit), Single value tiles (one per business process with color coding).",
   "cimModels": [
@@ -22,12 +28,35 @@
   "references": [
     {
       "title": "Splunk IT Service Intelligence",
-      "url": "https://splunkbase.splunk.com/app/1841"
+      "url": "https://splunkbase.splunk.com/app/1841",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Red scores from planned work, test noise, and dependencies you do not fully own; compare with a known good week first.",
+  "knownFalsePositives": "1. **Maintenance window on `monitoring` (UC-16.3.1)** — Planned work for 'Cross-Service Business Process Health Score' shifts `essential_min`, `avg_status` over `span=1h` while `process_name`, `_time` remains in-scope. Applies lookup `business_process_components.csv`. Cross-check CMDB CHG.\n\n2. **Batch `min` on `configured_sourcetype`** — Scheduled automation elevates `_time` without crossing `bpi_score` < 50 for UC-16.3.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `process_name`, `_time`** — Health checks in `monitoring` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-16.3.1 on `process_name` is unstable; join `business_process_components.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `process_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "itsi"
+  ],
+  "equipmentModels": [
+    "itsi_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     {
@@ -37,5 +66,7 @@
     }
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk IT Service Intelligence (ITSI), or custom KV Store + scheduled searches.\n• Ensure the following data sources are available: All existing monitoring indexes (`index=os`, `index=network`, `index=app`, `index=db`), ITSI entity/service model.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBuild a lookup (`business_process_components.csv`) mapping infrastructure components to business processes, with an `is_essential` flag (essential = single point of failure). Run as a scheduled search every 5 minutes. Feed results into a KV Store for dashboard consumption. For full capability, use ITSI Service Analyzer with KPI threshold-based health scores — ITSI natively implements BPI-equivalent logic with adaptive thresholding and episode-based alerting. Alert when `bpi_state=DOWN` (essentia…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=monitoring sourcetype IN (server_health, app_health, db_health, network_health)\n| eval component_status=case(\n    status=\"critical\", 0,\n    status=\"high\",     1,\n    status=\"medium\",   2,\n    status=\"ok\",       3,\n    true(),            3)\n| lookup business_process_components.csv component_name AS service OUTPUT process_name, is_essential\n| stats min(component_status) as essential_min\n       avg(component_status) as avg_status\n  by process_name, _time\n| eval bpi_score=round((avg_status / 3) * 100, 1)\n| eval bpi_state=case(\n    essential_min=0, \"DOWN\",\n    bpi_score < 50,  \"DEGRADED\",\n    bpi_score < 80,  \"AT RISK\",\n    true(),          \"HEALTHY\")\n| table _time, process_name, bpi_score, bpi_state, essential_min\n```\n\nUnderstanding this SPL\n\n**Cross-Service Business Process Health Score** — Individual component alerts do not communicate business impact. A BPI model aggregates the health of all components that together constitute a business capability (e.g., \"Order Processing = web tier + database + payment gateway + message queue\"). When any essential member fails, the business process is immediately flagged as degraded or down — mirroring Nagios BPI groups with essential member logic. Operations teams see business impact, not raw host counts.\n\nDocumented **Data sources**: All existing monitoring indexes (`index=os`, `index=network`, `index=app`, `index=db`), ITSI entity/service model. **App/TA** (typical add-on context): Splunk IT Service Intelligence (ITSI), or custom KV Store + scheduled searches. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: monitoring.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=monitoring. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **component_status** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `stats` rolls up events into metrics; results are split **by process_name, _time** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **bpi_score** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **bpi_state** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Cross-Service Business Process Health Score**): table _time, process_name, bpi_score, bpi_state, essential_min\n\n\nStep 3 — Validate\nCompare with the Service Analyzer or service health view in IT Service Intelligence, or with the same services on your ITIL reporting dashboard. Spot-check a few time ranges and service names the business already trusts.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Service Analyzer glass table (ITSI), Radial gauge (health score per process), Sankey diagram (component → process → business unit), Single value tiles (one per business process with color coding).",
-  "grandmaExplanation": "We roll many little health signals into one business picture, so leaders see a customer-impacting story instead of a wall of part alerts."
+  "grandmaExplanation": "We roll many little health signals into one business picture, so leaders see a customer-impacting story instead of a wall of part alerts.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

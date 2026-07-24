@@ -8,21 +8,43 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Geo-Blocking Event Tracking and Geographic Policy Enforcement (Meraki MX)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_geo_blocking_event_tracking_and_geographic_polic` (UC-5.2.30), SOC dashboard panel \"Operations — Geo-Blocking Event Tracking and Geographic Policy Enforcement (Meraki MX)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.2.30 positive (Geo, Blocking, Event, Tracking, and): ingest synthetic events into `index=meraki` sourcetype='meraki' where `count` grouped by `country` satisfies detection threshold for 'Geo-Blocking Event Tracking and Geographic Policy Enforcement (Meraki MX)'. Validate lookup `geo_ip.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.2.30 negative ((Meraki MX)): ingest benign `meraki` / `meraki` events where `country` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Geo-Blocking Event Tracking and Geographic Policy Enforcement (Meraki MX)'."
+  },
   "dataSources": "`sourcetype=meraki type=urls action=\"blocked\" country=*` | Alternate ingest: Splunk Connect for Syslog (SC4S) Meraki vendor pack — points the Meraki dashboard at an SC4S receiver and produces sourcetype=\"meraki\" syslog events (free-form text extracted with rex). Use when you don't want to deploy the polling API TA.",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype=\"meraki\" (does not require the API TA).",
   "spl": "index=meraki sourcetype=\"meraki\" type=urls action=\"blocked\"\n| lookup geo_ip.csv dest OUTPUTNEW country, city\n| stats count as block_count by country\n| sort - block_count",
-  "description": "Tracks geo-blocking policy enforcement to verify compliance with data residency and export controls.",
-  "value": "Security teams track Meraki MX geo-blocking enforcement by country and direction, validating geographic access policy effectiveness and identifying legitimate traffic requiring exceptions.",
+  "description": "Identifies UC-5.2.30 — Geo, Blocking, Event, Tracking, and — using `index=meraki` sourcetype `meraki`, grouped by `country`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes lookup `geo_ip.csv`. Purpose-built for 'Geo-Blocking Event Tracking and Geographic Policy Enforcement (Meraki MX)' in Operations workflows.",
+  "value": "UC-5.2.30 operationalises 'Geo-Blocking Event Tracking and Geographic Policy Enforcement (Meraki MX)' against `meraki` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ingest URL logs with GeoIP enrichment. Track blocks by geography.",
   "visualization": "Geo-block map; country block count chart; policy compliance dashboard.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "CDNs, VPN exit points, and roaming users can make geo policy blocks spike without a data breach.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki` (UC-5.2.30)** — Planned work for 'Geo-Blocking Event Tracking and Geographic Policy Enforcement (Meraki MX)' shifts `count` over `span=1h` while `country` remains in-scope. Applies lookup `geo_ip.csv`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `meraki`** — Scheduled automation elevates `src` without crossing configured threshold for UC-5.2.30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `country`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `meraki`** — First 48h baseline for UC-5.2.30 on `country` is unstable; join `geo_ip.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `country`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
@@ -30,6 +52,12 @@
   "equipmentModels": [
     "cisco_meraki"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype=\"meraki\" (does not require the API TA)..\n• Ensure the following data sources are available: `sourcetype=meraki type=urls action=\"blocked\" country=*` | Alternate ingest: Splunk Connect for Syslog (SC4S) Meraki vendor pack — points the Meraki dashboard at an SC4S receiver and produces sourcetype=\"meraki\" syslog events (free-form text extracted with rex). Use when you don't want to deploy the polling API TA..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest URL logs with GeoIP enrichment. Track blocks by geography.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=meraki sourcetype=\"meraki\" type=urls action=\"blocked\"\n| lookup geo_ip.csv dest OUTPUTNEW country, city\n| stats count as block_count by country\n| sort - block_count\n```\n\nUnderstanding this SPL\n\n**Geo-Blocking Event Tracking and Geographic Policy Enforcement (Meraki MX)** — Security teams track Meraki MX geo-blocking enforcement by country and direction, validating geographic access policy effectiveness and identifying legitimate traffic requiring exceptions.\n\nDocumented **Data sources**: `sourcetype=meraki type=urls action=\"blocked\" country=*` | Alternate ingest: Splunk Connect for Syslog (SC4S) Meraki vendor pack — points the Meraki dashboard at an SC4S receiver and produces sourcetype=\"meraki\" syslog events (free-form text extracted with rex). Use when you don't want to deploy the polling API TA. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype=\"meraki\" (does not require the API TA). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=meraki, sourcetype=\"meraki\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `stats` rolls up events into metrics; results are split **by country** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Geo-block map; country block count chart; policy compliance dashboard.",
-  "grandmaExplanation": "We group blocked requests by country so data-location rules and blocked regions are easy to show to auditors in plain language."
+  "grandmaExplanation": "We group blocked requests by country so data-location rules and blocked regions are easy to show to auditors in plain language.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

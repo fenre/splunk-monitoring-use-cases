@@ -8,11 +8,17 @@
     "Anomaly"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=syslog`",
-  "app": "`Splunk_TA_nix, custom scripted input`",
+  "exclusions": "Covers the detection logic documented for 'System Reboot Frequency Anomaly' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_system_reboot_frequency_anomaly` (UC-1.1.118), SOC dashboard panel \"Linux — System Reboot Frequency Anomaly\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.118 positive (System, Reboot, Frequency, Anomaly): ingest synthetic events into `index=os` sourcetype='syslog' where `count` grouped by `host` satisfies `reboot_count` > 2 for 'System Reboot Frequency Anomaly'. Validate filter `\"Kernel panic\" OR \"reboot\" OR \"system shutdown\" OR \"Restarti`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.118 negative (Frequency Anomaly): ingest benign `os` / `syslog` events where `host` stays below `reboot_count` > 2, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 9 confirms zero alert rows for 'System Reboot Frequency Anomaly'."
+  },
+  "dataSources": "`sourcetype=syslog` Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix, custom scripted input` — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=os sourcetype=syslog earliest=-7d@d latest=now\n| search \"Kernel panic\" OR \"reboot\" OR \"system shutdown\" OR \"Restarting system\"\n| stats count as reboot_count by host\n| where reboot_count > 2",
-  "description": "Unexpected reboot frequency indicates system instability, crashes, or possible security incident response.",
-  "value": "Unexpected reboot frequency indicates system instability, crashes, or possible security incident response.",
+  "description": "Alerts on UC-1.1.118 — System, Reboot, Frequency, Anomaly — using `index=os` sourcetype `syslog`, grouped by `host`. Outputs `count` each `the scheduled window`; alert when `reboot_count` > 2. Filter chain includes filter `\"Kernel panic\" OR \"reboot\" OR \"system shutdown\" OR \"Restarti`. Purpose-built for 'System Reboot Frequency Anomaly' in Linux workflows.",
+  "value": "Operators running UC-1.1.118 on `syslog` feeds shorten triage for Frequency Anomaly tied to 'System Reboot Frequency Anomaly', lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Monitor system boot/reboot messages in syslog. Create alerts when reboot frequency exceeds normal baseline. Include reboot cause analysis and incident correlation.",
   "visualization": "Timechart, Alert",
   "cimModels": [
@@ -21,14 +27,40 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 833",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Patch Tuesdays, kernel CVE rollouts, or fleet-wide maintenance can push many reboot messages that are still approved work. The substring “reboot” appears in user-facing apps and non-kernel subsystems—tighten `search` to your distro’s real shutdown/startup phrases.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'System Reboot Frequency Anomaly'. Correlate with apt/yum logs in the same `syslog` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `syslog`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `reboot_count` > 2.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux",
     "syslog"
   ],
+  "equipmentModels": [
+    "linux_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=syslog`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor system boot/reboot messages in syslog. Create alerts when reboot frequency exceeds normal baseline. Include reboot cause analysis and incident correlation.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=syslog earliest=-7d@d latest=now\n| search \"Kernel panic\" OR \"reboot\" OR \"system shutdown\" OR \"Restarting system\"\n| stats count as reboot_count by host\n| where reboot_count > 2\n```\n\nUnderstanding this SPL\n\n**System Reboot Frequency Anomaly** — Unexpected reboot frequency indicates system instability, crashes, or possible security incident response.\n\nDocumented **Data sources**: `sourcetype=syslog`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: syslog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where reboot_count > 2` over the last seven days of indexed time (`earliest=-7d@d` on the base search) — tune count and window to your SLOs.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart, Alert",
-  "grandmaExplanation": "We count reboot and panic messages in syslog so unstable hosts or surprise maintenance do not go unnoticed in the last week."
+  "grandmaExplanation": "We count reboot and panic messages in syslog so unstable hosts or surprise maintenance do not go unnoticed in the last week.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

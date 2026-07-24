@@ -9,6 +9,8 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'ISE ANC Closed-Loop Effectiveness — Quarantine-to-Compromise-Stop Time' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_ise_anc_closed_loop_effectiveness_quarantine_to_` (UC-17.1.80), SOC dashboard panel \"Network — ISE ANC Closed-Loop Effectiveness — Quarantine-to-Compromise-Stop Time\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "nis2",
@@ -61,14 +63,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Quarantine an endpoint actively attacking. Measure time until malicious traffic stops. Should be <2 minutes; otherwise UC-17.1.80 fires.",
-    "negativeScenario": "Quarantine immediately stops attack. Healthy KPI."
+    "positiveScenario": "UC-17.1.80 positive (ISE, ANC, Closed, Loop, Effectiveness): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `avg_seconds` grouped by `anc_policy` satisfies -1d for 'ISE ANC Closed-Loop Effectiveness — Quarantine-to-Compromise-Stop Time'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.80 negative (Stop Time): ingest benign `nac` / `cisco:ise:syslog` events where `anc_policy` stays below -1d, or exclude the test entity via `network_exception_register.csv`. Variant 2 confirms zero alert rows for 'ISE ANC Closed-Loop Effectiveness — Quarantine-to-Compromise-Stop Time'."
   },
-  "dataSources": "ISE ANC events `index=nac sourcetype=cisco:ise:syslog` MessageCode 86001 (ANC-applied) — combined with ES notable events `index=notable` and firewall/IDS data showing whether the endpoint's malicious traffic stopped after ANC. Time-window correlation: ANC apply time vs. last malicious event time per endpoint MAC.",
-  "app": "`Splunk Add-on for Cisco Identity Services` + Splunk Enterprise Security.",
+  "dataSources": "ISE ANC events `index=nac sourcetype=cisco:ise:syslog` MessageCode 86001 (ANC-applied) — combined with ES notable events `index=notable` and firewall/IDS data showing whether the endpoint's malicious traffic stopped after ANC. Time-window correlation: ANC apply time vs. last malicious event time per endpoint MAC. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk Add-on for Cisco Identity Services` + Splunk Enterprise Security. — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode=86001 anc_action=quarantine\n| eval anc_time=_time, endpoint_mac=mac\n| join endpoint_mac [search index=notable severity=high earliest=-1d | rename _time as last_attack_time]\n| eval quarantine_to_attack_stop=anc_time - last_attack_time\n| stats avg(quarantine_to_attack_stop) as avg_seconds, count by anc_policy",
-  "description": "Measures whether ANC quarantine actually stops the malicious activity. Correlates ANC timestamp with the last observed malicious event — if attacks continue post-ANC, the closed loop is broken.",
-  "value": "ANC is only as good as the network enforcement that follows. If switches don't enforce CoA, malicious activity continues — ANC becomes theatre. This UC measures the actual security outcome, not just the ANC API call.",
+  "description": "Monitors UC-17.1.80 for ISE, ANC, Closed, Loop, Effectiveness over `index=nac` sourcetype `cisco:ise:syslog` with thresholds -1d. Groups `avg_seconds` by `anc_policy` each `the scheduled window`. Centered on Stop Time indicators. Supports repeatable network triage for 'ISE ANC Closed-Loop Effectiveness — Quarantine-to-Compromise-Stop Time'.",
+  "value": "For 'ISE ANC Closed-Loop Effectiveness — Quarantine-to-Compromise-Stop Time', UC-17.1.80 converts `avg_seconds` on `cisco:ise:syslog` feeds into actionable rows and reduces unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Schedule every 30 min.",
   "visualization": "Quarantine-to-stop time gauge; per-endpoint timeline; failed-quarantine list.",
   "cimModels": [
@@ -78,10 +80,31 @@
   "references": [
     {
       "title": "Cisco ISE 3.4 — Adaptive Network Control",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "NIS2 Directive — EUR-Lex",
+      "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32022L2555",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Alerts",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Alerts",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) Endpoint moved to a different switch port — CoA didn't propagate. Operations issue.\n(b) Endpoint legitimately back on network after admin unquarantine.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'ISE ANC Closed-Loop Effectiveness — Quarantine-to-Compromise-Stop Time'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "N/A (response-loop telemetry — measures ANC closed-loop quarantine flow, no adversary technique)"
   ],
@@ -99,7 +122,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Standard pattern.",
+  "detailedImplementation": "Standard pattern.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services` + Splunk Enterprise Security. — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac, notable. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`anc_policy`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "ISE can quarantine a misbehaving device. We measure if the bad activity actually stops after quarantine — sometimes the quarantine doesn't take effect, and bad traffic continues.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

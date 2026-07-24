@@ -8,21 +8,43 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'NAT Pool Usage and Exhaustion Alerts (Meraki MX)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_nat_pool_usage_and_exhaustion_alerts_meraki_mx` (UC-5.2.27), SOC dashboard panel \"Operations — NAT Pool Usage and Exhaustion Alerts (Meraki MX)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.2.27 positive (NAT, Pool, Usage, and, Exhaustion): ingest synthetic events into `index=meraki` sourcetype='meraki:assurancealerts' where `values` grouped by `scope.devices{}.serial`, `network.name` satisfies `alert_count` > 0 for 'NAT Pool Usage and Exhaustion Alerts (Meraki MX)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.2.27 negative ((Meraki MX)): ingest benign `meraki` / `meraki:assurancealerts` events where `scope.devices{}.serial`, `network.name` stays below `alert_count` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'NAT Pool Usage and Exhaustion Alerts (Meraki MX)'."
+  },
   "dataSources": "Splunk_TA_cisco_meraki (Splunkbase #5580): Assurance Alerts input (sourcetype=meraki:assurancealerts) and SC4S Meraki vendor pack (sourcetype=meraki, type=events) for syslog-side NAT exhaustion messages. NOTE: the Meraki Dashboard API does NOT expose live NAT translation table counters; alert-driven monitoring is the only practical path.",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580)",
   "spl": "index=meraki sourcetype=\"meraki:assurancealerts\"\n    deviceType=\"MX\"\n    (title=\"*NAT*\" OR title=\"*port*\" OR title=\"*translation*\" OR categoryType=\"appliance\")\n    earliest=-24h\n| stats count as alert_count,\n        values(title) as alert_titles,\n        latest(severity) as severity,\n        latest(dismissedAt) as dismissed_at\n         by scope.devices{}.serial, network.name\n| where dismissed_at=\"null\" AND alert_count > 0\n| sort - alert_count",
-  "description": "Monitors NAT pool utilization to prevent address exhaustion that could block outbound traffic.",
-  "value": "Operations teams detect Meraki MX NAT port exhaustion events, identifying when outbound connection capacity is reached and investigating top connection consumers.",
+  "description": "Identifies risk tied to NAT, Pool, Usage, and, Exhaustion through UC-5.2.27 on `index=meraki` sourcetype `meraki:assurancealerts`. Summarises `values` grouped by `scope.devices{}.serial`, `network.name` across `the scheduled window` before applying `alert_count` > 0. Operators tune 'NAT Pool Usage and Exhaustion Alerts (Meraki MX)' using UC-5.2.27 runbook steps.",
+  "value": "Tracking `activity` via UC-5.2.27 on `meraki:assurancealerts` feeds improves response to 'NAT Pool Usage and Exhaustion Alerts (Meraki MX)' and reduces operational risk and delayed incident response.",
   "implementation": "1. Enable the Assurance Alerts input in Splunk_TA_cisco_meraki and confirm Meraki alert profiles include 'NAT translation table near capacity' and 'connection table full'. 2. Configure SC4S to receive Meraki MX syslog (UDP/514) and forward the events sourcetype to Splunk; appliance NAT/connection-table syslog messages match type=events. 3. Pair the alert query above with a 'last 1h' real-time dashboard for branch operators.",
   "visualization": "Gauge of NAT pool usage; capacity timeline; pool exhaustion alert dashboard.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Meraki (Splunkbase 5631)",
+      "url": "https://splunkbase.splunk.com/app/5631",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "New sites, guest Wi-Fi, and more endpoints can use more public NAT than last month without an exhaustion emergency.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki` (UC-5.2.27)** — Planned work for 'NAT Pool Usage and Exhaustion Alerts (Meraki MX)' shifts `values` over `span=1h` while `scope.devices{}.serial`, `network.name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `meraki:assurancealerts`** — Scheduled automation elevates `network.name` without crossing `alert_count` > 0 for UC-5.2.27. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `scope.devices{}.serial`, `network.name`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `meraki:assurancealerts`** — First 48h baseline for UC-5.2.27 on `scope.devices{}.serial` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `scope.devices{}.serial`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
@@ -30,6 +52,12 @@
   "equipmentModels": [
     "cisco_meraki"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).\n• Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Assurance Alerts input (sourcetype=meraki:assurancealerts) and SC4S Meraki vendor pack (sourcetype=meraki, type=events) for syslog-side NAT exhaustion messages. NOTE: the Meraki Dashboard API does NOT expose live NAT translation table counters; alert-driven monitoring is the only practical path..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n1. Enable the Assurance Alerts input in Splunk_TA_cisco_meraki and confirm Meraki alert profiles include 'NAT translation table near capacity' and 'connection table full'. 2. Configure SC4S to receive Meraki MX syslog (UDP/514) and forward the events sourcetype to Splunk; appliance NAT/connection-table syslog messages match type=events. 3. Pair the alert query above with a 'last 1h' real-time dashboard for branch operators.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=meraki sourcetype=\"meraki:assurancealerts\"\n    deviceType=\"MX\"\n    (title=\"*NAT*\" OR title=\"*port*\" OR title=\"*translation*\" OR categoryType=\"appliance\")\n    earliest=-24h\n| stats count as alert_count,\n        values(title) as alert_titles,\n        latest(severity) as severity,\n        latest(dismissedAt) as dismissed_at\n         by scope.devices{}.serial, network.name\n| where dismissed_at=\"null\" AND alert_count > 0\n| sort - alert_count\n```\n\nUnderstanding this SPL\n\n**NAT Pool Usage and Exhaustion Alerts (Meraki MX)** — Operations teams detect Meraki MX NAT port exhaustion events, identifying when outbound connection capacity is reached and investigating top connection consumers.\n\nDocumented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Assurance Alerts input (sourcetype=meraki:assurancealerts) and SC4S Meraki vendor pack (sourcetype=meraki, type=events) for syslog-side NAT exhaustion messages. NOTE: the Meraki Dashboard API does NOT expose live NAT translation table counters; alert-driven monitoring is the only practical path. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:assurancealerts. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=meraki, sourcetype=\"meraki:assurancealerts\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by scope.devices{}.serial, network.name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where dismissed_at=\"null\" AND alert_count > 0` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge of NAT pool usage; capacity timeline; pool exhaustion alert dashboard.",
-  "grandmaExplanation": "We check how full shared public address pools are on the small office so new guests and new sites do not run out of outbound space."
+  "grandmaExplanation": "We check how full shared public address pools are on the small office so new guests and new sites do not run out of outbound space.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

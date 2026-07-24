@@ -9,6 +9,8 @@
     "Operations"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Posture Remediation Funnel — Detection-to-Compliant Conversion Rate' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_posture_remediation_funnel_detection_to_complian` (UC-17.1.53), SOC dashboard panel \"Network — Posture Remediation Funnel — Detection-to-Compliant Conversion Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "pci-dss",
@@ -85,14 +87,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Trigger posture remediation on 10 lab endpoints; 8 succeed, 2 fail. UC-17.1.53 reports the policy with `endpoints=10, compliant=8, conversion_pct=80`.",
-    "negativeScenario": "All 10 succeed. UC-17.1.53 reports `conversion_pct=100`."
+    "positiveScenario": "UC-17.1.53 positive (Posture, Remediation, Funnel, Detection, Compliant): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `event_count` grouped by `endpoint_mac`, `posture_policy` satisfies -7d for 'Posture Remediation Funnel — Detection-to-Compliant Conversion Rate'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.53 negative (Conversion Rate): ingest benign `nac` / `cisco:ise:syslog` events where `endpoint_mac`, `posture_policy` stays below -7d, or exclude the test entity via `network_exception_register.csv`. Variant 4 confirms zero alert rows for 'Posture Remediation Funnel — Detection-to-Compliant Conversion Rate'."
   },
   "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Posture* category — codes `15041` (posture compliant), `15042` (posture non-compliant), `15043` (posture pending), `15044` (posture remediation initiated), `15045` (posture remediation completed), `15046` (posture remediation failed). Fields: `endpoint_mac`, `posture_policy`, `failed_condition`, `remediation_action`. CIM mapping: `Vulnerability.severity`.",
   "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (15042, 15044, 15045, 15046) earliest=-7d\n| eval stage = case(MessageCode==\"15042\", \"detected\", MessageCode==\"15044\", \"remediation_started\", MessageCode==\"15045\", \"remediation_completed\", MessageCode==\"15046\", \"remediation_failed\")\n| stats values(stage) as stages dc(_time) as event_count by endpoint_mac, posture_policy\n| eval reached_compliance = if(mvfind(stages, \"remediation_completed\")>=0, \"yes\", \"no\")\n| stats count as endpoints, sum(eval(if(reached_compliance==\"yes\",1,0))) as compliant by posture_policy\n| eval conversion_pct = round((compliant/endpoints)*100, 1)\n| sort conversion_pct",
-  "description": "Tracks the posture-remediation funnel: how many endpoints flagged as non-compliant successfully reach a compliant state, broken down per posture policy. Exposes ineffective posture policies (low conversion rate) for tuning.",
-  "value": "Posture is only valuable if non-compliant endpoints actually become compliant. A posture policy with a 20% conversion rate is largely ineffective — endpoints stay quarantined or fall through default-allow. Tracking the funnel weekly drives policy improvement.",
+  "description": "Alerts on risk tied to Posture, Remediation, Funnel, Detection, Compliant through UC-17.1.53 on `index=nac` sourcetype `cisco:ise:syslog`. Summarises `event_count` grouped by `endpoint_mac`, `posture_policy` across `the scheduled window` before applying -7d. Operators tune 'Posture Remediation Funnel — Detection-to-Compliant Conversion Rate' using UC-17.1.53 runbook steps.",
+  "value": "Tracking `event_count` via UC-17.1.53 on `cisco:ise:syslog` feeds improves response to 'Posture Remediation Funnel — Detection-to-Compliant Conversion Rate' and reduces unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Confirm *Posture* category at INFO. Schedule weekly summary report (Monday 06:00 UTC). For real-time per-endpoint tracking, schedule a 4h cadence search to populate a summary index `ise_posture_funnel` with per-endpoint state.",
   "visualization": "(1) Funnel chart: detected → remediation_started → remediation_completed. (2) Top-N: lowest-conversion-rate posture policies. (3) Trend: weekly conversion rate per policy.",
   "cimModels": [],
@@ -100,10 +102,31 @@
   "references": [
     {
       "title": "Cisco ISE 3.4 — Posture Services",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "PCI DSS Document Library",
+      "url": "https://www.pcisecuritystandards.org/document_library/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1915",
+      "url": "https://splunkbase.splunk.com/app/1915",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Security (Splunkbase 1352)",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) **First-day rollout** — A new posture policy may show low conversion until devices receive the agent and remediation packages. (b) **Endpoint offline** — An endpoint that goes offline mid-remediation appears as non-converted; track only endpoints currently online.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'Posture Remediation Funnel — Detection-to-Compliant Conversion Rate'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "N/A (posture remediation pipeline — measures policy compliance flow, no adversary technique)"
   ],
@@ -121,7 +144,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• ISE Posture configured.\n• Posture agent deployed to endpoints.\n• `posture_policies.csv` with `posture_policy`, `target_conversion_pct`.\n\nStep 1 — Configure data collection\nEnable *Posture* category at INFO.\n\nStep 2 — Create the search\nWeekly search in `spl` field.\n\nA secondary 4h cadence search populates summary index for trend analysis.\n\nStep 3 — Validate\nProvoke as above.\n\nStep 4 — Operationalize\nDashboard \"ISE — Posture Funnel\":\n• Funnel chart per policy.\n• Top-N lowest conversion.\n• Trend over 12 weeks.\n\nWeekly review: posture team reviews lowest-conversion policies and tunes.\n\nStep 5 — Troubleshooting\n• **All policies show 0% conversion** — Posture agent not reaching endpoints; cross-ref UC-17.1.54.\n• **One policy at 0%** — Remediation action mis-configured.\n• **Trend declining** — New endpoint type incompatible with existing remediation.",
+  "detailedImplementation": "Prerequisites\n• ISE Posture configured.\n• Posture agent deployed to endpoints.\n• `posture_policies.csv` with `posture_policy`, `target_conversion_pct`.\n\nStep 1 — Configure data collection\nEnable *Posture* category at INFO.\n\nStep 2 — Create the search\nWeekly search in `spl` field.\n\nA secondary 4h cadence search populates summary index for trend analysis.\n\nStep 3 — Validate\nProvoke as above.\n\nStep 4 — Operationalize\nDashboard \"ISE — Posture Funnel\":\n• Funnel chart per policy.\n• Top-N lowest conversion.\n• Trend over 12 weeks.\n\nWeekly review: posture team reviews lowest-conversion policies and tunes.\n\nStep 5 — Troubleshooting\n• **All policies show 0% conversion** — Posture agent not reaching endpoints; cross-ref UC-17.1.54.\n• **One policy at 0%** — Remediation action mis-configured.\n• **Trend declining** — New endpoint type incompatible with existing remediation.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`endpoint_mac, posture_policy, reached_compliance, stage`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "When ISE finds a sick computer (missing antivirus, missing patch), it tries to fix it before letting it on the network. We measure how many sick computers actually got fixed — the lower the number, the more useless the fix-up rules are.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

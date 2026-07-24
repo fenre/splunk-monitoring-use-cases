@@ -8,30 +8,55 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Tableau Prep flow runs (`tableau:prep:flow`) and Backgrounder logs.",
-  "app": "Tableau Prep Conductor flow-run events from the `workgroup` repository via DB Connect and Backgrounder logs via UF.",
+  "exclusions": "Covers the detection logic documented for 'Tableau Prep Failures by Flow' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_tableau_prep_failures_by_flow` (UC-24.1.27), SOC dashboard panel \"Operations — Tableau Prep Failures by Flow\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.1.27 positive (Tableau, Prep, Failures, Flow): ingest synthetic events into `index=bi` sourcetype='tableau:prep:flow' where `count` grouped by `flow_name` satisfies `failures` > 0 for 'Tableau Prep Failures by Flow'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.1.27 negative (by Flow): ingest benign `bi` / `tableau:prep:flow` events where `flow_name` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Tableau Prep Failures by Flow'."
+  },
+  "dataSources": "Tableau Prep flow runs (`tableau:prep:flow`) and Backgrounder logs. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Tableau Prep Conductor flow-run events from the `workgroup` repository via DB Connect and Backgrounder logs via UF. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=tableau:prep:flow finish_code!=0\n| stats count as failures, latest(_time) as last_failure by flow_name\n| where failures>0\n| sort - failures",
-  "description": "Counts Tableau Prep failures grouped by flow so operators immediately see which specific flows are broken rather than a single global failure number.",
-  "value": "Object-level failure attribution turns a vague 'Tableau Prep is failing' alert into an actionable list of exactly what to fix first.",
+  "description": "Surfaces UC-24.1.27 — Tableau, Prep, Failures, Flow — using `index=bi` sourcetype `tableau:prep:flow`, grouped by `flow_name`. Outputs `count` each `the scheduled window`; alert when `failures` > 0. Primary focus: by Flow. Purpose-built for 'Tableau Prep Failures by Flow' in Operations workflows.",
+  "value": "Alerting on Tableau, Prep, Failures, Flow through UC-24.1.27 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Ingest Tableau Prep failure events; schedule every 15 minutes and alert on failures for business-critical flows.",
   "visualization": "Table of flow by failure count and last failure time.",
   "cimModels": [],
   "references": [
     {
       "title": "Tableau Prep — Conductor",
-      "url": "https://help.tableau.com/current/prep/en-us/prep_conductor_overview.htm"
+      "url": "https://help.tableau.com/current/prep/en-us/prep_conductor_overview.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Tableau — Server logs",
-      "url": "https://help.tableau.com/current/server/en-us/logs_server_view.htm"
+      "url": "https://help.tableau.com/current/server/en-us/logs_server_view.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.1.27)** — Planned work for 'Tableau Prep Failures by Flow' shifts `count` over `span=1h` while `flow_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `tableau:prep:flow`** — Scheduled automation elevates `src` without crossing `failures` > 0 for UC-24.1.27. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `flow_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `tableau:prep:flow`** — First 48h baseline for UC-24.1.27 on `flow_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `flow_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect"
   ],
-  "grandmaExplanation": "We tell you exactly which parts of Tableau Prep are failing, not just that something is wrong, so the right thing gets fixed first."
+  "equipmentModels": [
+    "db_connect_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Tableau Prep Conductor flow-run events from the `workgroup` repository via DB Connect and Backgrounder logs via UF. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=tableau:prep:flow into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`failures, flow_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We tell you exactly which parts of Tableau Prep are failing, not just that something is wrong, so the right thing gets fixed first.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

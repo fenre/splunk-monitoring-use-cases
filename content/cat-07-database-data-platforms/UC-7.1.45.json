@@ -9,11 +9,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Redis INFO: `rejected_connections`, `connected_clients`, `maxclients` (sourcetype `redis:info`)",
-  "app": "Custom scripted input (`redis-cli INFO`), or metrics exporter forwarded to Splunk",
+  "exclusions": "Covers the detection logic documented for 'Redis Rejected Connections Near Client Limit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_redis_rejected_connections_near_client_limit` (UC-7.1.45), SOC dashboard panel \"Operations — Redis Rejected Connections Near Client Limit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.1.45 positive (Redis, Rejected, Connections, Near, Client): ingest synthetic events into `index=middleware` sourcetype='redis:info' where `rejected`, `util_pct` grouped by `host` satisfies `maxclients` > 0, `rejected_connections` > 0, or `client_util_pct` > 85 for 'Redis Rejected Connections Near Client Limit'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.45 negative (Client Limit): ingest benign `middleware` / `redis:info` events where `host` stays below `maxclients` > 0, `rejected_connections` > 0, or `client_util_pct` > 85, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Redis Rejected Connections Near Client Limit'."
+  },
+  "dataSources": "Redis INFO: `rejected_connections`, `connected_clients`, `maxclients` (sourcetype `redis:info`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input (`redis-cli INFO`), or metrics exporter forwarded to Splunk — Universal Forwarder (Splunkbase 617)",
   "spl": "index=middleware sourcetype=\"redis:info\"\n| eval client_util_pct=if(maxclients>0, round(connected_clients/maxclients*100,2), null())\n| where rejected_connections > 0 OR client_util_pct > 85\n| timechart span=5m max(rejected_connections) as rejected, max(client_util_pct) as util_pct by host",
-  "description": "The rejected_connections counter increments when Redis hits maxclients. This is a production-critical signal of connection storms, pool leaks, or undersized limits.",
-  "value": "Stops silent application failures where clients cannot connect during traffic spikes or after misconfigured pools.",
+  "description": "Monitors UC-7.1.45 — Redis, Rejected, Connections, Near, Client — using `index=middleware` sourcetype `redis:info`, grouped by `host`. Outputs `rejected`, `util_pct` each `5m`; alert when `maxclients` > 0, `rejected_connections` > 0, or `client_util_pct` > 85. Primary focus: Client Limit. Purpose-built for 'Redis Rejected Connections Near Client Limit' in Operations workflows.",
+  "value": "For 'Redis Rejected Connections Near Client Limit', UC-7.1.45 converts `rejected`, `util_pct` on `redis:info` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Ingest INFO snapshots every minute. Use delta or per-poll rejected_connections if you emit counters cumulatively. Alert on any rejection or sustained client_util_pct above policy. Map host to cluster and application owners.",
   "visualization": "Single value (rejected_connections), Line chart (connected_clients vs maxclients), Table (clusters at risk).",
   "cimModels": [
@@ -22,12 +28,31 @@
   "references": [
     {
       "title": "Redis INFO reference (maxclients, rejected_connections)",
-      "url": "https://redis.io/docs/latest/commands/info/"
+      "url": "https://redis.io/docs/latest/commands/info/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Connection pool warm-up after restarts, blue-green deploys, or autoscaling can look like a spike until the pool or fleet reaches steady state.",
+  "knownFalsePositives": "1. **Maintenance window on `middleware` (UC-7.1.45)** — Planned work for 'Redis Rejected Connections Near Client Limit' shifts `rejected`, `util_pct` over `span=5m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `redis:info`** — Scheduled automation elevates `client_util_pct` without crossing `maxclients` > 0 for UC-7.1.45. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `middleware` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `redis:info`** — First 48h baseline for UC-7.1.45 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "redis"
+  ],
+  "equipmentModels": [
+    "redis_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -36,5 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch how many sessions and pooled connections the fleet uses so we can scale or fix apps before the database hits its connection limits."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom scripted input (`redis-cli INFO`), or metrics exporter forwarded to Splunk — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=redis:info into middleware. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`client_util_pct, host, maxclients, rejected_connections`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch how many sessions and pooled connections the fleet uses so we can scale or fix apps before the database hits its connection limits.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

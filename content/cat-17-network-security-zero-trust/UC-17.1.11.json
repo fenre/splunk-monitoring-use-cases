@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "ISE posture assessment logs (`cisco:ise:posture`)",
-  "app": "Splunk_TA_cisco-ise",
+  "exclusions": "Covers the detection logic documented for 'Posture Assessment Failure Trends' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_posture_assessment_failure_trends` (UC-17.1.11), SOC dashboard panel \"Network — Posture Assessment Failure Trends\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.1.11 positive (Posture, Assessment, Failure, Trends): ingest synthetic events into `index=nac` sourcetype='cisco:ise:posture' where `count` grouped by `failure_reason` satisfies -30d for 'Posture Assessment Failure Trends'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.11 negative (Failure Trends): ingest benign `nac` / `cisco:ise:posture` events where `failure_reason` stays below -30d, or exclude the test entity via `network_exception_register.csv`. Variant 4 confirms zero alert rows for 'Posture Assessment Failure Trends'."
+  },
+  "dataSources": "ISE posture assessment logs (`cisco:ise:posture`) Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk_TA_cisco-ise — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:posture\" earliest=-30d\n| where posture_status=\"NonCompliant\"\n| timechart span=1d count by failure_reason",
-  "description": "Time-series view of posture failures by policy and reason — distinguishes one-off issues from worsening fleet hygiene or a bad policy rollout.",
-  "value": "Security operations teams correlate posture failures with external events like patch deployments and AV updates, measure remediation effectiveness, and identify specific posture checks that consistently fail across the endpoint fleet.",
+  "description": "Surfaces risk tied to Posture, Assessment, Failure, Trends through UC-17.1.11 on `index=nac` sourcetype `cisco:ise:posture`. Summarises `count` grouped by `failure_reason` across `1d` before applying -30d. Operators tune 'Posture Assessment Failure Trends' using UC-17.1.11 runbook steps.",
+  "value": "Tracking `activity` via UC-17.1.11 on `cisco:ise:posture` feeds improves response to 'Posture Assessment Failure Trends' and reduces unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Normalize `failure_reason` from ISE. Alert when daily failures exceed 7-day baseline by >50%. Segment by AD group or location if extracted.",
   "visualization": "Line chart (failures over time by reason), Stacked area (failures by policy), Single value (failures vs prior week).",
   "cimModels": [],
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Posture failures during scheduled patch cycles, OS upgrades, or after AV definition rotations.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'Posture Assessment Failure Trends'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:posture` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "T1078"
   ],
@@ -34,7 +56,13 @@
   "equipmentModels": [
     "cisco_ise"
   ],
-  "detailedImplementation": "Prerequisites\n• Cisco ISE Posture Module with AnyConnect ISE Posture Agent or Temporal Agent. Data in `index=nac` with `sourcetype=cisco:ise:syslog`. Key fields: `PostureStatus`, `PostureAssessmentFailure` (specific check that failed), `PostureRemediation` (action taken), `OperatingSystem`, `UserName`, `CallingStationID`.\n• ISE Posture checks include: antivirus (installed, running, definitions updated), anti-malware, Windows patches, disk encryption (BitLocker/FileVault), firewall status, registry keys, application presence.\n• Each posture requirement has a remediation action (install update, enable feature) and a grace period.\n\nStep 1 — Configure data collection\nVerify posture failure data:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" PostureStatus=NonCompliant earliest=-7d\n| stats count by PostureAssessmentFailure, OperatingSystem\n| sort - count\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Failure trend by check type:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" PostureStatus=NonCompliant earliest=-30d\n| timechart span=1d count by PostureAssessmentFailure limit=10\n```\n\nUnderstanding this SPL: Trends posture failures over 30 days. Spikes correlate with external events: AV definition updates that fail to deploy, Windows Patch Tuesday (second Tuesday of the month), or ISE posture policy changes that introduce new requirements. A sustained increase in a specific failure type means the remediation is not working — the posture agent cannot fix the issue automatically.\n\nRemediation effectiveness:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" earliest=-7d\n| where PostureStatus=\"NonCompliant\" OR PostureStatus=\"Compliant\"\n| sort CallingStationID _time\n| streamstats current=f last(PostureStatus) as prev_status by CallingStationID\n| where prev_status=\"NonCompliant\" AND PostureStatus=\"Compliant\"\n| eval remediation_time_sec=_time - relative_time(_time, \"-1h\")\n| stats avg(remediation_time_sec) as avg_remediation_sec dc(CallingStationID) as devices_remediated\n```\n\nStep 3 — Validate\n(a) In ISE: Context Visibility > Endpoints > Compliance tab.\n(b) Disable AV on a test device, reconnect, verify NonCompliant status appears.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Compliance rate trend. Row 2 — Failure types over time. Row 3 — Remediation effectiveness.\nAlert: When any single posture check failure exceeds 50 affected devices in 24h.\n\nRunbook:\n1. **AV definition spike** — AV update server issue. Check WSUS/SCCM distribution point.\n2. **Post-Patch-Tuesday spike** — Expected. Should resolve within 48h. If not, SCCM deployment stalled.\n3. **New check introduced** — ISE posture policy change. Monitor the first 72h for impact.\n\nStep 5 — Troubleshooting\n• **PostureAssessmentFailure field empty** — ISE may not log specific check names. Enable detailed posture reporting in ISE.\n• **NonCompliant count always high** — Posture policy may be too strict. Audit each posture requirement for necessity.",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cisco ISE Posture Module with AnyConnect ISE Posture Agent or Temporal Agent. Data in `index=nac` with `sourcetype=cisco:ise:syslog`. Key fields: `PostureStatus`, `PostureAssessmentFailure` (specific check that failed), `PostureRemediation` (action taken), `OperatingSystem`, `UserName`, `CallingStationID`.\n• ISE Posture checks include: antivirus (installed, running, definitions updated), anti-malware, Windows patches, disk encryption (BitLocker/FileVault), firewall status, registry keys, application presence.\n• Each posture requirement has a remediation action (install update, enable feature) and a grace period.\n\nStep 1 — Configure data collection\nVerify posture failure data:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" PostureStatus=NonCompliant earliest=-7d\n| stats count by PostureAssessmentFailure, OperatingSystem\n| sort - count\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Failure trend by check type:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" PostureStatus=NonCompliant earliest=-30d\n| timechart span=1d count by PostureAssessmentFailure limit=10\n```\n\nUnderstanding this SPL: Trends posture failures over 30 days. Spikes correlate with external events: AV definition updates that fail to deploy, Windows Patch Tuesday (second Tuesday of the month), or ISE posture policy changes that introduce new requirements. A sustained increase in a specific failure type means the remediation is not working — the posture agent cannot fix the issue automatically.\n\nRemediation effectiveness:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" earliest=-7d\n| where PostureStatus=\"NonCompliant\" OR PostureStatus=\"Compliant\"\n| sort CallingStationID _time\n| streamstats current=f last(PostureStatus) as prev_status by CallingStationID\n| where prev_status=\"NonCompliant\" AND PostureStatus=\"Compliant\"\n| eval remediation_time_sec=_time - relative_time(_time, \"-1h\")\n| stats avg(remediation_time_sec) as avg_remediation_sec dc(CallingStationID) as devices_remediated\n```\n\nStep 3 — Validate\n(a) In ISE: Context Visibility > Endpoints > Compliance tab.\n(b) Disable AV on a test device, reconnect, verify NonCompliant status appears.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Compliance rate trend. Row 2 — Failure types over time. Row 3 — Remediation effectiveness.\nAlert: When any single posture check failure exceeds 50 affected devices in 24h.\n\nRunbook:\n1. **AV definition spike** — AV update server issue. Check WSUS/SCCM distribution point.\n2. **Post-Patch-Tuesday spike** — Expected. Should resolve within 48h. If not, SCCM deployment stalled.\n3. **New check introduced** — ISE posture policy change. Monitor the first 72h for impact.\n\nStep 5 — Troubleshooting\n• **PostureAssessmentFailure field empty** — ISE may not log specific check names. Enable detailed posture reporting in ISE.\n• **NonCompliant count always high** — Posture policy may be too strict. Audit each posture requirement for necessity.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk_TA_cisco-ise — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:posture into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`failure_reason`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We track which security checks devices fail when they connect — like having antivirus out of date or missing patches — and watch for patterns. If many devices suddenly fail the same check, it usually means an update did not deploy correctly, and we can fix it before it becomes a bigger problem.",
-  "hardware": "Cisco ISE 3515–3695, ISE Virtual Appliance"
+  "hardware": "Cisco ISE 3515–3695, ISE Virtual Appliance",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

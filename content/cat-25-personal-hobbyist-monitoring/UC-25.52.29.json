@@ -8,35 +8,60 @@
     "Availability"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Pendant alerts (`care:pendant`), medication adherence (`care:medication`), wandering alerts (`care:geofence`), check-ins (`care:checkin`), care-plan follow-up (`care:ops`).",
-  "app": "Elder-care and accessibility telemetry — PERS pendant alerts, medication blister-pack reminders, and wandering geofence signals — streamed to Splunk HEC via caregiver apps, exports, and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Appointment Escort Coordination Gap' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_appointment_escort_coordination_gap` (UC-25.52.29), SOC dashboard panel \"Personal — Appointment Escort Coordination Gap\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.52.29 positive (Appointment, Escort, Coordination, Gap): ingest synthetic events into `index=personal` sourcetype='care:ops' where `sum` grouped by `appointment_type` satisfies `backlog` > 0 for 'Appointment Escort Coordination Gap'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.52.29 negative (Coordination Gap): ingest benign `personal` / `care:ops` events where `appointment_type` stays below `backlog` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 7 confirms zero alert rows for 'Appointment Escort Coordination Gap'."
+  },
+  "dataSources": "Pendant alerts (`care:pendant`), medication adherence (`care:medication`), wandering alerts (`care:geofence`), check-ins (`care:checkin`), care-plan follow-up (`care:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Elder-care and accessibility telemetry — PERS pendant alerts, medication blister-pack reminders, and wandering geofence signals — streamed to Splunk HEC via caregiver apps, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=care:ops appointment_type=* escort_state=*\n| stats sum(eval(if(escort_state!=\"assigned\",1,0))) as backlog, count as total by appointment_type\n| where backlog>0\n| sort - backlog",
-  "description": "Lists pending escort assignments backlog by appointment type for appointment coordination.",
-  "value": "Backlog counts expose where small unfinished tasks accumulate and create hidden drag inside appointment coordination.",
+  "description": "Surfaces UC-25.52.29 — Appointment, Escort, Coordination, Gap — using `index=personal` sourcetype `care:ops`, grouped by `appointment_type`. Outputs `sum` each `the scheduled window`; alert when `backlog` > 0. Primary focus: Coordination Gap. Purpose-built for 'Appointment Escort Coordination Gap' in Personal workflows.",
+  "value": "UC-25.52.29 operationalises 'Appointment Escort Coordination Gap' against `care:ops` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Mark each `care:ops` record with a pending-state flag and summarize backlog totals by `appointment_type`.",
   "visualization": "Table of appointment type with pending escort assignments counts.",
   "cimModels": [],
   "references": [
     {
       "title": "Medical Guardian",
-      "url": "https://www.medicalguardian.com/"
+      "url": "https://www.medicalguardian.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Hero — medication dispenser",
-      "url": "https://herohealth.com/"
+      "url": "https://herohealth.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Apple Find My",
-      "url": "https://www.apple.com/icloud/find-my/"
+      "url": "https://www.apple.com/icloud/find-my/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Home Assistant Person",
-      "url": "https://www.home-assistant.io/integrations/person/"
+      "url": "https://www.home-assistant.io/integrations/person/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It celebrates where unfinished escort assignments are piling up so you can clear the biggest queues in appointment coordination."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.52.29)** — Connector for 'Appointment Escort Coordination Gap' stops polling `care:ops`; stale `sum` on `appointment_type` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected for UC-25.52.29, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `care:ops`. Dedup with `stats latest(*) by appointment_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `backlog` > 0 for 'Appointment Escort Coordination Gap'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Elder Care & Accessibility — typical feeds: Daily activity (`eldercare:activity`), fall alerts (`fall:alert`), medication reminders (`medreminder:event`), check-in calls (`checkin:call`), wandering alerts (`wandering:alert`)..\n• **Sourcetypes in this search**: `care:ops`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=care:ops`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Elder-care and accessibility telemetry — activity and fall sensors (Apple Watch fall detection, motion mats), medication dispensers, and check-in / video-call logs — streamed to Splunk HEC via APIs and smart-home hubs..\n\n**Author notes:** Mark each `care:ops` record with a pending-state flag and summarize backlog totals by `appointment_type`.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"care:ops\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=care:ops earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Appointment Escort Coordination Gap** over `personal` data (primarily `sourcetype=care:ops`) across the full search range. It applies numeric thresholds on `backlog` (> 0) after sum — tune these constants to your household baseline.\n\n**Fields this search depends on:** `appointment_type`, `backlog`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=care:ops appointment_type=* escort_state=*\n| stats sum(eval(if(escort_state!=\"assigned\",1,0))) as backlog, count as total by appointment_type\n| where backlog>0\n| sort - backlog\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=care:ops earliest=-7d\n| head 50\n| table appointment_type, backlog\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=care:ops earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `backlog` before alerting:\n\n```spl\nindex=personal sourcetype=care:ops earliest=-30d\n| stats perc50(backlog) AS p50 perc90(backlog) AS p90 perc99(backlog) AS p99 max(backlog) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.52.29: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Appointment Type With Pending Escort Assignments Counts (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `care:ops` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=care:ops | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It celebrates where unfinished escort assignments are piling up so you can clear the biggest queues in appointment coordination.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

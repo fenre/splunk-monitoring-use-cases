@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=edge-hub-data` (metrics index), `sourcetype=edge_hub` — built-in stereo microphone",
-  "app": "Splunk Edge Hub (built-in stereo microphone), Splunk OT Intelligence",
+  "exclusions": "Covers the detection logic documented for 'Sound Level Anomalies' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_sound_level_anomalies` (UC-14.3.4), SOC dashboard panel \"Operations — Sound Level Anomalies\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.3.4 positive (Sound, Level, Anomalies): ingest synthetic events into `index=edge-hub-anomalies` sourcetype='target_sourcetype' where `count` grouped by `extracted_host` satisfies `count` > 0 for 'Sound Level Anomalies'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.3.4 negative (Level Anomalies): ingest benign `edge-hub-anomalies` / `target_sourcetype` events where `extracted_host` stays below `count` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Sound Level Anomalies'."
+  },
+  "dataSources": "`index=edge-hub-data` (metrics index), `sourcetype=edge_hub` — built-in stereo microphone Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Edge Hub (built-in stereo microphone), Splunk OT Intelligence — Universal Forwarder (Splunkbase 617)",
   "spl": "| mstats count where index=edge-hub-anomalies AND metric_name=sound_level AND type=\"anomaly-detector\"\n  span=1h by extracted_host\n| where count > 0",
-  "description": "Unusual sound patterns near equipment indicate mechanical issues. Edge Hub's stereo microphone enables acoustic monitoring without external sensors.",
-  "value": "Unusual sound patterns near equipment indicate mechanical issues. Edge Hub's stereo microphone enables acoustic monitoring without external sensors.",
+  "description": "Monitors 'Sound Level Anomalies' (UC-14.3.4) using `index=edge-hub-anomalies` sourcetype `configured sourcetype` by aggregating `count` grouped by `extracted_host` over `1h` and alerting when `count` > 0. Keywords: Sound, Level, Anomalies. Focuses on Level Anomalies behaviour so operations teams can triage UC-14.3.4 without ad-hoc log review.",
+  "value": "UC-14.3.4 accelerates insight into Level Anomalies ('Sound Level Anomalies') by tracking `activity` on UC-14.3.4 search results, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Deploy Edge Hub near critical equipment. The built-in stereo microphone captures ambient sound levels. Enable kNN anomaly detection to baseline normal patterns and detect deviations. Alert on sustained high levels (OSHA >85dB threshold) and sudden changes (potential equipment failure). Sound data streams as metrics to `edge-hub-data`; anomalies to `edge-hub-anomalies`.",
   "visualization": "Line chart (sound level trend), Single value (current dB), Timeline (anomaly events).",
   "cimModels": [
@@ -22,17 +28,42 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "High sound readings during shift changes, open dock doors, nearby construction, or planned equipment tests.",
+  "knownFalsePositives": "1. **Maintenance window on `edge-hub-anomalies` (UC-14.3.4)** — Planned work for 'Sound Level Anomalies' shifts `count` over `span=1h` while `extracted_host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `src` without crossing `count` > 0 for UC-14.3.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `extracted_host`** — Health checks in `edge-hub-anomalies` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-14.3.4 on `extracted_host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `extracted_host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "edge_hub"
+  ],
+  "equipmentModels": [
+    "edge_hub_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     "Splunk Edge Hub",
     "Splunk OT Intelligence"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (built-in stereo microphone), Splunk OT Intelligence.\n• Ensure the following data sources are available: `index=edge-hub-data` (metrics index), `sourcetype=edge_hub` — built-in stereo microphone.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy Edge Hub near critical equipment. The built-in stereo microphone captures ambient sound levels. Enable kNN anomaly detection to baseline normal patterns and detect deviations. Alert on sustained high levels (OSHA >85dB threshold) and sudden changes (potential equipment failure). Sound data streams as metrics to `edge-hub-data`; anomalies to `edge-hub-anomalies`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| mstats count where index=edge-hub-anomalies AND metric_name=sound_level AND type=\"anomaly-detector\"\n  span=1h by extracted_host\n| where count > 0\n```\n\nUnderstanding this SPL\n\n**Sound Level Anomalies** — Unusual sound patterns near equipment indicate mechanical issues. Edge Hub's stereo microphone enables acoustic monitoring without external sensors.\n\nDocumented **Data sources**: `index=edge-hub-data` (metrics index), `sourcetype=edge_hub` — built-in stereo microphone. **App/TA** (typical add-on context): Splunk Edge Hub (built-in stereo microphone), Splunk OT Intelligence. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-anomalies.\n\n**Pipeline walkthrough**\n\n• Uses `mstats` to query metrics indexes (pre-aggregated metric data).\n• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nNote: for mstats, confirm the metrics indexes in the search exist and your role can run mstats. This is separate from CIM data model acceleration.\n\nStep 3 — Validate\nConfirm metric or event volume in the time range, then compare trends and device status to the Splunk Edge Hub admin UI or the mobile app for the same devices. Verify metric names, hosts, and time skew.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (sound level trend), Single value (current dB), Timeline (anomaly events).",
-  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with loud or unsafe noise in the work area before harm, damage, or wasted effort piles up."
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (built-in stereo microphone), Splunk OT Intelligence.\n• Ensure the following data sources are available: `index=edge-hub-data` (metrics index), `sourcetype=edge_hub` — built-in stereo microphone.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy Edge Hub near critical equipment. The built-in stereo microphone captures ambient sound levels. Enable kNN anomaly detection to baseline normal patterns and detect deviations. Alert on sustained high levels (OSHA >85dB threshold) and sudden changes (potential equipment failure). Sound data streams as metrics to `edge-hub-data`; anomalies to `edge-hub-anomalies`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| mstats count where index=edge-hub-anomalies AND metric_name=sound_level AND type=\"anomaly-detector\"\n  span=1h by extracted_host\n| where count > 0\n```\n\nUnderstanding this SPL\n\n**Sound Level Anomalies** — Unusual sound patterns near equipment indicate mechanical issues. Edge Hub's stereo microphone enables acoustic monitoring without external sensors.\n\nDocumented **Data sources**: `index=edge-hub-data` (metrics index), `sourcetype=edge_hub` — built-in stereo microphone. **App/TA** (typical add-on context): Splunk Edge Hub (built-in stereo microphone), Splunk OT Intelligence. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-anomalies.\n\n**Pipeline walkthrough**\n\n• Uses `mstats` to query metrics indexes (pre-aggregated metric data).\n• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nNote: for mstats, confirm the metrics indexes in the search exist and your role can run mstats. This is separate from CIM data model acceleration.\n\nStep 3 — Validate\nConfirm metric or event volume in the time range, then compare trends and device status to the Splunk Edge Hub admin UI or the mobile app for the same devices. Verify metric names, hosts, and time skew.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (sound level trend), Single value (current dB), Timeline (anomaly events).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Edge Hub (built-in stereo microphone), Splunk OT Intelligence — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=see SPL into edge-hub-anomalies. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`extracted_host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with loud or unsafe noise in the work area before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

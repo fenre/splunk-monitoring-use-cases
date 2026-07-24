@@ -1,0 +1,106 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.56.31",
+  "title": "TSA-SD Freight Rail cybersecurity vulnerability assessment — cadence, scope, and remediation tracking",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Audit",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Freight Rail",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes ad-hoc third-party assessments unrelated to CAP. Excludes draft self-assessments not yet submitted to TSA.",
+  "evidence": "Saved search `UC-22.56.31` archived daily to `audit_evidence` with `tsa_sd_clause=\"TSA-SD-1580-82-2022-01-s5\"`. Every row pins (facility_id, cap_year, submission_due_date, submitted_at, submission_status, assessment_doc_url, attestation_signer, attestation_date).",
+  "compliance": [
+    {
+      "regulation": "tsa-surface",
+      "version": "2024-consolidated-pipeline-rail",
+      "clause": "TSA-SD-1580-82-2022-01-s5",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "TSA-SD Pipeline §5 requires an annual Cybersecurity Assessment Programme (CAP) with self-assessment results submitted to TSA. This UC implements: submission-tracking, due-date computation, escalation, attestation evidence. Marked 'full' because all four facets are operationalised.",
+      "controlObjective": "Proves the annual CAP is completed and submitted to TSA on time with senior leadership attestation.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `TSA-SD CAP Submission Tracker` dashboard, the signed CAP report PDF, and the TSA submission acknowledgement.",
+      "obligationRef": "tsa-surface@2024-consolidated-pipeline-rail#TSA-SD-1580-82-2022-01-s5",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Set `submission_due_date` to yesterday with `submitted_at=null`. Within 24 hours UC-22.56.31 MUST flag `submission_status=overdue` and notify CC + CISO.",
+    "negativeScenario": "Set `submitted_at` 7 days before `submission_due_date` with attestation pin. UC-22.56.31 MUST record `submission_status=on_time`."
+  },
+  "dataSources": "KV Store `tsa_freight_vuln_assessment_lookup` (facility_id, cap_year, submission_due_date, submitted_at, assessment_doc_url, attestation_signer, attestation_date, tsa_acknowledgement_id).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "| inputlookup tsa_freight_vuln_assessment_lookup\n| eval days_to_due = round((submission_due_date - now()) / 86400, 0)\n| eval submission_status = case(\n    isnotnull(submitted_at) AND submitted_at <= submission_due_date AND isnotnull(attestation_signer), \"on_time\",\n    isnotnull(submitted_at) AND submitted_at > submission_due_date, \"late\",\n    isnull(submitted_at) AND days_to_due > 30, \"in_window\",\n    isnull(submitted_at) AND days_to_due > 0 AND days_to_due <= 30, \"due_soon\",\n    isnull(submitted_at) AND days_to_due <= 0, \"overdue\",\n    1=1, \"unknown\")\n| where submission_status IN (\"overdue\",\"due_soon\",\"late\")\n| table facility_id cap_year submission_due_date submitted_at submission_status assessment_doc_url attestation_signer attestation_date tsa_acknowledgement_id",
+  "description": "TSA-SD Freight Rail cybersecurity vulnerability assessment — Splunk continuously validates TSA-SD-1580-82-2022-01-s5 using the saved search in this UC, routes gaps to Enterprise Security notables, and archives proof rows to `audit_evidence`.",
+  "value": "Inspectors ask for proof that «TSA-SD Freight Rail cybersecurity vulnerability assessment» is operational today, not at last audit. Missing live evidence for TSA-SD-1580-82-2022-01-s5 is a direct regulatory deficiency with enforcement exposure.",
+  "implementation": "(1) Populate `tsa_freight_vuln_assessment_lookup` annually with CAP cycle data. (2) Schedule UC-22.56.31 daily; route `overdue` severity=critical. (3) Build the `TSA-SD CAP Submission Tracker` dashboard.",
+  "visualization": "(Panel 1) Submission status by facility. (Panel 2) Days-to-due funnel. (Panel 3) Attestation chain (signer + date). (Panel 4) 5-year submission history.",
+  "cimModels": [
+    "Inventory"
+  ],
+  "references": [
+    {
+      "title": "TSA SD Pipeline-2021-02D §5 (CAP)",
+      "url": "https://www.tsa.gov/sites/default/files/sd-pipeline-2021-02d.pdf"
+    },
+    {
+      "title": "TSA Cybersecurity Assessment Programme guidance",
+      "url": "https://www.tsa.gov/cybersecurity-assessment-programme"
+    },
+    {
+      "title": "TSA Surface Cybersecurity Requirements (June 2024 reissue)",
+      "url": "https://www.tsa.gov/news/press/releases/2024/06/07/tsa-reissues-cybersecurity-requirements-pipeline-industry"
+    },
+    {
+      "title": "CISA Cross-Sector Cybersecurity Performance Goals",
+      "url": "https://www.cisa.gov/cross-sector-cybersecurity-performance-goals"
+    }
+  ],
+  "knownFalsePositives": "1. **Planned maintenance window** — documented change windows in lookup `tsa_22_56_31_exceptions` suppress benign activity during approved work.\n\n2. **Pen-test / red-team activity** — engagements with agreed rules-of-engagement marker excluded via lookup `tsa_22_56_31_exceptions`.\n\n3. **Vendor remote-access sessions** — authorised vendor PAM sessions cross-reference lookup `tsa_22_56_31_exceptions` before alerting.\n\n4. **Regulatory transition / grace period** — time-bound exception register entry in lookup `tsa_22_56_31_exceptions` with documented approver and expiry.\n\n**Suppression mechanism**: filter results with lookup `tsa_22_56_31_exceptions` (time-bound exception register); rows must carry `approved_by` and `valid_until` epoch fields.",
+  "mitreAttack": [
+    "N/A (regulatory submission)"
+  ],
+  "requiredFields": [
+    "facility_id",
+    "cap_year",
+    "submission_due_date",
+    "submission_status"
+  ],
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-07-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Compliance SME Panel (finalized; pending verification)",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `tsa_freight_vuln_assessment_lookup`.\n\n## Step 1 — Define CAP register\n\n```ini\n[tsa_freight_vuln_assessment_lookup]\nenforceTypes = true\nfield.facility_id = string\nfield.cap_year = number\nfield.submission_due_date = number\nfield.submitted_at = number\nfield.assessment_doc_url = string\nfield.attestation_signer = string\nfield.attestation_date = number\nfield.tsa_acknowledgement_id = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.31: TSA-SD CAP Submission Tracker]\ncron_schedule = 23 7 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.31,reg=TSA-Surface,clause=TSA-SD-1580-82-2022-01-s5\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**`submission_status=overdue`** (owner: CC, severity P1):\n1. Within 24 hours: escalate to CISO; engage General Counsel.\n2. Within 7 days: complete and submit CAP with retroactive justification.\n3. Within 14 days: present to CC + CISO + Board cyber committee.\n\n## Step 4 — Troubleshooting\n\n- **Multi-facility CAP**: pipeline operators with consolidated reporting may file one CAP across multiple facilities; ensure the lookup row references all in-scope facilities.\n\n**TSA-specific failure modes**:\n- **NPRM transition**: Final Rule may change CAP structure; operate to current SD while monitoring the rulemaking.\n\n## Step 5 — Troubleshooting\n\n**Product-specific failure modes**:\n\n- **ServiceNow SIR custom-field drift** — if `csa_awareness_time` or `tsa_awareness_time` is NULL, verify the Security Incident Response workflow still writes the field on state transition to `In Progress`; compare against the vendor UI on the open ticket.\n- **KV Store sync lag** — if the lookup row updates but the saved search still surfaces stale status, confirm the `outputlookup` command completed (`| rest /services/data/transforms/lookup-table-files` shows matching row count).\n- **HEC token / modular-input silence** — run `index=_internal sourcetype=splunkd component=AggregatorMiningProcessor` for the source; no events for >2× the expected poll interval indicates an API or forwarder failure.\n- **Summary-index routing gaps** — validate `action.summary_index._name = audit_evidence` and RBAC role `compliance-analyst` retains write on the destination index.",
+  "grandmaExplanation": "Once a year, each pipeline must self-assess its cyber security and send the results — signed by a senior leader — to the TSA. We watch the deadline and make sure it's never late.",
+  "prerequisiteUseCases": [
+    "UC-22.56.1"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}

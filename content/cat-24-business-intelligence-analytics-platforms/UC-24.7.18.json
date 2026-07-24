@@ -8,31 +8,57 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:worker`, `airflow:task`), REST API `/dags/*/dagRuns`, StatsD counters (`airflow:statsd`), and metadata tables via DB Connect.",
-  "app": "Airflow task/scheduler logs via Universal Forwarder; Airflow REST API (`/api/v1`) and StatsD/OpenTelemetry metrics via HEC scripted inputs; Airflow metadata database (`dag_run`, `task_instance`, `job`) via Splunk DB Connect.",
+  "exclusions": "Covers the detection logic documented for 'Airflow Connection and Variable Errors' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_airflow_connection_and_variable_errors` (UC-24.7.18), SOC dashboard panel \"Operations — Airflow Connection and Variable Errors\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.7.18 positive (Airflow, Connection, and, Variable, Errors): ingest synthetic events into `index=bi` sourcetype='airflow:task' where `count` grouped by `conn_id`, `dag_id` satisfies detection threshold for 'Airflow Connection and Variable Errors'. Validate macro `(?<conn_id>[^`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.18 negative (Variable Errors): ingest benign `bi` / `airflow:task` events where `conn_id`, `dag_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Airflow Connection and Variable Errors'."
+  },
+  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:worker`, `airflow:task`), REST API `/dags/*/dagRuns`, StatsD counters (`airflow:statsd`), and metadata tables via DB Connect. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Airflow task/scheduler logs via Universal Forwarder; Airflow REST API (`/api/v1`) and StatsD/OpenTelemetry metrics via HEC scripted inputs; Airflow metadata database (`dag_run`, `task_instance`, `job`) via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=airflow:task (\"The conn_id\" AND \"isn't defined\") OR \"Variable * does not exist\"\n| rex \"conn_id `(?<conn_id>[^`]+)`\"\n| stats count as errors by conn_id, dag_id\n| sort - errors",
-  "description": "Detects tasks failing because a referenced Airflow connection or variable is missing, a common cause of environment-specific pipeline breakage after a migration.",
-  "value": "Missing connections fail pipelines in ways unit tests miss; surfacing them by DAG accelerates fixes after promotions between environments.",
+  "description": "Detects Variable Errors anomalies for UC-24.7.18 with window `the scheduled window` on `index=bi` sourcetype `airflow:task`. Combines `count` by `conn_id`, `dag_id` and compares against configured threshold. Mapped to keywords Airflow, Connection, and, Variable, Errors for dashboard routing.",
+  "value": "Alerting on Airflow, Connection, and, Variable, Errors through UC-24.7.18 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Ingest task logs; schedule every 30 minutes and alert on new missing-connection errors, especially right after deployments.",
   "visualization": "Table of conn_id/DAG by error count.",
   "cimModels": [],
   "references": [
     {
       "title": "Apache Airflow — REST API reference",
-      "url": "https://airflow.apache.org/docs/apache-airflow/stable/stable-rest-api-ref.html"
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/stable-rest-api-ref.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Apache Airflow — Logging & Monitoring / Metrics",
-      "url": "https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html"
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.7.18)** — Planned work for 'Airflow Connection and Variable Errors' shifts `count` over `span=1h` while `conn_id`, `dag_id` remains in-scope. Applies macro `(?<conn_id>[^`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `airflow:task`** — Scheduled automation elevates `dag_id` without crossing configured threshold for UC-24.7.18. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `conn_id`, `dag_id`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `airflow:task`** — First 48h baseline for UC-24.7.18 on `conn_id` is unstable; join `(?<conn_id>[^` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `conn_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "opentelemetry"
   ],
-  "grandmaExplanation": "We catch pipeline jobs that break because a saved login or setting is missing, so it can be added back quickly."
+  "equipmentModels": [
+    "db_connect_generic",
+    "opentelemetry_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Airflow task/scheduler logs via Universal Forwarder; Airflow REST API (`/api/v1`) and StatsD/OpenTelemetry metrics via HEC scripted inputs; Airflow metadata database (`dag_run`, `task_instance`, `job`) via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=airflow:task into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`conn_id, dag_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We catch pipeline jobs that break because a saved login or setting is missing, so it can be added back quickly.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

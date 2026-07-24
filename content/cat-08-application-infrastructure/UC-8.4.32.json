@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Pool status JSON fields `listen_queue_len` / `listen_queue` show accept(2) backlog when workers cannot dequeue fast enough.",
-  "app": "Splunk Universal Forwarder; optional Splunk Add-on for Unix and Linux (`Splunk_TA_nix`); custom `props.conf`/`transforms.conf` for `phpfpm:*` sourcetypes",
+  "exclusions": "Covers the detection logic documented for 'PHP-FPM Listen Queue Length Spike Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_php_fpm_listen_queue_length_spike_detection` (UC-8.4.32), SOC dashboard panel \"Operations — PHP-FPM Listen Queue Length Spike Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.4.32 positive (PHP, FPM, Listen, Queue, Length): ingest synthetic events into `index=web` sourcetype='phpfpm:status' where `listen_queue` grouped by `pool`, `host` satisfies `lql` > 0 for 'PHP-FPM Listen Queue Length Spike Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.4.32 negative (Spike Detection): ingest benign `web` / `phpfpm:status` events where `pool`, `host` stays below `lql` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'PHP-FPM Listen Queue Length Spike Detection'."
+  },
+  "dataSources": "Pool status JSON fields `listen_queue_len` / `listen_queue` show accept(2) backlog when workers cannot dequeue fast enough. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder; optional Splunk Add-on for Unix and Linux (`Splunk_TA_nix`); custom `props.conf`/`transforms.conf` for `phpfpm:*` sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"phpfpm:status\"\n| eval lql=tonumber(coalesce(listen_queue_len, listen_queue))\n| where lql > 0\n| timechart span=1m max(lql) as listen_queue by pool, host",
-  "description": "The listen queue grows when workers cannot accept connections fast enough. A non-zero queue is normal in bursts; sustained growth predicts timeouts upstream.",
-  "value": "Surfaces backlog pressure before nginx or HAProxy logs fill with upstream timed out.",
+  "description": "Identifies when Spike Detection criteria fire for 'PHP-FPM Listen Queue Length Spike Detection' (UC-8.4.32) in `index=web` sourcetype `phpfpm:status`. Pipeline aggregates `listen_queue` by `pool`, `host` over `1m`. Alert logic enforces `lql` > 0. Title terms: PHP, FPM, Listen, Queue, Length. Eliminates manual hunting for UC-8.4.32 conditions.",
+  "value": "UC-8.4.32 helps teams contain PHP, FPM, Listen, Queue, Length scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Expose `pm.status_path` on loopback; poll every 30s via UF script. Set alert `listen_queue_len` > 10 sustained 5m. Tune for high-traffic pools.",
   "visualization": "Time series (pool utilization, queue, latency percentiles), single value alerts, top charts for scripts and methods.",
   "cimModels": [
@@ -23,17 +29,33 @@
   "references": [
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "PHP-FPM configuration",
-      "url": "https://www.php.net/manual/en/"
+      "url": "https://www.php.net/manual/en/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
+  "knownFalsePositives": "1. **Maintenance window on `web` (UC-8.4.32)** — Planned work for 'PHP-FPM Listen Queue Length Spike Detection' shifts `listen_queue` over `span=1m` while `pool`, `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `phpfpm:status`** — Scheduled automation elevates `host` without crossing `lql` > 0 for UC-8.4.32. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pool`, `host`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `phpfpm:status`** — First 48h baseline for UC-8.4.32 on `pool` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pool`, `exception_reason`, `valid_until`.",
   "equipment": [
     "linux",
     "phpfpm"
+  ],
+  "equipmentModels": [
+    "linux_generic",
+    "phpfpm_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -42,6 +64,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We use this to surfaces backlog pressure before nginx or HAProxy logs fill with upstream timed out."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Universal Forwarder; optional Splunk Add-on for Unix and Linux (`Splunk_TA_nix`); custom `props.conf`/`transforms.conf` for `phpfpm:*` sourcetypes — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=phpfpm:status into web. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, lql, pool`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to surfaces backlog pressure before nginx or HAProxy logs fill with upstream timed out.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

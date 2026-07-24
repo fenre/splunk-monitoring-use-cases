@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=snow:discovery_model` or custom `discovery:asset`, `sourcetype=snow:cmdb_ci`",
-  "app": "ServiceNow Discovery, SCCM, or network scan feeds",
+  "exclusions": "Covers the detection logic documented for 'Asset Discovery Reconciliation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_asset_discovery_reconciliation` (UC-16.2.7), SOC dashboard panel \"Operations — Asset Discovery Reconciliation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-16.2.7 positive (Asset, Discovery, Reconciliation): ingest synthetic events into `index=discovery` sourcetype='discovery:asset' where `count` grouped by `host_key`, `serial_number`, `match_state` satisfies -1d for 'Asset Discovery Reconciliation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.2.7 negative (Discovery Reconciliation): ingest benign `discovery` / `discovery:asset` events where `host_key`, `serial_number`, `match_state` stays below -1d, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Asset Discovery Reconciliation'."
+  },
+  "dataSources": "`sourcetype=snow:discovery_model` or custom `discovery:asset`, `sourcetype=snow:cmdb_ci` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "ServiceNow Discovery, SCCM, or network scan feeds — Universal Forwarder (Splunkbase 617)",
   "spl": "index=discovery sourcetype=\"discovery:asset\" earliest=-1d\n| eval host_key=lower(mvindex(split(hostname,\".\"),0))\n| stats latest(_time) as last_seen by host_key, serial_number\n| join type=left max=1 host_key [ search index=itsm sourcetype=\"snow:cmdb_ci\" | eval host_key=lower(mvindex(split(name,\".\"),0)) | table host_key, sys_id, last_discovered ]\n| eval match_state=if(isnotnull(sys_id) AND abs(last_seen-last_discovered)<86400,\"synced\",\"stale_or_missing\")\n| stats count by match_state",
-  "description": "Reconciles discovery source of truth against CMDB for asset inventory — variance by source, age, and confidence.",
-  "value": "Reconciles discovery source of truth against CMDB for asset inventory — variance by source, age, and confidence.",
+  "description": "Surfaces UC-16.2.7 for Asset, Discovery, Reconciliation over `index=discovery` sourcetype `discovery:asset` with thresholds -1d. Groups `count` by `host_key`, `serial_number`, `match_state` each `the scheduled window`. Centered on Discovery Reconciliation indicators. Supports repeatable operations triage for 'Asset Discovery Reconciliation'.",
+  "value": "For 'Asset Discovery Reconciliation', UC-16.2.7 converts `activity` on `discovery:asset` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Normalize hostnames (FQDN strip). Map discovery tool serial/IP to CMDB. Report `stale_or_missing` counts weekly. Drive CMDB update tasks for unmatched discovery rows.",
   "visualization": "Pie chart (synced vs stale), Table (unmatched assets), Single value (reconciliation gap %).",
   "cimModels": [
@@ -22,13 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Shifts in ticket and workflow data during large incidents, process or field changes, holiday coverage, and after big rollouts; spot-check a sample in the source system before you treat the trend as a people problem.",
+  "knownFalsePositives": "1. **Maintenance window on `discovery` (UC-16.2.7)** — Planned work for 'Asset Discovery Reconciliation' shifts `count` over `span=1h` while `host_key`, `serial_number`, `match_state` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `discovery:asset`** — Scheduled automation elevates `serial_number` without crossing configured threshold for UC-16.2.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host_key`, `serial_number`, `match_state`** — Health checks in `discovery` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `discovery:asset`** — First 48h baseline for UC-16.2.7 on `host_key` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host_key`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],
+  "equipmentModels": [
+    "servicenow_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: ServiceNow Discovery, SCCM, or network scan feeds.\n• Ensure the following data sources are available: `sourcetype=snow:discovery_model` or custom `discovery:asset`, `sourcetype=snow:cmdb_ci`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNormalize hostnames (FQDN strip). Map discovery tool serial/IP to CMDB. Report `stale_or_missing` counts weekly. Drive CMDB update tasks for unmatched discovery rows.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=discovery sourcetype=\"discovery:asset\" earliest=-1d\n| eval host_key=lower(mvindex(split(hostname,\".\"),0))\n| stats latest(_time) as last_seen by host_key, serial_number\n| join type=left max=1 host_key [ search index=itsm sourcetype=\"snow:cmdb_ci\" | eval host_key=lower(mvindex(split(name,\".\"),0)) | table host_key, sys_id, last_discovered ]\n| eval match_state=if(isnotnull(sys_id) AND abs(last_seen-last_discovered)<86400,\"synced\",\"stale_or_missing\")\n| stats count by match_state\n```\n\nUnderstanding this SPL\n\n**Asset Discovery Reconciliation** — Reconciles discovery source of truth against CMDB for asset inventory — variance by source, age, and confidence.\n\nDocumented **Data sources**: `sourcetype=snow:discovery_model` or custom `discovery:asset`, `sourcetype=snow:cmdb_ci`. **App/TA** (typical add-on context): ServiceNow Discovery, SCCM, or network scan feeds. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: discovery; **sourcetype**: discovery:asset. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=discovery, sourcetype=\"discovery:asset\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **host_key** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by host_key, serial_number** so each row reflects one combination of those dimensions.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **match_state** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by match_state** so each row reflects one combination of those dimensions.\n\n\nStep 3 — Validate\nCompare with the ServiceNow configuration item or related CMDB view. Spot-check a few CIs, owners, and relationship fields, then confirm discovery dates if we measure freshness.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Pie chart (synced vs stale), Table (unmatched assets), Single value (reconciliation gap %).",
-  "grandmaExplanation": "We line up what we find on the network with what we pay for, so we are not flying blind for risk and cost."
+  "grandmaExplanation": "We line up what we find on the network with what we pay for, so we are not flying blind for risk and cost.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

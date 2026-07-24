@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=xd` `sourcetype=\"citrix:broker:session\"` or `sourcetype=\"citrix:netscaler:aaalog\"` with `user`, `client_ip`, `session_id`, `geo_country` (from lookup), `logon_time`",
-  "app": "Citrix broker and gateway logs, MaxMind or internal geo lookup in Splunk, optional Splunk User Behavior Analytics",
+  "exclusions": "Covers the detection logic documented for 'Citrix Session Hijack Detection (Impossible Travel)' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_citrix_session_hijack_detection_impossible_trave` (UC-10.6.196), SOC dashboard panel \"Security Infra — Citrix Session Hijack Detection (Impossible Travel)\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.6.196 positive (Citrix, Session, Hijack, Detection, (Impossible): ingest synthetic events into `index=xd` sourcetype='citrix:broker:session' where `count` grouped by `user` satisfies -24h for 'Citrix Session Hijack Detection (Impossible Travel)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.6.196 negative ((Impossible Travel)): ingest benign `xd` / `citrix:broker:session` events where `user` stays below -24h, or exclude the test entity via `soc_exception_register.csv`. Variant 13 confirms zero alert rows for 'Citrix Session Hijack Detection (Impossible Travel)'."
+  },
+  "dataSources": "`index=xd` `sourcetype=\"citrix:broker:session\"` or `sourcetype=\"citrix:netscaler:aaalog\"` with `user`, `client_ip`, `session_id`, `geo_country` (from lookup), `logon_time` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Citrix broker and gateway logs, MaxMind or internal geo lookup in Splunk, optional Splunk User Behavior Analytics — Universal Forwarder (Splunkbase 617)",
   "spl": "index=xd (sourcetype=\"citrix:broker:session\" OR sourcetype=\"citrix:netscaler:aaalog\") earliest=-24h\n| iplocation client_ip\n| eval country=coalesce(Country, geo_country, \"unknown\")\n| sort 0 user, _time\n| streamstats window=2 global=f current=f first(_time) as prev_t first(client_ip) as prev_ip first(country) as prev_c by user\n| eval km_s=if(isnotnull(prev_t) and (_time-prev_t)<3600 and prev_c!=country and country!=\"unknown\" and prev_c!=\"unknown\",1,0)\n| where km_s=1\n| table _time, user, prev_ip, client_ip, prev_c, country",
-  "description": "Credential theft or session token reuse can show up as the same account active from two distant geographies within a short window, or as a client IP change mid-session without a clean re-authentication. Joining session and gateway events with geo data flags impossible travel and concurrent locations that warrant step-up auth and session termination.",
-  "value": "Credential theft or session token reuse can show up as the same account active from two distant geographies within a short window, or as a client IP change mid-session without a clean re-authentication. Joining session and gateway events with geo data flags impossible travel and concurrent locations that warrant step-up auth and session termination.",
+  "description": "Monitors UC-10.6.196 — Citrix, Session, Hijack, Detection, (Impossible — using `index=xd` sourcetype `citrix:broker:session`, grouped by `user`. Outputs `count` each `the scheduled window`; alert when -24h. Primary focus: (Impossible Travel). Purpose-built for 'Citrix Session Hijack Detection (Impossible Travel)' in Security Infra workflows.",
+  "value": "UC-10.6.196 gives Security Infra teams earlier visibility into (Impossible Travel) through `citrix:broker:session` feeds, lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Keep the geo lookup current. Use `streamstats` only as a starting point; refine with distance or travel-time models for fewer false positives from VPN exit changes. Pair with identity provider sign-in history. Auto-isolate high-value accounts. Document corporate VPN that shows a single country even when users are mobile.",
   "visualization": "Notable list: user, previous vs new country; map: client IP points; timeline: session events per user.",
   "cimModels": [
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "Citrix — Secure logon and session management",
-      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/secure.html"
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/secure.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "VPN home regions, fast executive travel, mobile NAT churn, and shared egress IPs can trigger impossible travel without compromise. Add MFA success, new device, and PAM context; or require velocity plus second-factor challenge failure before an account takeover call.",
+  "knownFalsePositives": "1. **Maintenance window on `xd` (UC-10.6.196)** — Planned work for 'Citrix Session Hijack Detection (Impossible Travel)' shifts `count` over `span=1h` while `user` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `citrix:broker:session`** — Scheduled automation elevates `country` without crossing configured threshold for UC-10.6.196. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user`** — Health checks in `xd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `citrix:broker:session`** — First 48h baseline for UC-10.6.196 on `user` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1550",
     "T1078.004"
@@ -37,6 +59,12 @@
     "citrix_netscaler"
   ],
   "lastReviewed": "2026-04-24",
-  "detailedImplementation": "Prerequisites\n• `index=xd`; `citrix:broker:session` and `citrix:netscaler:aaalog` with `user`, `client_ip`, `_time` (same TZ). `user` as UPN. Geo: monthly MaxMind (or iplocation + DB refresh). Stanzas: `props` so `client_ip` is always extracted.\n\nStep 1 — Configure data collection\n`lookups/jumpbox_subnets.csv` (allow), `known_vpn_exit_country.csv` (tune expectations). In `props` normalize nested IP fields. Drop duplicate session heartbeats: `dedup user,_time,client_ip` if needed in a subsearch.\n\nStep 2 — Create the search and alert\n`streamstats` as starter: alert on any `km_s=1` to SecOps (critical). Add macro later for haversine distance. Combine with IdP travel alert in SOAR; winner = higher confidence. Service accounts: lookup exclude.\n\nStep 3 — Validate\nBacktest: known incident week, measure TP/FP. VPN flips: expect FP—tighten `(_time-prev_t)` or require both legs outside VPN allow list.\n\nStep 4 — Operationalize\nRunbook: step-up at IdP, kill Citrix session, reset creds for VIP. L3 for persistence. Document split-tunnel. Quarterly: tune time window 30–60m. Privacy: need-to-know for IP lists.",
-  "grandmaExplanation": "We notice when the same sign-in shows up in two far-apart places faster than a person could travel — so you catch stolen or shared sign-ins before they quietly keep using your systems."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• `index=xd`; `citrix:broker:session` and `citrix:netscaler:aaalog` with `user`, `client_ip`, `_time` (same TZ). `user` as UPN. Geo: monthly MaxMind (or iplocation + DB refresh). Stanzas: `props` so `client_ip` is always extracted.\n\nStep 1 — Configure data collection\n`lookups/jumpbox_subnets.csv` (allow), `known_vpn_exit_country.csv` (tune expectations). In `props` normalize nested IP fields. Drop duplicate session heartbeats: `dedup user,_time,client_ip` if needed in a subsearch.\n\nStep 2 — Create the search and alert\n`streamstats` as starter: alert on any `km_s=1` to SecOps (critical). Add macro later for haversine distance. Combine with IdP travel alert in SOAR; winner = higher confidence. Service accounts: lookup exclude.\n\nStep 3 — Validate\nBacktest: known incident week, measure TP/FP. VPN flips: expect FP—tighten `(_time-prev_t)` or require both legs outside VPN allow list.\n\nStep 4 — Operationalize\nRunbook: step-up at IdP, kill Citrix session, reset creds for VIP. L3 for persistence. Document split-tunnel. Quarterly: tune time window 30–60m. Privacy: need-to-know for IP lists.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Citrix broker and gateway logs, MaxMind or internal geo lookup in Splunk, optional Splunk User Behavior Analytics — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=citrix:broker:session, citrix:netscaler:aaalog into xd. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`km_s, user`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We notice when the same sign-in shows up in two far-apart places faster than a person could travel — so you catch stolen or shared sign-ins before they quietly keep using your systems.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

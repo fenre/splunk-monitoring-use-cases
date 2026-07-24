@@ -9,26 +9,55 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Home Assistant state/logbook events (`homeassistant:event`), Homey flow/insights (`homey:flow`), SmartThings events (`smartthings:event`), Node-RED flow events (`nodered:event`).",
-  "app": "Home Assistant / Homey / SmartThings / Hubitat / openHAB event streams via MQTT, webhooks, and REST — forwarded to Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Home Assistant Automation Failures' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_home_assistant_automation_failures` (UC-25.4.1), SOC dashboard panel \"Personal — Home Assistant Automation Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.4.1 positive (Home, Assistant, Automation, Failures): ingest synthetic events into `index=personal` sourcetype='homeassistant:event' where `sum` grouped by `automation` satisfies `failures` > 0 for 'Home Assistant Automation Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.4.1 negative (Automation Failures): ingest benign `personal` / `homeassistant:event` events where `automation` stays below `failures` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 13 confirms zero alert rows for 'Home Assistant Automation Failures'."
+  },
+  "dataSources": "Home Assistant state/logbook events (`homeassistant:event`), Homey flow/insights (`homey:flow`), SmartThings events (`smartthings:event`), Node-RED flow events (`nodered:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Home Assistant / Homey / SmartThings / Hubitat / openHAB event streams via MQTT, webhooks, and REST — forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=homeassistant:event event_type=automation_triggered\n| stats count as runs, sum(eval(result=\"failed\" OR level=\"ERROR\")) as failures by automation\n| eval fail_rate=round(100*failures/runs,1)\n| where failures>0\n| sort - fail_rate",
-  "description": "Counts how often each Home Assistant automation runs and how often it errors, so a broken automation surfaces instead of just silently not happening.",
-  "value": "A failed automation is invisible by design — the lights just do not turn on; tracking failure rate makes these silent failures actionable.",
+  "description": "Identifies UC-25.4.1 — Home, Assistant, Automation, Failures — using `index=personal` sourcetype `homeassistant:event`, grouped by `automation`. Outputs `sum` each `the scheduled window`; alert when `failures` > 0. Primary focus: Automation Failures. Purpose-built for 'Home Assistant Automation Failures' in Personal workflows.",
+  "value": "UC-25.4.1 gives Personal teams earlier visibility into Automation Failures through `homeassistant:event` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Forward Home Assistant logbook/automation events to HEC; schedule hourly and alert when a key automation starts failing.",
   "visualization": "Table of automations by failure rate with a trend line.",
   "cimModels": [],
   "references": [
     {
       "title": "Home Assistant — Documentation",
-      "url": "https://www.home-assistant.io/docs/"
+      "url": "https://www.home-assistant.io/docs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.4.1)** — Connector for 'Home Assistant Automation Failures' stops polling `homeassistant:event`; stale `sum` on `automation` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected for UC-25.4.1, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `homeassistant:event`. Dedup with `stats latest(*) by automation`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `failures` > 0 for 'Home Assistant Automation Failures'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It notices when your home's automatic routines stop working, like lights that should have come on but did not."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Home Assistant — HA Splunk integration, webhook, or MQTT → HEC.\n• **Subcategory context**: Smart Home Platforms & Automation — typical feeds: Home Assistant state/logbook events (`homeassistant:event`), Homey flow/insights (`homey:flow`), SmartThings events (`smartthings:event`), Hubitat/openHAB logs, Node-RED flow events (`nodered:event`)..\n• **Sourcetypes in this search**: `homeassistant:event`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Home Assistant** events into `index=personal` with `sourcetype=homeassistant:event`.\n\n**Collection method:** HA Splunk integration, webhook, or MQTT → HEC.\n\n**Reference endpoint / path:** `POST /api/events/state_changed or logbook stream`.\n\n**Suggested poll interval:** real-time (event-driven).\n\n**Key fields to extract:** `entity_id, state, attributes, domain`.\n\n**Typical connector stack:** Home Assistant / Homey / SmartThings / Hubitat / openHAB event streams via MQTT, webhooks, and REST — forwarded to Splunk HEC..\n\n**Author notes:** Forward Home Assistant logbook/automation events to HEC; schedule hourly and alert when a key automation starts failing.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"homeassistant:event\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=homeassistant:event earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Home Assistant Automation Failures** over `personal` data (primarily `sourcetype=homeassistant:event`) across the full search range. It applies numeric thresholds on `failures` (> 0) after sum — tune these constants to your household baseline.\n\n**Fields this search depends on:** `automation`, `failures`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=homeassistant:event event_type=automation_triggered\n| stats count as runs, sum(eval(result=\"failed\" OR level=\"ERROR\")) as failures by automation\n| eval fail_rate=round(100*failures/runs,1)\n| where failures>0\n| sort - fail_rate\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Home Assistant → Developer Tools → States. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=homeassistant:event earliest=-7d\n| head 50\n| table automation, failures\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=homeassistant:event earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `failures` before alerting:\n\n```spl\nindex=personal sourcetype=homeassistant:event earliest=-30d\n| stats perc50(failures) AS p50 perc90(failures) AS p90 perc99(failures) AS p99 max(failures) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.4.1: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Automations By Failure Rate With A Trend Line (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Home Assistant — no Home Assistant events / missing fields:** If `homeassistant:event` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Home Assistant connector script is still running (`systemctl status` or cron log).\n\n**Home Assistant — NULL values in extracted fields:** The Home Assistant JSON export shape drifted — compare a raw event (`index=personal sourcetype=homeassistant:event | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Home Assistant — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Home Assistant — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Home Assistant APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It notices when your home's automatic routines stop working, like lights that should have come on but did not.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

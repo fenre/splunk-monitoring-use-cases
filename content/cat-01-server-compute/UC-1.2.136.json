@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "MDM vendor API logs (Jamf Pro, Workspace ONE, Intune macOS) forwarded as JSON/HEC, or `sourcetype=jamf:computer_inventory` style feeds",
-  "app": "Jamf Pro, Microsoft Intune, VMware Workspace ONE — via HEC or scripted pull TA patterns; optional Cisco Secure Endpoint TA for corroboration",
+  "exclusions": "Covers the detection logic documented for 'macOS MDM Enrollment and User Channel Check-In SLA' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_macos_mdm_enrollment_and_user_channel_check_in_s` (UC-1.2.136), SOC dashboard panel \"Linux — macOS MDM Enrollment and User Channel Check-In SLA\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.2.136 positive (macOS, MDM, Enrollment, and, User): ingest synthetic events into `index=mdm` sourcetype='jamf:computer_inventory' where `count` grouped by `entity` satisfies `hours_since` > 48 for 'macOS MDM Enrollment and User Channel Check-In SLA'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.2.136 negative (In SLA): ingest benign `mdm` / `jamf:computer_inventory` events where `entity` stays below `hours_since` > 48, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 14 confirms zero alert rows for 'macOS MDM Enrollment and User Channel Check-In SLA'."
+  },
+  "dataSources": "MDM vendor API logs (Jamf Pro, Workspace ONE, Intune macOS) forwarded as JSON/HEC, or `sourcetype=jamf:computer_inventory` style feeds Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Jamf Pro, Microsoft Intune, VMware Workspace ONE — via HEC or scripted pull TA patterns; optional Cisco Secure Endpoint TA for corroboration — Universal Forwarder (Splunkbase 617)",
   "spl": "index=mdm sourcetype=jamf:computer_inventory OR sourcetype=intune:device OR sourcetype=ws1:device\n| eval last_seen_epoch=coalesce(tonumber(last_contact_time_epoch), tonumber(last_seen_epoch))\n| eval hours_since=round((now()-last_seen_epoch)/3600,2)\n| where isnotnull(mdm_enrolled) AND mdm_enrolled=false OR hours_since > 48\n| table _time, host, serial_number, mdm_enrolled, udid, hours_since, management_source\n| sort - hours_since",
-  "description": "macOS devices that fall out of MDM enrollment lose policy baselines for disk encryption, firewall, and update cadence. Comparing enrollment flags and last MDM check-in timestamps surfaces unmanaged or ghost systems before auditors do.",
-  "value": "Protects configuration compliance on Apple endpoints by catching MDM channel loss within hours instead of at quarterly inventory.",
+  "description": "Identifies UC-1.2.136 — macOS, MDM, Enrollment, and, User — using `index=mdm` sourcetype `jamf:computer_inventory`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `hours_since` > 48. Primary focus: In SLA. Purpose-built for 'macOS MDM Enrollment and User Channel Check-In SLA' in Linux workflows.",
+  "value": "Alerting on macOS, MDM, Enrollment, and, User through UC-1.2.136 reduces capacity incidents, patch regressions, and service outages by surfacing `activity` early.",
   "implementation": "Ingest your MDM tool’s device export or webhook stream. Normalize fields: `mdm_enrolled` boolean, `last_contact_time_epoch`, `serial_number`, `udid`. For Jamf, mirror the classic Splunk-for-Jamf sourcetype naming; for Intune Graph pulls, use `intune:device`. Schedule hourly; alert when `mdm_enrolled=false` on corporately tagged assets or `hours_since > 48`. Join Splunk asset lookups for loaner exclusions.",
   "visualization": "Map (optional by site), Table (stale check-ins), Single value (unenrolled count).",
   "cimModels": [
@@ -22,17 +28,35 @@
   "references": [
     {
       "title": "Apple Platform Deployment — MDM overview",
-      "url": "https://support.apple.com/guide/deployment/depd0f22e45/web"
+      "url": "https://support.apple.com/guide/deployment/depd0f22e45/web",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Docs: HTTP Event Collector setup",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Patch Tuesday on `mdm`** — Package managers spike `host` metrics for 'macOS MDM Enrollment and User Channel Check-In SLA'. Correlate with apt/yum logs in the same `jamf:computer_inventory` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `jamf:computer_inventory`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `hours_since` > 48.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "cisco",
     "macos",
     "vmware"
+  ],
+  "equipmentModels": [
+    "cisco_generic",
+    "macos_generic",
+    "vmware_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,6 +65,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• HEC token or modular input with API credentials stored in Splunk secret storage.\n• Field aliases aligned across MDM vendors.\n\nStep 1 — Backfill baseline with a one-time `inputlookup` merge.\n\nStep 2 — Alert routing to mobile device team with serial for Apple GSX lookup.\n\nStep 3 — Validate against MDM console UI for a test device put in airplane mode.\n\nStep 4 — Document BYOD exclusion rules.",
-  "grandmaExplanation": "We make sure company Macs are still properly enrolled in the management system so security settings don’t quietly fall off."
+  "detailedImplementation": "Prerequisites\n• HEC token or modular input with API credentials stored in Splunk secret storage.\n• Field aliases aligned across MDM vendors.\n\nStep 1 — Backfill baseline with a one-time `inputlookup` merge.\n\nStep 2 — Alert routing to mobile device team with serial for Apple GSX lookup.\n\nStep 3 — Validate against MDM console UI for a test device put in airplane mode.\n\nStep 4 — Document BYOD exclusion rules.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Jamf Pro, Microsoft Intune, VMware Workspace ONE — via HEC or scripted pull TA patterns; optional Cisco Secure Endpoint TA for corroboration — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=jamf:computer_inventory, intune:device, ws1:device into mdm. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`hours_since`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We make sure company Macs are still properly enrolled in the management system so security settings don’t quietly fall off.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

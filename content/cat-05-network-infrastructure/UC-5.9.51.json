@@ -8,28 +8,42 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Splunk On-Call Incident Routing' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_splunk_on_call_incident_routing` (UC-5.9.51), SOC dashboard panel \"Operations — Splunk On-Call Incident Routing\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.9.51 positive (Splunk, Call, Incident, Routing): ingest synthetic events into `index=target_index` sourcetype='cisco:thousandeyes:alerts' where `count` grouped by `entity` satisfies detection threshold for 'Splunk On-Call Incident Routing'. Validate macro `stream_index`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.9.51 negative (Incident Routing): ingest benign `target_index` / `cisco:thousandeyes:alerts` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Splunk On-Call Incident Routing'."
+  },
   "dataSources": "`index=thousandeyes_alerts sourcetype=cisco:thousandeyes:alerts` from the Alerts Stream input in `ta_cisco_thousandeyes` (Splunkbase 7719), routed to Splunk On-Call (formerly VictorOps) via Splunk alert actions.",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported. **Also requires:** Splunk On-Call (VictorOps) integration.",
   "spl": "`stream_index` sourcetype=\"cisco:thousandeyes:alerts\" severity=\"critical\" state=\"active\"\n| dedup alert.rule.name, alert.test.name\n| table _time, alert.rule.name, alert.test.name, severity, thousandeyes.permalink\n| sort -_time",
-  "description": "Routes critical ThousandEyes alerts to Splunk On-Call for automated incident creation and on-call engineer notification. Bridges the gap between ThousandEyes network alerting and your incident management workflow, ensuring network issues page the right team at the right time.",
-  "value": "ThousandEyes alerts in Splunk are only useful if someone acts on them. Most NOC teams use Splunk On-Call (or PagerDuty) for incident management. This UC ensures critical ThousandEyes alerts automatically create incidents in On-Call, which pages the on-call engineer via phone/SMS/push notification. Without this integration, ThousandEyes alerts sit in a Splunk dashboard that nobody is watching at 3 AM. With it, a BGP hijack detection (UC-5.9.11) or a critical web application outage (UC-5.9.34) wakes up the right person immediately.",
+  "description": "Surfaces UC-5.9.51 — Splunk, Call, Incident, Routing — using `index=target_index` sourcetype `cisco:thousandeyes:alerts`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes macro `stream_index`. Purpose-built for 'Splunk On-Call Incident Routing' in Operations workflows.",
+  "value": "UC-5.9.51 accelerates insight into Incident Routing ('Splunk On-Call Incident Routing') by tracking `activity` on `cisco:thousandeyes:alerts` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Create a Splunk saved search that triggers on critical ThousandEyes alerts and uses the VictorOps/On-Call alert action to create incidents. Map ThousandEyes alert severity to On-Call incident severity.",
   "visualization": "(1) Table: recent incidents routed to On-Call. (2) Timeline: incident creation timestamps. (3) Single value: active incidents from ThousandEyes alerts.",
   "references": [
     {
       "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
-      "url": "https://splunkbase.splunk.com/app/7719"
+      "url": "https://splunkbase.splunk.com/app/7719",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk On-Call (VictorOps) alert action",
-      "url": "https://docs.splunk.com/Documentation/OnCall"
+      "url": "https://docs.splunk.com/Documentation/OnCall",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk alert actions documentation",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Alert/Setupalertactions"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Alert/Setupalertactions",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Alert noise → incident noise.** If ThousandEyes alert rules aren't well-tuned (UC-5.9.46), noisy alerts become noisy incidents, causing on-call fatigue. Tune ThousandEyes alerting BEFORE routing to On-Call.\n\n**Duplicate incidents.** Multiple ThousandEyes agents may fire the same alert for the same network issue, creating multiple On-Call incidents. Use dedup in the Splunk search or incident deduplication rules in On-Call.\n\n**Incidents for transient issues.** Brief network blips may trigger alerts that clear within minutes. Consider adding a delay or requiring consecutive alert rounds before creating an On-Call incident.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index` (UC-5.9.51)** — Planned work for 'Splunk On-Call Incident Routing' shifts `count` over `span=1h` while `host` remains in-scope. Applies macro `stream_index`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:thousandeyes:alerts`** — Scheduled automation elevates `src` without crossing configured threshold for UC-5.9.51. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:thousandeyes:alerts`** — First 48h baseline for UC-5.9.51 on `host` is unstable; join `stream_index` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

@@ -8,32 +8,59 @@
     "Data Quality"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "dbt test results (`dbt:run_results`), warehouse metadata (`snowflake:query_history`, `bigquery:jobs`), and pipeline event logs.",
-  "app": "dbt test results (`run_results.json`) and cross-platform freshness signals from warehouse INFORMATION_SCHEMA via DB Connect and HEC.",
+  "exclusions": "Covers the detection logic documented for 'dbt Test Failures by Test Type' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_dbt_test_failures_by_test_type` (UC-24.9.17), SOC dashboard panel \"Operations — dbt Test Failures by Test Type\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.9.17 positive (dbt, Test, Failures, Test, Type): ingest synthetic events into `index=bi` sourcetype='dbt:run_results' where `count` grouped by `test_type` satisfies detection threshold for 'dbt Test Failures by Test Type'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.9.17 negative (Test Type): ingest benign `bi` / `dbt:run_results` events where `test_type` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'dbt Test Failures by Test Type'."
+  },
+  "dataSources": "dbt test results (`dbt:run_results`), warehouse metadata (`snowflake:query_history`, `bigquery:jobs`), and pipeline event logs. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "dbt test results (`run_results.json`) and cross-platform freshness signals from warehouse INFORMATION_SCHEMA via DB Connect and HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=dbt:run_results\n| spath path=results{} output=results\n| mvexpand results\n| eval node=spath(results,\"unique_id\"), status=spath(results,\"status\")\n| where match(node,\"^test\\.\") AND status=\"fail\"\n| rex field=node \"test\\.[^.]+\\.(?<test_type>not_null|unique|accepted_values|relationships|[a-z_]+)_\"\n| stats count as failures by test_type\n| sort - failures",
-  "description": "Parses dbt run_results to classify failing tests by generic type (not_null, unique, accepted_values, relationships) so teams see the dominant class of data-quality breakage.",
-  "value": "Knowing whether failures are mostly uniqueness vs. referential-integrity problems guides systemic fixes rather than one-off patches.",
+  "description": "Alerts on UC-24.9.17 — dbt, Test, Failures, Test, Type — using `index=bi` sourcetype `dbt:run_results`, grouped by `test_type`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Test Type. Purpose-built for 'dbt Test Failures by Test Type' in Operations workflows.",
+  "value": "UC-24.9.17 accelerates insight into Test Type ('dbt Test Failures by Test Type') by tracking `activity` on `dbt:run_results` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Forward run_results.json; schedule after each dbt build and alert when failures for a test type spike.",
   "visualization": "Table of test type by failures, timechart, breakdown pie.",
   "cimModels": [],
   "references": [
     {
       "title": "dbt — Tests",
-      "url": "https://docs.getdbt.com/docs/build/data-tests"
+      "url": "https://docs.getdbt.com/docs/build/data-tests",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "dbt — Artifacts (run_results.json)",
-      "url": "https://docs.getdbt.com/reference/artifacts/run-results-json"
+      "url": "https://docs.getdbt.com/reference/artifacts/run-results-json",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.9.17)** — Planned work for 'dbt Test Failures by Test Type' shifts `count` over `span=1h` while `test_type` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `dbt:run_results`** — Scheduled automation elevates `node` without crossing configured threshold for UC-24.9.17. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `test_type`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbt:run_results`** — First 48h baseline for UC-24.9.17 on `test_type` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `test_type`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "servicenow",
     "snowflake"
   ],
-  "grandmaExplanation": "We sort the failed data checks by what kind of rule they broke so recurring problems can be fixed at the root."
+  "equipmentModels": [
+    "db_connect_generic",
+    "servicenow_generic",
+    "snowflake_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (dbt test results (`run_results.json`) and cross-platform freshness signals from warehouse INFORMATION_SCHEMA via DB Connect and HEC. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=dbt:run_results into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`test_type`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We sort the failed data checks by what kind of rule they broke so recurring problems can be fixed at the root.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

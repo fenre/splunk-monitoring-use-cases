@@ -9,28 +9,50 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'SharePoint Online Permission and Group Membership Changes' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_sharepoint_online_permission_and_group_membershi` (UC-11.2.22), SOC dashboard panel \"Operations — SharePoint Online Permission and Group Membership Changes\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-11.2.22 positive (SharePoint, Online, Permission, and, Group): ingest synthetic events into `index=o365` sourcetype='o365:management:activity' where `values` grouped by `actor`, `target` satisfies -7d for 'SharePoint Online Permission and Group Membership Changes'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.2.22 negative (Membership Changes): ingest benign `o365` / `o365:management:activity` events where `actor`, `target` stays below -7d, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'SharePoint Online Permission and Group Membership Changes'."
+  },
   "dataSources": "`sourcetype=o365:management:activity` SharePoint identity and permission operations",
   "app": "Splunk Add-on for Microsoft Office 365 (Splunkbase 4055)",
   "spl": "index=o365 sourcetype=\"o365:management:activity\" Workload=SharePoint earliest=-7d\n| where match(Operation, \"(?i)Add.*Member|Remove.*Member|Role|Permission|Group\")\n| eval actor=coalesce(UserId, UserPrincipalName, userId, \"\")\n| eval target=coalesce(ObjectId, SiteUrl, \"\")\n| stats count values(Operation) as operations by actor, target\n| sort -count",
-  "description": "Adds, removals, and role or permission changes in SharePoint often precede data exfiltration or persistence; centralizing them supports SOC detection and access certification.",
-  "value": "Creates an auditor-friendly trail of entitlement drift for sensitive site collections without exporting separate CSVs from the compliance center.",
+  "description": "Identifies UC-11.2.22 — SharePoint, Online, Permission, and, Group — using `index=o365` sourcetype `o365:management:activity`, grouped by `actor`, `target`. Outputs `values` each `the scheduled window`; alert when -7d. Primary focus: Membership Changes. Purpose-built for 'SharePoint Online Permission and Group Membership Changes' in Operations workflows.",
+  "value": "Operators running UC-11.2.22 on `o365:management:activity` feeds shorten triage for Membership Changes tied to 'SharePoint Online Permission and Group Membership Changes', lowering operational risk and delayed incident response.",
   "implementation": "Tune the `match` regex to your tenant’s exact `Operation` strings. Enrich `ObjectId` with a lookup of site sensitivity labels. Suppress known break-glass accounts. For high-volume tenants, summarize hourly before alerting.",
   "visualization": "Table (actor × target), timeline, heatmap (Operation type).",
   "dataModelAcceleration": "Not applicable; primary SPL uses raw or vendor-normalized event fields.",
   "references": [
     {
       "title": "Splunk Add-on for Microsoft Office 365",
-      "url": "https://splunkbase.splunk.com/app/4055"
+      "url": "https://splunkbase.splunk.com/app/4055",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Microsoft 365 compliance auditing",
-      "url": "https://learn.microsoft.com/en-us/microsoft-365/compliance/audit-log-activities"
+      "url": "https://learn.microsoft.com/en-us/microsoft-365/compliance/audit-log-activities",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Permission and membership churn during re-orgs, dynamic group changes, and Microsoft 365 group sync.",
+  "knownFalsePositives": "1. **Maintenance window on `o365` (UC-11.2.22)** — Planned work for 'SharePoint Online Permission and Group Membership Changes' shifts `values` over `span=1h` while `actor`, `target` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `o365:management:activity`** — Scheduled automation elevates `target` without crossing configured threshold for UC-11.2.22. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `actor`, `target`** — Health checks in `o365` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `o365:management:activity`** — First 48h baseline for UC-11.2.22 on `actor` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `actor`, `exception_reason`, `valid_until`.",
   "equipment": [
     "m365",
     "sharepoint"
+  ],
+  "equipmentModels": [
+    "m365_generic",
+    "sharepoint_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -39,5 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch SharePoint sharing and file pulls, so odd permission changes or big downloads are visible before they spread."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Microsoft Office 365 (Splunkbase 4055)). Enable the modular input or HEC token that writes sourcetype=o365:management:activity into o365. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`actor, target`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch SharePoint sharing and file pulls, so odd permission changes or big downloads are visible before they spread.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Akamai Guardicore Asset Label and Segmentation Group Drift' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_akamai_guardicore_asset_label_and_segmentation_g` (UC-17.2.25), SOC dashboard panel \"Network — Akamai Guardicore Asset Label and Segmentation Group Drift\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.2.25 positive (Akamai, Guardicore, Asset, Label, and): ingest synthetic events into `index=microseg` sourcetype='guardicore:agent' where `count` grouped by `agent_id`, `hostname` satisfies -7d for 'Akamai Guardicore Asset Label and Segmentation Group Drift'. Validate lookup `guardicore_asset_baseline.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.2.25 negative (Group Drift): ingest benign `microseg` / `guardicore:agent` events where `agent_id`, `hostname` stays below -7d, or exclude the test entity via `network_exception_register.csv`. Variant 7 confirms zero alert rows for 'Akamai Guardicore Asset Label and Segmentation Group Drift'."
+  },
   "dataSources": "Guardicore inventory or policy sync events, `sourcetype=guardicore:agent` or `guardicore:inventory` (confirm per TA version)",
   "app": "Akamai Guardicore Add-on for Splunk (Splunkbase 7426)",
   "spl": "index=microseg sourcetype=\"guardicore:agent\" earliest=-7d\n| eval labels=coalesce(labels, asset_labels, segmentation_labels)\n| eval app=coalesce(application, app_name, hostname)\n| stats latest(labels) as current_labels, earliest(_time) as first_seen by agent_id, hostname\n| lookup guardicore_asset_baseline.csv hostname OUTPUT expected_labels\n| where isnotnull(expected_labels) AND current_labels!=expected_labels\n| table hostname, expected_labels, current_labels, first_seen",
-  "description": "Microsegmentation only stays accurate when workload labels reflect the current application owner, environment, and compliance tier. Drift between expected labels from CMDB and labels observed in Guardicore indicates missed decommission steps, cloning errors, or unauthorised workload promotion.",
-  "value": "Microsegmentation teams detect when asset labels change or disappear, catching configuration drift that silently removes assets from their intended security policy groups.",
+  "description": "Monitors UC-17.2.25 — Akamai, Guardicore, Asset, Label, and — using `index=microseg` sourcetype `guardicore:agent`, grouped by `agent_id`, `hostname`. Outputs `count` each `the scheduled window`; alert when -7d. Filter chain includes lookup `guardicore_asset_baseline.csv`. Purpose-built for 'Akamai Guardicore Asset Label and Segmentation Group Drift' in Network workflows.",
+  "value": "UC-17.2.25 operationalises 'Akamai Guardicore Asset Label and Segmentation Group Drift' against `guardicore:agent` feeds so operators reduce unauthorized access, segmentation drift, and NAC policy failures without manual correlation.",
   "implementation": "Export a weekly baseline CSV from Guardicore or CMDB with authoritative `hostname → expected_labels`. Schedule this search daily; exceptions require CAB approval. For large container fleets, key on orchestration cluster plus pod template hash instead of hostname alone.",
   "visualization": "Table (drifted assets), Bar chart (drift by business unit), Trend (count of drifts per week).",
   "cimModels": [],
@@ -22,17 +28,32 @@
   "references": [
     {
       "title": "Splunkbase — Akamai Guardicore Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/7426"
+      "url": "https://splunkbase.splunk.com/app/7426",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Akamai Guardicore Centra administration",
-      "url": "https://docs.akamai.com/guardicore/"
+      "url": "https://docs.akamai.com/guardicore/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Microseg blocks from new app deployments, missing exception rules, or planned segmentation rollouts.",
+  "knownFalsePositives": "1. **Maintenance window on `microseg` (UC-17.2.25)** — Planned work for 'Akamai Guardicore Asset Label and Segmentation Group Drift' shifts `count` over `span=1h` while `agent_id`, `hostname` remains in-scope. Applies lookup `guardicore_asset_baseline.csv`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `guardicore:agent`** — Scheduled automation elevates `hostname` without crossing configured threshold for UC-17.2.25. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `agent_id`, `hostname`** — Health checks in `microseg` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `guardicore:agent`** — First 48h baseline for UC-17.2.25 on `agent_id` is unstable; join `guardicore_asset_baseline.csv` prior to threshold.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `agent_id`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "guardicore"
+  ],
+  "equipmentModels": [
+    "guardicore_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -42,5 +63,7 @@
   ],
   "reviewer": "@splunk-monitoring-use-cases",
   "detailedImplementation": "Prerequisites\n• Akamai Guardicore Add-on for Splunk (Splunkbase 7426) v3.x. Data in `index=microseg` with `sourcetype=guardicore:agent` or `guardicore:inventory`.\n• Key fields: `hostname`, `labels`, `asset_labels`, `segmentation_labels`, `application`, `app_label`, `environment`, `role`.\n• Label drift occurs when assets lose or gain labels outside of approved change processes, which can change which segmentation policies apply to them.\n\nStep 1 — Configure data collection\nVerify label data:\n```spl\nindex=microseg sourcetype=\"guardicore:agent\" earliest=-7d\n| eval labels=coalesce(labels, asset_labels, segmentation_labels)\n| eval app=coalesce(application, app_label)\n| eval env=coalesce(environment, env_label)\n| stats latest(labels) as current_labels latest(app) as current_app latest(env) as current_env by hostname\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Label drift detection:\n```spl\nindex=microseg sourcetype=\"guardicore:agent\" earliest=-7d\n| eval labels=coalesce(labels, asset_labels, segmentation_labels)\n| eval app=coalesce(application, app_label)\n| sort hostname, _time\n| streamstats current=f last(labels) as prev_labels last(app) as prev_app by hostname\n| where isnotnull(prev_labels) AND labels!=prev_labels\n| eval drift_type=case(\n    isnull(labels) OR labels=\"\", \"LABELS REMOVED\",\n    isnull(prev_labels) OR prev_labels=\"\", \"LABELS ADDED\",\n    1==1, \"LABELS CHANGED\"\n)\n| stats count as changes values(drift_type) as drift_types by hostname\n| sort - changes\n```\n\nUnderstanding this SPL: Tracks label changes over time per host. 'LABELS REMOVED' is the most dangerous — the asset falls out of its segmentation group and may escape policy enforcement. 'LABELS CHANGED' may indicate a server was reassigned to a different application group, which changes which firewall rules apply. Both need audit trail verification.\n\nStep 3 — Validate\n(a) In Centra: Assets > select a host > Label History.\n(b) Intentionally change a label and verify the drift appears in Splunk.\n\nStep 4 — Operationalize\nDashboard: Row 1 — \"Label drifts (7d)\". Row 2 — Table: hostname, drift type, changes.\nAlert: Immediate for 'LABELS REMOVED' on critical assets.\n\nRunbook:\n1. **Labels removed** — Restore immediately. Check Centra audit log for who removed them.\n2. **Labels changed** — Verify against change management. May be legitimate reassignment.\n\nStep 5 — Troubleshooting\n• **Label field names vary by TA version** — Use `coalesce` to handle multiple field names.\n• **All assets showing drift** — A bulk label operation may have run. Check Centra admin actions.",
-  "grandmaExplanation": "We watch for when the labels on our computers change or get removed, because those labels control which security rules apply — a missing label means the computer might escape its protective boundaries."
+  "grandmaExplanation": "We watch for when the labels on our computers change or get removed, because those labels control which security rules apply — a missing label means the computer might escape its protective boundaries.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

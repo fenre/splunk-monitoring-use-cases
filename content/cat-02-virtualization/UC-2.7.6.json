@@ -9,11 +9,17 @@
     "Operations"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=pve` `sourcetype=\"proxmox:firewall\"` — `chain`, `action`, `proto`, `dport`, `src`, `dst`, `vmid`, `log_prefix`",
-  "app": "UF with `nft`/`iptables` LOG rules or consolidated `pve-firewall` log sink; rate-limit high-volume rules",
+  "exclusions": "Covers the detection logic documented for 'Proxmox VE Hypervisor Firewall Deny Hotspots by Guest and Rule' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_proxmox_ve_hypervisor_firewall_deny_hotspots_by_` (UC-2.7.6), SOC dashboard panel \"Linux — Proxmox VE Hypervisor Firewall Deny Hotspots by Guest and Rule\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.7.6 positive (Proxmox, Hypervisor, Firewall, Deny, Hotspots): ingest synthetic events into `index=pve` sourcetype='proxmox:firewall' where `uniq_src` grouped by `vmid`, `rk`, `dst` satisfies -24h for 'Proxmox VE Hypervisor Firewall Deny Hotspots by Guest and Rule'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.7.6 negative (and Rule): ingest benign `pve` / `proxmox:firewall` events where `vmid`, `rk`, `dst` stays below -24h, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 2 confirms zero alert rows for 'Proxmox VE Hypervisor Firewall Deny Hotspots by Guest and Rule'."
+  },
+  "dataSources": "`index=pve` `sourcetype=\"proxmox:firewall\"` — `chain`, `action`, `proto`, `dport`, `src`, `dst`, `vmid`, `log_prefix` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "UF with `nft`/`iptables` LOG rules or consolidated `pve-firewall` log sink; rate-limit high-volume rules — Universal Forwarder (Splunkbase 617)",
   "spl": "index=pve sourcetype=\"proxmox:firewall\" earliest=-24h\n| eval ac=lower(coalesce(action, verdict))\n| where ac=\"drop\" OR ac=\"reject\"\n| eval rk=coalesce(chain, rule, ruleid, log_prefix)\n| stats count as hits, dc(src) as uniq_src, values(dport) as ports by vmid, rk, dst\n| sort -hits\n| head 50",
-  "description": "Hypervisor-level denies show east-west segmentation issues, compromised guests, or misapplied templates. Aggregating denies by guest and rule focuses policy fixes and incident triage without drowning in single-flow noise.",
-  "value": "Improves zero-trust posture inside the virtualization tier and reduces mean time to containment.",
+  "description": "Alerts on UC-2.7.6 for Proxmox, Hypervisor, Firewall, Deny, Hotspots over `index=pve` sourcetype `proxmox:firewall` with thresholds -24h. Groups `uniq_src` by `vmid`, `rk`, `dst` each `the scheduled window`. Centered on and Rule indicators. Supports repeatable linux triage for 'Proxmox VE Hypervisor Firewall Deny Hotspots by Guest and Rule'.",
+  "value": "For 'Proxmox VE Hypervisor Firewall Deny Hotspots by Guest and Rule', UC-2.7.6 converts `uniq_src` on `proxmox:firewall` feeds into actionable rows and reduces capacity incidents, patch regressions, and service outages.",
   "implementation": "Log selected deny chains with prefixes. Roll up hourly. Maintain a lookup of approved scanners. Alert when new vmid/rule combinations spike above a 30-day baseline.",
   "visualization": "Bar chart top deny rules; pie by vmid; drilldown raw events.",
   "cimModels": [
@@ -22,13 +28,33 @@
   "references": [
     {
       "title": "Proxmox VE Firewall",
-      "url": "https://pve.proxmox.com/pve-docs/chapter-pve-firewall.html"
+      "url": "https://pve.proxmox.com/pve-docs/chapter-pve-firewall.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Nutanix Prism alerts and jobs can line up with disk rebuilds, rolling upgrades, or RF changes; wait for the cluster task list to show completion before over-reacting to transient counters.",
+  "knownFalsePositives": "1. **Patch Tuesday on `pve`** — Package managers spike `vmid` metrics for 'Proxmox VE Hypervisor Firewall Deny Hotspots by Guest and Rule'. Correlate with apt/yum logs in the same `proxmox:firewall` window.\n\n2. **Nightly backup I/O on `vmid`** — Predictable `dc` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `proxmox:firewall`** — Nagios/Zabbix polls `vmid` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `vmid` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `vmid`, `valid_until`.",
   "equipment": [
     "hyperv",
     "proxmox"
+  ],
+  "equipmentModels": [
+    "hyperv_generic",
+    "proxmox_generic"
   ],
   "status": "verified",
   "lastReviewed": "2025-06-01",
@@ -37,5 +63,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We summarize which virtual machines are being blocked from talking to others and which rule did the blocking, to spot misconfiguration or suspicious chatter."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (UF with `nft`/`iptables` LOG rules or consolidated `pve-firewall` log sink; rate-limit high-volume rules — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=proxmox:firewall into pve. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`dst, rk, vmid`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We summarize which virtual machines are being blocked from talking to others and which rule did the blocking, to spot misconfiguration or suspicious chatter.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

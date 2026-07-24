@@ -9,35 +9,60 @@
     "Operations"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Life service health (`lifeos:service`), personal scorecards (`lifeos:score`), breach notifications (`hibp:breach`), location visits (`location:visit`), runbook checklists (`runbook:checklist`), and Home Assistant outage events (`homeassistant:event`).",
-  "app": "Apple and Google location exports, Have I Been Pwned breach alerts, Todoist-style personal runbooks, and Home Assistant outage events streamed into Splunk HEC under `index=personal`.",
+  "exclusions": "Covers personal hobby monitoring for 'Power-Outage Checklist Recovery Time' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_power_outage_checklist_recovery_time` (UC-25.61.4), SOC dashboard panel \"Personal — Power-Outage Checklist Recovery Time\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.61.4 positive (Power, Outage, Checklist, Recovery, Time): ingest synthetic events into `index=personal` sourcetype='homeassistant:event' where `avg_recovery_min`, `worst_recovery_min` grouped by `circuit` satisfies detection threshold for 'Power-Outage Checklist Recovery Time'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.61.4 negative (Recovery Time): ingest benign `personal` / `homeassistant:event` events where `circuit` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 14 confirms zero alert rows for 'Power-Outage Checklist Recovery Time'."
+  },
+  "dataSources": "Life service health (`lifeos:service`), personal scorecards (`lifeos:score`), breach notifications (`hibp:breach`), location visits (`location:visit`), runbook checklists (`runbook:checklist`), and Home Assistant outage events (`homeassistant:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Apple and Google location exports, Have I Been Pwned breach alerts, Todoist-style personal runbooks, and Home Assistant outage events streamed into Splunk HEC under `index=personal`. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=homeassistant:event event_type=\"grid_outage\"\n| stats count as outages, avg(recovery_minutes) as avg_recovery_min, max(recovery_minutes) as worst_recovery_min by circuit\n| sort - worst_recovery_min",
-  "description": "Tracks how long each power-outage incident takes to recover, including checklist-driven recovery tasks.",
-  "value": "Recovery-time data tells you whether backup power, flashlight placement, and outage procedures are genuinely working.",
+  "description": "Identifies UC-25.61.4 — Power, Outage, Checklist, Recovery, Time — using `index=personal` sourcetype `homeassistant:event`, grouped by `circuit`. Outputs `avg_recovery_min`, `worst_recovery_min` each `the scheduled window`; alert when configured threshold. Primary focus: Recovery Time. Purpose-built for 'Power-Outage Checklist Recovery Time' in Personal workflows.",
+  "value": "Alerting on Power, Outage, Checklist, Recovery, Time through UC-25.61.4 reduces missed training goals, stale hobby data, and connector failures by surfacing `avg_recovery_min`, `worst_recovery_min` early.",
   "implementation": "Forward Home Assistant outage and recovery markers into Splunk and attach a `recovery_minutes` field once the incident closes.",
   "visualization": "Bar chart of average and worst recovery time by circuit.",
   "cimModels": [],
   "references": [
     {
       "title": "Have I Been Pwned API v3",
-      "url": "https://haveibeenpwned.com/API/v3"
+      "url": "https://haveibeenpwned.com/API/v3",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Home Assistant Documentation",
-      "url": "https://www.home-assistant.io/docs/"
+      "url": "https://www.home-assistant.io/docs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Google Takeout",
-      "url": "https://takeout.google.com/"
+      "url": "https://takeout.google.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Todoist REST API",
-      "url": "https://developer.todoist.com/rest/v2/"
+      "url": "https://developer.todoist.com/rest/v2/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It spots how long it takes to get things back to normal after the power goes out."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.61.4)** — Connector for 'Power-Outage Checklist Recovery Time' stops polling `homeassistant:event`; stale `avg_recovery_min`, `worst_recovery_min` on `circuit` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_recovery_min`, `worst_recovery_min` over `1w` is expected for UC-25.61.4, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `homeassistant:event`. Dedup with `stats latest(*) by circuit`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Power-Outage Checklist Recovery Time'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Home Assistant — HA Splunk integration, webhook, or MQTT → HEC.\n• **Subcategory context**: Personal NOC, SOC & Life Incident Response — typical feeds: Life service health (`lifeos:service`), personal scorecards (`lifeos:score`), breach notifications (`hibp:breach`), location visits (`location:visit`), runbook checklists (`runbook:checklist`), and Ho.\n• **Sourcetypes in this search**: `homeassistant:event`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Home Assistant** events into `index=personal` with `sourcetype=homeassistant:event`.\n\n**Collection method:** HA Splunk integration, webhook, or MQTT → HEC.\n\n**Reference endpoint / path:** `POST /api/events/state_changed or logbook stream`.\n\n**Suggested poll interval:** real-time (event-driven).\n\n**Key fields to extract:** `entity_id, state, attributes, domain`.\n\n**Typical connector stack:** Apple and Google location exports, Have I Been Pwned breach alerts, Todoist-style personal runbooks, and Home Assistant outage events streamed into Splunk HEC under `index=personal`..\n\n**Author notes:** Forward Home Assistant outage and recovery markers into Splunk and attach a `recovery_minutes` field once the incident closes.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"homeassistant:event\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=homeassistant:event earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Power-Outage Checklist Recovery Time** over `personal` data (primarily `sourcetype=homeassistant:event`) across the full search range. The `avg, max` aggregation groups by `circuit`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `circuit`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=homeassistant:event event_type=\"grid_outage\"\n| stats count as outages, avg(recovery_minutes) as avg_recovery_min, max(recovery_minutes) as worst_recovery_min by circuit\n| sort - worst_recovery_min\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Home Assistant → Developer Tools → States. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=homeassistant:event earliest=-7d\n| head 50\n| table circuit\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=homeassistant:event earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.61.4: Personal evidence` with the following panel layout:\n\n**Panel 1 — Bar Chart Of Average And Worst Recovery Time By Circuit (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Home Assistant — no Home Assistant events / missing fields:** If `homeassistant:event` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Home Assistant connector script is still running (`systemctl status` or cron log).\n\n**Home Assistant — NULL values in extracted fields:** The Home Assistant JSON export shape drifted — compare a raw event (`index=personal sourcetype=homeassistant:event | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Home Assistant — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Home Assistant — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Home Assistant APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It spots how long it takes to get things back to normal after the power goes out.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

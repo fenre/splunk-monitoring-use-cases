@@ -8,24 +8,50 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=proxy` `sourcetype=squid:info` from `squidclient mgr:info` or cachemgr scrape",
-  "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes",
+  "exclusions": "Covers the detection logic documented for 'Squid Disk Cache Swap Utilization' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_squid_disk_cache_swap_utilization` (UC-5.14.29), SOC dashboard panel \"Operations — Squid Disk Cache Swap Utilization\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.14.29 positive (Squid, Disk, Cache, Swap, Utilization): ingest synthetic events into `index=proxy` sourcetype='squid:info' where `count` grouped by `entity` satisfies detection threshold for 'Squid Disk Cache Swap Utilization'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.14.29 negative (Swap Utilization): ingest benign `proxy` / `squid:info` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Squid Disk Cache Swap Utilization'."
+  },
+  "dataSources": "`index=proxy` `sourcetype=squid:info` from `squidclient mgr:info` or cachemgr scrape Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"squid:info\"\n| regex _raw=\"(?i)(store_swap_size|Swap capacity|disk cache)\"\n| rex field=_raw \"(?<swap_mb>\\d+(?:\\.\\d+)?)\\s*(?:MB|GB)\"\n| table _time, host, swap_mb",
-  "description": "Disk full leads to excessive MISS and origin load.",
-  "value": "Operations teams monitor Squid disk cache (swap) utilization against configured high/low watermarks, detecting when the cache directory approaches capacity and triggers object purging.",
+  "description": "Alerts on UC-5.14.29 — Squid, Disk, Cache, Swap, Utilization — using `index=proxy` sourcetype `squid:info`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Swap Utilization. Purpose-built for 'Squid Disk Cache Swap Utilization' in Operations workflows.",
+  "value": "For 'Squid Disk Cache Swap Utilization', UC-5.14.29 converts `activity` on `squid:info` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Poll cachemgr over loopback; alert when swap usage crosses `cache_swap_high`.",
   "visualization": "Time series for rates and latency, top/dedup for hotspots, single-value alerts on health thresholds.",
   "cimModels": [],
   "references": [
     {
       "title": "Vendor documentation",
-      "url": "http://www.squid-cache.org/Doc/config/cache_dir/"
+      "url": "http://www.squid-cache.org/Doc/config/cache_dir/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Edge cases: multi-vendor mixes and ad hoc feeds can include lab traffic and partial visibility that mimics issues until scopes are defined. Tuning tip: match this to «Squid Disk Cache Swap Utilization» and exclude change windows, scans, and lab VLANs you already expect.",
+  "knownFalsePositives": "1. **Maintenance window on `proxy` (UC-5.14.29)** — Planned work for 'Squid Disk Cache Swap Utilization' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `squid:info`** — Scheduled automation elevates `src` without crossing configured threshold for UC-5.14.29. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `squid:info`** — First 48h baseline for UC-5.14.29 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "squid",
     "syslog"
+  ],
+  "equipmentModels": [
+    "squid_generic",
+    "syslog_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -35,5 +61,7 @@
   ],
   "reviewer": "catalog-team",
   "detailedImplementation": "Prerequisites\n* Squid cache manager statistics for disk cache (swap). Data from `squidclient mgr:storedir` or `squidclient mgr:info` forwarded to Splunk. `sourcetype=squid:cache` or `sourcetype=squid:stats` in `index=proxy`. Key metrics: swap size (total/used), object count, swap-in/swap-out rates.\n* Squid disk cache: configured with `cache_dir ufs /var/spool/squid 10000 16 256` (10GB, 16 L1 dirs, 256 L2 dirs). When disk cache fills to `cache_swap_high` watermark (default 95%), Squid starts purging until `cache_swap_low` (default 90%). If swap fills completely, no new objects can be cached to disk.\n\nStep 1 -- Configure data collection\nScripted input for cache stats:\n```bash\n#!/bin/bash\n# /opt/splunk/etc/apps/TA-squid/bin/squid_storedir.sh\nsquidclient mgr:storedir 2>/dev/null\n```\n```\n# inputs.conf\n[script:///opt/splunk/etc/apps/TA-squid/bin/squid_storedir.sh]\ninterval = 300\nsourcetype = squid:storedir\nindex = proxy\n```\nVerify:\n```spl\nindex=proxy sourcetype=\"squid:storedir\" earliest=-4h\n| head 5\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Disk cache utilization:**\n```spl\nindex=proxy (sourcetype=\"squid:storedir\" OR sourcetype=\"squid:cache\") earliest=-4h\n| where match(_raw, \"(?i)store.dir|swap.size|cache.dir|store.entries\")\n| rex \"Swap size:\\s+(?<swap_used_kb>\\d+)\\s+KB\"\n| rex \"Maximum\\s+Swap\\s+Size:\\s+(?<swap_max_kb>\\d+)\\s+KB\"\n| rex \"store entries:\\s+(?<object_count>\\d+)\"\n| eval swap_used_gb=round(tonumber(swap_used_kb)/1048576, 2)\n| eval swap_max_gb=round(tonumber(swap_max_kb)/1048576, 2)\n| eval swap_pct=round(100*tonumber(swap_used_kb)/tonumber(swap_max_kb), 1)\n| bin _time span=15m\n| stats latest(swap_used_gb) as used_gb latest(swap_max_gb) as max_gb latest(swap_pct) as utilization_pct latest(object_count) as objects by _time\n| eval severity=case(utilization_pct > 95, \"CRITICAL -- swap nearly full (\".utilization_pct.\"%)\", utilization_pct > 85, \"WARNING -- swap filling (\".utilization_pct.\"%)\", 1==1, \"OK\")\n| where severity != \"OK\"\n| table _time, used_gb, max_gb, utilization_pct, objects, severity\n```\n\nStep 3 -- Validate\n(a) `squidclient mgr:storedir` -- shows per-directory usage.\n(b) `du -sh /var/spool/squid` -- verify disk usage matches Squid's reported swap size.\n(c) Check thresholds: `squidclient mgr:info | grep -i swap`.\n\nStep 4 -- Operationalize\nDashboard (\"Squid -- Disk Cache\"):\n* Row 1 -- Single-value: \"Swap utilization (%)\", \"Used (GB)\", \"Max (GB)\", \"Objects\".\n* Row 2 -- Utilization timechart.\n\nAlerting:\n* Critical (swap > 95%): cache_swap_high reached, purging active.\n* Warning (swap > 85%): approaching high watermark.\n\nStep 5 -- Troubleshooting\n\n* **Swap at 95% constantly** -- Working set exceeds configured `cache_dir` size. Options: (1) increase `cache_dir` size, (2) reduce `maximum_object_size` to exclude large objects, (3) add additional `cache_dir` entries on different disks.\n\n* **Swap I/O causing latency** -- `aufs` or `rock` cache types are faster than default `ufs` for high I/O workloads. Consider SSD storage for cache directory.\n\n* **Objects count very high but utilization low** -- Many small objects. This is normal for web proxy workloads but can cause inode exhaustion. Check: `df -i /var/spool/squid`.",
-  "grandmaExplanation": "We watch squid disk cache swap utilization and catch issues early, before they turn into outages for the people who rely on the network."
+  "grandmaExplanation": "We watch squid disk cache swap utilization and catch issues early, before they turn into outages for the people who rely on the network.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

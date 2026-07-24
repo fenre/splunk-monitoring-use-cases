@@ -9,11 +9,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=vmware:events`",
-  "app": "`Splunk_TA_vmware`",
+  "exclusions": "Covers the detection logic documented for 'Storage DRS Recommendations and Actions' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_storage_drs_recommendations_and_actions` (UC-2.1.30), SOC dashboard panel \"Linux — Storage DRS Recommendations and Actions\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.1.30 positive (Storage, DRS, Recommendations, and, Actions): ingest synthetic events into `index=vmware` sourcetype='vmware:events' where `count` grouped by `action`, `datastore_cluster` satisfies detection threshold for 'Storage DRS Recommendations and Actions'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.1.30 negative (and Actions): ingest benign `vmware` / `vmware:events` events where `action`, `datastore_cluster` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 11 confirms zero alert rows for 'Storage DRS Recommendations and Actions'."
+  },
+  "dataSources": "`sourcetype=vmware:events` Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_vmware` — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
   "spl": "index=vmware sourcetype=\"vmware:events\" (event_type=\"StorageDrsRecommendation*\" OR event_type=\"StorageMigratedEvent\")\n| eval action=case(match(event_type, \"Recommendation\"), \"Recommended\", event_type=\"StorageMigratedEvent\", \"Migrated\")\n| stats count by action, datastore_cluster\n| sort -count\n| table datastore_cluster, action, count",
-  "description": "Storage DRS (SDRS) balances VM storage across datastores within a datastore cluster. Frequent SDRS migrations indicate capacity or performance imbalance. Unapplied recommendations (when SDRS is in manual mode) mean datastores are unbalanced and latency may be inconsistent.",
-  "value": "Storage DRS (SDRS) balances VM storage across datastores within a datastore cluster. Frequent SDRS migrations indicate capacity or performance imbalance. Unapplied recommendations (when SDRS is in manual mode) mean datastores are unbalanced and latency may be inconsistent.",
+  "description": "Monitors UC-2.1.30 — Storage, DRS, Recommendations, and, Actions — using `index=vmware` sourcetype `vmware:events`, grouped by `action`, `datastore_cluster`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: and Actions. Purpose-built for 'Storage DRS Recommendations and Actions' in Linux workflows.",
+  "value": "UC-2.1.30 helps teams contain Storage, DRS, Recommendations, and, Actions scenarios and reduce capacity incidents, patch regressions, and service outages before incidents compound.",
   "implementation": "Collect vCenter events via Splunk_TA_vmware. Track SDRS migration frequency per datastore cluster. Alert when manual-mode SDRS has unapplied recommendations older than 24 hours. Monitor datastore cluster balance — alert when any datastore deviates >20% from the cluster average utilization.",
   "visualization": "Table (recommendations and actions), Bar chart (migrations per cluster), Line chart (cluster balance over time).",
   "cimModels": [
@@ -22,17 +28,40 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 3684",
+      "url": "https://splunkbase.splunk.com/app/3684",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Host and VM health signals can move during vMotion, DRS, backup jobs, and scheduled maintenance; trend persistence and match alerts to vCenter or ESXi change windows.",
+  "knownFalsePositives": "1. **Patch Tuesday on `vmware`** — Package managers spike `action` metrics for 'Storage DRS Recommendations and Actions'. Correlate with apt/yum logs in the same `vmware:events` window.\n\n2. **Nightly backup I/O on `action`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vmware:events`** — Nagios/Zabbix polls `action` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `action` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `action`, `valid_until`.",
   "equipment": [
     "vmware"
   ],
   "equipmentModels": [
+    "vmware_esxi",
     "vmware_ta_vmware",
     "vmware_vcenter"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_vmware`.\n• Ensure the following data sources are available: `sourcetype=vmware:events`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect vCenter events via Splunk_TA_vmware. Track SDRS migration frequency per datastore cluster. Alert when manual-mode SDRS has unapplied recommendations older than 24 hours. Monitor datastore cluster balance — alert when any datastore deviates >20% from the cluster average utilization.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vmware sourcetype=\"vmware:events\" (event_type=\"StorageDrsRecommendation*\" OR event_type=\"StorageMigratedEvent\")\n| eval action=case(match(event_type, \"Recommendation\"), \"Recommended\", event_type=\"StorageMigratedEvent\", \"Migrated\")\n| stats count by action, datastore_cluster\n| sort -count\n| table datastore_cluster, action, count\n```\n\nUnderstanding this SPL\n\n**Storage DRS Recommendations and Actions** — Storage DRS (SDRS) balances VM storage across datastores within a datastore cluster. Frequent SDRS migrations indicate capacity or performance imbalance. Unapplied recommendations (when SDRS is in manual mode) mean datastores are unbalanced and latency may be inconsistent.\n\nDocumented **Data sources**: `sourcetype=vmware:events`. **App/TA** (typical add-on context): `Splunk_TA_vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vmware; **sourcetype**: vmware:events. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vmware, sourcetype=\"vmware:events\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **action** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by action, datastore_cluster** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Storage DRS Recommendations and Actions**): table datastore_cluster, action, count\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (recommendations and actions), Bar chart (migrations per cluster), Line chart (cluster balance over time).",
-  "grandmaExplanation": "We keep an eye on storage DRS Recommendations and Actions and raise the alarm before it drags down real work or real outages start."
+  "grandmaExplanation": "We keep an eye on storage DRS Recommendations and Actions and raise the alarm before it drags down real work or real outages start.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

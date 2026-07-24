@@ -9,6 +9,8 @@
     "Operations"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'ISE Stealth-Mode Posture and Compliance Pre-Auth Validation' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_ise_stealth_mode_posture_and_compliance_pre_auth` (UC-17.1.63), SOC dashboard panel \"Network — ISE Stealth-Mode Posture and Compliance Pre-Auth Validation\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "iso-27001",
@@ -36,14 +38,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Misconfigure stealth posture to require an unreachable file. Many endpoints fail silently. UC-17.1.63 fires.",
-    "negativeScenario": "Fix policy. Fail rate drops."
+    "positiveScenario": "UC-17.1.63 positive (ISE, Stealth, Mode, Posture, and): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `total` grouped by `MessageCode`, `posture_policy` satisfies `fail_rate` > 20 for 'ISE Stealth-Mode Posture and Compliance Pre-Auth Validation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.63 negative (Auth Validation): ingest benign `nac` / `cisco:ise:syslog` events where `MessageCode`, `posture_policy` stays below `fail_rate` > 20, or exclude the test entity via `network_exception_register.csv`. Variant 1 confirms zero alert rows for 'ISE Stealth-Mode Posture and Compliance Pre-Auth Validation'."
   },
-  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Posture* category. Stealth-mode codes: `15060` (stealth posture initiated), `15061` (stealth posture passed), `15062` (stealth posture failed). Differentiates from interactive posture (15041-15046).",
-  "app": "`Splunk Add-on for Cisco Identity Services`.",
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Posture* category. Stealth-mode codes: `15060` (stealth posture initiated), `15061` (stealth posture passed), `15062` (stealth posture failed). Differentiates from interactive posture (15041-15046). Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (15060, 15061, 15062)\n| stats count by MessageCode, posture_policy\n| eval action = case(MessageCode==\"15061\", \"pass\", MessageCode==\"15062\", \"fail\")\n| eventstats sum(eval(if(action==\"fail\",count,0))) as fails sum(count) as total by posture_policy\n| eval fail_rate = round((fails/total)*100, 1)\n| where fail_rate > 20",
-  "description": "Tracks stealth-mode posture (where the user isn't prompted) and detects high failure rates that indicate misconfigured stealth policies impacting users without their knowledge.",
-  "value": "Stealth posture is invisible to users. A failed stealth check might silently restrict access. Monitoring failure rate ensures the silent enforcement isn't excluding legitimate users.",
+  "description": "Monitors Auth Validation activity in UC-17.1.63 ('ISE Stealth-Mode Posture and Compliance Pre-Auth Validation') from `index=nac` sourcetype `cisco:ise:syslog`. Rolls up `total` by `MessageCode`, `posture_policy` across `the scheduled window` and pages when `fail_rate` > 20. Covers ISE, Stealth, Mode, Posture, and. Network operators treat UC-17.1.63 as the canonical signal.",
+  "value": "Operators running UC-17.1.63 on `cisco:ise:syslog` feeds shorten triage for Auth Validation tied to 'ISE Stealth-Mode Posture and Compliance Pre-Auth Validation', lowering unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Schedule every 30 min.",
   "visualization": "Per-policy fail-rate trend.",
   "cimModels": [],
@@ -51,10 +53,26 @@
   "references": [
     {
       "title": "Cisco ISE 3.4 — Stealth Mode Posture",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "ISO/IEC 27001:2022",
+      "url": "https://www.iso.org/standard/27001",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) Initial rollout — high fail rate before agent push completes.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'ISE Stealth-Mode Posture and Compliance Pre-Auth Validation'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "N/A (policy hygiene — measures stealth-mode posture coverage, no adversary technique)"
   ],
@@ -72,7 +90,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Standard prereqs/data/search/validate/operate/troubleshoot pattern.",
+  "detailedImplementation": "Standard prereqs/data/search/validate/operate/troubleshoot pattern.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`MessageCode, action, fail_rate, posture_policy`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Some compliance checks happen invisibly while you log in. We watch how often these silent checks fail — too high a failure rate means real users are being silently held back.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

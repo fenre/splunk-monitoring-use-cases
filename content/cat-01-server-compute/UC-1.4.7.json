@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`ipmitool lan print`, BMC health sensors, SNMP (if BMC supports it)",
-  "app": "Custom scripted input, IPMI",
+  "exclusions": "Covers the detection logic documented for 'BMC Out-of-Band Connectivity Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_bmc_out_of_band_connectivity_health` (UC-1.4.7), SOC dashboard panel \"Linux — BMC Out-of-Band Connectivity Health\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.4.7 positive (BMC, Out, Band, Connectivity, Health): ingest synthetic events into `index=hardware` sourcetype='bmc_health' where `count` grouped by `host` satisfies `voltage` < 3.0 for 'BMC Out-of-Band Connectivity Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.4.7 negative (Connectivity Health): ingest benign `hardware` / `bmc_health` events where `host` stays below `voltage` < 3.0, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 7 confirms zero alert rows for 'BMC Out-of-Band Connectivity Health'."
+  },
+  "dataSources": "`ipmitool lan print`, BMC health sensors, SNMP (if BMC supports it) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input, IPMI — Universal Forwarder (Splunkbase 617)",
   "spl": "index=hardware sourcetype=bmc_health host=*\n| stats latest(channel_voltage) as voltage, latest(link_detected) as link by host\n| where link=\"no\" OR voltage < 3.0\n| table host link voltage _time",
-  "description": "BMC (IPMI/iDRAC/iLO) loss prevents remote power, console, and sensor access. Early detection ensures out-of-band management remains available for recovery.",
-  "value": "If the out-of-band path is down, you may not be able to power-cycle or re-image a box during an outage, so you want to know before the next time you are counting on that remote “lights-out” access.",
+  "description": "Detects UC-1.4.7 — BMC, Out, Band, Connectivity, Health — using `index=hardware` sourcetype `bmc_health`, grouped by `host`. Outputs `count` each `the scheduled window`; alert when `voltage` < 3.0. Primary focus: Connectivity Health. Purpose-built for 'BMC Out-of-Band Connectivity Health' in Linux workflows.",
+  "value": "UC-1.4.7 operationalises 'BMC Out-of-Band Connectivity Health' against `bmc_health` feeds so operators reduce capacity incidents, patch regressions, and service outages without manual correlation.",
   "implementation": "Create scripted input: `ipmitool lan print` or vendor-specific tools (racadm, hpasm) to verify BMC reachability and LAN channel. Run every 5 minutes. Alert when BMC becomes unreachable.",
   "visualization": "Status grid (BMC up/down per host), Table of unreachable BMCs, Single value (count of healthy BMCs).",
   "cimModels": [],
@@ -20,10 +26,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "A brief poll failure during a BMC firmware update, switch maintenance, or VLAN change can look like a down link. A machine just powered off has no in-band poll—separate in-band vs. OOB health if you use both. SNMP traps can duplicate syslog events.",
+  "knownFalsePositives": "1. **Patch Tuesday on `hardware`** — Package managers spike `host` metrics for 'BMC Out-of-Band Connectivity Health'. Correlate with apt/yum logs in the same `bmc_health` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `bmc_health`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `voltage` < 3.0.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "hardware_bmc",
     "snmp"
@@ -33,6 +55,12 @@
     "hardware_bmc_ipmi",
     "snmp_generic"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input, IPMI.\n• Ensure the following data sources are available: `ipmitool lan print`, BMC health sensors, SNMP (if BMC supports it).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nFrom a host or bastion, run `ipmitool lan print` (or vendor CLI) to capture link state and channel information; schedule every 5 minutes. If you use SNMP to the BMC, map `link` and any voltage/health into the same or related sourcetype. Alert when the management path is not usable.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust thresholds to your field names):\n\n```spl\nindex=hardware sourcetype=bmc_health host=*\n| stats latest(channel_voltage) as voltage, latest(link_detected) as link by host\n| where link=\"no\" OR voltage < 3.0\n| table host link voltage _time\n```\n\nUnderstanding this SPL\n\n**BMC Out-of-Band Connectivity Health** — BMC (IPMI/iDRAC/iLO) loss prevents remote power, console, and sensor access. Early detection ensures out-of-band management remains available for recovery.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=hardware`, `sourcetype=bmc_health`.\n• `stats` takes the latest `link` and `voltage` per **host**.\n• `where` and `table` list suspect hosts and recent samples.\n\n\nStep 3 — Validate\nCompare one host’s `ipmitool lan print` output to your indexed `link` and `voltage`. For full details, see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We check that the server’s “remote control” path over the management network is still there, so you are not caught unable to turn a machine on or fix it from afar when something goes wrong in the data hall."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input, IPMI.\n• Ensure the following data sources are available: `ipmitool lan print`, BMC health sensors, SNMP (if BMC supports it).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nFrom a host or bastion, run `ipmitool lan print` (or vendor CLI) to capture link state and channel information; schedule every 5 minutes. If you use SNMP to the BMC, map `link` and any voltage/health into the same or related sourcetype. Alert when the management path is not usable.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust thresholds to your field names):\n\n```spl\nindex=hardware sourcetype=bmc_health host=*\n| stats latest(channel_voltage) as voltage, latest(link_detected) as link by host\n| where link=\"no\" OR voltage < 3.0\n| table host link voltage _time\n```\n\nUnderstanding this SPL\n\n**BMC Out-of-Band Connectivity Health** — BMC (IPMI/iDRAC/iLO) loss prevents remote power, console, and sensor access. Early detection ensures out-of-band management remains available for recovery.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=hardware`, `sourcetype=bmc_health`.\n• `stats` takes the latest `link` and `voltage` per **host**.\n• `where` and `table` list suspect hosts and recent samples.\n\n\nStep 3 — Validate\nCompare one host’s `ipmitool lan print` output to your indexed `link` and `voltage`. For full details, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom scripted input, IPMI — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=bmc_health into hardware. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, voltage`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We check that the server’s “remote control” path over the management network is still there, so you are not caught unable to turn a machine on or fix it from afar when something goes wrong in the data hall.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

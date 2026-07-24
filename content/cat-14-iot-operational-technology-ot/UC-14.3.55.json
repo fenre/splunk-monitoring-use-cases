@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=edge-hub-logs` sourcetype=splunk_edge_hub_log acoustic_anomaly_event, `index=edge-hub-data` acoustic_baseline_deviation",
-  "app": "Splunk Edge Hub (stereo microphone + ML container), v2.1+",
+  "exclusions": "Covers the detection logic documented for 'Acoustic Anomaly Detection for Equipment Health Assessment' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_acoustic_anomaly_detection_for_equipment_health_` (UC-14.3.55), SOC dashboard panel \"Operations — Acoustic Anomaly Detection for Equipment Health Assessment\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.3.55 positive (Acoustic, Anomaly, Detection, for, Equipment): ingest synthetic events into `index=edge-hub-logs` sourcetype='splunk_edge_hub_log' where `count` grouped by `equipment_id`, `facility` satisfies `anomaly_score` > 0.7, or `degraded_count` > 0 for 'Acoustic Anomaly Detection for Equipment Health Assessment'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.3.55 negative (Health Assessment): ingest benign `edge-hub-logs` / `splunk_edge_hub_log` events where `equipment_id`, `facility` stays below `anomaly_score` > 0.7, or `degraded_count` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Acoustic Anomaly Detection for Equipment Health Assessment'."
+  },
+  "dataSources": "`index=edge-hub-logs` sourcetype=splunk_edge_hub_log acoustic_anomaly_event, `index=edge-hub-data` acoustic_baseline_deviation Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Edge Hub (stereo microphone + ML container), v2.1+ — Universal Forwarder (Splunkbase 617)",
   "spl": "index=edge-hub-logs sourcetype=splunk_edge_hub_log acoustic_classification_event\n| stats latest(acoustic_anomaly_score) as anomaly_score, count as detections by equipment_id\n| where anomaly_score > 0.7\n| eval equipment_health=\"DEGRADED\"\n| stats count(eval(equipment_health=\"DEGRADED\")) as degraded_count by facility\n| where degraded_count > 0",
-  "description": "Identifies subtle equipment changes (bearing looseness, gearbox wear) by detecting acoustic signature shifts without manual FFT analysis.",
-  "value": "Identifies subtle equipment changes (bearing looseness, gearbox wear) by detecting acoustic signature shifts without manual FFT analysis.",
+  "description": "Surfaces UC-14.3.55 — Acoustic, Anomaly, Detection, for, Equipment — using `index=edge-hub-logs` sourcetype `splunk_edge_hub_log`, grouped by `equipment_id`, `facility`. Outputs `count` each `the scheduled window`; alert when `anomaly_score` > 0.7, or `degraded_count` > 0. Primary focus: Health Assessment. Purpose-built for 'Acoustic Anomaly Detection for Equipment Health Assessment' in Operations workflows.",
+  "value": "UC-14.3.55 operationalises 'Acoustic Anomaly Detection for Equipment Health Assessment' against `splunk_edge_hub_log` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Build custom ARM64 container with TensorFlow Lite audio anomaly detection model (autoencoder or isolation forest on MFCC spectral features). Container captures 5-second audio windows at 1-minute intervals, extracts MFCC features, computes reconstruction error vs baseline model (trained on normal equipment sounds), outputs anomaly_score (0-1). Score > 0.7 = significant acoustic change. Deploy NPU inference (v2.1+) for real-time processing. Store anomaly events locally (100K backlog). Useful for early detection of bearing wear, compressor cavitation, motor bearing looseness before catastrophic failure. Do not stream raw audio to cloud (privacy).",
   "visualization": "Anomaly score timeline, detection frequency histogram, equipment health trend.",
   "cimModels": [
@@ -22,16 +28,41 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Sensors offline during scheduled site visits, calibration, or replacement campaigns.",
+  "knownFalsePositives": "1. **Maintenance window on `edge-hub-logs` (UC-14.3.55)** — Planned work for 'Acoustic Anomaly Detection for Equipment Health Assessment' shifts `count` over `span=1h` while `equipment_id`, `facility` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `splunk_edge_hub_log`** — Scheduled automation elevates `facility` without crossing `anomaly_score` > 0.7 for UC-14.3.55. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `equipment_id`, `facility`** — Health checks in `edge-hub-logs` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `splunk_edge_hub_log`** — First 48h baseline for UC-14.3.55 on `equipment_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `equipment_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "edge_hub"
+  ],
+  "equipmentModels": [
+    "edge_hub_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     "Splunk Edge Hub"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (stereo microphone + ML container), v2.1+.\n• Ensure the following data sources are available: `index=edge-hub-logs` sourcetype=splunk_edge_hub_log acoustic_anomaly_event, `index=edge-hub-data` acoustic_baseline_deviation.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBuild custom ARM64 container with TensorFlow Lite audio anomaly detection model (autoencoder or isolation forest on MFCC spectral features). Container captures 5-second audio windows at 1-minute intervals, extracts MFCC features, computes reconstruction error vs baseline model (trained on normal equipment sounds), outputs anomaly_score (0-1). Score > 0.7 = significant acoustic change. Deploy NPU inference (v2.1+) for real-time processing. Store anomaly events locally (100K backlog). Useful for e…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edge-hub-logs sourcetype=splunk_edge_hub_log acoustic_classification_event\n| stats latest(acoustic_anomaly_score) as anomaly_score, count as detections by equipment_id\n| where anomaly_score > 0.7\n| eval equipment_health=\"DEGRADED\"\n| stats count(eval(equipment_health=\"DEGRADED\")) as degraded_count by facility\n| where degraded_count > 0\n```\n\nUnderstanding this SPL\n\n**Acoustic Anomaly Detection for Equipment Health Assessment** — Identifies subtle equipment changes (bearing looseness, gearbox wear) by detecting acoustic signature shifts without manual FFT analysis.\n\nDocumented **Data sources**: `index=edge-hub-logs` sourcetype=splunk_edge_hub_log acoustic_anomaly_event, `index=edge-hub-data` acoustic_baseline_deviation. **App/TA** (typical add-on context): Splunk Edge Hub (stereo microphone + ML container), v2.1+. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-logs; **sourcetype**: splunk_edge_hub_log. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edge-hub-logs, sourcetype=splunk_edge_hub_log. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by equipment_id** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where anomaly_score > 0.7` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **equipment_health** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by facility** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where degraded_count > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm metric or event volume in the time range, then compare trends and device status to the Splunk Edge Hub admin UI or the mobile app for the same devices. Verify metric names, hosts, and time skew.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Anomaly score timeline, detection frequency histogram, equipment health trend.",
-  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with dust in the air that can bother lungs before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with dust in the air that can bother lungs before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

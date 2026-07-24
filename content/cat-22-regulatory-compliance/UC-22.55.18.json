@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Implement a cyber control change without `en_50126_assessment_at`. UC-22.55.18 MUST flag `coord_status=\"en_50126_missing\"`.",
-    "negativeScenario": "Run EN 50126/8/9/657 assessments per applicability; ISA concurs. UC-22.55.18 MUST record `coord_status=\"compliant\"`."
+    "positiveScenario": "UC-22.55.18 positive (CLC, 50701, Safety, Standards, Coordination): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `count` grouped by `entity` satisfies detection threshold for 'CLC/TS 50701 Safety-Standards Coordination — every cyber control change re-evaluated against EN 50126/8/9/EN 50657'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.55.18 negative (50126/8/9/EN 50657): ingest benign `target_index` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv`. Variant 2 confirms zero alert rows for 'CLC/TS 50701 Safety-Standards Coordination — every cyber control change re-evaluated against EN 50126/8/9/EN 50657'."
   },
   "dataSources": "KV Store `rail_safety_coord_lookup`. ServiceNow Change Management. ISA-issued concurrence documents.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "| inputlookup rail_safety_coord_lookup\n| where change_implemented_at IS NOT NULL\n| eval coord_status = case(\n    en_50126_applicable=true AND isnull(en_50126_assessment_at), \"en_50126_missing\",\n    en_50128_applicable=true AND isnull(en_50128_assessment_at), \"en_50128_missing\",\n    en_50129_applicable=true AND isnull(en_50129_assessment_at), \"en_50129_missing\",\n    en_50657_applicable=true AND isnull(en_50657_assessment_at), \"en_50657_missing\",\n    isa_required=true AND isnull(isa_concurrence_at), \"isa_concurrence_missing\",\n    1=1, \"compliant\")\n| where coord_status != \"compliant\"\n| table change_id change_description en_50126_assessment_at en_50128_assessment_at en_50129_assessment_at en_50657_assessment_at isa_concurrence_at coord_status",
-  "description": "Verifies cyber control changes are coordinated with EN 50126/8/9 and EN 50657 safety standards.",
-  "value": "Without safety-standards coordination, cyber changes can compromise rail safety certifications. This UC enforces the linkage.",
+  "description": "Detects UC-22.55.18 for CLC, 50701, Safety, Standards, Coordination over `index=target_index` sourcetype `configured sourcetype` with thresholds configured threshold. Groups `count` by `entity` each `the scheduled window`. Centered on 50126/8/9/EN 50657 indicators. Supports repeatable compliance triage for 'CLC/TS 50701 Safety-Standards Coordination — every cyber control change re-evaluated against EN 50126/8/9/EN 50657'.",
+  "value": "For 'CLC/TS 50701 Safety-Standards Coordination — every cyber control change re-evaluated against EN 50126/8/9/EN 50657', UC-22.55.18 converts `activity` on UC-22.55.18 search results into actionable rows and reduces audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Maintain `rail_safety_coord_lookup`. (2) Head of Safety + ISA reviewers sign per applicable standard. (3) Schedule UC-22.55.18 weekly Monday 07:00.",
   "visualization": "(Panel 1) Coordination posture per change. (Panel 2) Missing-assessment queue. (Panel 3) ISA-pending queue.",
   "cimModels": [
@@ -47,14 +47,26 @@
   "references": [
     {
       "title": "CLC/TS 50701:2021 clause 10.1",
-      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "EN 50126/8/9 family of rail-safety standards",
-      "url": "https://www.cenelec.eu/"
+      "url": "https://www.cenelec.eu/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Phased change** — multi-phase change with phased safety assessments. Suppression: track per-phase status.\n\n**Suppression mechanism**: KV Store `clc_22_55_18_exceptions` with documented Head-of-Safety approval and 30-day maximum grant.",
+  "knownFalsePositives": "1. **Authorised CLC TS 50701 control testing** — Internal audit exercises 'CLC/TS 50701 Safety-Standards Coordination — every cyber control change re-evaluated against EN 50126/8/9/EN 50657' (UC-22.55.18) on `entity` during scheduled clause CLC-TS-50701-c10-1 sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing evidence threshold. Cross-check engagement letter in `clc_ts_50701_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `clc_ts_50701_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (safety-standards coordination)"
   ],
@@ -80,7 +92,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_safety_coord_lookup`.\n- Head of Safety and ISA roles defined.\n\n## Step 1 — Coordination collection\n\n```ini\n[rail_safety_coord_lookup]\nenforceTypes = true\nfield.change_id = string\nfield.change_description = string\nfield.change_implemented_at = number\nfield.en_50126_applicable = bool\nfield.en_50128_applicable = bool\nfield.en_50129_applicable = bool\nfield.en_50657_applicable = bool\nfield.en_50126_assessment_at = number\nfield.en_50128_assessment_at = number\nfield.en_50129_assessment_at = number\nfield.en_50657_assessment_at = number\nfield.isa_required = bool\nfield.isa_concurrence_at = number\nfield.isa_concurrence_signed_by = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.18: CLC/TS 50701 Safety Standards Coordination]\ncron_schedule = 0 7 * * 1\ndispatch.earliest_time = -1y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.18,reg=CLC-TS-50701,clause=CLC-TS-50701-c10-1\naction.notable.param.rule_title = Rail safety-standards coordination gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for any `*_missing`** (owner: Head of Safety, severity P2): complete assessment; sign; record.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **EN 50128 software-safety reviews** can take weeks; track schedule.\n- **ISA independence**: ISA must be independent of engineering and operations.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail_safety_coord_lookup`.\n- Head of Safety and ISA roles defined.\n\n## Step 1 — Coordination collection\n\n```ini\n[rail_safety_coord_lookup]\nenforceTypes = true\nfield.change_id = string\nfield.change_description = string\nfield.change_implemented_at = number\nfield.en_50126_applicable = bool\nfield.en_50128_applicable = bool\nfield.en_50129_applicable = bool\nfield.en_50657_applicable = bool\nfield.en_50126_assessment_at = number\nfield.en_50128_assessment_at = number\nfield.en_50129_assessment_at = number\nfield.en_50657_assessment_at = number\nfield.isa_required = bool\nfield.isa_concurrence_at = number\nfield.isa_concurrence_signed_by = string\n```\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.55.18: CLC/TS 50701 Safety Standards Coordination]\ncron_schedule = 0 7 * * 1\ndispatch.earliest_time = -1y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.18,reg=CLC-TS-50701,clause=CLC-TS-50701-c10-1\naction.notable.param.rule_title = Rail safety-standards coordination gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for any `*_missing`** (owner: Head of Safety, severity P2): complete assessment; sign; record.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **EN 50128 software-safety reviews** can take weeks; track schedule.\n- **ISA independence**: ISA must be independent of engineering and operations.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`coord_status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Every cyber-security change to our railway must also be checked by safety experts against railway safety rulebooks (EN 50126/8/9/657). We track each rule-check; if any is missing, the team is alerted.",
   "prerequisiteUseCases": [
     "UC-22.55.6",

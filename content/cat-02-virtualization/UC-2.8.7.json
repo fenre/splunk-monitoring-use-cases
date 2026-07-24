@@ -9,11 +9,17 @@
     "Reliability"
   ],
   "splunkPillar": "IT Operations",
-  "dataSources": "`index=ovirt` `sourcetype=\"ovirt:vdsm\"` — `/var/log/vdsm/vdsm.log`: `level`, `host`, `thread`, `exc_type`",
-  "app": "UF on hypervisors with `ovirt:vdsm` sourcetype",
+  "exclusions": "Covers the detection logic documented for 'oVirt VDSM Host Agent Restarts and Crash Loops' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_ovirt_vdsm_host_agent_restarts_and_crash_loops` (UC-2.8.7), SOC dashboard panel \"Linux — oVirt VDSM Host Agent Restarts and Crash Loops\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.8.7 positive (oVirt, VDSM, Host, Agent, Restarts): ingest synthetic events into `index=ovirt` sourcetype='ovirt:vdsm' where `count` grouped by `host`, `_time` satisfies `err_by_host` >= 20 for 'oVirt VDSM Host Agent Restarts and Crash Loops'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.8.7 negative (Crash Loops): ingest benign `ovirt` / `ovirt:vdsm` events where `host`, `_time` stays below `err_by_host` >= 20, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 4 confirms zero alert rows for 'oVirt VDSM Host Agent Restarts and Crash Loops'."
+  },
+  "dataSources": "`index=ovirt` `sourcetype=\"ovirt:vdsm\"` — `/var/log/vdsm/vdsm.log`: `level`, `host`, `thread`, `exc_type` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "UF on hypervisors with `ovirt:vdsm` sourcetype — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ovirt sourcetype=\"ovirt:vdsm\" earliest=-4h\n| eval lv=upper(coalesce(log_level, level))\n| where lv=\"ERROR\" OR match(lower(_raw), \"(?i)traceback|crash|respawn|supervisor\")\n| bin _time span=15m\n| stats count as err_by_host by host, _time\n| where err_by_host>=20",
-  "description": "VDSM ties kernel storage, networking, and libvirt to Engine. Crash loops desynchronize host state and break migrations.",
-  "value": "Stabilizes the data plane before guests see I/O errors or network drops.",
+  "description": "Surfaces risk tied to oVirt, VDSM, Host, Agent, Restarts through UC-2.8.7 on `index=ovirt` sourcetype `ovirt:vdsm`. Summarises `count` grouped by `host`, `_time` across `15m` before applying `err_by_host` >= 20. Operators tune 'oVirt VDSM Host Agent Restarts and Crash Loops' using UC-2.8.7 runbook steps.",
+  "value": "Tracking `activity` via UC-2.8.7 on `ovirt:vdsm` feeds improves response to 'oVirt VDSM Host Agent Restarts and Crash Loops' and reduces capacity incidents, patch regressions, and service outages.",
   "implementation": "Collect vdsm.log from all hosts. Baseline error rates. Correlate spikes with package updates or new LUNs.",
   "visualization": "Timechart errors per host; top traceback tokens; link to host firmware ticket.",
   "cimModels": [
@@ -22,13 +28,33 @@
   "references": [
     {
       "title": "VDSM component",
-      "url": "https://www.ovirt.org/develop/developer-guide/vdsm/"
+      "url": "https://www.ovirt.org/develop/developer-guide/vdsm/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "AOS storage metrics can look worse during background heal, curator, or disk removal work; match alerts to Nutanix task progress and maintenance windows.",
+  "knownFalsePositives": "1. **Patch Tuesday on `ovirt`** — Package managers spike `host` metrics for 'oVirt VDSM Host Agent Restarts and Crash Loops'. Correlate with apt/yum logs in the same `ovirt:vdsm` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `ovirt:vdsm`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `err_by_host` >= 20.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "hyperv",
     "ovirt"
+  ],
+  "equipmentModels": [
+    "hyperv_generic",
+    "ovirt_generic"
   ],
   "status": "verified",
   "lastReviewed": "2025-06-01",
@@ -37,5 +63,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We keep an eye on the control panel that runs your virtual datacenter—who changed what, whether storage and hosts are healthy, and when something is about to strand running machines."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (UF on hypervisors with `ovirt:vdsm` sourcetype — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ovirt:vdsm into ovirt. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, err_by_host, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We keep an eye on the control panel that runs your virtual datacenter—who changed what, whether storage and hosts are healthy, and when something is about to strand running machines.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

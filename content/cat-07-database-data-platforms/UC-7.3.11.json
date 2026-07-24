@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`Failover`, `failover`, `switchover` events",
-  "app": "CloudTrail, Azure Activity Log, GCP Audit Logs",
+  "exclusions": "Covers the detection logic documented for 'Managed Database Failover Events (Multi-Cloud)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_managed_database_failover_events_multi_cloud` (UC-7.3.11), SOC dashboard panel \"Operations — Managed Database Failover Events (Multi-Cloud)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.3.11 positive (Managed, Database, Failover, Events, (Multi): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch:events' where `count` grouped by `entity` satisfies detection threshold for 'Managed Database Failover Events (Multi-Cloud)'. Validate filter `failover OR Failover OR switchover`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.3.11 negative ((Multi Cloud)): ingest benign `aws` / `aws:cloudwatch:events` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Managed Database Failover Events (Multi-Cloud)'."
+  },
+  "dataSources": "`Failover`, `failover`, `switchover` events Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "CloudTrail, Azure Activity Log, GCP Audit Logs — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "(index=aws sourcetype=\"aws:cloudwatch:events\") OR (index=azure sourcetype=\"azure:activity\") OR (index=gcp sourcetype=\"gcp:audit\")\n| search failover OR Failover OR switchover\n| eval cloud=case(index==\"aws\",\"AWS\", index==\"azure\",\"Azure\", index==\"gcp\",\"GCP\",1=1,\"unknown\")\n| table _time, cloud, resource_name, message\n| sort -_time",
-  "description": "Single search across RDS failover, Azure SQL failover, and Cloud SQL failover for hybrid teams. Supplements UC-7.3.2 with normalized fields.",
-  "value": "Single search across RDS failover, Azure SQL failover, and Cloud SQL failover for hybrid teams. Supplements UC-7.3.2 with normalized fields.",
+  "description": "Surfaces (Multi Cloud) activity in UC-7.3.11 ('Managed Database Failover Events (Multi-Cloud)') from `index=aws` sourcetype `aws:cloudwatch:events`. Rolls up `count` by `entity` across `the scheduled window` and pages when configured threshold. Uses filter `failover OR Failover OR switchover`. Operations operators treat UC-7.3.11 as the canonical signal.",
+  "value": "Operators running UC-7.3.11 on `aws:cloudwatch:events` feeds shorten triage for (Multi Cloud) tied to 'Managed Database Failover Events (Multi-Cloud)', lowering operational risk and delayed incident response.",
   "implementation": "Normalize resource identifiers in CIM-style fields at ingest. Route to incident workflow with application dependency tags.",
   "visualization": "Timeline (failovers by cloud), Table (resource, cloud, time), Single value (failovers 30d).",
   "cimModels": [
@@ -21,15 +27,42 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1876",
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Autoscale events, service tier changes, and Microsoft-side maintenance in Azure can move CPU and storage metrics; compare with the Azure service health and your deployment pipeline.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-7.3.11)** — Planned work for 'Managed Database Failover Events (Multi-Cloud)' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `failover OR Failover OR switchover`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudwatch:events`** — Scheduled automation elevates `cloud` without crossing configured threshold for UC-7.3.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch:events`** — First 48h baseline for UC-7.3.11 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "azure",
     "gcp"
   ],
+  "equipmentModels": [
+    "aws_generic",
+    "azure_generic",
+    "gcp_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• In operations we align Splunk with the cloud provider’s database console and metrics to rule out a platform maintenance window.\n• Install and configure the required add-on or app: CloudTrail, Azure Activity Log, GCP Audit Logs.\n• Ensure the following data sources are available: `Failover`, `failover`, `switchover` events.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNormalize resource identifiers in CIM-style fields at ingest. Route to incident workflow with application dependency tags.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n(index=aws sourcetype=\"aws:cloudwatch:events\") OR (index=azure sourcetype=\"azure:activity\") OR (index=gcp sourcetype=\"gcp:audit\")\n| search failover OR Failover OR switchover\n| eval cloud=case(index==\"aws\",\"AWS\", index==\"azure\",\"Azure\", index==\"gcp\",\"GCP\",1=1,\"unknown\")\n| table _time, cloud, resource_name, message\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Managed Database Failover Events (Multi-Cloud)** — Single search across RDS failover, Azure SQL failover, and Cloud SQL failover for hybrid teams. Supplements UC-7.3.2 with normalized fields.\n\nDocumented **Data sources**: `Failover`, `failover`, `switchover` events. **App/TA** (typical add-on context): CloudTrail, Azure Activity Log, GCP Audit Logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws, azure, gcp; **sourcetype**: aws:cloudwatch:events, azure:activity, gcp:audit. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, index=azure, index=gcp, sourcetype=\"aws:cloudwatch:events\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `eval` defines or adjusts **cloud** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Managed Database Failover Events (Multi-Cloud)**): table _time, cloud, resource_name, message\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nFor the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (failovers by cloud), Table (resource, cloud, time), Single value (failovers 30d).",
-  "grandmaExplanation": "Single search across cloud databases failover, Azure SQL failover, and Cloud SQL failover for hybrid teams We use it to stay ahead of pain for applications and the people who depend on the data."
+  "grandmaExplanation": "Single search across cloud databases failover, Azure SQL failover, and Cloud SQL failover for hybrid teams We use it to stay ahead of pain for applications and the people who depend on the data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

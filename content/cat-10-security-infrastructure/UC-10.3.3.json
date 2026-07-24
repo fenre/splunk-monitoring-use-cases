@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "EDR agent status API, last check-in timestamps",
-  "app": "EDR TA, scripted input",
+  "exclusions": "Covers the detection logic documented for 'Agent Health Monitoring' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_agent_health_monitoring` (UC-10.3.3), SOC dashboard panel \"Security Infra — Agent Health Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.3.3 positive (Agent, Health, Monitoring): ingest synthetic events into `index=edr` sourcetype='crowdstrike:sensor_health' where `count` grouped by `entity` satisfies `hours_since_checkin` > 24 for 'Agent Health Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.3.3 negative (Health Monitoring): ingest benign `edr` / `crowdstrike:sensor_health` events where `entity` stays below `hours_since_checkin` > 24, or exclude the test entity via `soc_exception_register.csv`. Variant 12 confirms zero alert rows for 'Agent Health Monitoring'."
+  },
+  "dataSources": "EDR agent status API, last check-in timestamps Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "EDR TA, scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=edr sourcetype=\"crowdstrike:sensor_health\"\n| eval hours_since_checkin=round((now()-last_seen_epoch)/3600,1)\n| where hours_since_checkin > 24 OR sensor_version < \"6.50\"\n| table hostname, os, sensor_version, hours_since_checkin, status",
-  "description": "Endpoints without healthy EDR agents are blind spots. Gap detection ensures comprehensive coverage.",
-  "value": "Endpoints without healthy EDR agents are blind spots. Gap detection ensures comprehensive coverage.",
+  "description": "Alerts on UC-10.3.3 — Agent, Health, Monitoring — using `index=edr` sourcetype `crowdstrike:sensor_health`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `hours_since_checkin` > 24. Primary focus: Health Monitoring. Purpose-built for 'Agent Health Monitoring' in Security Infra workflows.",
+  "value": "Tracking `activity` via UC-10.3.3 on `crowdstrike:sensor_health` feeds improves response to 'Agent Health Monitoring' and reduces missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Poll EDR agent status API daily. Identify agents offline >24 hours, outdated versions, or degraded status. Cross-reference with CMDB for full coverage analysis. Alert on critical servers with unhealthy agents.",
   "visualization": "Table (unhealthy agents), Single value (% healthy), Pie chart (agent version distribution), Bar chart (offline by OS).",
   "cimModels": [
@@ -21,13 +27,38 @@
   "references": [
     {
       "title": "CIM: Endpoint",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned rollouts, travel laptops, golden images, and decommissioned assets can look like a missing agent; use the product’s own health or device list before you treat it as an attack.",
+  "knownFalsePositives": "1. **Maintenance window on `edr` (UC-10.3.3)** — Planned work for 'Agent Health Monitoring' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `crowdstrike:sensor_health`** — Scheduled automation elevates `hours_since_checkin` without crossing `hours_since_checkin` > 24 for UC-10.3.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `edr` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `crowdstrike:sensor_health`** — First 48h baseline for UC-10.3.3 on `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "crowdstrike"
   ],
+  "equipmentModels": [
+    "crowdstrike_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: EDR TA, scripted input.\n• Ensure the following data sources are available: EDR agent status API, last check-in timestamps.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll EDR agent status API daily. Identify agents offline >24 hours, outdated versions, or degraded status. Cross-reference with CMDB for full coverage analysis. Alert on critical servers with unhealthy agents.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edr sourcetype=\"crowdstrike:sensor_health\"\n| eval hours_since_checkin=round((now()-last_seen_epoch)/3600,1)\n| where hours_since_checkin > 24 OR sensor_version < \"6.50\"\n| table hostname, os, sensor_version, hours_since_checkin, status\n```\n\nUnderstanding this SPL\n\n**Agent Health Monitoring** — Endpoints without healthy EDR agents are blind spots. Gap detection ensures comprehensive coverage.\n\nDocumented **Data sources**: EDR agent status API, last check-in timestamps. **App/TA** (typical add-on context): EDR TA, scripted input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edr; **sourcetype**: crowdstrike:sensor_health. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edr, sourcetype=\"crowdstrike:sensor_health\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **hours_since_checkin** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where hours_since_checkin > 24 OR sensor_version < \"6.50\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Agent Health Monitoring**): table hostname, os, sensor_version, hours_since_checkin, status\n\n\nStep 3 — Validate\nIn the EDR or sensor vendor console, compare last check-in, version, and status for the same hosts in this result set. Staging, travel, and retired assets often explain “offline” or old versions; confirm against CMDB and ownership before treating as a security failure.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (unhealthy agents), Single value (% healthy), Pie chart (agent version distribution), Bar chart (offline by OS).",
-  "grandmaExplanation": "We check that laptops and servers are really checking in to their security sensor so a broken install does not leave a wide-open hole for attackers."
+  "grandmaExplanation": "We check that laptops and servers are really checking in to their security sensor so a broken install does not leave a wide-open hole for attackers.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

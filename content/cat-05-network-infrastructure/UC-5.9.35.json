@@ -8,24 +8,42 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'HTTP Server Response Time Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_http_server_response_time_tracking` (UC-5.9.35), SOC dashboard panel \"Operations — HTTP Server Response Time Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.9.35 positive (HTTP, Server, Response, Time, Tracking): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `avg_ttfb`, `max_ttfb` grouped by `thousandeyes.test.name`, `server.address` satisfies `avg_ttfb_ms` > 500 for 'HTTP Server Response Time Tracking'. Validate macro `stream_index`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.9.35 negative (Time Tracking): ingest benign `target_index` / `target_sourcetype` events where `thousandeyes.test.name`, `server.address` stays below `avg_ttfb_ms` > 500, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'HTTP Server Response Time Tracking'."
+  },
   "dataSources": "`index=thousandeyes_metrics sourcetype=cisco:thousandeyes:metric` with `thousandeyes.test.type=\"http-server\"` from `ta_cisco_thousandeyes` (Splunkbase 7719). OTel v2 metric `http.client.request.duration` reports Time to First Byte (TTFB) in **seconds** — the time from when the client sends the request to when the first byte of the response is received.",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported.",
   "spl": "`stream_index` thousandeyes.test.type=\"http-server\"\n| stats avg(http.client.request.duration) as avg_ttfb p95(http.client.request.duration) as p95_ttfb max(http.client.request.duration) as max_ttfb by thousandeyes.test.name, server.address\n| eval avg_ttfb_ms=round(avg_ttfb*1000,1), p95_ttfb_ms=round(p95_ttfb*1000,1), max_ttfb_ms=round(max_ttfb*1000,1)\n| where avg_ttfb_ms > 500\n| sort -avg_ttfb_ms",
-  "description": "Tracks HTTP Server response time (TTFB) across all HTTP Server tests, flagging endpoints where average response time exceeds 500 ms. TTFB includes DNS resolution, TCP connection, TLS handshake, and server processing time — providing a comprehensive measure of application responsiveness from the network perspective.",
-  "value": "TTFB is the single best indicator of user-perceived web application speed. While full page load involves many additional steps (rendering, JavaScript, images), TTFB represents the irreducible minimum latency before the browser can start processing. A TTFB > 500 ms means the user sees a blank page for at least half a second — and modern users expect response within 200 ms. By tracking TTFB from multiple agents, this UC detects slow application responses, slow TLS handshakes, slow DNS resolution, and geographic performance disparities before users complain.",
+  "description": "Identifies when Time Tracking criteria fire for 'HTTP Server Response Time Tracking' (UC-5.9.35) in `index=target_index` sourcetype `configured sourcetype`. Pipeline aggregates `avg_ttfb`, `max_ttfb` by `thousandeyes.test.name`, `server.address` over `the scheduled window`. Alert logic enforces `avg_ttfb_ms` > 500. SPL signature: macro `stream_index`. Eliminates manual hunting for UC-5.9.35 conditions.",
+  "value": "UC-5.9.35 helps teams contain HTTP, Server, Response, Time, Tracking scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Same HTTP Server tests as UC-5.9.34. TTFB is automatically measured alongside availability.",
   "visualization": "(1) Table: tests sorted by TTFB (worst first). (2) Timechart: TTFB trending per test. (3) Bar chart: TTFB by agent location (geographic comparison). (4) Histogram: TTFB distribution with percentiles.",
   "references": [
     {
       "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
-      "url": "https://splunkbase.splunk.com/app/7719"
+      "url": "https://splunkbase.splunk.com/app/7719",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes OTel v2 — HTTP metrics",
-      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics"
+      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Cold start / first request.** The first request to an application after idle may be slow due to connection pool initialization, JIT compilation, or cache warming. Subsequent requests will be faster.\n\n**Geographic latency.** An agent in Asia testing a server in Europe will inherently have higher TTFB due to network round-trip time. Compare agents in the same region for fair application performance assessment.\n\n**TLS handshake overhead.** HTTPS requests include TLS negotiation, adding 50–150 ms depending on cipher suite and protocol version. This is expected and not a server-side issue.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index` (UC-5.9.35)** — Planned work for 'HTTP Server Response Time Tracking' shifts `avg_ttfb`, `max_ttfb` over `span=1h` while `thousandeyes.test.name`, `server.address` remains in-scope. Applies macro `stream_index`. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `server.address` without crossing `avg_ttfb_ms` > 500 for UC-5.9.35. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `thousandeyes.test.name`, `server.address`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.9.35 on `thousandeyes.test.name` is unstable; join `stream_index` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `thousandeyes.test.name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

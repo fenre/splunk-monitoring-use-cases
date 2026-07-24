@@ -8,7 +8,7 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Test playbook runs excluded.",
+  "exclusions": "Covers the detection logic documented for 'NIS2 Art.21(2)(b) — Splunk SOAR + ISE Mean-Time-to-Contain (MTTC) KPI Evidence' only. Does not supplant formal NIS2 legal attestation, external auditor opinion, or unrelated regulatory controls. Test environments listed in `compliance_exception_register.csv` during approved assessments are excluded.",
   "evidence": "Saved search archived to `audit_evidence` with NIS2 Art.21(2)(b) tagging.",
   "compliance": [
     {
@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "SOAR runs `block_endpoint` playbook. ISE 86001 within 30s. Healthy KPI.",
-    "negativeScenario": "Slow MTTC. Evidence captured for remediation."
+    "positiveScenario": "UC-22.2.59 positive (NIS2, Art.21(2)(b), Splunk, SOAR, ISE): ingest synthetic events into `index=phantom` sourcetype='cisco:ise:syslog' where `avg_mttc`, `max_mttc` grouped by `container_id`, `mac_address` satisfies -1d for 'NIS2 Art.21(2)(b) — Splunk SOAR + ISE Mean-Time-to-Contain (MTTC) KPI Evidence'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.2.59 negative (KPI Evidence): ingest benign `phantom` / `cisco:ise:syslog` events where `container_id`, `mac_address` stays below -1d, or exclude the test entity via `compliance_exception_register.csv`. Variant 5 confirms zero alert rows for 'NIS2 Art.21(2)(b) — Splunk SOAR + ISE Mean-Time-to-Contain (MTTC) KPI Evidence'."
   },
-  "dataSources": "`index=phantom` + `index=nac`. Cross-reference UC-17.1.82.",
-  "app": "Splunk Enterprise Security (263) + Splunk SOAR + Splunk Add-on for Cisco Identity Services (1915).",
+  "dataSources": "`index=phantom` + `index=nac`. Cross-reference UC-17.1.82. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise Security (263) + Splunk SOAR + Splunk Add-on for Cisco Identity Services (1915). — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=phantom action_name=block_endpoint earliest=-1d\n| eval soar_apply_time=_time\n| stats earliest(soar_apply_time) as soar_t by container_id, mac_address\n| join mac_address [search index=nac sourcetype=\"cisco:ise:syslog\" MessageCode=86001 anc_action=quarantine | rename _time as ise_apply_time]\n| eval mttc_seconds=ise_apply_time - soar_t\n| stats avg(mttc_seconds) as avg_mttc, max(mttc_seconds) as max_mttc, count\n| eval nis2_clause=\"Art.21(2)(b)\", control=\"MTTC_KPI\"\n| collect index=audit_evidence",
-  "description": "We continuously evidence NIS2 Art.21(2)(b) MTTC KPI via SOAR-ISE measurements.",
-  "value": "Quantitative MTTC is the hard NIS2 evidence — it shifts the audit from 'we have an IR plan' to 'we executed containment in N seconds'.",
+  "description": "Surfaces 'NIS2 Art.21(2)(b) — Splunk SOAR + ISE Mean-Time-to-Contain (MTTC) KPI Evidence' patterns (UC-22.2.59) sourced from `index=phantom` sourcetype `cisco:ise:syslog`. Threshold bundle: -1d; aggregation grain: `container_id`, `mac_address`; metrics: `avg_mttc`, `max_mttc`. Watch terms: NIS2, Art.21(2)(b), Splunk, SOAR, ISE.",
+  "value": "UC-22.2.59 gives Compliance teams earlier visibility into KPI Evidence through `cisco:ise:syslog` feeds, lowering audit findings, regulatory gaps, and attestation delays.",
   "implementation": "Schedule the saved search daily at 06:00 local time; archive results to the `audit_evidence` summary index for NIS2 quarterly review.",
   "visualization": "NIS2 MTTC dashboard.",
   "cimModels": [
@@ -43,14 +43,26 @@
   "references": [
     {
       "title": "NIS2 Directive",
-      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj"
+      "url": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "UC-17.1.82 — Splunk SOAR + ISE Closed-Loop Playbook Audit",
-      "url": "../cat-17-network-security-zero-trust/UC-17.1.82.json"
+      "url": "../cat-17-network-security-zero-trust/UC-17.1.82.json",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. SOAR action retries cause double counts.",
+  "knownFalsePositives": "1. **Authorised NIS2 control testing** — Internal audit exercises 'NIS2 Art.21(2)(b) — Splunk SOAR + ISE Mean-Time-to-Contain (MTTC) KPI Evidence' (UC-22.2.59) on `container_id` during scheduled clause Art.21(2)(b) sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=phantom` `cisco:ise:syslog` without crossing evidence threshold. Cross-check engagement letter in `nis2_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `phantom` for `container_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `container_id` during normal service delivery.\n\n**Suppression mechanism:** `nis2_exception_register.csv` keyed on `container_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "requiredFields": [
     "_time",
     "mac_address"
@@ -72,6 +84,8 @@
     "Splunk Enterprise Security",
     "Splunk SOAR"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.82 operational.\n- Splunk SOAR 6.x+.\n\n## Step 1-5\n\n```ini\n[UC-22.2.59: NIS2 — MTTC KPI Evidence]\ncron_schedule = 0 6 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.2.59,reg=NIS2,clause=Art.21(2)(b)\n```",
-  "grandmaExplanation": "We continuously evidence NIS2 Art.21(2)(b) MTTC KPI via SOAR-ISE measurements. That is important for the audit, where proof needs to line up with what the rules expect."
+  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.82 operational.\n- Splunk SOAR 6.x+.\n\n## Step 1-5\n\n```ini\n[UC-22.2.59: NIS2 — MTTC KPI Evidence]\ncron_schedule = 0 6 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.2.59,reg=NIS2,clause=Art.21(2)(b)\n```\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (263) + Splunk SOAR + Splunk Add-on for Cisco Identity Services (1915). — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into phantom, nac, audit_evidence. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`container_id, mac_address`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We continuously evidence NIS2 Art.21(2)(b) MTTC KPI via SOAR-ISE measurements. That is important for the audit, where proof needs to line up with what the rules expect.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

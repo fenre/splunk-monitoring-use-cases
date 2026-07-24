@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Kafka Broker Request Handler Pool Saturation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_kafka_broker_request_handler_pool_saturation` (UC-8.1.30), SOC dashboard panel \"Operations — Kafka Broker Request Handler Pool Saturation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.1.30 positive (Kafka, Broker, Request, Handler, Pool): ingest synthetic events into `index=kafka` sourcetype='kafka:serverStats' where `avg_idle` grouped by `_time`, `host` satisfies `RequestHandlerAvgIdlePercent` < 0.20, or `avg_idle` < 0.20 for 'Kafka Broker Request Handler Pool Saturation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.30 negative (Pool Saturation): ingest benign `kafka` / `kafka:serverStats` events where `_time`, `host` stays below `RequestHandlerAvgIdlePercent` < 0.20, or `avg_idle` < 0.20, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Kafka Broker Request Handler Pool Saturation'."
+  },
   "dataSources": "JMX `kafka.server:type=KafkaRequestHandlerPool,name=RequestHandlerAvgIdlePercent` ingested as `sourcetype=kafka:serverStats` (Splunk Add-on for JMX KafkaServerStats template)",
   "app": "Splunk Add-on for Kafka (`Splunk_TA_kafka`, Splunkbase 2935) + Splunk Add-on for JMX (Splunkbase 2647)",
   "spl": "index=kafka sourcetype=\"kafka:serverStats\"\n| where isnotnull(RequestHandlerAvgIdlePercent) AND RequestHandlerAvgIdlePercent < 0.20\n| bin span=5m _time\n| stats avg(RequestHandlerAvgIdlePercent) as avg_idle by _time, host\n| where avg_idle < 0.20",
-  "description": "Low `RequestHandlerAvgIdlePercent` means broker I/O threads are rarely idle, which usually precedes produce/fetch latency spikes and client timeouts during traffic bursts.",
-  "value": "Surfaces broker CPU/request-thread exhaustion before clients see widespread timeouts, allowing scale-out or partition moves.",
+  "description": "Monitors 'Kafka Broker Request Handler Pool Saturation' (UC-8.1.30) using `index=kafka` sourcetype `kafka:serverStats` by aggregating `avg_idle` grouped by `_time`, `host` over `5m` and alerting when `RequestHandlerAvgIdlePercent` < 0.20, or `avg_idle` < 0.20. Keywords: Kafka, Broker, Request, Handler, Pool. Focuses on Pool Saturation behaviour so operations teams can triage UC-8.1.30 without ad-hoc log review.",
+  "value": "UC-8.1.30 accelerates insight into Pool Saturation ('Kafka Broker Request Handler Pool Saturation') by tracking `avg_idle` on `kafka:serverStats` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "On a heavy forwarder with `Splunk_TA_kafka` and the JMX add-on, create a KafkaServerStats task per broker (remote JMX enabled). Poll every 60s. Normalize field names to match your JMX template (some builds alias attributes). Alert when the 15-minute rolling average stays below 0.20.",
   "visualization": "Line chart (avg_idle by broker), Single value (worst broker), Table (brokers under threshold).",
   "cimModels": [
@@ -22,16 +28,31 @@
   "references": [
     {
       "title": "Apache Kafka — monitoring",
-      "url": "https://kafka.apache.org/documentation/#monitoring"
+      "url": "https://kafka.apache.org/documentation/#monitoring",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Configure JMX inputs for the Splunk Add-on for Kafka",
-      "url": "https://docs.splunk.com/Documentation/AddOns/released/Kafka/ConfigureJMXinputs"
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/Kafka/ConfigureJMXinputs",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Queues and broker metrics swing during rebalancing, replay, or maintenance. We align with change windows.",
+  "knownFalsePositives": "1. **Maintenance window on `kafka` (UC-8.1.30)** — Planned work for 'Kafka Broker Request Handler Pool Saturation' shifts `avg_idle` over `span=5m` while `_time`, `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `kafka:serverStats`** — Scheduled automation elevates `host` without crossing `RequestHandlerAvgIdlePercent` < 0.20 for UC-8.1.30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `host`** — Health checks in `kafka` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafka:serverStats`** — First 48h baseline for UC-8.1.30 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kafka"
+  ],
+  "equipmentModels": [
+    "kafka_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -40,6 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We use this to surfaces broker CPU/request-thread exhaustion before clients see widespread timeouts, allowing scale-out or partition moves."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Kafka (`Splunk_TA_kafka`, Splunkbase 2935) + Splunk Add-on for JMX (Splunkbase 2647)). Enable the modular input or HEC token that writes sourcetype=kafka:serverStats into kafka. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`RequestHandlerAvgIdlePercent, _time, avg_idle, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to surfaces broker CPU/request-thread exhaustion before clients see widespread timeouts, allowing scale-out or partition moves.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,24 +8,42 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'ThousandEyes Activity Log Audit Trail' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_thousandeyes_activity_log_audit_trail` (UC-5.9.48), SOC dashboard panel \"Operations — ThousandEyes Activity Log Audit Trail\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.9.48 positive (ThousandEyes, Activity, Log, Audit, Trail): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `count` grouped by `user`, `action`, `resource_type` satisfies detection threshold for 'ThousandEyes Activity Log Audit Trail'. Validate macro `event_index`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.9.48 negative (Audit Trail): ingest benign `target_index` / `target_sourcetype` events where `user`, `action`, `resource_type` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'ThousandEyes Activity Log Audit Trail'."
+  },
   "dataSources": "`index=thousandeyes_events sourcetype=cisco:thousandeyes:event` from the Event input in `ta_cisco_thousandeyes` (Splunkbase 7719). Activity log / audit events track administrative changes to the ThousandEyes account: test creation/deletion, alert rule changes, user management, agent deployment changes. These are part of the Event API data stream alongside Internet Insights events.",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported.",
   "spl": "`event_index` type=\"Activity Log\" OR type=\"Audit\"\n| stats count by user, action, resource_type\n| sort -count",
-  "description": "Captures administrative changes to the ThousandEyes account — test modifications, alert rule changes, user management, and agent configuration — providing an audit trail for compliance and change management. Detects unauthorized or unexpected configuration changes that could affect monitoring coverage.",
-  "value": "A deleted test means a monitoring blind spot. A modified alert threshold means a changed detection sensitivity. A new user account could be unauthorized access. Without auditing ThousandEyes administrative activity, these changes happen silently. This UC provides the same change-management visibility for ThousandEyes that organizations already have for their other infrastructure — ensuring that monitoring configuration changes are tracked, reviewed, and reversible.",
+  "description": "Identifies UC-5.9.48 — ThousandEyes, Activity, Log, Audit, Trail — using `index=target_index` sourcetype `configured sourcetype`, grouped by `user`, `action`, `resource_type`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes macro `event_index`. Purpose-built for 'ThousandEyes Activity Log Audit Trail' in Operations workflows.",
+  "value": "Operators running UC-5.9.48 on macro `event_index` shorten triage for Audit Trail tied to 'ThousandEyes Activity Log Audit Trail', lowering operational risk and delayed incident response.",
   "implementation": "Activity log events flow through the same Event input as Internet Insights events (UC-5.9.18). Filter by event type to isolate administrative activities.",
   "visualization": "(1) Table: recent administrative activities with user, action, resource, timestamp. (2) Bar chart: activity volume by user (identifies most active administrators). (3) Timechart: activity volume trending. (4) Alert: unexpected activity outside business hours.",
   "references": [
     {
       "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
-      "url": "https://splunkbase.splunk.com/app/7719"
+      "url": "https://splunkbase.splunk.com/app/7719",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes Activity Log",
-      "url": "https://docs.thousandeyes.com/product-documentation/user-management/"
+      "url": "https://docs.thousandeyes.com/product-documentation/user-management/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Automated configuration changes.** If ThousandEyes is managed via API (Terraform, Ansible, or scripts), automated changes generate activity log entries. Tag automated users/service accounts to distinguish from manual changes.\n\n**ThousandEyes support access.** Cisco/ThousandEyes support engineers may access the account during support tickets. Verify with open support tickets.\n\n**Bulk operations.** Renaming tests, updating alert rules across many tests, or deploying new agents generates many activity log entries. Correlate with planned change tickets.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index` (UC-5.9.48)** — Planned work for 'ThousandEyes Activity Log Audit Trail' shifts `count` over `span=1h` while `user`, `action`, `resource_type` remains in-scope. Applies macro `event_index`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `action` without crossing configured threshold for UC-5.9.48. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user`, `action`, `resource_type`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.9.48 on `user` is unstable; join `event_index` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

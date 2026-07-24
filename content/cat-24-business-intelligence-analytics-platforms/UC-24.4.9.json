@@ -9,27 +9,55 @@
     "Data Quality"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Qlik Sense logs (`qlik:scheduler`, `qlik:engine`, `qlik:proxy`), QRS API task/audit (`qlik:qrs`), and Qlik Cloud events.",
-  "app": "Qlik Sense logs via Universal Forwarder; Qlik Repository Service (QRS) API and Qlik Cloud REST API via HEC scripted inputs; QlikView/NPrinting event logs.",
+  "exclusions": "Covers the detection logic documented for 'Qlik Data Connection Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_qlik_data_connection_failures` (UC-24.4.9), SOC dashboard panel \"Operations — Qlik Data Connection Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.4.9 positive (Qlik, Data, Connection, Failures): ingest synthetic events into `index=bi` sourcetype='qlik:scheduler' where `count` grouped by `connection`, `task_name` satisfies detection threshold for 'Qlik Data Connection Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.4.9 negative (Connection Failures): ingest benign `bi` / `qlik:scheduler` events where `connection`, `task_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Qlik Data Connection Failures'."
+  },
+  "dataSources": "Qlik Sense logs (`qlik:scheduler`, `qlik:engine`, `qlik:proxy`), QRS API task/audit (`qlik:qrs`), and Qlik Cloud events. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Qlik Sense logs via Universal Forwarder; Qlik Repository Service (QRS) API and Qlik Cloud REST API via HEC scripted inputs; QlikView/NPrinting event logs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=qlik:scheduler (\"Connection failed\" OR \"Cannot open connection\" OR \"ODBC\")\n| rex \"connection '(?<connection>[^']+)'\"\n| stats count as failures by connection, task_name\n| sort - failures",
-  "description": "Surfaces Qlik reload failures caused by broken data connections (ODBC, REST, file shares), the most common root cause of reload breakage after credential or network changes.",
-  "value": "Connection failures break reloads en masse after a password rotation; grouping by connection points straight at the shared root cause.",
+  "description": "Surfaces UC-24.4.9 — Qlik, Data, Connection, Failures — using `index=bi` sourcetype `qlik:scheduler`, grouped by `connection`, `task_name`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Connection Failures. Purpose-built for 'Qlik Data Connection Failures' in Operations workflows.",
+  "value": "Alerting on Qlik, Data, Connection, Failures through UC-24.4.9 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Ingest scheduler reload logs; schedule every 15 minutes and alert on connection failures, especially after credential changes.",
   "visualization": "Table of connection by failures, timechart.",
   "cimModels": [],
   "references": [
     {
       "title": "Qlik Sense — Log files & monitoring",
-      "url": "https://help.qlik.com/en-US/sense-admin/Subsystems/DeployAdminister/Content/Sense_DeployAdminister/Monitoring/monitoring-intro.htm"
+      "url": "https://help.qlik.com/en-US/sense-admin/Subsystems/DeployAdminister/Content/Sense_DeployAdminister/Monitoring/monitoring-intro.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Qlik — Repository Service (QRS) API",
-      "url": "https://help.qlik.com/en-US/sense-developer/Subsystems/RepositoryServiceAPI/Content/Sense_RepositoryServiceAPI/RepositoryServiceAPI-Introduction.htm"
+      "url": "https://help.qlik.com/en-US/sense-developer/Subsystems/RepositoryServiceAPI/Content/Sense_RepositoryServiceAPI/RepositoryServiceAPI-Introduction.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "We catch when Qlik cannot reach a data source so a single expired login does not quietly break many apps."
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.4.9)** — Planned work for 'Qlik Data Connection Failures' shifts `count` over `span=1h` while `connection`, `task_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `qlik:scheduler`** — Scheduled automation elevates `task_name` without crossing configured threshold for UC-24.4.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `connection`, `task_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `qlik:scheduler`** — First 48h baseline for UC-24.4.9 on `connection` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `connection`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Qlik Sense logs via Universal Forwarder; Qlik Repository Service (QRS) API and Qlik Cloud REST API via HEC scripted inputs; QlikView/NPrinting event logs. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=qlik:scheduler into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`connection, task_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We catch when Qlik cannot reach a data source so a single expired login does not quietly break many apps.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

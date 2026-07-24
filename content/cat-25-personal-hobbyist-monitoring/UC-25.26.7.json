@@ -8,26 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "BirdNET detections (`birdnet:detection`), trail-cam detections (`trailcam:detection`), moth-trap captures (`mothtrap:capture`), bat-detector passes (`batdetector:pass`), pollinator counts (`pollinator:count`), wildlife-cam visits (`wildlifecam:visit`).",
-  "app": "Backyard wildlife monitoring — BirdNET acoustic bird ID, trail cameras with object detection, camera moth traps, ultrasonic bat detectors, and pollinator counts — streamed to Splunk HEC via MQTT and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Bat Detector Pass Activity' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_bat_detector_pass_activity` (UC-25.26.7), SOC dashboard panel \"Personal — Bat Detector Pass Activity\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.26.7 positive (Bat, Detector, Pass, Activity): ingest synthetic events into `index=personal` sourcetype='batdetector:pass' where `species` grouped by `_time` satisfies detection threshold for 'Bat Detector Pass Activity'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.26.7 negative (Pass Activity): ingest benign `personal` / `batdetector:pass` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 1 confirms zero alert rows for 'Bat Detector Pass Activity'."
+  },
+  "dataSources": "BirdNET detections (`birdnet:detection`), trail-cam detections (`trailcam:detection`), moth-trap captures (`mothtrap:capture`), bat-detector passes (`batdetector:pass`), pollinator counts (`pollinator:count`), wildlife-cam visits (`wildlifecam:visit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Backyard wildlife monitoring — BirdNET acoustic bird ID, trail cameras with object detection, camera moth traps, ultrasonic bat detectors, and pollinator counts — streamed to Splunk HEC via MQTT and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=batdetector:pass\n| bin _time span=1h\n| stats count as passes, dc(species) as species by _time\n| sort - _time",
-  "description": "Counts bat passes and species from an ultrasonic detector through the evening, revealing your garden's after-dark aviators.",
-  "value": "Bats are near-invisible but vital; a pass count by hour makes their emergence and foraging a tangible part of your wildlife record.",
+  "description": "Detects Pass Activity activity in UC-25.26.7 ('Bat Detector Pass Activity') from `index=personal` sourcetype `batdetector:pass`. Rolls up `species` by `_time` across `1h` and pages when configured threshold. Covers Bat, Detector, Pass, Activity. Personal operators treat UC-25.26.7 as the canonical signal.",
+  "value": "Operators running UC-25.26.7 on `batdetector:pass` feeds shorten triage for Pass Activity tied to 'Bat Detector Pass Activity', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest bat-detector passes into `index=personal`; review activity by hour and species through the night.",
   "visualization": "Time chart of bat passes with species diversity.",
   "cimModels": [],
   "references": [
     {
       "title": "Bat Conservation Trust — monitoring",
-      "url": "https://www.bats.org.uk/"
+      "url": "https://www.bats.org.uk/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.26.7)** — Connector for 'Bat Detector Pass Activity' stops polling `batdetector:pass`; stale `species` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `species` over `1h` is expected for UC-25.26.7, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `batdetector:pass`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1h` bins on UTC vs local schedule skew goal threshold for 'Bat Detector Pass Activity'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It counts the bats flying past a special microphone each evening, revealing the creatures active after dark."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Wildlife & Biodiversity — typical feeds: BirdNET detections (`birdnet:detection`), trail-cam detections (`trailcam:detection`), moth-trap captures (`mothtrap:capture`), bat-detector passes (`batdetector:pass`), pollinator counts (`pollinator.\n• **Sourcetypes in this search**: `batdetector:pass`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=batdetector:pass`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Backyard wildlife monitoring — BirdNET acoustic bird ID, trail cameras with object detection, camera moth traps, ultrasonic bat detectors, and pollinator counts — via MQTT and scripted inputs..\n\n**Author notes:** Ingest bat-detector passes into `index=personal`; review activity by hour and species through the night.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"batdetector:pass\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=batdetector:pass earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Bat Detector Pass Activity** over `personal` data (primarily `sourcetype=batdetector:pass`) across the full search range. The `dc` aggregation groups by `_time`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `_time`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=batdetector:pass\n| bin _time span=1h\n| stats count as passes, dc(species) as species by _time\n| sort - _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=batdetector:pass earliest=-7d\n| head 50\n| table _time\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=batdetector:pass earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.26.7: Personal evidence` with the following panel layout:\n\n**Panel 1 — Time Chart Of Bat Passes With Species Diversity (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `batdetector:pass` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=batdetector:pass | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1h` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1h` buckets.",
+  "grandmaExplanation": "It counts the bats flying past a special microphone each evening, revealing the creatures active after dark.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,35 +9,60 @@
     "Anomaly"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Whoop recovery and strain (`whoop:day`), Garmin ride power (`powermeter:ride`), Stryd runs (`stryd:run`), and gymnastics skill attempts (`gymnastics:skill`).",
-  "app": "Training telemetry from Whoop, Garmin power meters, Stryd running power, and gymnastics skill trackers maintained in Sheets or app exports sent to Splunk HEC via APIs and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Gymnastics Skill Hit Rate by Skill Level' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_gymnastics_skill_hit_rate_by_skill_level` (UC-25.28.26), SOC dashboard panel \"Personal — Gymnastics Skill Hit Rate by Skill Level\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.28.26 positive (Gymnastics, Skill, Hit, Rate, Skill): ingest synthetic events into `index=personal` sourcetype='gymnastics:skill' where `count` grouped by `_time`, `skill_level` satisfies `attempts` > 0 for 'Gymnastics Skill Hit Rate by Skill Level'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.28.26 negative (Skill Level): ingest benign `personal` / `gymnastics:skill` events where `_time`, `skill_level` stays below `attempts` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 2 confirms zero alert rows for 'Gymnastics Skill Hit Rate by Skill Level'."
+  },
+  "dataSources": "Whoop recovery and strain (`whoop:day`), Garmin ride power (`powermeter:ride`), Stryd runs (`stryd:run`), and gymnastics skill attempts (`gymnastics:skill`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Training telemetry from Whoop, Garmin power meters, Stryd running power, and gymnastics skill trackers maintained in Sheets or app exports sent to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=gymnastics:skill\n| bin _time span=1w\n| stats count as attempts count(eval(result=\"hit\")) as successful by _time skill_level\n| eval success_pct=if(attempts>0,round(100*successful/attempts,1),0)\n| sort - _time",
-  "description": "Tracks success rate for gymnastics skill attempts by skill level.",
-  "value": "Hit rate by level is a good way to check whether progression is moving faster than consistency.",
+  "description": "Surfaces UC-25.28.26 for Gymnastics, Skill, Hit, Rate, Skill over `index=personal` sourcetype `gymnastics:skill` with thresholds `attempts` > 0. Groups `count` by `_time`, `skill_level` each `1w`. Centered on Skill Level indicators. Supports repeatable personal triage for 'Gymnastics Skill Hit Rate by Skill Level'.",
+  "value": "For 'Gymnastics Skill Hit Rate by Skill Level', UC-25.28.26 converts `activity` on `gymnastics:skill` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Capture explicit outcome states for gymnastics skill attempts events in `index=personal` and review both attempts and success percentage over time.",
   "visualization": "Time chart of success percentage for gymnastics skill attempts by skill level.",
   "cimModels": [],
   "references": [
     {
       "title": "WHOOP",
-      "url": "https://www.whoop.com/"
+      "url": "https://www.whoop.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Garmin Rally",
-      "url": "https://www.garmin.com/en-US/p/658594"
+      "url": "https://www.garmin.com/en-US/p/658594",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Stryd",
-      "url": "https://www.stryd.com/"
+      "url": "https://www.stryd.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Google Sheets API",
-      "url": "https://developers.google.com/sheets/api"
+      "url": "https://developers.google.com/sheets/api",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It reminds how often gymnastics skill attempts works the way you expect instead of quietly failing."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.28.26)** — Connector for 'Gymnastics Skill Hit Rate by Skill Level' stops polling `gymnastics:skill`; stale `count` on `_time`, `skill_level` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.28.26, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `gymnastics:skill`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `attempts` > 0 for 'Gymnastics Skill Hit Rate by Skill Level'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Sports, Skills & Training Telemetry — typical feeds: Bar-velocity reps (`vbt:rep`), running gait (`gait:metric`), hangboard sessions (`hangboard:session`), golf-swing metrics (`golfswing:metric`), power-meter intervals (`powermeter:interval`), basketbal.\n• **Sourcetypes in this search**: `gymnastics:skill`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=gymnastics:skill`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Sports and skill sensors — velocity-based-training bar trackers, running-form IMUs, climbing hangboard load cells, golf launch monitors, cycling power meters, and computer-vision shot trackers — logged to Splunk HEC via APIs and scripted inputs..\n\n**Author notes:** Capture explicit outcome states for gymnastics skill attempts events in `index=personal` and review both attempts and success percentage over time.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"gymnastics:skill\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=gymnastics:skill earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Gymnastics Skill Hit Rate by Skill Level** over `personal` data (primarily `sourcetype=gymnastics:skill`) across the full search range. It applies numeric thresholds on `attempts` (> 0) after count — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `attempts`, `skill_level`, `success_pct`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=gymnastics:skill\n| bin _time span=1w\n| stats count as attempts count(eval(result=\"hit\")) as successful by _time skill_level\n| eval success_pct=if(attempts>0,round(100*successful/attempts,1),0)\n| sort - _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=gymnastics:skill earliest=-7d\n| head 50\n| table _time, attempts, skill_level, success_pct\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=gymnastics:skill earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `attempts` before alerting:\n\n```spl\nindex=personal sourcetype=gymnastics:skill earliest=-30d\n| stats perc50(attempts) AS p50 perc90(attempts) AS p90 perc99(attempts) AS p99 max(attempts) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.28.26: Personal evidence` with the following panel layout:\n\n**Panel 1 — Time Chart Of Success Percentage For Gymnastics Skill Attempts By Skill Level (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `gymnastics:skill` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=gymnastics:skill | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1w` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1w` buckets.",
+  "grandmaExplanation": "It reminds how often gymnastics skill attempts works the way you expect instead of quietly failing.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "File integrity or config management audit of YARA rules",
-  "app": "Custom TA / HEC",
+  "exclusions": "Covers the detection logic documented for 'YARA rule version tracking and change audit' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_yara_rule_version_tracking_and_change_audit` (UC-10.10.15), SOC dashboard panel \"Security Infra — YARA rule version tracking and change audit\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.10.15 positive (YARA, rule, version, tracking, and): ingest synthetic events into `index=audit` sourcetype='yara:rule_change' where `values` grouped by `rule_file`, `sha256` satisfies detection threshold for 'YARA rule version tracking and change audit'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.10.15 negative (change audit): ingest benign `audit` / `yara:rule_change` events where `rule_file`, `sha256` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv`. Variant 12 confirms zero alert rows for 'YARA rule version tracking and change audit'."
+  },
+  "dataSources": "File integrity or config management audit of YARA rules Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom TA / HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=audit sourcetype=yara:rule_change\n| stats latest(_time) as changed_at values(user) as changed_by by rule_file, sha256\n| sort - changed_at",
-  "description": "Audit trail when rule files or hashes change on scanners.",
-  "value": "Audit trail when rule files or hashes change on scanners.",
+  "description": "Detects UC-10.10.15 — YARA, rule, version, tracking, and — using `index=audit` sourcetype `yara:rule_change`, grouped by `rule_file`, `sha256`. Outputs `values` each `the scheduled window`; alert when configured threshold. Primary focus: change audit. Purpose-built for 'YARA rule version tracking and change audit' in Security Infra workflows.",
+  "value": "Tracking `activity` via UC-10.10.15 on `yara:rule_change` feeds improves response to 'YARA rule version tracking and change audit' and reduces missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Normalize field names to your Splunk ES version and index names. Use summary indexing or ES introspection where `detection_metrics` is not present. For YARA, deploy a scripted input or HEC to ingest scanner JSON.",
   "visualization": "Table, Time chart, Single value",
   "cimModels": [
@@ -22,12 +28,40 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Version noise from hotfixes, test bundles, and parallel imports can show as “changes” without a meaningful rule content drift for operations.",
+  "knownFalsePositives": "1. **Maintenance window on `audit` (UC-10.10.15)** — Planned work for 'YARA rule version tracking and change audit' shifts `values` over `span=1h` while `rule_file`, `sha256` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `yara:rule_change`** — Scheduled automation elevates `sha256` without crossing configured threshold for UC-10.10.15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `rule_file`, `sha256`** — Health checks in `audit` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `yara:rule_change`** — First 48h baseline for UC-10.10.15 on `rule_file` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `rule_file`, `exception_reason`, `valid_until`.",
   "detectionType": "Operational metrics",
   "securityDomain": "soc_operations",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom TA / HEC.\n• Ensure the following data sources are available: File integrity or config management audit of YARA rules.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNormalize field names to your Splunk ES version and index names. Use summary indexing or ES introspection where `detection_metrics` is not present. For YARA, deploy a scripted input or HEC to ingest scanner JSON.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=audit sourcetype=yara:rule_change\n| stats latest(_time) as changed_at values(user) as changed_by by rule_file, sha256\n| sort - changed_at\n```\n\nUnderstanding this SPL\n\n**YARA rule version tracking and change audit** — Audit trail when rule files or hashes change on scanners.\n\nDocumented **Data sources**: File integrity or config management audit of YARA rules. **App/TA** (typical add-on context): Custom TA / HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: audit; **sourcetype**: yara:rule_change. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Detection type** for this use case: Operational metrics — interpret thresholds and fields in that context.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=audit, sourcetype=yara:rule_change. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by rule_file, sha256** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare version strings in the search to a **known-good copy** in source control and to one endpoint’s on-disk rules.\n\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Time chart, Single value\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md\n",
-  "grandmaExplanation": "We audit YARA version drift so we know who changed what and can roll back when a bundle goes wrong."
+  "grandmaExplanation": "We audit YARA version drift so we know who changed what and can roll back when a bundle goes wrong.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

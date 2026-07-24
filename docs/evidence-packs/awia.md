@@ -40,9 +40,9 @@ Applies to community water systems (CWS) within the meaning of the Safe Drinking
 ## 3. Catalogue coverage at a glance
 
 - **Clauses tracked**: 28
-- **Clauses covered by at least one UC**: 27 / 28 (96.4%)
-- **Priority-weighted coverage**: 97.2%
-- **Contributing UCs**: 27
+- **Clauses covered by at least one UC**: 28 / 28 (100.0%)
+- **Priority-weighted coverage**: 100.0%
+- **Contributing UCs**: 28
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -71,7 +71,7 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | [`AWIA-EPA-cwc-reporting`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-cwc-reporting) | Cyber-incident reporting — WaterISAC and EPA Region pathway | 1.0 | `full` | [UC-22.53.17](#uc-22-53-17) |
 | [`AWIA-EPA-sanitary-survey`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-sanitary-survey) | EPA Cybersecurity Action Plan — voluntary cyber-incorporation into sanitary surveys | 0.7 | `full` | [UC-22.53.18](#uc-22-53-18) |
 | [`AWIA-EPA-aware-checklist`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-aware-checklist) | EPA / CISA Top Cyber Actions for Water Utilities (Top 8 / 9 / Pathway) | 1.0 | `full` | [UC-22.53.19](#uc-22-53-19) |
-| [`AWIA-EPA-vsat-j100`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-vsat-j100) | Use of recognised RRA methodology — J100-21 / AWWA M19 / VSAT-Web | 0.7 | `—` | _not yet covered_ |
+| [`AWIA-EPA-vsat-j100`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-vsat-j100) | Use of recognised RRA methodology — J100-21 / AWWA M19 / VSAT-Web | 0.7 | `full` | [UC-22.53.29](#uc-22-53-29) |
 | [`AWIA-EPA-asset-inventory`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-asset-inventory) | OT/IT asset inventory (cyber baseline) | 1.0 | `full` | [UC-22.53.27](#uc-22-53-27) |
 | [`AWIA-EPA-mfa-remote-access`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-mfa-remote-access) | Multi-factor authentication on all remote access | 1.0 | `full` | [UC-22.53.21](#uc-22-53-21) |
 | [`AWIA-EPA-network-segmentation`](https://www.epa.gov/waterresilience/awia-section-2013#AWIA-EPA-network-segmentation) | Network segmentation between IT and OT | 1.0 | `full` | [UC-22.53.22](#uc-22-53-22) |
@@ -203,6 +203,12 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `Legal`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.53.28.json`](../../content/cat-22-regulatory-compliance/UC-22.53.28.json)
+<a id='uc-22-53-29'></a>
+- **UC-22.53.29** — AWIA RRA methodology attestation — J100-21 / AWWA M19 / VSAT-Web usage evidence
+  - Control family: `regulation-specific`
+  - Owner: `Legal`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.53.29.json`](../../content/cat-22-regulatory-compliance/UC-22.53.29.json)
 <a id='uc-22-53-3'></a>
 - **UC-22.53.3** — AWIA Emergency Response Plan (ERP) currency — evidence the ERP is completed and certified within 6 months of RRA
   - Control family: `regulation-specific`
@@ -391,11 +397,7 @@ AWIA s1433(h) authorises civil penalties for non-compliance under 42 U.S.C. § 3
 
 ## 11. Pack gaps and remediation backlog
 
-Clauses tracked in `data/regulations.json` that are **not yet covered** by any UC in this catalogue are listed below. These are the backlog items for the next release. Priority order follows priorityWeight.
-
-| Clause | Topic | Priority |
-|---|---|---|
-| `AWIA-EPA-vsat-j100` | Use of recognised RRA methodology — J100-21 / AWWA M19 / VSAT-Web | 0.7 |
+All clauses tracked in `data/regulations.json` for this regulation version are covered by at least one UC. **100 % common-clause coverage**. Remaining work is assurance-upgrade (for example, moving `contributing` entries to `partial` or `full` via explicit control tests) rather than new clause authoring.
 
 ## 12. Questions an auditor should ask
 
@@ -453,9 +455,9 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 8.20.0
+catalogue_version: 8.24.0
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     d010119379cfbb44fc0feadaf5ee44b9873461a6d4bc9e2c30e797bebfe9eced
+inputs_sha256:     05f941e7cba30a6ed15be3f33541ee7425e92ce578db21f18d57d3d67e5fb1db
 ```
 
 To re-generate:

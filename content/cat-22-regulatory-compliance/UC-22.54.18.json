@@ -31,14 +31,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "File a CIRCIA submission with `entity_sector=transportation` and expect a relay to TSA. Block egress to TSA relay endpoint; UC-22.54.18 MUST flag `coordination_status=\"relay_missing\"` within 30 minutes.",
-    "negativeScenario": "Successful submission with `srma_relay_at` and `srma_acknowledged_at` populated; UC-22.54.18 MUST record `coordination_status=\"acknowledged\"`."
+    "positiveScenario": "UC-22.54.18 positive (CIRCIA, Sector, SRMA, Coordination, Trail): ingest synthetic events into `index=audit_evidence` sourcetype='hec:circia:submission' where `values` grouped by `submission_id`, `]` satisfies -7d for 'CIRCIA Sector-SRMA Coordination Trail — evidence each CISA submission was relayed to / from the Sector Risk Management Agency'. Validate lookup `circia_entity_register_lookup`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.54.18 negative (Management Agency): ingest benign `audit_evidence` / `hec:circia:submission` events where `submission_id`, `]` stays below -7d, or exclude the test entity via `compliance_exception_register.csv`. Variant 12 confirms zero alert rows for 'CIRCIA Sector-SRMA Coordination Trail — evidence each CISA submission was relayed to / from the Sector Risk Management Agency'."
   },
   "dataSources": "KV Store `circia_srma_lookup` (sector → SRMA party mapping). HEC `hec:srma:relay` for SRMA-relay events from CISA. HEC `hec:srma:ack` for SRMA acknowledgement events. Cross-reference to `circia_entity_register_lookup` (UC-22.54.1) for entity sector.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Common Information Model Add-on (Splunkbase 1621).",
   "spl": "index=audit_evidence sourcetype=\"hec:circia:submission\"\n| eval submission_filed_at = _time\n| lookup circia_entity_register_lookup entity_id OUTPUT entity_sector\n| lookup circia_srma_lookup entity_sector OUTPUT srma_party srma_relay_endpoint\n| join type=left submission_id [\n    search index=audit_evidence (sourcetype=\"hec:srma:relay\" OR sourcetype=\"hec:srma:ack\") earliest=-7d@d\n    | stats first(_time) AS srma_relay_at last(_time) AS srma_acknowledged_at values(srma_case_id) AS srma_case_id by submission_id\n]\n| eval coordination_status = case(\n    isnull(srma_party), \"no_srma_mapped\",\n    isnull(srma_relay_at), \"relay_missing\",\n    isnotnull(srma_relay_at) AND isnull(srma_acknowledged_at), \"relay_no_ack\",\n    isnotnull(srma_acknowledged_at), \"acknowledged\",\n    1=1, \"unknown\")\n| where coordination_status != \"acknowledged\"\n| table submission_id submission_filed_at entity_sector srma_party srma_relay_at srma_acknowledged_at srma_case_id coordination_status",
-  "description": "Joins CIRCIA submissions to the SRMA mapping and to SRMA-relay/ack events. Surfaces submissions for which the SRMA-coordination chain is incomplete.",
-  "value": "A CIRCIA submission that is not coordinated with the SRMA can create dual-reporting confusion and exposes the entity to redundant reporting demands. This UC ensures the coordination trail is documented.",
+  "description": "Identifies UC-22.54.18 — CIRCIA, Sector, SRMA, Coordination, Trail — using `index=audit_evidence` sourcetype `hec:circia:submission`, grouped by `submission_id`, `]`. Outputs `values` each `the scheduled window`; alert when -7d. Filter chain includes lookup `circia_entity_register_lookup`. Purpose-built for 'CIRCIA Sector-SRMA Coordination Trail — evidence each CISA submission was relayed to / from the Sector Risk Management Agency' in Compliance workflows.",
+  "value": "Tracking `activity` via UC-22.54.18 on `hec:circia:submission` feeds improves response to 'CIRCIA Sector-SRMA Coordination Trail — evidence each CISA submission was relayed to / from the Sector Risk Management Agency' and reduces audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Populate `circia_srma_lookup` with sector → SRMA party + endpoint mappings. (2) Configure HEC subscriptions for SRMA-relay and acknowledgement events. (3) Schedule UC-22.54.18 every 30 minutes; route non-`acknowledged` to General Counsel notable.",
   "visualization": "(Panel 1) Submission → SRMA coordination table. (Panel 2) Coordination-latency histogram. (Panel 3) Sector coverage heatmap.",
   "cimModels": [
@@ -48,10 +48,36 @@
   "references": [
     {
       "title": "Sector Risk Management Agencies",
-      "url": "https://www.cisa.gov/topics/critical-infrastructure-security-and-resilience/critical-infrastructure-sectors"
+      "url": "https://www.cisa.gov/topics/critical-infrastructure-security-and-resilience/critical-infrastructure-sectors",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 263",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 4413",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1621",
+      "url": "https://splunkbase.splunk.com/app/1621",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Alerts",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Alerts",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **SRMA without portal integration** — some SRMAs (e.g. small sectoral agencies) may not yet have portal integration. Suppression: tag those rows `coordination_status_override=manual_offline`.\n\n2. **SRMA backlog** — acknowledgement may take days. Suppression: only flag `relay_no_ack` after 5 business days.\n\n**Suppression mechanism**: KV Store `circia_22_54_18_exceptions`.",
+  "knownFalsePositives": "1. **Authorised CIRCIA control testing** — Internal audit exercises 'CIRCIA Sector-SRMA Coordination Trail — evidence each CISA submission was relayed to / from the Sector Risk Management Agency' (UC-22.54.18) on `submission_id` during scheduled clause CIRCIA-CISA-coordination-with-sector-srma sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `hec:circia:submission` without crossing evidence threshold. Cross-check engagement letter in `circia_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `submission_id`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `submission_id` during normal service delivery.\n\n**Suppression mechanism:** `circia_exception_register.csv` keyed on `submission_id`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (inter-agency-coordination workflow)"
   ],
@@ -79,7 +105,7 @@
     "Splunk Enterprise Security",
     "Splunk SOAR"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- SRMA endpoint registry; HEC subscriptions.\n- KV Store `circia_srma_lookup`.\n\n## Step 1 — SRMA mapping\n\n```ini\n[circia_srma_lookup]\nenforceTypes = true\nfield.entity_sector = string\nfield.srma_party = string\nfield.srma_relay_endpoint = string\nfield.relay_expected_latency_minutes = number\nfield.ack_expected_latency_days = number\n```\n\nPopulate with: transportation→TSA, energy→DOE, water→EPA, healthcare→HHS, communications→FCC, financial→Treasury, defence→DOD, etc.\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.54.18: CIRCIA Sector-SRMA Coordination Trail]\ncron_schedule = */30 * * * *\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.18,reg=CIRCIA,clause=CIRCIA-CISA-coordination-with-sector-srma\naction.notable.param.rule_title = CIRCIA submission lacks SRMA coordination evidence\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Validate deployment\n\n**(a) Relay-missing simulation**: block egress to TSA endpoint; submission must trip `relay_missing`.\n\n**(b) Sector-without-SRMA**: an entity with `entity_sector=null`; UC-22.54.18 must trip `no_srma_mapped`.\n\n## Step 4 — Operationalize\n\n**Runbook for `relay_missing`** (owner: General Counsel, severity P2):\n\n1. Within 4 business hours: file directly with SRMA via backup channel; verify CISA later relays.\n\n## Step 5 — Troubleshooting\n\n**CIRCIA-specific failure modes**:\n\n- **Multi-sector entity**: an entity spanning multiple sectors may have multiple SRMAs; the lookup supports multiple rows per entity.\n- **CIRCIA Agreement supersedes SRMA**: see UC-22.54.15.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- SRMA endpoint registry; HEC subscriptions.\n- KV Store `circia_srma_lookup`.\n\n## Step 1 — SRMA mapping\n\n```ini\n[circia_srma_lookup]\nenforceTypes = true\nfield.entity_sector = string\nfield.srma_party = string\nfield.srma_relay_endpoint = string\nfield.relay_expected_latency_minutes = number\nfield.ack_expected_latency_days = number\n```\n\nPopulate with: transportation→TSA, energy→DOE, water→EPA, healthcare→HHS, communications→FCC, financial→Treasury, defence→DOD, etc.\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.54.18: CIRCIA Sector-SRMA Coordination Trail]\ncron_schedule = */30 * * * *\ndispatch.earliest_time = -7d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.54.18,reg=CIRCIA,clause=CIRCIA-CISA-coordination-with-sector-srma\naction.notable.param.rule_title = CIRCIA submission lacks SRMA coordination evidence\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Validate deployment\n\n**(a) Relay-missing simulation**: block egress to TSA endpoint; submission must trip `relay_missing`.\n\n**(b) Sector-without-SRMA**: an entity with `entity_sector=null`; UC-22.54.18 must trip `no_srma_mapped`.\n\n## Step 4 — Operationalize\n\n**Runbook for `relay_missing`** (owner: General Counsel, severity P2):\n\n1. Within 4 business hours: file directly with SRMA via backup channel; verify CISA later relays.\n\n## Step 5 — Troubleshooting\n\n**CIRCIA-specific failure modes**:\n\n- **Multi-sector entity**: an entity spanning multiple sectors may have multiple SRMAs; the lookup supports multiple rows per entity.\n- **CIRCIA Agreement supersedes SRMA**: see UC-22.54.15.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Common Information Model Add-on (Splunkbase 1621).). Enable the modular input or HEC token that writes sourcetype=hec:circia:submission, hec:srma:relay, hec:srma:ack into audit_evidence. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`], coordination_status, entity_id, entity_sector`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "When we send a report to the cyber agency, it also has to reach the sector regulator — like the transportation agency or water agency. We check that the message gets passed along and is acknowledged. If it isn't, the team is alerted to call them directly.",
   "prerequisiteUseCases": [
     "UC-22.54.1",

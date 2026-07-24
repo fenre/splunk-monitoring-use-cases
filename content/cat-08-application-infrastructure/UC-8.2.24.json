@@ -9,11 +9,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=web` `sourcetype=traefik:access` `DownstreamStatus`",
-  "app": "Add On for Traefik Proxy (Splunkbase app 6733)",
+  "exclusions": "Covers the detection logic documented for 'Traefik Backend Gateway Errors (502–504)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_traefik_backend_gateway_errors_502_504` (UC-8.2.24), SOC dashboard panel \"Operations — Traefik Backend Gateway Errors (502–504)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.2.24 positive (Traefik, Backend, Gateway, Errors, (502): ingest synthetic events into `index=web` sourcetype='traefik:access' where `count` grouped by `ServiceName`, `DownstreamStatus`, `_time` satisfies `DownstreamStatus` >= 502, `DownstreamStatus` <= 504, or `count` >= 10 for 'Traefik Backend Gateway Errors (502–504)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.2.24 negative ((502 504)): ingest benign `web` / `traefik:access` events where `ServiceName`, `DownstreamStatus`, `_time` stays below `DownstreamStatus` >= 502, `DownstreamStatus` <= 504, or `count` >= 10, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Traefik Backend Gateway Errors (502–504)'."
+  },
+  "dataSources": "`index=web` `sourcetype=traefik:access` `DownstreamStatus` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Add On for Traefik Proxy (Splunkbase app 6733) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"traefik:access\"\n| where DownstreamStatus >= 502 AND DownstreamStatus <= 504\n| bin _time span=5m\n| stats count by ServiceName, DownstreamStatus, _time\n| where count >= 10",
-  "description": "502–504 from Traefik indicate unreachable pods, bad TLS to backends, or overloaded upstream sockets.",
-  "value": "Shortens MTTR when ingress shows gateways while Kubernetes events lag.",
+  "description": "Detects UC-8.2.24 — Traefik, Backend, Gateway, Errors, (502 — using `index=web` sourcetype `traefik:access`, grouped by `ServiceName`, `DownstreamStatus`, `_time`. Outputs `count` each `5m`; alert when `DownstreamStatus` >= 502, `DownstreamStatus` <= 504, or `count` >= 10. Primary focus: (502 504). Purpose-built for 'Traefik Backend Gateway Errors (502–504)' in Operations workflows.",
+  "value": "For 'Traefik Backend Gateway Errors (502–504)', UC-8.2.24 converts `activity` on `traefik:access` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Ensure `ServiceName` or backend fields exist in JSON logs; alert on sustained counts, not single blips.",
   "visualization": "Timechart (502–504/min), breakdown by service, geomap if client IP is logged.",
   "cimModels": [
@@ -24,20 +30,31 @@
   "references": [
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Add On for Traefik Proxy (Splunkbase)",
-      "url": "https://splunkbase.splunk.com/app/6733"
+      "url": "https://splunkbase.splunk.com/app/6733",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Traefik — Logs and Access Logs",
-      "url": "https://doc.traefik.io/traefik/"
+      "url": "https://doc.traefik.io/traefik/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "5xx errors spike during deployment rollouts, restart sequences, or backend service maintenance. Health-check noise and synthetic traffic can add false volume if not filtered.",
+  "knownFalsePositives": "1. **Maintenance window on `web` (UC-8.2.24)** — Planned work for 'Traefik Backend Gateway Errors (502–504)' shifts `count` over `span=5m` while `ServiceName`, `DownstreamStatus`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `traefik:access`** — Scheduled automation elevates `DownstreamStatus` without crossing `DownstreamStatus` >= 502 for UC-8.2.24. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ServiceName`, `DownstreamStatus`, `_time`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `traefik:access`** — First 48h baseline for UC-8.2.24 on `ServiceName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ServiceName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "traefik"
+  ],
+  "equipmentModels": [
+    "traefik_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -46,6 +63,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Add On for Traefik Proxy (Splunkbase app 6733).\n• Ensure the following data sources are available: `index=web` `sourcetype=traefik:access` `DownstreamStatus`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIf `DownstreamStatus` is not extracted, use `spath` or `rex` on JSON `_raw`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=web sourcetype=\"traefik:access\"\n| where DownstreamStatus >= 502 AND DownstreamStatus <= 504\n| bin _time span=5m\n| stats count by ServiceName, DownstreamStatus, _time\n| where count >= 10\n```\n\nUnderstanding this SPL\n\n**Traefik Backend Gateway Errors (502–504)** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=web` `sourcetype=traefik:access` `DownstreamStatus`. **App/TA**: Add On for Traefik Proxy (Splunkbase app 6733). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\n\nStep 3 — Validate\nCompare with JBoss, WebLogic, or Tomcat admin consoles, or `catalina` / server logs on the host, for the same window. Confirm hostnames and fields match the vendor UI.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Timechart (502–504/min), breakdown by service, geomap if client IP is logged..",
-  "grandmaExplanation": "We use this to shortens MTTR when ingress shows gateways while Kubernetes events lag."
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Add On for Traefik Proxy (Splunkbase app 6733).\n• Ensure the following data sources are available: `index=web` `sourcetype=traefik:access` `DownstreamStatus`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIf `DownstreamStatus` is not extracted, use `spath` or `rex` on JSON `_raw`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=web sourcetype=\"traefik:access\"\n| where DownstreamStatus >= 502 AND DownstreamStatus <= 504\n| bin _time span=5m\n| stats count by ServiceName, DownstreamStatus, _time\n| where count >= 10\n```\n\nUnderstanding this SPL\n\n**Traefik Backend Gateway Errors (502–504)** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=web` `sourcetype=traefik:access` `DownstreamStatus`. **App/TA**: Add On for Traefik Proxy (Splunkbase app 6733). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\n\nStep 3 — Validate\nCompare with JBoss, WebLogic, or Tomcat admin consoles, or `catalina` / server logs on the host, for the same window. Confirm hostnames and fields match the vendor UI.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Timechart (502–504/min), breakdown by service, geomap if client IP is logged..\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Add On for Traefik Proxy (Splunkbase app 6733) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=traefik:access into web. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`DownstreamStatus, ServiceName, _time`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to shortens MTTR when ingress shows gateways while Kubernetes events lag.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

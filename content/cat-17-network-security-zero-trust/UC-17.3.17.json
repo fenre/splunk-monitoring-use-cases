@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`microseg:policy`",
-  "app": "VMware NSX Add-on, Illumio syslog/HEC, Cisco Secure Workload TA",
+  "exclusions": "Covers the detection logic documented for 'Microsegmentation Policy Effectiveness' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_microsegmentation_policy_effectiveness` (UC-17.3.17), SOC dashboard panel \"Network — Microsegmentation Policy Effectiveness\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.17 positive (Microsegmentation, Policy, Effectiveness): ingest synthetic events into `index=zt` sourcetype='microseg:policy' where `tot` grouped by `kind`, `policy_name` satisfies -7d for 'Microsegmentation Policy Effectiveness'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.17 negative (Policy Effectiveness): ingest benign `zt` / `microseg:policy` events where `kind`, `policy_name` stays below -7d, or exclude the test entity via `network_exception_register.csv`. Variant 14 confirms zero alert rows for 'Microsegmentation Policy Effectiveness'."
+  },
+  "dataSources": "`microseg:policy` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "VMware NSX Add-on, Illumio syslog/HEC, Cisco Secure Workload TA — Universal Forwarder (Splunkbase 617)",
   "spl": "index=zt sourcetype=\"microseg:policy\" earliest=-7d\n| eval kind=if(action=\"deny\",\"deny\",\"allow\")\n| stats count as c by kind, policy_name\n| eventstats sum(c) as tot by policy_name\n| eval pct=round(100*c/tot,1)\n| where kind=\"deny\"\n| table policy_name, pct, c",
-  "description": "Ratio of expected denies vs allows for critical segments — validates that “default deny” is actually enforced.",
-  "value": "Security architects measure microsegmentation policy effectiveness by tracking explicit-vs-default policy coverage, block-to-allow ratios, and lateral movement reduction, demonstrating the security value of segmentation investment to leadership.",
+  "description": "Detects UC-17.3.17 — Microsegmentation, Policy, Effectiveness — using `index=zt` sourcetype `microseg:policy`, grouped by `kind`, `policy_name`. Outputs `tot` each `the scheduled window`; alert when -7d. Primary focus: Policy Effectiveness. Purpose-built for 'Microsegmentation Policy Effectiveness' in Network workflows.",
+  "value": "Alerting on Microsegmentation, Policy, Effectiveness through UC-17.3.17 reduces unauthorized access, segmentation drift, and NAC policy failures by surfacing `tot` early.",
   "implementation": "High deny % on locked-down segments is expected; unexpected **allow** spikes on deny-first policies warrant review (use companion search with `kind=\"allow\"`).",
   "visualization": "Bar chart (deny % by policy), Table (policy mix), Line chart (deny trend).",
   "cimModels": [],
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "CIM: Network_Traffic",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Microseg blocks from new app deployments, missing exception rules, or planned segmentation rollouts.",
+  "knownFalsePositives": "1. **Maintenance window on `zt` (UC-17.3.17)** — Planned work for 'Microsegmentation Policy Effectiveness' shifts `tot` over `span=1h` while `kind`, `policy_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `microseg:policy`** — Scheduled automation elevates `policy_name` without crossing configured threshold for UC-17.3.17. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `kind`, `policy_name`** — Health checks in `zt` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `microseg:policy`** — First 48h baseline for UC-17.3.17 on `kind` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `kind`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1021",
     "T1046"
@@ -35,6 +57,17 @@
     "syslog",
     "vmware"
   ],
-  "detailedImplementation": "Prerequisites\n• Microsegmentation platform logs (Guardicore, Illumio, NSX) in `index=microseg`. Key fields: `action` (allow/block), `policy_name`, `src_label`, `dst_label`, `dstPort`, `proto`.\n• Policy effectiveness measures how well the microsegmentation policies achieve their security objective: reducing the blast radius of a breach. Metrics include: percentage of traffic covered by explicit (non-default) policies, block-to-allow ratio, and lateral movement reduction.\n\nStep 1 — Configure data collection\nVerify policy event data:\n```spl\nindex=microseg earliest=-24h\n| stats count by action, policy_name\n| sort - count\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Policy effectiveness metrics:\n```spl\nindex=microseg earliest=-24h\n| eval policy_type=if(match(policy_name, \"(?i)default\"), \"Default\", \"Explicit\")\n| stats count by policy_type, action\n| eventstats sum(count) as total\n| eval pct=round(count/total*100, 1)\n```\n\nUnderstanding this SPL: Measures the ratio of traffic handled by explicit policies vs default rules. In a mature microsegmentation deployment, >90% of traffic should be covered by explicit policies. A high default-allow percentage means policies have gaps. A high default-block percentage means traffic is being denied by the implicit deny rule, which may indicate missing policies for legitimate traffic.\n\nBlocked lateral movement attempts:\n```spl\nindex=microseg action=block earliest=-24h\n| stats count dc(src_label) as sources dc(dst_label) as targets by dstPort\n| sort - count\n| head 20\n```\n\nStep 3 — Validate\n(a) Review the microsegmentation platform's built-in policy coverage report.\n(b) Attempt cross-segment access that should be blocked. Verify.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Explicit vs Default policy coverage. Row 2 — Block rate trend. Row 3 — Top blocked ports.\nReport: Monthly policy effectiveness report showing coverage improvement.\n\nRunbook:\n1. **Default-allow > 20%** — Identify uncovered segment pairs and create explicit policies.\n2. **Blocks on expected ports** — May need a new allow rule. Verify with app team.\n3. **Coverage trending down** — New workloads deployed without corresponding policies.\n\nStep 5 — Troubleshooting\n• **All traffic 'Default Allow'** — Microsegmentation may be in visibility-only mode.\n• **No block events** — Enforcement mode may not be enabled for all segments.",
-  "grandmaExplanation": "Having walls between network compartments is only useful if they actually stop intruders. We measure how much of our traffic is covered by specific rules versus falling through to defaults, because the more traffic we explicitly control, the safer we are."
+  "equipmentModels": [
+    "cisco_generic",
+    "nsx_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Microsegmentation platform logs (Guardicore, Illumio, NSX) in `index=microseg`. Key fields: `action` (allow/block), `policy_name`, `src_label`, `dst_label`, `dstPort`, `proto`.\n• Policy effectiveness measures how well the microsegmentation policies achieve their security objective: reducing the blast radius of a breach. Metrics include: percentage of traffic covered by explicit (non-default) policies, block-to-allow ratio, and lateral movement reduction.\n\nStep 1 — Configure data collection\nVerify policy event data:\n```spl\nindex=microseg earliest=-24h\n| stats count by action, policy_name\n| sort - count\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Policy effectiveness metrics:\n```spl\nindex=microseg earliest=-24h\n| eval policy_type=if(match(policy_name, \"(?i)default\"), \"Default\", \"Explicit\")\n| stats count by policy_type, action\n| eventstats sum(count) as total\n| eval pct=round(count/total*100, 1)\n```\n\nUnderstanding this SPL: Measures the ratio of traffic handled by explicit policies vs default rules. In a mature microsegmentation deployment, >90% of traffic should be covered by explicit policies. A high default-allow percentage means policies have gaps. A high default-block percentage means traffic is being denied by the implicit deny rule, which may indicate missing policies for legitimate traffic.\n\nBlocked lateral movement attempts:\n```spl\nindex=microseg action=block earliest=-24h\n| stats count dc(src_label) as sources dc(dst_label) as targets by dstPort\n| sort - count\n| head 20\n```\n\nStep 3 — Validate\n(a) Review the microsegmentation platform's built-in policy coverage report.\n(b) Attempt cross-segment access that should be blocked. Verify.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Explicit vs Default policy coverage. Row 2 — Block rate trend. Row 3 — Top blocked ports.\nReport: Monthly policy effectiveness report showing coverage improvement.\n\nRunbook:\n1. **Default-allow > 20%** — Identify uncovered segment pairs and create explicit policies.\n2. **Blocks on expected ports** — May need a new allow rule. Verify with app team.\n3. **Coverage trending down** — New workloads deployed without corresponding policies.\n\nStep 5 — Troubleshooting\n• **All traffic 'Default Allow'** — Microsegmentation may be in visibility-only mode.\n• **No block events** — Enforcement mode may not be enabled for all segments.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (VMware NSX Add-on, Illumio syslog/HEC, Cisco Secure Workload TA — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=microseg:policy into zt. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`kind, policy_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "Having walls between network compartments is only useful if they actually stop intruders. We measure how much of our traffic is covered by specific rules versus falling through to defaults, because the more traffic we explicitly control, the safer we are.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

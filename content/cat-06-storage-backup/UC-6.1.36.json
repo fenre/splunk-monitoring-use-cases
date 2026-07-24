@@ -9,11 +9,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Ceph OSD/MON logs forwarded with `sourcetype=ceph:log` (Universal Forwarder on storage nodes) or rsyslog to a Splunk aggregator",
-  "app": "Universal Forwarder + inputs.conf / Splunk Connect for Syslog (custom vendor rule)",
+  "exclusions": "Covers the detection logic documented for 'Ceph Cluster Daemon Log Slow Request and Heartbeat Warnings' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ceph_cluster_daemon_log_slow_request_and_heartbe` (UC-6.1.36), SOC dashboard panel \"Operations — Ceph Cluster Daemon Log Slow Request and Heartbeat Warnings\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.1.36 positive (Ceph, Cluster, Daemon, Log, Slow): ingest synthetic events into `index=os` sourcetype='ceph:log' where `count` grouped by `host`, `osd_id` satisfies `warn_events` > 10 for 'Ceph Cluster Daemon Log Slow Request and Heartbeat Warnings'. Validate filter `\"slow request\" OR \"heartbeat_check\" OR \"blocked op\" OR \"requ`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.1.36 negative (Heartbeat Warnings): ingest benign `os` / `ceph:log` events where `host`, `osd_id` stays below `warn_events` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Ceph Cluster Daemon Log Slow Request and Heartbeat Warnings'."
+  },
+  "dataSources": "Ceph OSD/MON logs forwarded with `sourcetype=ceph:log` (Universal Forwarder on storage nodes) or rsyslog to a Splunk aggregator Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "Universal Forwarder + inputs.conf / Splunk Connect for Syslog (custom vendor rule) — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=os OR index=storage sourcetype=\"ceph:log\" earliest=-4h\n| search \"slow request\" OR \"heartbeat_check\" OR \"blocked op\" OR \"request took\"\n| rex field=_raw max_match=1 \"(?i)osd\\.(?<osd_id>\\d+)\"\n| stats count as warn_events latest(_time) as last_seen by host osd_id\n| where warn_events > 10\n| sort - warn_events",
-  "description": "Recurring slow requests and heartbeat warnings in OSD logs precede stuck PGs, flapping OSDs, and client I/O timeouts. They are a leading indicator before `ceph health` moves out of `HEALTH_OK`.",
-  "value": "Lets operators rebalance, replace disks, or tune `osd_op_complaint_time` before the cluster enters recovery storms or read-only modes.",
+  "description": "Detects 'Ceph Cluster Daemon Log Slow Request and Heartbeat Warnings' patterns (UC-6.1.36) sourced from `index=os` sourcetype `ceph:log`. Threshold bundle: `warn_events` > 10; aggregation grain: `host`, `osd_id`; metrics: `count`. Enrichment path: filter `\"slow request\" OR \"heartbeat_check\" OR \"blocked op\" OR \"requ`.",
+  "value": "UC-6.1.36 gives Operations teams earlier visibility into Heartbeat Warnings through `ceph:log` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Deploy forwarders on Ceph nodes with a `monitor://` stanza on `/var/log/ceph/*.log` (path varies by distro) or ship the same files through SC4S. Set `sourcetype=ceph:log` and `index=os`. Tune the event threshold per cluster size; small clusters may alert at >5 warnings/hour, large clusters use percentiles via summary indexing.",
   "visualization": "Timeline (warning bursts), table (host, OSD, count), top values on `host`.",
   "cimModels": [
@@ -22,17 +28,33 @@
   "references": [
     {
       "title": "Ceph Documentation — Troubleshooting",
-      "url": "https://docs.ceph.com/en/latest/rados/troubleshooting/"
+      "url": "https://docs.ceph.com/en/latest/rados/troubleshooting/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Docs — Get data from files and directories",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/Monitorfilesanddirectories"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/Monitorfilesanddirectories",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `os` (UC-6.1.36)** — Planned work for 'Ceph Cluster Daemon Log Slow Request and Heartbeat Warnings' shifts `count` over `span=1h` while `host`, `osd_id` remains in-scope. Applies filter `\"slow request\" OR \"heartbeat_check\" OR \"blocked op\" OR \"requ`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ceph:log`** — Scheduled automation elevates `osd_id` without crossing `warn_events` > 10 for UC-6.1.36. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `osd_id`** — Health checks in `os` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ceph:log`** — First 48h baseline for UC-6.1.36 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "ceph",
     "syslog"
+  ],
+  "equipmentModels": [
+    "ceph_generic",
+    "syslog_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,5 +63,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We help you see how your arrays and related gear are doing before small issues turn into full outages or restore surprises."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Universal Forwarder + inputs.conf / Splunk Connect for Syslog (custom vendor rule) — Splunk Add-on for Unix and Linux (Splunkbase 833)). Enable the modular input or HEC token that writes sourcetype=ceph:log into os, storage. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, osd_id, warn_events`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you see how your arrays and related gear are doing before small issues turn into full outages or restore surprises.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

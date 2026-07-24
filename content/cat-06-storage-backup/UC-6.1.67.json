@@ -9,11 +9,17 @@
     "Governance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Per-volume QoS counters in `purestorage:volume` (bandwidth_limit, iops_limit, throttle flags)",
-  "app": "Pure Storage Unified Add-on for Splunk (5513)",
+  "exclusions": "Covers the detection logic documented for 'Pure Storage FlashArray volume QoS bandwidth and IOPS limit enforcement' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_pure_storage_flasharray_volume_qos_bandwidth_and` (UC-6.1.67), SOC dashboard panel \"Operations — Pure Storage FlashArray volume QoS bandwidth and IOPS limit enforcement\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.1.67 positive (Pure, Storage, FlashArray, volume, QoS): ingest synthetic events into `index=storage` sourcetype='purestorage:volume' where `count` grouped by `entity` satisfies `bw_use` >= 0.95, or `iops_use` >= 0.95 for 'Pure Storage FlashArray volume QoS bandwidth and IOPS limit enforcement'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.1.67 negative (limit enforcement): ingest benign `storage` / `purestorage:volume` events where `entity` stays below `bw_use` >= 0.95, or `iops_use` >= 0.95, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Pure Storage FlashArray volume QoS bandwidth and IOPS limit enforcement'."
+  },
+  "dataSources": "Per-volume QoS counters in `purestorage:volume` (bandwidth_limit, iops_limit, throttle flags) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Pure Storage Unified Add-on for Splunk (5513) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"purestorage:volume\"\n| eval bw_cap=coalesce(qos_bandwidth_limit_mbps, bandwidth_limit_mbps)\n| eval iops_cap=coalesce(qos_iops_limit, iops_limit)\n| eval bw_use=coalesce(bandwidth_mbps, read_bw_mbps+write_bw_mbps)\n| eval iops_use=coalesce(total_iops, read_iops+write_iops)\n| where (isnotnull(bw_cap) AND bw_use >= 0.95*bw_cap) OR (isnotnull(iops_cap) AND iops_use >= 0.95*iops_cap)\n| table _time, array_name, volume_name, bw_cap, bw_use, iops_cap, iops_use",
-  "description": "Workloads pinned at QoS ceilings experience tail latency and application time-outs even when the array has spare headroom. Detecting sustained ceiling hits validates policy vs reality.",
-  "value": "Aligns storage QoS with application SLAs and documents when limits—not hardware—are the bottleneck.",
+  "description": "Monitors UC-6.1.67 — Pure, Storage, FlashArray, volume, QoS — using `index=storage` sourcetype `purestorage:volume`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `bw_use` >= 0.95, or `iops_use` >= 0.95. Primary focus: limit enforcement. Purpose-built for 'Pure Storage FlashArray volume QoS bandwidth and IOPS limit enforcement' in Operations workflows.",
+  "value": "UC-6.1.67 operationalises 'Pure Storage FlashArray volume QoS bandwidth and IOPS limit enforcement' against `purestorage:volume` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Enable volume performance REST collection. Map Purity fields to `qos_*` names with `FIELDALIAS`. Create separate alerts for bursty vs sustained (15m `perc90`) saturation.",
   "visualization": "Timechart of utilization vs cap, table of volumes at ceiling.",
   "cimModels": [
@@ -22,16 +28,31 @@
   "references": [
     {
       "title": "Pure Storage Unified Add-on for Splunk (Splunkbase)",
-      "url": "https://splunkbase.splunk.com/app/5513"
+      "url": "https://splunkbase.splunk.com/app/5513",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Pure Storage Splunk reference",
-      "url": "https://support.purestorage.com/Solutions/Splunk/Splunk_Reference/Array_Monitoring_on_Splunk_with_PureStorage_Unified_App_and_TA"
+      "url": "https://support.purestorage.com/Solutions/Splunk/Splunk_Reference/Array_Monitoring_on_Splunk_with_PureStorage_Unified_App_and_TA",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.1.67)** — Planned work for 'Pure Storage FlashArray volume QoS bandwidth and IOPS limit enforcement' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `purestorage:volume`** — Scheduled automation elevates `bw_cap` without crossing `bw_use` >= 0.95 for UC-6.1.67. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `purestorage:volume`** — First 48h baseline for UC-6.1.67 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "pure_storage"
+  ],
+  "equipmentModels": [
+    "pure_storage_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch when disks or arrays slow down for your important workloads, so you can act before people notice a frozen app or missed deadlines."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Pure Storage Unified Add-on for Splunk (5513) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=purestorage:volume into storage. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`bw_use, iops_use`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch when disks or arrays slow down for your important workloads, so you can act before people notice a frozen app or missed deadlines.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

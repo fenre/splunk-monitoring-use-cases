@@ -9,26 +9,55 @@
     "Security"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Catalog audit events (`collibra:audit`, `atlan:audit`, `datahub:audit`), OpenLineage run events (`openlineage:event`), Unity Catalog audit logs, Purview scan/classification results, stewardship and access-policy change events.",
-  "app": "Collibra / Alation / Atlan / DataHub / Microsoft Purview / Databricks Unity Catalog audit logs and REST APIs via HEC scripted inputs; OpenLineage/Marquez events via HEC.",
+  "exclusions": "Covers the detection logic documented for 'Sensitive Data Asset Access Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_sensitive_data_asset_access_audit` (UC-24.10.1), SOC dashboard panel \"Operations — Sensitive Data Asset Access Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.10.1 positive (Sensitive, Data, Asset, Access, Audit): ingest synthetic events into `index=dataops` sourcetype='collibra:audit' where `count` grouped by `user`, `action`, `asset_classification` satisfies detection threshold for 'Sensitive Data Asset Access Audit'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.10.1 negative (Access Audit): ingest benign `dataops` / `collibra:audit` events where `user`, `action`, `asset_classification` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Sensitive Data Asset Access Audit'."
+  },
+  "dataSources": "Catalog audit events (`collibra:audit`, `atlan:audit`, `datahub:audit`), OpenLineage run events (`openlineage:event`), Unity Catalog audit logs, Purview scan/classification results, stewardship and access-policy change events. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Collibra / Alation / Atlan / DataHub / Microsoft Purview / Databricks Unity Catalog audit logs and REST APIs via HEC scripted inputs; OpenLineage/Marquez events via HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dataops sourcetype=collibra:audit action IN (\"asset_viewed\",\"asset_exported\",\"access_requested\")\n| stats count as events by user, action, asset_classification\n| where asset_classification IN (\"PII\",\"Restricted\",\"Confidential\")\n| sort - events",
-  "description": "Audits access to catalogued data assets classified as sensitive so governance teams can see who is viewing or exporting regulated data.",
-  "value": "Governance requires evidence of who touched sensitive data; catalog access auditing provides that trail for privacy and compliance reviews.",
+  "description": "Detects 'Sensitive Data Asset Access Audit' (UC-24.10.1) using `index=dataops` sourcetype `collibra:audit` by aggregating `count` grouped by `user`, `action`, `asset_classification` over `the scheduled window` and alerting when configured threshold. Keywords: Sensitive, Data, Asset, Access, Audit. Focuses on Access Audit behaviour so operations teams can triage UC-24.10.1 without ad-hoc log review.",
+  "value": "UC-24.10.1 accelerates insight into Access Audit ('Sensitive Data Asset Access Audit') by tracking `activity` on `collibra:audit` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Ingest catalog audit events; schedule daily; alert on bulk export of restricted assets; feed compliance (cat-22).",
   "visualization": "Table of access by user/classification, timechart of sensitive access.",
   "cimModels": [],
   "references": [
     {
       "title": "Collibra — documentation",
-      "url": "https://productresources.collibra.com/docs/collibra/latest/"
+      "url": "https://productresources.collibra.com/docs/collibra/latest/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `dataops` (UC-24.10.1)** — Planned work for 'Sensitive Data Asset Access Audit' shifts `count` over `span=1h` while `user`, `action`, `asset_classification` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `collibra:audit`** — Scheduled automation elevates `action` without crossing configured threshold for UC-24.10.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user`, `action`, `asset_classification`** — Health checks in `dataops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `collibra:audit`** — First 48h baseline for UC-24.10.1 on `user` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`.",
   "equipment": [
     "dell_emc"
   ],
-  "grandmaExplanation": "We keep a record of who looks at or exports your most sensitive data, so you can prove it is handled properly."
+  "equipmentModels": [
+    "dell_emc_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Collibra / Alation / Atlan / DataHub / Microsoft Purview / Databricks Unity Catalog audit logs and REST APIs via HEC scripted inputs; OpenLineage/Marquez events via HEC. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=collibra:audit into dataops. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`action, asset_classification, user`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We keep a record of who looks at or exports your most sensitive data, so you can prove it is handled properly.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

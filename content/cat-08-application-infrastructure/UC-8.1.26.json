@@ -9,11 +9,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=proxy` HAProxy HTTP log mode via syslog (`sourcetype=haproxy:http` recommended at ingest)",
-  "app": "HAProxy syslog + props/transforms for HTTP log format",
+  "exclusions": "Covers the detection logic documented for 'HAProxy HTTP Frontend 5xx Rate from Syslog' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_haproxy_http_frontend_5xx_rate_from_syslog` (UC-8.1.26), SOC dashboard panel \"Operations — HAProxy HTTP Frontend 5xx Rate from Syslog\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.1.26 positive (HAProxy, HTTP, Frontend, 5xx, Rate): ingest synthetic events into `index=proxy` sourcetype='haproxy:http' where `tot` grouped by `http_status` satisfies `http_status` > 5, or `pct` > 2 for 'HAProxy HTTP Frontend 5xx Rate from Syslog'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.26 negative (from Syslog): ingest benign `proxy` / `haproxy:http` events where `http_status` stays below `http_status` > 5, or `pct` > 2, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'HAProxy HTTP Frontend 5xx Rate from Syslog'."
+  },
+  "dataSources": "`index=proxy` HAProxy HTTP log mode via syslog (`sourcetype=haproxy:http` recommended at ingest) Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "HAProxy syslog + props/transforms for HTTP log format — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=proxy sourcetype=\"haproxy:http\"\n| rex field=_raw \"\\s(?<http_status>5\\d{2})\\s+(?<resp_bytes>\\d+|-)\\s*$\"\n| where isnotnull(http_status)\n| bin _time span=5m\n| stats count as err5 by http_status\n| eventstats sum(err5) as tot\n| eval pct=round(100*err5/tot,2)\n| where pct > 2",
-  "description": "HAProxy HTTP logs include terminal status codes after timing fields. Monitoring 5xx rates complements CSV stats for user-visible errors.",
-  "value": "Catches application failures that do not yet mark backends DOWN in stats.",
+  "description": "Monitors 'HAProxy HTTP Frontend 5xx Rate from Syslog' patterns (UC-8.1.26) sourced from `index=proxy` sourcetype `haproxy:http`. Threshold bundle: `http_status` > 5, or `pct` > 2; aggregation grain: `http_status`; metrics: `tot`. Watch terms: HAProxy, HTTP, Frontend, 5xx, Rate.",
+  "value": "UC-8.1.26 gives Operations teams earlier visibility into from Syslog through `haproxy:http` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Enable `option httplog`, forward syslog to Splunk, and extract status at EOL. Validate `rex` against your exact `log-format`.",
   "visualization": "Stacked bar (5xx codes), timechart of 5xx/min, top frontends if parsed.",
   "cimModels": [
@@ -24,17 +30,33 @@
   "references": [
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "HAProxy Management Guide — Logging",
-      "url": "https://www.haproxy.com/documentation/"
+      "url": "https://www.haproxy.com/documentation/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "5xx errors spike during deployment rollouts, restart sequences, or backend service maintenance. Health-check noise and synthetic traffic can add false volume if not filtered.",
+  "knownFalsePositives": "1. **Maintenance window on `proxy` (UC-8.1.26)** — Planned work for 'HAProxy HTTP Frontend 5xx Rate from Syslog' shifts `tot` over `span=5m` while `http_status` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `haproxy:http`** — Scheduled automation elevates `pct` without crossing `http_status` > 5 for UC-8.1.26. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `http_status`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `haproxy:http`** — First 48h baseline for UC-8.1.26 on `http_status` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `http_status`, `exception_reason`, `valid_until`.",
   "equipment": [
     "haproxy",
     "syslog"
+  ],
+  "equipmentModels": [
+    "haproxy_generic",
+    "syslog_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -43,6 +65,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: HAProxy syslog + props/transforms for HTTP log format.\n• Ensure the following data sources are available: `index=proxy` HAProxy HTTP log mode via syslog (`sourcetype=haproxy:http` recommended at ingest).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAdjust the `rex` if you customized `log-format`; test against sample events.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=proxy sourcetype=\"haproxy:http\"\n| rex field=_raw \"\\s(?<http_status>5\\d{2})\\s+(?<resp_bytes>\\d+|-)\\s*$\"\n| where isnotnull(http_status)\n| bin _time span=5m\n| stats count as err5 by http_status\n| eventstats sum(err5) as tot\n| eval pct=round(100*err5/tot,2)\n| where pct > 2\n```\n\nUnderstanding this SPL\n\n**HAProxy HTTP Frontend 5xx Rate from Syslog** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=proxy` HAProxy HTTP log mode via syslog (`sourcetype=haproxy:http` recommended at ingest). **App/TA**: HAProxy syslog + props/transforms for HTTP log format. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\n\nStep 3 — Validate\nCompare with web server access logs on disk (Apache, NGINX, or W3C) for the same time range, or tail the same sourcetype in Search, to confirm status codes, URIs, and counts.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Stacked bar (5xx codes), timechart of 5xx/min, top frontends if parsed..",
-  "grandmaExplanation": "We watch for signs that catches application failures that do not yet mark backends DOWN in stats."
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: HAProxy syslog + props/transforms for HTTP log format.\n• Ensure the following data sources are available: `index=proxy` HAProxy HTTP log mode via syslog (`sourcetype=haproxy:http` recommended at ingest).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAdjust the `rex` if you customized `log-format`; test against sample events.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=proxy sourcetype=\"haproxy:http\"\n| rex field=_raw \"\\s(?<http_status>5\\d{2})\\s+(?<resp_bytes>\\d+|-)\\s*$\"\n| where isnotnull(http_status)\n| bin _time span=5m\n| stats count as err5 by http_status\n| eventstats sum(err5) as tot\n| eval pct=round(100*err5/tot,2)\n| where pct > 2\n```\n\nUnderstanding this SPL\n\n**HAProxy HTTP Frontend 5xx Rate from Syslog** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=proxy` HAProxy HTTP log mode via syslog (`sourcetype=haproxy:http` recommended at ingest). **App/TA**: HAProxy syslog + props/transforms for HTTP log format. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\n\nStep 3 — Validate\nCompare with web server access logs on disk (Apache, NGINX, or W3C) for the same time range, or tail the same sourcetype in Search, to confirm status codes, URIs, and counts.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Stacked bar (5xx codes), timechart of 5xx/min, top frontends if parsed..\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (HAProxy syslog + props/transforms for HTTP log format — Splunk Add-on for Unix and Linux (Splunkbase 833)). Enable the modular input or HEC token that writes sourcetype=haproxy:http into proxy. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`http_status, pct`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch for signs that catches application failures that do not yet mark backends DOWN in stats.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

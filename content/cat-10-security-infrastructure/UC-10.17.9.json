@@ -9,11 +9,17 @@
     "Governance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=dell:sonicwall:firewall` App Control with application name fields",
+  "exclusions": "Covers the detection logic documented for 'SonicWall Application Control Policy Violations (SonicWall)' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_sonicwall_application_control_policy_violations_` (UC-10.17.9), SOC dashboard panel \"Security Infra — SonicWall Application Control Policy Violations (SonicWall)\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.17.9 positive (SonicWall, Application, Control, Policy, Violations): ingest synthetic events into `index=netfw` sourcetype='dell:sonicwall:firewall' where `count` grouped by `app_name`, `usr`, `fw_action` satisfies -7d for 'SonicWall Application Control Policy Violations (SonicWall)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.17.9 negative (Violations (SonicWall)): ingest benign `netfw` / `dell:sonicwall:firewall` events where `app_name`, `usr`, `fw_action` stays below -7d, or exclude the test entity via `soc_exception_register.csv`. Variant 1 confirms zero alert rows for 'SonicWall Application Control Policy Violations (SonicWall)'."
+  },
+  "dataSources": "`sourcetype=dell:sonicwall:firewall` App Control with application name fields Indexes: netfw. Sourcetypes: dell:sonicwall:firewall. Key fields: app_name, fw_action, usr. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Dell SonicWall Add-on for Splunk (Splunkbase 6203)",
   "spl": "index=netfw sourcetype=\"dell:sonicwall:firewall\" earliest=-7d\n| where match(_raw,\"(?i)AppCtrl|application control\")\n| stats count by app_name, usr, fw_action\n| sort -count",
-  "description": "Application awareness stops unsanctioned remote-access tools and crypto miners. Violation trending shows policy effectiveness.",
-  "value": "Supports zero-trust application allow-listing initiatives with measurable metrics.",
+  "description": "Monitors Violations (SonicWall) activity in UC-10.17.9 ('SonicWall Application Control Policy Violations (SonicWall)') from `index=netfw` sourcetype `dell:sonicwall:firewall`. Rolls up `count` by `app_name`, `usr`, `fw_action` across `the scheduled window` and pages when -7d. Covers SonicWall, Application, Control, Policy, Violations. Security Infra operators treat UC-10.17.9 as the canonical signal.",
+  "value": "Operators running UC-10.17.9 on `dell:sonicwall:firewall` feeds shorten triage for Violations (SonicWall) tied to 'SonicWall Application Control Policy Violations (SonicWall)', lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Map SonicWall application IDs to names. Exclude approved IT tools via lookup.",
   "visualization": "Bar chart (application), table (user, app, action).",
   "cimModels": [
@@ -22,16 +28,32 @@
   "references": [
     {
       "title": "Splunkbase — Dell SonicWall Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/6203"
+      "url": "https://splunkbase.splunk.com/app/6203",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Connect for Syslog — Dell SonicWall reference",
-      "url": "https://docs.splunk.com/Documentation/SC4S/"
+      "url": "https://docs.splunk.com/Documentation/SC4S/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `netfw` (UC-10.17.9)** — Planned work for 'SonicWall Application Control Policy Violations (SonicWall)' shifts `count` over `span=1h` while `app_name`, `usr`, `fw_action` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `dell:sonicwall:firewall`** — Scheduled automation elevates `usr` without crossing configured threshold for UC-10.17.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `app_name`, `usr`, `fw_action`** — Health checks in `netfw` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dell:sonicwall:firewall`** — First 48h baseline for UC-10.17.9 on `app_name` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `app_name`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "sonicwall"
+  ],
+  "equipmentModels": [
+    "sonicwall_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -40,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "Application awareness stops unsanctioned remote-access tools and crypto miners — we monitor SonicWall logs so teams can act before users feel pain."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Dell SonicWall Add-on for Splunk (Splunkbase 6203)). Enable the modular input or HEC token that writes sourcetype=dell:sonicwall:firewall into netfw. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`app_name, fw_action, usr`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "Application awareness stops unsanctioned remote-access tools and crypto miners — we monitor SonicWall logs so teams can act before users feel pain.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

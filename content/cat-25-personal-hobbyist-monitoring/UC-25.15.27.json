@@ -9,42 +9,65 @@
     "Performance"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Kitchen telemetry (`meater:cook`, `anova:session`, `instantpot:cook`, `kitchen:appliance`, `bbq:probe`, `pantry:item`).",
-  "app": "Meater probes, Anova Precision Cooker sessions, Instant Pot logs, wine-fridge sensors, ESPHome kitchen sensors, and pantry inventory feeds via MQTT and Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'MEATER Rest-Time Adherence Gap' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_meater_rest_time_adherence_gap` (UC-25.15.27), SOC dashboard panel \"Personal — MEATER Rest-Time Adherence Gap\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.15.27 positive (MEATER, Rest, Time, Adherence, Gap): ingest synthetic events into `index=personal` sourcetype='meater:cook' where `avg_rest_minutes`, `target_rest_minutes` grouped by `protein` satisfies `target_rest_minutes` > 0 for 'MEATER Rest-Time Adherence Gap'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.15.27 negative (Adherence Gap): ingest benign `personal` / `meater:cook` events where `protein` stays below `target_rest_minutes` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 10 confirms zero alert rows for 'MEATER Rest-Time Adherence Gap'."
+  },
+  "dataSources": "Kitchen telemetry (`meater:cook`, `anova:session`, `instantpot:cook`, `kitchen:appliance`, `bbq:probe`, `pantry:item`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Meater probes, Anova Precision Cooker sessions, Instant Pot logs, wine-fridge sensors, ESPHome kitchen sensors, and pantry inventory feeds via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=meater:cook\n| stats avg(rest_minutes) as avg_rest_minutes, avg(target_rest_minutes) as target_rest_minutes by protein\n| where target_rest_minutes>0 AND avg_rest_minutes<target_rest_minutes*0.8\n| sort avg_rest_minutes",
-  "description": "Uses MEATER rest recommendations telemetry to monitor actual rest time versus target for each protein in index=personal.",
-  "value": "Splunk turns the feed into an operational check for servings that are being cut too soon after cooking, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Surfaces UC-25.15.27 — MEATER, Rest, Time, Adherence, Gap — using `index=personal` sourcetype `meater:cook`, grouped by `protein`. Outputs `avg_rest_minutes`, `target_rest_minutes` each `the scheduled window`; alert when `target_rest_minutes` > 0. Primary focus: Adherence Gap. Purpose-built for 'MEATER Rest-Time Adherence Gap' in Personal workflows.",
+  "value": "For 'MEATER Rest-Time Adherence Gap', UC-25.15.27 converts `avg_rest_minutes`, `target_rest_minutes` on `meater:cook` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest MEATER rest recommendations data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Protein table of target and actual rest time.",
   "cimModels": [],
   "references": [
     {
       "title": "MEATER",
-      "url": "https://meater.com/"
+      "url": "https://meater.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Anova support",
-      "url": "https://support.anovaculinary.com/"
+      "url": "https://support.anovaculinary.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Instant Pot",
-      "url": "https://instantpot.com/"
+      "url": "https://instantpot.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ESPHome",
-      "url": "https://esphome.io/"
+      "url": "https://esphome.io/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Home Assistant REST sensor",
-      "url": "https://www.home-assistant.io/integrations/rest/"
+      "url": "https://www.home-assistant.io/integrations/rest/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.15.27)** — Connector for 'MEATER Rest-Time Adherence Gap' stops polling `meater:cook`; stale `avg_rest_minutes`, `target_rest_minutes` on `protein` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_rest_minutes`, `target_rest_minutes` over `1w` is expected for UC-25.15.27, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `meater:cook`. Dedup with `stats latest(*) by protein`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `target_rest_minutes` > 0 for 'MEATER Rest-Time Adherence Gap'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It celebrates actual rest time versus target for each protein so you can spot servings that are being cut too soon after cooking before it becomes annoying."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Kitchen, Cooking & Fermentation — typical feeds: Sourdough monitor (`sourdough:reading`), BBQ/sous-vide probes (`bbq:probe`), fridge/freezer/oven temperature (`kitchen:appliance`), espresso shots (`espresso:shot`), pantry inventory (`pantry:item`), .\n• **Sourcetypes in this search**: `meater:cook`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=meater:cook`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** ESP32/ESPHome kitchen sensors (sourdough rise, BBQ/sous-vide probes, fridge/freezer temperature), espresso-shot logs, and pantry inventory via MQTT and Splunk HEC..\n\n**Author notes:** Ingest MEATER rest recommendations data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"meater:cook\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=meater:cook earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **MEATER Rest-Time Adherence Gap** over `personal` data (primarily `sourcetype=meater:cook`) across the full search range. It applies numeric thresholds on `target_rest_minutes` (> 0) after avg — tune these constants to your household baseline.\n\n**Fields this search depends on:** `protein`, `target_rest_minutes`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=meater:cook\n| stats avg(rest_minutes) as avg_rest_minutes, avg(target_rest_minutes) as target_rest_minutes by protein\n| where target_rest_minutes>0 AND avg_rest_minutes<target_rest_minutes*0.8\n| sort avg_rest_minutes\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=meater:cook earliest=-7d\n| head 50\n| table protein, target_rest_minutes\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=meater:cook earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `target_rest_minutes` before alerting:\n\n```spl\nindex=personal sourcetype=meater:cook earliest=-30d\n| stats perc50(target_rest_minutes) AS p50 perc90(target_rest_minutes) AS p90 perc99(target_rest_minutes) AS p99 max(target_rest_minutes) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.15.27: Personal evidence` with the following panel layout:\n\n**Panel 1 — Protein Table Of Target And Actual Rest Time (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `meater:cook` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=meater:cook | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It celebrates actual rest time versus target for each protein so you can spot servings that are being cut too soon after cooking before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

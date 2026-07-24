@@ -81,43 +81,43 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 - **UC-17.1.31** — Cisco ISE<sup class="ref">[<a href="#ref-3">3</a>]</sup> Certificate Expiry and Trust-Chain Health
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.31.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.31.json)
 <a id='uc-17-1-35'></a>
 - **UC-17.1.35** — Cisco ISE pxGrid Cloud Connectivity and TLS Health
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.35.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.35.json)
 <a id='uc-17-1-41'></a>
 - **UC-17.1.41** — Threat-Centric NAC (TC-NAC) — STIX/TAXII Feed and Auto-Quarantine Effectiveness
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.41.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.41.json)
 <a id='uc-17-1-43'></a>
 - **UC-17.1.43** — Cisco ISE TACACS+ Device Administration — Privileged Command Auditing
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.43.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.43.json)
 <a id='uc-17-1-48'></a>
 - **UC-17.1.48** — Cisco ISE Restore Audit and Configuration-Drift Detection Post-Restore
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.48.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.48.json)
 <a id='uc-17-1-53'></a>
 - **UC-17.1.53** — Posture Remediation Funnel — Detection-to-Compliant Conversion Rate
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.53.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.53.json)
 <a id='uc-17-1-65'></a>
 - **UC-17.1.65** — ISE Continuous Compliance Monitoring (CoCM) Grace-Period Tracking
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.65.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.65.json)
 <a id='uc-22-11-100'></a>
 - **UC-22.11.100** — PCI-DSS 10.4 — Time synchronisation: NTP drift on CDE hosts
@@ -388,9 +388,9 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 8.20.0
+catalogue_version: 8.24.0
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     d010119379cfbb44fc0feadaf5ee44b9873461a6d4bc9e2c30e797bebfe9eced
+inputs_sha256:     05f941e7cba30a6ed15be3f33541ee7425e92ce578db21f18d57d3d67e5fb1db
 ```
 
 To re-generate:

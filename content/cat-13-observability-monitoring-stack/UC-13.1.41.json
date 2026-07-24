@@ -8,11 +8,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Scripted input / HEC: `sourcetype=splunk:dispatch_stats` on `index=main` (dispatch dir size MB per SH)",
-  "app": "Monitoring Console, scripted disk check",
+  "exclusions": "Covers the detection logic documented for 'Dispatch Directory Size (_introspection)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_dispatch_directory_size_introspection` (UC-13.1.41), SOC dashboard panel \"Operations — Dispatch Directory Size (_introspection)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-13.1.41 positive (Dispatch, Directory, Size, introspection)): ingest synthetic events into `index=main` sourcetype='splunk:dispatch_stats' where `max_gb` grouped by `host` satisfies `size_gb` > 50 for 'Dispatch Directory Size (_introspection)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-13.1.41 negative (Size (_introspection)): ingest benign `main` / `splunk:dispatch_stats` events where `host` stays below `size_gb` > 50, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Dispatch Directory Size (_introspection)'."
+  },
+  "dataSources": "Scripted input / HEC: `sourcetype=splunk:dispatch_stats` on `index=main` (dispatch dir size MB per SH) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Monitoring Console, scripted disk check — Universal Forwarder (Splunkbase 617)",
   "spl": "index=main sourcetype=\"splunk:dispatch_stats\"\n| eval size_gb=round(dispatch_dir_size_mb/1024,2)\n| where size_gb > 50\n| stats max(size_gb) as max_gb by host",
-  "description": "Large dispatch directories fill disk and slow search teardown—common after runaway searches or stuck jobs.",
-  "value": "Large dispatch directories fill disk and slow search teardown—common after runaway searches or stuck jobs.",
+  "description": "Detects UC-13.1.41 — Dispatch, Directory, Size, introspection) — using `index=main` sourcetype `splunk:dispatch_stats`, grouped by `host`. Outputs `max_gb` each `the scheduled window`; alert when `size_gb` > 50. Primary focus: Size (_introspection). Purpose-built for 'Dispatch Directory Size (_introspection)' in Operations workflows.",
+  "value": "UC-13.1.41 gives Operations teams earlier visibility into Size (_introspection) through `splunk:dispatch_stats` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Nightly scripted input: `du -sm` on `$SPLUNK_HOME/var/run/splunk/dispatch`, emit JSON. Alert on rapid growth. Automate cleanup of orphaned jobs per support guidance.",
   "visualization": "Gauge (dispatch GB per SH), Line chart (growth trend).",
   "cimModels": [
@@ -22,10 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Intake blips can follow token or load-balancer work and client bursts. We align with app owners before a platform-wide incident.",
+  "knownFalsePositives": "1. **Maintenance window on `main` (UC-13.1.41)** — Planned work for 'Dispatch Directory Size (_introspection)' shifts `max_gb` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `splunk:dispatch_stats`** — Scheduled automation elevates `size_gb` without crossing `size_gb` > 50 for UC-13.1.41. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `main` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `splunk:dispatch_stats`** — First 48h baseline for UC-13.1.41 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Monitoring Console, scripted disk check.\n• Ensure the following data sources are available: Scripted input / HEC: `sourcetype=splunk:dispatch_stats` on `index=main` (dispatch dir size MB per SH).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNightly scripted input: `du -sm` on `$SPLUNK_HOME/var/run/splunk/dispatch`, emit JSON. Alert on rapid growth. Automate cleanup of orphaned jobs per support guidance.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=main sourcetype=\"splunk:dispatch_stats\"\n| eval size_gb=round(dispatch_dir_size_mb/1024,2)\n| where size_gb > 50\n| stats max(size_gb) as max_gb by host\n```\n\nUnderstanding this SPL\n\n**Dispatch Directory Size (_introspection)** — Large dispatch directories fill disk and slow search teardown—common after runaway searches or stuck jobs.\n\nDocumented **Data sources**: Scripted input / HEC: `sourcetype=splunk:dispatch_stats` on `index=main` (dispatch dir size MB per SH). **App/TA** (typical add-on context): Monitoring Console, scripted disk check. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: main; **sourcetype**: splunk:dispatch_stats. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=main, sourcetype=\"splunk:dispatch_stats\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **size_gb** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where size_gb > 50` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.\n\n\nStep 3 — Validate\nRun the search over calm and busy windows. Compare with the Splunk monitoring console and relevant health and introspection views, and spot-check key fields in sample events.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (dispatch GB per SH), Line chart (growth trend).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We track machine and scheduler stress on the search side so a heavy job or a bad pattern does not starve the rest of the work."
+  "grandmaExplanation": "We track machine and scheduler stress on the search side so a heavy job or a bad pattern does not starve the rest of the work.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,6 +9,8 @@
     "Operations"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'TEAP (Tunnel EAP) Authentication Mode Tracking and Inner-Method Failure Detection' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_teap_tunnel_eap_authentication_mode_tracking_and` (UC-17.1.69), SOC dashboard panel \"Network — TEAP (Tunnel EAP) Authentication Mode Tracking and Inner-Method Failure Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "nist-800-53",
@@ -60,14 +62,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Disable user cert on TEAP supplicant. Inner-method failures spike. UC-17.1.69 fires.",
-    "negativeScenario": "Working TEAP. Low failure rate; chaining result mostly 'user-and-machine'."
+    "positiveScenario": "UC-17.1.69 positive (TEAP, (Tunnel, EAP), Authentication, Mode): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `count` grouped by `EapInnerMethod`, `EapChainingResult` satisfies `failures` > 50 for 'TEAP (Tunnel EAP) Authentication Mode Tracking and Inner-Method Failure Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.69 negative (Failure Detection): ingest benign `nac` / `cisco:ise:syslog` events where `EapInnerMethod`, `EapChainingResult` stays below `failures` > 50, or exclude the test entity via `network_exception_register.csv`. Variant 3 confirms zero alert rows for 'TEAP (Tunnel EAP) Authentication Mode Tracking and Inner-Method Failure Detection'."
   },
-  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Authentication* category. TEAP (RFC 7170) is Cisco's recommended EAP method for joint user+machine authentication. Authentication events with `EapAuthentication=EAP-TEAP` carry inner-method fields `EapTunnel`, `EapInnerMethod` (e.g. EAP-TLS, MS-CHAPv2). Failure codes `5400`, `5440`, `5417` are extended with TEAP-specific reasons in the `FailureReason` field.",
-  "app": "`Splunk Add-on for Cisco Identity Services`.",
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Authentication* category. TEAP (RFC 7170) is Cisco's recommended EAP method for joint user+machine authentication. Authentication events with `EapAuthentication=EAP-TEAP` carry inner-method fields `EapTunnel`, `EapInnerMethod` (e.g. EAP-TLS, MS-CHAPv2). Failure codes `5400`, `5440`, `5417` are extended with TEAP-specific reasons in the `FailureReason` field. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" EapAuthentication=\"EAP-TEAP\"\n| stats count, count(eval(MessageCode==\"5400\")) as failures by EapInnerMethod, EapChainingResult\n| where failures > 50",
-  "description": "Tracks the share of TEAP authentications versus other EAP methods, decomposes TEAP into its inner methods (EAP-TLS, MS-CHAPv2), and detects high failure rates per inner method or per chaining result (user-only vs. machine-only vs. both).",
-  "value": "TEAP enables true user+machine attestation for Zero Trust. Tracking adoption shows progress; tracking failure rates flags integration issues (machine cert problems, user identity store failures, switch-side TEAP support gaps).",
+  "description": "Identifies when Failure Detection criteria fire for 'TEAP (Tunnel EAP) Authentication Mode Tracking and Inner-Method Failure Detection' (UC-17.1.69) in `index=nac` sourcetype `cisco:ise:syslog`. Pipeline aggregates `count` by `EapInnerMethod`, `EapChainingResult` over `the scheduled window`. Alert logic enforces `failures` > 50. Title terms: TEAP, (Tunnel, EAP), Authentication, Mode. Eliminates manual hunting for UC-17.1.69 conditions.",
+  "value": "UC-17.1.69 helps teams contain TEAP, (Tunnel, EAP), Authentication, Mode scenarios and reduce unauthorized access, segmentation drift, and NAC policy failures before incidents compound.",
   "implementation": "Schedule every 1h. TEAP requires Windows 11 22H2+ or Cisco Secure Client native, plus switch IOS-XE 17.x+ supplicant and ISE 3.0+ server.",
   "visualization": "(1) TEAP adoption percentage trend. (2) Inner-method failure breakdown. (3) Chaining-result distribution (user-and-machine vs. user-only vs. machine-only).",
   "cimModels": [
@@ -77,14 +79,26 @@
   "references": [
     {
       "title": "RFC 7170 — TEAP",
-      "url": "https://www.rfc-editor.org/rfc/rfc7170"
+      "url": "https://www.rfc-editor.org/rfc/rfc7170",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco ISE TEAP Configuration",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) Initial TEAP rollout — high failures during supplicant config drift.\n(b) Machine cert renewal cycles cause temporary failures.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'TEAP (Tunnel EAP) Authentication Mode Tracking and Inner-Method Failure Detection'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "N/A (authentication hygiene — measures TEAP/EAP-chained authentication coverage, no adversary technique)"
   ],
@@ -102,7 +116,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Standard pattern.",
+  "detailedImplementation": "Standard pattern.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`EapChainingResult, EapInnerMethod, failures`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "TEAP authenticates both the device and the user at the same time — like requiring both a building badge and an ID. We watch how often this works versus fails to make sure the strong authentication is rolling out smoothly.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

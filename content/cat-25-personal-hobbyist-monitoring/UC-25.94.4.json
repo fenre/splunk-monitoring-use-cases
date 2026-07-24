@@ -9,31 +9,55 @@
     "Business"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Monica contacts (`monica:contact`), Clay relationships (`clay:relationship`), LinkedIn connections (`linkedin:connection`), follow-up reminders (`followup:reminder`), and intro requests (`intro:request`).",
-  "app": "Monica contact relationship logs, Clay network exports, LinkedIn connection events, follow-up reminder tasks, and warm-intro request trackers streamed into Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Relationship Strength Decay Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_relationship_strength_decay_watch` (UC-25.94.4), SOC dashboard panel \"Personal — Relationship Strength Decay Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.94.4 positive (Relationship, Strength, Decay, Watch): ingest synthetic events into `index=personal` sourcetype='clay:relationship' where `count` grouped by `entity` satisfies `days_since_touch` > 90, or `strength_score` >= 7 for 'Relationship Strength Decay Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.94.4 negative (Decay Watch): ingest benign `personal` / `clay:relationship` events where `entity` stays below `days_since_touch` > 90, or `strength_score` >= 7, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 11 confirms zero alert rows for 'Relationship Strength Decay Watch'."
+  },
+  "dataSources": "Monica contacts (`monica:contact`), Clay relationships (`clay:relationship`), LinkedIn connections (`linkedin:connection`), follow-up reminders (`followup:reminder`), and intro requests (`intro:request`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Monica contact relationship logs, Clay network exports, LinkedIn connection events, follow-up reminder tasks, and warm-intro request trackers streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=clay:relationship strength_score=* days_since_touch=*\n| where days_since_touch>90 AND strength_score>=7\n| sort - strength_score - days_since_touch\n| table contact_name network_segment strength_score days_since_touch",
-  "description": "Flags high-strength Clay relationships that have gone more than ninety days without a logged touch.",
-  "value": "Strong ties go cold fastest when you assume they will always be there; decay alerts prompt a quick check-in.",
+  "description": "Surfaces UC-25.94.4 — Relationship, Strength, Decay, Watch — using `index=personal` sourcetype `clay:relationship`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `days_since_touch` > 90, or `strength_score` >= 7. Primary focus: Decay Watch. Purpose-built for 'Relationship Strength Decay Watch' in Personal workflows.",
+  "value": "UC-25.94.4 helps teams contain Relationship, Strength, Decay, Watch scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Sync Clay with `strength_score` and `days_since_touch`, then alert on high-value contacts past your touch window.",
   "visualization": "Table of at-risk high-strength contacts.",
   "cimModels": [],
   "references": [
     {
       "title": "Monica CRM",
-      "url": "https://www.monicahq.com/"
+      "url": "https://www.monicahq.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Clay",
-      "url": "https://clay.earth/"
+      "url": "https://clay.earth/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "LinkedIn API Documentation",
-      "url": "https://learn.microsoft.com/en-us/linkedin/"
+      "url": "https://learn.microsoft.com/en-us/linkedin/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It spots important relationships that have gone quiet for too long even though they used to be close."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.94.4)** — Connector for 'Relationship Strength Decay Watch' stops polling `clay:relationship`; stale `count` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.94.4, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `clay:relationship`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_since_touch` > 90 for 'Relationship Strength Decay Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Personal CRM & Networking — typical feeds: Monica contacts (`monica:contact`), Clay relationships (`clay:relationship`), LinkedIn connections (`linkedin:connection`), follow-up reminders (`followup:reminder`), and intro requests (`intro:reques.\n• **Sourcetypes in this search**: `clay:relationship`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=clay:relationship`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Monica contact relationship logs, Clay network exports, LinkedIn connection events, follow-up reminder tasks, and warm-intro request trackers streamed into Splunk HEC..\n\n**Author notes:** Sync Clay with `strength_score` and `days_since_touch`, then alert on high-value contacts past your touch window.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"clay:relationship\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=clay:relationship earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Relationship Strength Decay Watch** over `personal` data (primarily `sourcetype=clay:relationship`) across the full search range. It applies numeric thresholds on `days_since_touch` (> 90) after aggregation — tune these constants to your household baseline.\n\n**Fields this search depends on:** `days_since_touch`, `strength_score`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=clay:relationship strength_score=* days_since_touch=*\n| where days_since_touch>90 AND strength_score>=7\n| sort - strength_score - days_since_touch\n| table contact_name network_segment strength_score days_since_touch\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=clay:relationship earliest=-7d\n| head 50\n| table days_since_touch, strength_score\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=clay:relationship earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `days_since_touch` before alerting:\n\n```spl\nindex=personal sourcetype=clay:relationship earliest=-30d\n| stats perc50(days_since_touch) AS p50 perc90(days_since_touch) AS p90 perc99(days_since_touch) AS p99 max(days_since_touch) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.94.4: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of At-Risk High-Strength Contacts (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `clay:relationship` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=clay:relationship | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It spots important relationships that have gone quiet for too long even though they used to be close.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

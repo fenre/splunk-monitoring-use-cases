@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'PostgreSQL Checkpoint and Background Writer Pressure' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_postgresql_checkpoint_and_background_writer_pres` (UC-7.1.41), SOC dashboard panel \"Operations — PostgreSQL Checkpoint and Background Writer Pressure\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.1.41 positive (PostgreSQL, Checkpoint, and, Background, Writer): ingest synthetic events into `index=database` sourcetype='postgresql:bgwriter' where `checkpoints_requested`, `bgwriter_truncations` grouped by `host` satisfies `checkpoints_timed` > 0, `checkpoints_req` > 10, `maxwritten_clean` > 100, or `req_ratio` > 0.5 for 'PostgreSQL Checkpoint and Background Writer Pressure'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.41 negative (Writer Pressure): ingest benign `database` / `postgresql:bgwriter` events where `host` stays below `checkpoints_timed` > 0, `checkpoints_req` > 10, `maxwritten_clean` > 100, or `req_ratio` > 0.5, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'PostgreSQL Checkpoint and Background Writer Pressure'."
+  },
   "dataSources": "`pg_stat_bgwriter` counters (`checkpoints_req`, `checkpoint_write_time`, `buffers_checkpoint`, `maxwritten_clean`) ingested as time-series",
   "app": "Splunk DB Connect (Splunkbase 2686), JDBC Driver for Postgres (Splunkbase 6152)",
   "spl": "index=database sourcetype=\"postgresql:bgwriter\"\n| eval req_ratio=if(checkpoints_timed>0, round(checkpoints_req/checkpoints_timed,3), null())\n| where checkpoints_req > 10 OR maxwritten_clean > 100 OR req_ratio > 0.5\n| timechart span=15m sum(checkpoints_req) as checkpoints_requested, sum(maxwritten_clean) as bgwriter_truncations by host",
-  "description": "Requested checkpoints (checkpoints_req) and bgwriter truncations (maxwritten_clean) spike when checkpoints cannot keep pace with dirty buffers, causing I/O stalls and query latency. Monitoring pg_stat_bgwriter is a standard PostgreSQL tuning signal.",
-  "value": "Surfaces checkpoint overload before sustained write stalls, long recovery times, and tail latency regressions on write-heavy PostgreSQL clusters.",
+  "description": "Identifies UC-7.1.41 for PostgreSQL, Checkpoint, and, Background, Writer over `index=database` sourcetype `postgresql:bgwriter` with thresholds `checkpoints_timed` > 0, `checkpoints_req` > 10, `maxwritten_clean` > 100, or `req_ratio` > 0.5. Groups `checkpoints_requested`, `bgwriter_truncations` by `host` each `15m`. Centered on Writer Pressure indicators. Supports repeatable operations triage for 'PostgreSQL Checkpoint and Background Writer Pressure'.",
+  "value": "For 'PostgreSQL Checkpoint and Background Writer Pressure', UC-7.1.41 converts `checkpoints_requested`, `bgwriter_truncations` on `postgresql:bgwriter` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Schedule a DB Connect rising column or time-based query against pg_stat_bgwriter every 60 seconds. Normalize host and cluster. Baseline checkpoints_req per workload; alert on sustained elevation versus checkpoints_timed. Pair with pg_stat_checkpointer on PostgreSQL 17+ if available.",
   "visualization": "Line chart (checkpoints_req vs checkpoints_timed), Single value (maxwritten_clean), Table (host, buffers_checkpoint, write time).",
   "cimModels": [
@@ -21,14 +27,26 @@
   "references": [
     {
       "title": "PostgreSQL Statistics Collector — pg_stat_bgwriter",
-      "url": "https://www.postgresql.org/docs/current/monitoring-stats.html#MONITORING-PG-STAT-BGWRITER-VIEW"
+      "url": "https://www.postgresql.org/docs/current/monitoring-stats.html#MONITORING-PG-STAT-BGWRITER-VIEW",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk DB Connect",
-      "url": "https://splunkbase.splunk.com/app/2686"
+      "url": "https://splunkbase.splunk.com/app/2686",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Cold caches right after restarts, failover, or one-off full scans can lower hit ratios until the working set is warm again — watch trends, not a single low sample.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.1.41)** — Planned work for 'PostgreSQL Checkpoint and Background Writer Pressure' shifts `checkpoints_requested`, `bgwriter_truncations` over `span=15m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `postgresql:bgwriter`** — Scheduled automation elevates `req_ratio` without crossing `checkpoints_timed` > 0 for UC-7.1.41. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `postgresql:bgwriter`** — First 48h baseline for UC-7.1.41 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "checkpoint",
     "db_connect",
@@ -44,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We follow PostgreSQL activity and space trends so we can keep vacuum, replication, and connection paths healthy as load grows."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk DB Connect (Splunkbase 2686), JDBC Driver for Postgres (Splunkbase 6152)). Enable the modular input or HEC token that writes sourcetype=postgresql:bgwriter into database. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`checkpoints_req, checkpoints_timed, host, maxwritten_clean`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We follow PostgreSQL activity and space trends so we can keep vacuum, replication, and connection paths healthy as load grows.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

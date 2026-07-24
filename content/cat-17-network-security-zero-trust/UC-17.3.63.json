@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Netskope event stream, `sourcetype=netskope:events`",
+  "exclusions": "Covers the detection logic documented for 'Netskope Malware and Threat Detected in Cloud and Web Sessions' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_netskope_malware_and_threat_detected_in_cloud_an` (UC-17.3.63), SOC dashboard panel \"Network — Netskope Malware and Threat Detected in Cloud and Web Sessions\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.63 positive (Netskope, Malware, and, Threat, Detected): ingest synthetic events into `index=casb` sourcetype='netskope:events' where `count` grouped by `user`, `app_name`, `threat`, `action` satisfies -24h for 'Netskope Malware and Threat Detected in Cloud and Web Sessions'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.63 negative (Web Sessions): ingest benign `casb` / `netskope:events` events where `user`, `app_name`, `threat`, `action` stays below -24h, or exclude the test entity via `network_exception_register.csv`. Variant 2 confirms zero alert rows for 'Netskope Malware and Threat Detected in Cloud and Web Sessions'."
+  },
+  "dataSources": "Netskope event stream, `sourcetype=netskope:events` Indexes: casb. Sourcetypes: netskope:events. Key fields: action, app_name, policy_name, threat, user. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Netskope Add-on for Splunk (Splunkbase 3808)",
   "spl": "index=casb sourcetype=\"netskope:events\" earliest=-24h\n| eval threat=coalesce(malware_name, threat_name, verdict, threat_category)\n| where isnotnull(threat) AND threat!=\"\" AND threat!=\"clean\" AND threat!=\"none\"\n| stats count by user, app_name, threat, action, policy_name\n| sort -count\n| head 50",
-  "description": "Netskope inspects SaaS and web traffic for known malware families, sandbox verdicts, and composite threat scores. Aggregating detections by user and application shows active infections, risky file sharing, and policy effectiveness.",
-  "value": "SOC teams analyze Netskope threat detections across cloud and web sessions, distinguishing blocked threats from detected-but-allowed gaps, tracking ransomware detections for immediate endpoint isolation, and identifying shared malicious files spreading through cloud applications.",
+  "description": "Identifies UC-17.3.63 for Netskope, Malware, and, Threat, Detected over `index=casb` sourcetype `netskope:events` with thresholds -24h. Groups `count` by `user`, `app_name`, `threat`, `action` each `the scheduled window`. Centered on Web Sessions indicators. Supports repeatable network triage for 'Netskope Malware and Threat Detected in Cloud and Web Sessions'.",
+  "value": "For 'Netskope Malware and Threat Detected in Cloud and Web Sessions', UC-17.3.63 converts `activity` on `netskope:events` feeds into actionable rows and reduces unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Enable full Netskope event logging including threat fields. Install Splunkbase 3808 on search heads. Map `action` values (allow, block, quarantine) to SOC severity. Correlate with endpoint containment status before closing tickets.",
   "visualization": "Table (user, app, threat), Timeline (detection burst), Pie chart (action mix).",
   "cimModels": [],
@@ -21,17 +27,32 @@
   "references": [
     {
       "title": "Splunkbase — Netskope Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3808"
+      "url": "https://splunkbase.splunk.com/app/3808",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Netskope documentation — SIEM integration",
-      "url": "https://docs.netskope.com/"
+      "url": "https://docs.netskope.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes from new SaaS rollouts, automated workflows, sanctioned bulk uploads, or M&A integration.",
+  "knownFalsePositives": "1. **Maintenance window on `casb` (UC-17.3.63)** — Planned work for 'Netskope Malware and Threat Detected in Cloud and Web Sessions' shifts `count` over `span=1h` while `user`, `app_name`, `threat`, `action` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `netskope:events`** — Scheduled automation elevates `app_name` without crossing configured threshold for UC-17.3.63. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user`, `app_name`, `threat`, `action`** — Health checks in `casb` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netskope:events`** — First 48h baseline for UC-17.3.63 on `user` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`.",
   "securityDomain": "threat",
   "equipment": [
     "netskope"
+  ],
+  "equipmentModels": [
+    "netskope_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,5 +62,7 @@
   ],
   "reviewer": "@splunk-monitoring-use-cases",
   "detailedImplementation": "Prerequisites\n• Netskope events in `index=casb` with `sourcetype=netskope:events`. Key threat fields: `malware_name`, `malware_type` (trojan/ransomware/adware), `malware_severity` (info/low/medium/high/critical), `threat_name`, `threat_category`, `verdict` (clean/malicious/suspicious/unknown), `action` (allow/block/alert/quarantine), `app_name`, `user`, `file_name`, `file_type`, `file_size`, `md5`, `sha256`.\n• Netskope performs inline threat inspection on cloud and web traffic using: signature-based AV, ML classifiers, cloud sandboxing (Patient Zero), and threat intelligence. Events with `verdict != clean` or populated `malware_name` indicate detections.\n\nStep 1 — Configure data collection\nIn Netskope admin: Settings > Security Cloud Platform > Event Streaming. Enable REST API v2 or Dataplane integration for Splunk. Install Splunkbase 3808 (Netskope Add-on for Splunk).\n\nVerify:\n```spl\nindex=casb sourcetype=\"netskope:events\" earliest=-24h\n| eval threat=coalesce(malware_name, threat_name, verdict)\n| where isnotnull(threat) AND NOT match(threat, \"(?i)^clean$|^none$\")\n| stats count by malware_type, action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Threat detection dashboard:\n```spl\nindex=casb sourcetype=\"netskope:events\" earliest=-7d\n| eval threat=coalesce(malware_name, threat_name)\n| where isnotnull(threat) AND NOT match(threat, \"(?i)^clean$|^none$\")\n| stats count dc(user) as affected_users by threat, malware_type, action, app_name\n| sort - count\n```\n\nUnderstanding this SPL: Groups malware detections by threat name, type, and enforcement action. Events with `action=block` are successfully prevented. Events with `action=allow` indicate a threat that was detected but not blocked — a gap in the inline policy. Multiple users with the same `malware_name` indicates a campaign or shared malicious file in a cloud app.\n\nCloud file threat analysis:\n```spl\nindex=casb sourcetype=\"netskope:events\" earliest=-24h\n| where isnotnull(malware_name) AND isnotnull(file_name)\n| table _time, user, app_name, file_name, file_type, malware_name, malware_severity, action, sha256\n| sort - _time\n```\n\nStep 3 — Validate\n(a) Upload an EICAR test file to a monitored cloud app. Verify detection.\n(b) In Netskope admin: Incidents > Malware. Compare with Splunk.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Threat detections by type and action. Row 2 — Affected users. Row 3 — File-level threat details.\nAlert: Immediate on malware detections with `action=allow` (gap). Immediate on ransomware detections.\n\nRunbook:\n1. **Malware detected, action=allow** — Policy gap. Investigate user endpoint. Update inline policy.\n2. **Ransomware detection** — Isolate endpoint. Check for lateral movement.\n3. **Same malware across users** — Shared cloud file. Quarantine in Netskope.\n\nStep 5 — Troubleshooting\n• **No threat events** — Verify threat protection is enabled in the Netskope Real-time Policy.\n• **`malware_name` empty but `verdict=malicious`** — Sandbox detection without a signature match. Check `threat_category`.",
-  "grandmaExplanation": "Netskope scans files and web traffic going through our cloud for malware. We track what it catches, but more importantly, we look for threats that it detected but did not block — those are security gaps we need to close immediately."
+  "grandmaExplanation": "Netskope scans files and web traffic going through our cloud for malware. We track what it catches, but more importantly, we look for threats that it detected but did not block — those are security gaps we need to close immediately.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

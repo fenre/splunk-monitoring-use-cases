@@ -8,6 +8,8 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'NAC Policy Change Audit' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_nac_policy_change_audit` (UC-17.1.8), SOC dashboard panel \"Network — NAC Policy Change Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "uk-cyber-essentials",
@@ -65,11 +67,15 @@
       "evidenceArtifact": "Saved search 'UC-17.1.8' running on ISE admin audit logs, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
     }
   ],
-  "dataSources": "ISE admin audit logs",
-  "app": "`Splunk_TA_cisco-ise`, HPE Aruba ClearPass syslog, Forescout CounterACT syslog",
+  "controlTest": {
+    "positiveScenario": "UC-17.1.8 positive (NAC, Policy, Change, Audit): ingest synthetic events into `index=nac` sourcetype='cisco:ise:admin' where `count` grouped by `entity` satisfies detection threshold for 'NAC Policy Change Audit'. Validate filter `\"PolicySet\" OR \"AuthorizationRule\" OR \"AuthenticationRule\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.8 negative (Change Audit): ingest benign `nac` / `cisco:ise:admin` events where `entity` stays below detection threshold, or exclude the test entity via `network_exception_register.csv`. Variant 4 confirms zero alert rows for 'NAC Policy Change Audit'."
+  },
+  "dataSources": "ISE admin audit logs Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_cisco-ise`, HPE Aruba ClearPass syslog, Forescout CounterACT syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:admin\"\n| search \"PolicySet\" OR \"AuthorizationRule\" OR \"AuthenticationRule\"\n| table _time, admin_user, action, object_name, details",
-  "description": "NAC policy changes affect network access for all devices. Unauthorized changes can create security gaps or disrupt access.",
-  "value": "Compliance teams track every administrative change to NAC policies, authorization profiles, and network device configurations, flagging out-of-window changes that bypass the change review process and could accidentally disrupt network access for thousands of devices.",
+  "description": "Detects risk tied to NAC, Policy, Change, Audit through UC-17.1.8 on `index=nac` sourcetype `cisco:ise:admin`. Summarises `count` grouped by `entity` across `the scheduled window` before applying configured threshold. Operators tune 'NAC Policy Change Audit' using UC-17.1.8 runbook steps.",
+  "value": "Tracking `activity` via UC-17.1.8 on `cisco:ise:admin` feeds improves response to 'NAC Policy Change Audit' and reduces unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Forward ISE admin audit logs. Alert on any policy change. Track changes by administrator. Correlate with change management tickets. Report on policy change frequency.",
   "visualization": "Table (policy changes), Timeline (change events), Bar chart (changes by admin).",
   "cimModels": [
@@ -80,14 +86,26 @@
   "references": [
     {
       "title": "Splunk_TA_cisco-ise",
-      "url": "https://splunkbase.splunk.com/app/1915"
+      "url": "https://splunkbase.splunk.com/app/1915",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Microseg blocks from new app deployments, missing exception rules, or planned segmentation rollouts.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'NAC Policy Change Audit'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:admin` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "T1562.004"
   ],
@@ -99,6 +117,10 @@
     "cisco_ise"
   ],
   "status": "verified",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "premiumApps": [
     {
       "name": "Splunk User Behavior Analytics",
@@ -108,5 +130,7 @@
   ],
   "detailedImplementation": "Prerequisites\n• Cisco ISE admin audit logs in `index=nac` with `sourcetype=cisco:ise:syslog`. Key ISE message IDs: 60000 (ISE configuration change), 60166 (policy set change), 60167 (authorization profile change). Key fields: `AdminName`, `ObjectName` (the changed object), `ObjectType` (Policy/AuthorizationProfile/NetworkDevice), `ChangeDescription`, `ConfigVersionId`.\n• ISE tracks all administrative changes with before/after values. Every change creates an audit record.\n• Create a `nac_change_windows.csv` lookup: `day_of_week,start_hour,end_hour,change_allowed` defining approved change windows (e.g., Tuesday 20:00-23:00, Thursday 20:00-23:00).\n\nStep 1 — Configure data collection\nVerify change audit events:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" earliest=-30d\n| where isnotnull(AdminName) AND isnotnull(ObjectName)\n| stats count by ObjectType\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Policy change log:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" earliest=-7d\n| where isnotnull(AdminName) AND isnotnull(ObjectName)\n| eval change_hour=strftime(_time, \"%H\"), change_dow=strftime(_time, \"%A\")\n| lookup nac_change_windows.csv day_of_week as change_dow OUTPUT start_hour end_hour change_allowed\n| eval in_window=if(change_allowed=\"true\" AND change_hour>=start_hour AND change_hour<end_hour, \"YES\", \"NO\")\n| table _time, AdminName, ObjectType, ObjectName, ChangeDescription, in_window\n| sort - _time\n```\n\nUnderstanding this SPL: Lists every ISE administrative change and flags whether it happened inside or outside the approved change window. Changes outside the window are high-risk — they bypass the change review process and could accidentally lock out thousands of devices. Common accidental mistakes: modifying a live policy set (affecting all users) when the admin intended to modify a test policy, or deleting an authorization profile that is still referenced by active policy rules.\n\nHigh-impact changes:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" earliest=-24h\n| where isnotnull(AdminName) AND (ObjectType=\"Policy\" OR ObjectType=\"AuthorizationProfile\" OR ObjectType=\"AuthenticationRule\")\n| stats count by AdminName, ObjectType, ObjectName\n| sort - count\n```\n\nStep 3 — Validate\n(a) Make a test change in ISE and verify the audit event appears.\n(b) Compare ISE audit trail (Administration > System > Configuration Audit) with Splunk.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Changes per day (timechart). Row 2 — Out-of-window changes. Row 3 — Change detail table.\nAlert: Immediate when a policy change occurs outside the approved window.\n\nRunbook:\n1. **Out-of-window change** — Contact the admin. If unplanned, verify intent and roll back if needed.\n2. **Mass changes in short time** — Could be a compromised admin account. Verify.\n3. **Authorization profile deleted** — Check which policy rules referenced it. Orphaned rules will fail.\n\nStep 5 — Troubleshooting\n• **No audit events** — ISE audit logging may be disabled. Check Administration > System > Logging.\n• **`ChangeDescription` truncated** — Syslog message size limit. Consider ISE MnT REST API for full details.",
   "grandmaExplanation": "Every time someone changes the rules for who can get on the network, we record it — who changed it, what they changed, and when. If changes happen outside our normal maintenance windows, we raise an alert because a mistake could lock everyone out.",
-  "hardware": "Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend"
+  "hardware": "Cisco ISE 3515/3595/3615/3655/3695, ISE Virtual Appliance; HPE Aruba ClearPass C1000/C2000/C3000, ClearPass Virtual Appliance; Forescout CounterACT CT-xxxx, eyeExtend",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

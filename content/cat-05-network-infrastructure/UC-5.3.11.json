@@ -9,11 +9,17 @@
     "Anomaly"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=f5:bigip:asm`, `sourcetype=f5:bigip:ltm`",
-  "app": "F5 TA (`Splunk_TA_f5-bigip`), Splunk_TA_citrix-netscaler",
+  "exclusions": "Covers the detection logic documented for 'Rate Limiting and DDoS Mitigation Events (F5 BIG-IP)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_rate_limiting_and_ddos_mitigation_events_f5_big_` (UC-5.3.11), SOC dashboard panel \"Operations — Rate Limiting and DDoS Mitigation Events (F5 BIG-IP)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.3.11 positive (Rate, Limiting, and, DDoS, Mitigation): ingest synthetic events into `index=network` sourcetype='f5:bigip:asm' where `unique_sources` grouped by `virtual_server`, `attack_type` satisfies detection threshold for 'Rate Limiting and DDoS Mitigation Events (F5 BIG-IP)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.3.11 negative (BIG IP)): ingest benign `network` / `f5:bigip:asm` events where `virtual_server`, `attack_type` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Rate Limiting and DDoS Mitigation Events (F5 BIG-IP)'."
+  },
+  "dataSources": "`sourcetype=f5:bigip:asm`, `sourcetype=f5:bigip:ltm` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "F5 TA (`Splunk_TA_f5-bigip`), Splunk_TA_citrix-netscaler — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"f5:bigip:asm\" attack_type=\"*dos*\" OR violation=\"Rate Limiting\"\n| stats count values(src) as src_values dc(src) as unique_sources by virtual_server, attack_type\n| sort -count",
-  "description": "Tracking rate limiting events reveals ongoing attacks and validates that DDoS protections are actively working.",
-  "value": "Security teams monitor F5 BIG-IP AFM rate limiting and DDoS mitigation events across network, DNS, and application layers, tracking attack vectors, mitigation effectiveness, and peak attack rates.",
+  "description": "Monitors UC-5.3.11 — Rate, Limiting, and, DDoS, Mitigation — using `index=network` sourcetype `f5:bigip:asm`, grouped by `virtual_server`, `attack_type`. Outputs `unique_sources` each `the scheduled window`; alert when configured threshold. Primary focus: BIG IP). Purpose-built for 'Rate Limiting and DDoS Mitigation Events (F5 BIG-IP)' in Operations workflows.",
+  "value": "UC-5.3.11 operationalises 'Rate Limiting and DDoS Mitigation Events (F5 BIG-IP)' against `f5:bigip:asm` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Enable ASM/WAF logging. Configure rate limiting policies per virtual server. Alert on sustained rate limiting events. Track source IP patterns for blocklisting.",
   "visualization": "Timechart (events over time), Table (source IPs, attack types), Single value (blocked requests).",
   "cimModels": [],
@@ -22,14 +28,26 @@
   "references": [
     {
       "title": "Splunk_TA_f5-bigip",
-      "url": "https://splunkbase.splunk.com/app/2680"
+      "url": "https://splunkbase.splunk.com/app/2680",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Intrusion_Detection",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Rate-based blocks and shapers can add events during real peaks and during pen tests; confirm intent before relaxing controls.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.3.11)** — Planned work for 'Rate Limiting and DDoS Mitigation Events (F5 BIG-IP)' shifts `unique_sources` over `span=1h` while `virtual_server`, `attack_type` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `f5:bigip:asm`** — Scheduled automation elevates `attack_type` without crossing configured threshold for UC-5.3.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `virtual_server`, `attack_type`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `f5:bigip:asm`** — First 48h baseline for UC-5.3.11 on `virtual_server` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `virtual_server`, `exception_reason`, `valid_until`.",
   "equipment": [
     "citrix",
     "f5"
@@ -38,6 +56,12 @@
     "citrix_netscaler",
     "f5_bigip"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n* F5 BIG-IP AFM (Advanced Firewall Manager) or LTM with DoS/DDoS protection profiles. Data in `index=network` with `sourcetype=f5:bigip:afm:syslog` or `sourcetype=f5:bigip:syslog`. Key fields: `attack_type`, `source_ip`, `action` (drop/rate-limit/allow), `packets_per_sec`, `connections_per_sec`, `virtual_server`, `dos_profile`.\n* F5 DoS protection includes: (1) Network-level DoS (SYN flood, UDP flood, ICMP flood), (2) DNS DoS (query flood, NXDOMAIN attack), (3) Application-level DoS (HTTP flood, slowloris), (4) Behavioral DoS (machine-learning-based anomaly detection).\n\nStep 1 -- Configure data collection\nEnable AFM/DoS logging:\n```\ntmsh create security log profile splunk_dos dos-application add { app_dos { remote-storage splunk servers add { <splunk_ip>:<port> } } } dos-network-publisher local-db-publisher\ntmsh modify ltm virtual <vs> security-log-profiles add { splunk_dos }\n```\n\nVerify:\n```spl\nindex=network (sourcetype=\"f5:bigip:afm:syslog\" OR sourcetype=\"f5:bigip:syslog\") (\"rate\" OR \"limit\" OR \"dos\" OR \"flood\" OR \"attack\" OR \"mitigat\") earliest=-24h\n| stats count by attack_type, action\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- DDoS mitigation event analysis:**\n```spl\nindex=network (sourcetype=\"f5:bigip:afm:syslog\" OR sourcetype=\"f5:bigip:syslog\") (\"dos\" OR \"flood\" OR \"attack\" OR \"rate.limit\" OR \"mitigat\" OR \"behavioral\") earliest=-4h\n| eval attack=coalesce(attack_type, dos_attack_name, threat_type)\n| eval act=coalesce(action, enforcement_action)\n| eval vs=coalesce(virtual_server, virtual_name)\n| eval rate=coalesce(packets_per_sec, connections_per_sec, request_rate)\n| eval attack_layer=case(match(attack, \"(?i)(syn|udp|icmp|tcp).*flood\"), \"L3/L4 Network DoS\", match(attack, \"(?i)(dns|query|nxdomain)\"), \"DNS DoS\", match(attack, \"(?i)(http|slowloris|slow.post|request)\"), \"L7 Application DoS\", match(attack, \"(?i)(behavioral|anomaly)\"), \"Behavioral DoS\", 1==1, \"Other\")\n| stats count as events sum(eval(if(act=\"drop\" OR act=\"rate-limit\", 1, 0))) as mitigated dc(source_ip) as unique_sources max(rate) as peak_rate by attack_layer, attack, vs\n| eval mitigation_pct=if(events > 0, round(100*mitigated/events, 1), 0)\n| sort attack_layer, -events\n```\n\nStep 3 -- Validate\n(a) Compare mitigation events with F5 Security Dashboard: Security > Reporting > DoS.\n(b) During a controlled test (with authorization), generate a SYN flood and verify it appears.\n(c) Verify behavioral DoS baselines are established (F5 needs learning time).\n\nStep 4 -- Operationalize\nDashboard (\"F5 -- DDoS Protection\"):\n* Row 1 -- Single-value: \"Active attacks\", \"Events mitigated\", \"Peak rate (pps)\", \"Unique sources\".\n* Row 2 -- Attack breakdown by layer with mitigation percentage.\n\nAlerting:\n* Critical (L3/L4 flood > 10000 pps): volumetric DDoS -- may require upstream mitigation.\n* High (L7 behavioral DoS detected): application-layer attack.\n* Warning (rate limiting active on prod VIP): traffic being dropped.\n\nStep 5 -- Troubleshooting\n\n* **Legitimate traffic being rate-limited** -- DoS thresholds may be too aggressive. Review: Security > DoS Protection > Application > Detection. Increase thresholds or switch behavioral DoS to \"Transparent\" mode to learn before blocking.\n\n* **No behavioral DoS events** -- Behavioral DoS needs a learning period (typically 24-48 hours of normal traffic). Check: `tmsh show security dos application <vs> behavioral`.\n\n* **Attack mitigated but users still impacted** -- The volumetric attack may be saturating the network link before reaching the F5. Consider upstream DDoS mitigation (ISP scrubbing, cloud DDoS service).\n\n**IPv6 Note:** ICMPv6 is architecturally critical for IPv6 — it carries NDP (Neighbor Discovery), Path MTU Discovery, and Multicast Listener Discovery. Unlike ICMP for IPv4, blocking ICMPv6 breaks IPv6 connectivity entirely. Ensure firewall policies permit at minimum ICMPv6 types 1-4 (Destination Unreachable, Packet Too Big, Time Exceeded, Parameter Problem) and types 133-137 (RS, RA, NS, NA, Redirect). See RFC 4890 for filtering recommendations.",
-  "grandmaExplanation": "We catch rate limit and attack style events on the same appliance so a honest flash crowd and a real flood are both visible for the right follow-up."
+  "grandmaExplanation": "We catch rate limit and attack style events on the same appliance so a honest flash crowd and a real flood are both visible for the right follow-up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

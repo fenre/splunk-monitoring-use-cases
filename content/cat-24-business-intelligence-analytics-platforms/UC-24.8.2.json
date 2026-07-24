@@ -9,33 +9,60 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Fivetran log-service events and REST API (`connectors`, sync status), Airbyte job logs (`airbyte:job`), Matillion task history, Kafka Connect connector/task status, AWS Glue job runs (CloudWatch), ADF pipeline runs (Azure Monitor).",
-  "app": "Fivetran / Airbyte / Stitch / Matillion logs and REST APIs via HEC scripted inputs; Kafka Connect JMX/REST; cloud ELT via `Splunk_TA_aws` (Glue) and `Splunk_TA_microsoft-cloudservices` (ADF).",
+  "exclusions": "Covers the detection logic documented for 'Fivetran Sync Latency and Lag' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_fivetran_sync_latency_and_lag` (UC-24.8.2), SOC dashboard panel \"Operations — Fivetran Sync Latency and Lag\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.8.2 positive (Fivetran, Sync, Latency, and, Lag): ingest synthetic events into `index=dataops` sourcetype='fivetran:log' where `avg_min` grouped by `connector_name` satisfies `p95_min` > 60, or `mins_since` > 180 for 'Fivetran Sync Latency and Lag'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.8.2 negative (and Lag): ingest benign `dataops` / `fivetran:log` events where `connector_name` stays below `p95_min` > 60, or `mins_since` > 180, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Fivetran Sync Latency and Lag'."
+  },
+  "dataSources": "Fivetran log-service events and REST API (`connectors`, sync status), Airbyte job logs (`airbyte:job`), Matillion task history, Kafka Connect connector/task status, AWS Glue job runs (CloudWatch), ADF pipeline runs (Azure Monitor). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Fivetran / Airbyte / Stitch / Matillion logs and REST APIs via HEC scripted inputs; Kafka Connect JMX/REST; cloud ELT via `Splunk_TA_aws` (Glue) and `Splunk_TA_microsoft-cloudservices` (ADF). — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dataops sourcetype=fivetran:log event=sync_end status=SUCCESS\n| eval lag_min=round(sync_duration/60,1)\n| stats avg(lag_min) as avg_min, p95(lag_min) as p95_min, latest(_time) as last_sync by connector_name\n| eval mins_since=round((now()-last_sync)/60,0)\n| where p95_min>60 OR mins_since>180\n| sort - mins_since",
-  "description": "Measures Fivetran sync duration and time since last successful sync, flagging connectors whose data is lagging behind its expected freshness.",
-  "value": "Even successful connectors can fall behind schedule; lag tracking catches data that is quietly getting stale before users notice.",
+  "description": "Alerts on UC-24.8.2 — Fivetran, Sync, Latency, and, Lag — using `index=dataops` sourcetype `fivetran:log`, grouped by `connector_name`. Outputs `avg_min` each `the scheduled window`; alert when `p95_min` > 60, or `mins_since` > 180. Primary focus: and Lag. Purpose-built for 'Fivetran Sync Latency and Lag' in Operations workflows.",
+  "value": "UC-24.8.2 accelerates insight into and Lag ('Fivetran Sync Latency and Lag') by tracking `avg_min` on `fivetran:log` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Ingest sync events; schedule hourly; tune thresholds to each connector's sync frequency; alert on excessive lag.",
   "visualization": "Table by lag/last-sync, timechart of sync latency.",
   "cimModels": [],
   "references": [
     {
       "title": "Fivetran — Logs",
-      "url": "https://fivetran.com/docs/logs"
+      "url": "https://fivetran.com/docs/logs",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Fivetran REST API",
-      "url": "https://fivetran.com/docs/rest-api"
+      "url": "https://fivetran.com/docs/rest-api",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `dataops` (UC-24.8.2)** — Planned work for 'Fivetran Sync Latency and Lag' shifts `avg_min` over `span=1h` while `connector_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `fivetran:log`** — Scheduled automation elevates `lag_min` without crossing `p95_min` > 60 for UC-24.8.2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `connector_name`** — Health checks in `dataops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `fivetran:log`** — First 48h baseline for UC-24.8.2 on `connector_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `connector_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "azure",
     "kafka",
     "m365"
   ],
-  "grandmaExplanation": "We measure how fresh each incoming data feed is so you know when one is falling behind, even if it has not failed."
+  "equipmentModels": [
+    "aws_generic",
+    "azure_generic",
+    "kafka_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Fivetran / Airbyte / Stitch / Matillion logs and REST APIs via HEC scripted inputs; Kafka Connect JMX/REST; cloud ELT via `Splunk_TA_aws` (Glue) and `Splunk_TA_microsoft-cloudservices` (ADF). — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=fivetran:log into dataops. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`connector_name, mins_since, p95_min`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We measure how fresh each incoming data feed is so you know when one is falling behind, even if it has not failed.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

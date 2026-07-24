@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Synthetic ESCI incident with 90min-old awareness. UC-22.57.10 MUST flag.",
-    "negativeScenario": "Submit within 2h. UC-22.57.10 MUST record on_time."
+    "positiveScenario": "UC-22.57.10 positive (Cyber, Act, (2024), Entities, Special): ingest synthetic events into `index=itsm` sourcetype='snow:sn_si_incident' where `count` grouped by `entity` satisfies `hours_to_initial` <= 2, `hours_to_initial` > 2, `hours_to_initial` > 1.5, or `hours_to_initial` > 2 for 'SG Cyber Act (2024) Entities of Special Cybersecurity Interest (ESCI) — 2-hour reporting + cooperation tracker'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.57.10 negative (cooperation tracker): ingest benign `itsm` / `snow:sn_si_incident` events where `entity` stays below `hours_to_initial` <= 2, `hours_to_initial` > 2, `hours_to_initial` > 1.5, or `hours_to_initial` > 2, or exclude the test entity via `compliance_exception_register.csv`. Variant 0 confirms zero alert rows for 'SG Cyber Act (2024) Entities of Special Cybersecurity Interest (ESCI) — 2-hour reporting + cooperation tracker'."
   },
   "dataSources": "ServiceNow SIR with `csa_esci_in_scope`, `esci_designation_id`. KV Store `csa_esci_designation_lookup`. SOAR `csa_esci_submission`.",
   "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928).",
   "spl": "index=itsm sourcetype=\"snow:sn_si_incident\" csa_esci_in_scope=true esci_reportable_category=*\n| eval awareness_time = coalesce(csa_awareness_time, opened_at)\n| eval csa_initial_at = strptime(csa_initial_at, \"%Y-%m-%dT%H:%M:%S\")\n| eval hours_to_initial = case(\n    isnotnull(csa_initial_at), round((csa_initial_at - awareness_time)/3600, 2),\n    1=1, round((now() - awareness_time)/3600, 2))\n| eval initial_status = case(\n    isnotnull(csa_initial_at) AND hours_to_initial <= 2, \"on_time\",\n    isnotnull(csa_initial_at) AND hours_to_initial > 2, \"late\",\n    isnull(csa_initial_at) AND hours_to_initial > 1.5, \"clock_burning\",\n    isnull(csa_initial_at) AND hours_to_initial > 2, \"missed\",\n    1=1, \"in_window\")\n| where initial_status IN (\"clock_burning\",\"missed\",\"late\")\n| table incident_id esci_designation_id awareness_time csa_initial_at hours_to_initial initial_status",
-  "description": "Mirror of UC-22.57.2 for ESCI scope.",
-  "value": "ESCI obligations are new under the 2024 amendment; pre-positioning reporting pipeline reduces compliance lag.",
+  "description": "Surfaces 'SG Cyber Act (2024) Entities of Special Cybersecurity Interest (ESCI) — 2-hour reporting + cooperation tracker' (UC-22.57.10) using `index=itsm` sourcetype `snow:sn_si_incident` by aggregating `count` grouped by `entity` over `the scheduled window` and alerting when `hours_to_initial` <= 2, `hours_to_initial` > 2, `hours_to_initial` > 1.5, or `hours_to_initial` > 2. Keywords: Cyber, Act, (2024), Entities, Special. Focuses on cooperation tracker behaviour so compliance teams can triage UC-22.57.10 without ad-hoc log review.",
+  "value": "UC-22.57.10 accelerates insight into cooperation tracker ('SG Cyber Act (2024) Entities of Special Cybersecurity Interest (ESCI) — 2-hour reporting + cooperation tracker') by tracking `activity` on `snow:sn_si_incident` feeds, reducing audit findings, regulatory gaps, and attestation delays before spreadsheet checks hide regressions.",
   "implementation": "Same as UC-22.57.2 with ESCI scoping.",
   "visualization": "(Panel 1) ESCI clock-burn. (Panel 2) Submission performance. (Panel 3) Designation register.",
   "cimModels": [
@@ -46,10 +46,31 @@
   "references": [
     {
       "title": "Cybersecurity (Amendment) Act 2024 (ESCI provisions)",
-      "url": "https://sso.agc.gov.sg/Acts-Supp/4-2024/Published"
+      "url": "https://sso.agc.gov.sg/Acts-Supp/4-2024/Published",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 263",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 4413",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1928",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Alerts",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Alerts",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Threshold dispute**: ESCI threshold subject to Commissioner subsidiary legislation; capture documented determination.\n\n**Suppression mechanism**: KV Store `csa_22_57_10_exceptions`.",
+  "knownFalsePositives": "1. **Authorised SG CYBER ACT control testing** — Internal audit exercises 'SG Cyber Act (2024) Entities of Special Cybersecurity Interest (ESCI) — 2-hour reporting + cooperation tracker' (UC-22.57.10) on `entity` during scheduled clause SG-CSA-COC-esci sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=itsm` `snow:sn_si_incident` without crossing `hours_to_initial` <= 2. Cross-check engagement letter in `sg_cyber_act_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `itsm` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `sg_cyber_act_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (regulatory reporting)"
   ],
@@ -80,7 +101,7 @@
     "Splunk Enterprise Security",
     "Splunk SOAR"
   ],
-  "detailedImplementation": "## Prerequisites\n\nSame as UC-22.57.2 with ESCI register.\n\n## Step 1 — ESCI register\n\n```ini\n[csa_esci_designation_lookup]\nfield.esci_designation_id = string\nfield.entity_name = string\nfield.designation_date = number\nfield.designated_officer = string\nfield.scope = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.57.10: CSA ESCI Reporting]\ncron_schedule = */5 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.10,reg=SG-Cyber-Act,clause=CSA-ESCI-2024\nalert.severity = 5\n```\n\n## Step 3 — Runbooks\n\nSame as UC-22.57.2.\n\n**SG-specific failure modes**:\n- **Threshold evolution**: monitor Commissioner subsidiary legislation for ESCI threshold changes.\n- **Confidential-designation**: ESCI status may be confidential; secure handling required.",
+  "detailedImplementation": "## Prerequisites\n\nSame as UC-22.57.2 with ESCI register.\n\n## Step 1 — ESCI register\n\n```ini\n[csa_esci_designation_lookup]\nfield.esci_designation_id = string\nfield.entity_name = string\nfield.designation_date = number\nfield.designated_officer = string\nfield.scope = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.57.10: CSA ESCI Reporting]\ncron_schedule = */5 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.10,reg=SG-Cyber-Act,clause=CSA-ESCI-2024\nalert.severity = 5\n```\n\n## Step 3 — Runbooks\n\nSame as UC-22.57.2.\n\n**SG-specific failure modes**:\n- **Threshold evolution**: monitor Commissioner subsidiary legislation for ESCI threshold changes.\n- **Confidential-designation**: ESCI status may be confidential; secure handling required.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928).). Enable the modular input or HEC token that writes sourcetype=snow:sn_si_incident into itsm. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`csa_initial_at, hours_to_initial, initial_status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "The 2024 update added 'Entities of Special Cybersecurity Interest'. They have to tell the cyber agency within two hours of any major cyber event, just like the original critical systems.",
   "prerequisiteUseCases": [
     "UC-22.57.2"

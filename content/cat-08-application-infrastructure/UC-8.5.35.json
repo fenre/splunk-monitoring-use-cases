@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'ActiveMQ Slow Consumer and Cursor Memory Pressure (Prefetch Backlog)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_activemq_slow_consumer_and_cursor_memory_pressur` (UC-8.5.35), SOC dashboard panel \"Operations — ActiveMQ Slow Consumer and Cursor Memory Pressure (Prefetch Backlog)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.5.35 positive (ActiveMQ, Slow, Consumer, and, Cursor): ingest synthetic events into `index=messaging` sourcetype='activemq:broker' where `count` grouped by `entity` satisfies `cursor_pct` > 70, or `mem_pct` > 60 for 'ActiveMQ Slow Consumer and Cursor Memory Pressure (Prefetch Backlog)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.5.35 negative ((Prefetch Backlog)): ingest benign `messaging` / `activemq:broker` events where `entity` stays below `cursor_pct` > 70, or `mem_pct` > 60, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'ActiveMQ Slow Consumer and Cursor Memory Pressure (Prefetch Backlog)'."
+  },
   "dataSources": "`index=messaging` `sourcetype=activemq:broker` per-destination MBeans `org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*` (`CursorMemoryUsage`, `MemoryPercentUsage`, `SlowConsumer`)",
   "app": "Splunk Add-on for JMX (Splunkbase 2647) with destination-level polling",
   "spl": "index=messaging sourcetype=\"activemq:broker\" earliest=-4h\n| eval dest=coalesce(DestinationName, destination_name)\n| eval cursor_pct=coalesce(cursor_percent_usage, round(CursorMemoryUsage*100/nullif(MemoryLimit,0),1))\n| eval slow=coalesce(SlowConsumer, slow_consumer, 0)\n| eval mem_pct=coalesce(MemoryPercentUsage, memory_percent_usage)\n| where slow==1 OR cursor_pct > 70 OR (mem_pct > 60 AND match(dest, \"(?i)consumer|dispatch|tmp\"))\n| table _time, broker_name, dest, slow, cursor_pct, mem_pct, EnqueueCount, DequeueCount",
-  "description": "Slow consumers hold prefetched messages in broker-side cursors; `CursorMemoryUsage` climbing toward limits is the operational mirror of client prefetch backlog. `SlowConsumer` flags on the MBean align with broker-side detection of clients that cannot keep pace.",
-  "value": "Surfaces consumer-side latency before global producer flow control trips, especially on high-prefetch JMS clients.",
+  "description": "Monitors UC-8.5.35 — ActiveMQ, Slow, Consumer, and, Cursor — using `index=messaging` sourcetype `activemq:broker`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `cursor_pct` > 70, or `mem_pct` > 60. Primary focus: (Prefetch Backlog). Purpose-built for 'ActiveMQ Slow Consumer and Cursor Memory Pressure (Prefetch Backlog)' in Operations workflows.",
+  "value": "UC-8.5.35 helps teams contain ActiveMQ, Slow, Consumer, and, Cursor scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Poll destination MBeans at moderate frequency to avoid JMX overload. Map `dest` naming to owning teams. Pair results with client GC logs or thread dumps when `SlowConsumer` toggles true.",
   "visualization": "Heatmap (destination × cursor %), line chart of cursor memory, table filtered to `SlowConsumer=1`.",
   "cimModels": [
@@ -22,14 +28,26 @@
   "references": [
     {
       "title": "Apache ActiveMQ — Slow Consumer Handling",
-      "url": "https://activemq.apache.org/slow-consumer-handling"
+      "url": "https://activemq.apache.org/slow-consumer-handling",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Apache ActiveMQ — JMX",
-      "url": "https://activemq.apache.org/jmx.html"
+      "url": "https://activemq.apache.org/jmx.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "OOM during memory leak hunts (with -XX:+HeapDumpOnOutOfMemoryError), large batch jobs, or after misconfigured heap sizes. We check deploy and job windows before calling a new defect.",
+  "knownFalsePositives": "1. **Maintenance window on `messaging` (UC-8.5.35)** — Planned work for 'ActiveMQ Slow Consumer and Cursor Memory Pressure (Prefetch Backlog)' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `activemq:broker`** — Scheduled automation elevates `dest` without crossing `cursor_pct` > 70 for UC-8.5.35. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `messaging` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `activemq:broker`** — First 48h baseline for UC-8.5.35 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "activemq",
     "apache"
@@ -44,6 +62,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We use this to surfaces consumer-side latency before global producer flow control trips, especially on high-prefetch JMS clients."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for JMX (Splunkbase 2647) with destination-level polling). Enable the modular input or HEC token that writes sourcetype=activemq:broker into messaging. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cursor_pct, mem_pct`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to surfaces consumer-side latency before global producer flow control trips, especially on high-prefetch JMS clients.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,11 +9,17 @@
     "Physical Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=physical` `sourcetype=hikvision:isapi` security audit JSON (`IllegalLogin`, `loginFailure`, `maxSession`, `Unauthorized`)",
-  "app": "Hikvision ISAPI `Security/auditLog` or `Event/notification/alertStream` forwarded via UF, or HEC aggregator",
+  "exclusions": "Covers the detection logic documented for 'Hikvision ISAPI Security Event — NVR and Camera Login Brute Force' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_hikvision_isapi_security_event_nvr_and_camera_lo` (UC-15.3.43), SOC dashboard panel \"Operations — Hikvision ISAPI Security Event — NVR and Camera Login Brute Force\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-15.3.43 positive (Hikvision, ISAPI, Security, Event, NVR): ingest synthetic events into `index=physical` sourcetype='hikvision:isapi' where `values` grouped by `_time`, `host`, `userName` satisfies `failures` > 15 for 'Hikvision ISAPI Security Event — NVR and Camera Login Brute Force'. Validate filter `IllegalLogin OR loginFailure OR Unauthorized OR \"401\" OR bru`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-15.3.43 negative (Brute Force): ingest benign `physical` / `hikvision:isapi` events where `_time`, `host`, `userName` stays below `failures` > 15, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Hikvision ISAPI Security Event — NVR and Camera Login Brute Force'."
+  },
+  "dataSources": "`index=physical` `sourcetype=hikvision:isapi` security audit JSON (`IllegalLogin`, `loginFailure`, `maxSession`, `Unauthorized`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Hikvision ISAPI `Security/auditLog` or `Event/notification/alertStream` forwarded via UF, or HEC aggregator — Universal Forwarder (Splunkbase 617)",
   "spl": "index=physical sourcetype=hikvision:isapi\n| search IllegalLogin OR loginFailure OR Unauthorized OR \"401\" OR brute\n| bin _time span=5m\n| stats count as failures, values(src_ip) as src_ips by _time, host, userName\n| where failures > 15\n| table _time, host, userName, failures, src_ips\n| sort - failures",
-  "description": "NVR credential stuffing enables deletion of footage and lateral movement into VLANs trusted for cameras. ISAPI security logs include repeated login failures with source addresses—ideal for Splunk correlation with firewall and Active Directory.",
-  "value": "Stops surveillance infrastructure takeover attempts while they are still generating noisy authentication failures.",
+  "description": "Monitors when Brute Force criteria fire for 'Hikvision ISAPI Security Event — NVR and Camera Login Brute Force' (UC-15.3.43) in `index=physical` sourcetype `hikvision:isapi`. Pipeline aggregates `values` by `_time`, `host`, `userName` over `5m`. Alert logic enforces `failures` > 15. SPL signature: filter `IllegalLogin OR loginFailure OR Unauthorized OR \"401\" OR bru`. Eliminates manual hunting for UC-15.3.43 conditions.",
+  "value": "UC-15.3.43 helps teams contain Hikvision, ISAPI, Security, Event, NVR scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Enable ISAPI auditing on NVR and cameras per Hikvision hardening guide. Forward TLS 1.2+ to Splunk; redact passwords. Extract `userName`, `src_ip`, `statusCode`. Tune threshold per internet-exposed vs internal-only management networks. Auto-block at firewall via SOAR when `src_ips` repeat.",
   "visualization": "Map (src_ip), Column chart (failures), Table (userName).",
   "cimModels": [
@@ -23,14 +29,26 @@
   "references": [
     {
       "title": "Hikvision — ISAPI developer documentation portal",
-      "url": "https://www.hikvision.com/en/support/download/sdk/"
+      "url": "https://www.hikvision.com/en/support/download/sdk/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CISA — IP camera hardening guidance",
-      "url": "https://www.cisa.gov/"
+      "url": "https://www.cisa.gov/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Sensor anomalies during cleaning, calibration, or planned environmental changes.",
+  "knownFalsePositives": "1. **Maintenance window on `physical` (UC-15.3.43)** — Planned work for 'Hikvision ISAPI Security Event — NVR and Camera Login Brute Force' shifts `values` over `span=5m` while `_time`, `host`, `userName` remains in-scope. Applies filter `IllegalLogin OR loginFailure OR Unauthorized OR \"401\" OR bru`. Cross-check CMDB CHG.\n\n2. **Batch `values` on `hikvision:isapi`** — Scheduled automation elevates `host` without crossing `failures` > 15 for UC-15.3.43. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `host`, `userName`** — Health checks in `physical` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `hikvision:isapi`** — First 48h baseline for UC-15.3.43 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cctv",
     "hardware_bmc"
@@ -45,6 +63,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Dedicated management VLAN.\n• TLS cert validation on ISAPI client.\n\nStep 1 — Normalize field names across firmware generations.\n\nStep 2 — Join with `suricata` or `pan:traffic` if available.\n\nStep 3 — Tabletop with physical security.\n\nStep 4 — MFA on NVR admin where supported.",
-  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access."
+  "detailedImplementation": "Prerequisites\n• Dedicated management VLAN.\n• TLS cert validation on ISAPI client.\n\nStep 1 — Normalize field names across firmware generations.\n\nStep 2 — Join with `suricata` or `pan:traffic` if available.\n\nStep 3 — Tabletop with physical security.\n\nStep 4 — MFA on NVR admin where supported.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Hikvision ISAPI `Security/auditLog` or `Event/notification/alertStream` forwarded via UF, or HEC aggregator — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=hikvision:isapi into physical. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, failures, host, userName`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

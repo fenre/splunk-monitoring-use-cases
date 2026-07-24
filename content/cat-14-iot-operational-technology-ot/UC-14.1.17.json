@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Door Open/Close Event Detection and Alerts (Meraki MT)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_door_open_close_event_detection_and_alerts_merak` (UC-14.1.17), SOC dashboard panel \"Operations — Door Open/Close Event Detection and Alerts (Meraki MT)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.1.17 positive (Door, Open, Close, Event, Detection): ingest synthetic events into `index=meraki` sourcetype='meraki:sensorreadingshistory' where `count` grouped by `serial`, `\"network.name\"`, `action` satisfies detection threshold for 'Door Open/Close Event Detection and Alerts (Meraki MT)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.1.17 negative ((Meraki MT)): ingest benign `meraki` / `meraki:sensorreadingshistory` events where `serial`, `\"network.name\"`, `action` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Door Open/Close Event Detection and Alerts (Meraki MT)'."
+  },
   "dataSources": "`index=meraki sourcetype=meraki:sensorreadingshistory metric=\"door\"` from the `cisco_meraki_sensor_readings_history` input in `Splunk_TA_cisco_meraki` (Splunkbase 5580). Key fields: `serial`, `network.name`, `metric`, `door.open` (boolean), `ts`.",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580)",
   "spl": "index=meraki sourcetype=\"meraki:sensorreadingshistory\" metric=\"door\"\n| rename \"door.open\" as door_open\n| eval action=if(door_open=\"true\" OR door_open=1, \"open\", \"closed\")\n| stats count as door_events, latest(_time) as last_event_time by serial, \"network.name\", action\n| eval last_event=strftime(last_event_time, \"%Y-%m-%d %H:%M:%S\")\n| sort - last_event_time",
-  "description": "Tracks door access events for security and facility monitoring.",
-  "value": "Tracks door access events for security and facility monitoring.",
+  "description": "Alerts on UC-14.1.17 for Door, Open, Close, Event, Detection over `index=meraki` sourcetype `meraki:sensorreadingshistory` with thresholds configured threshold. Groups `count` by `serial`, `\"network.name\"`, `action` each `the scheduled window`. Centered on (Meraki MT) indicators. Supports repeatable operations triage for 'Door Open/Close Event Detection and Alerts (Meraki MT)'.",
+  "value": "For 'Door Open/Close Event Detection and Alerts (Meraki MT)', UC-14.1.17 converts `activity` on `meraki:sensorreadingshistory` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Configure `cisco_meraki_sensor_readings_history` to collect MT door sensor data. The `door.open` boolean toggles on each open/close transition. Tag specific sensors as restricted-area or after-hours to drive RBAC-aware alerting.",
   "visualization": "Door event timeline; access pattern analysis; alert table.",
   "cimModels": [
@@ -22,16 +28,38 @@
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Meraki (Splunkbase 5631)",
+      "url": "https://splunkbase.splunk.com/app/5631",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Benign events during building tests, after-hours schedules, and vendor work—confirm against the BMS console before urgent response.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki` (UC-14.1.17)** — Planned work for 'Door Open/Close Event Detection and Alerts (Meraki MT)' shifts `count` over `span=1h` while `serial`, `\"network.name\"`, `action` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `meraki:sensorreadingshistory`** — Scheduled automation elevates `\"network.name\"` without crossing configured threshold for UC-14.1.17. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `serial`, `\"network.name\"`, `action`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `meraki:sensorreadingshistory`** — First 48h baseline for UC-14.1.17 on `serial` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `serial`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
   "equipmentModels": [
     "cisco_meraki"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).\n• Ensure the following data sources are available: `index=meraki sourcetype=meraki:sensorreadingshistory metric=\"door\"` from the `cisco_meraki_sensor_readings_history` input in `Splunk_TA_cisco_meraki` (Splunkbase 5580). Key fields: `serial`, `network.name`, `metric`, `door.open` (boolean), `ts`..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure `cisco_meraki_sensor_readings_history` to collect MT door sensor data. The `door.open` boolean toggles on each open/close transition. Tag specific sensors as restricted-area or after-hours to drive RBAC-aware alerting.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=meraki sourcetype=\"meraki:sensorreadingshistory\" metric=\"door\"\n| rename \"door.open\" as door_open\n| eval action=if(door_open=\"true\" OR door_open=1, \"open\", \"closed\")\n| stats count as door_events, latest(_time) as last_event_time by serial, \"network.name\", action\n| eval last_event=strftime(last_event_time, \"%Y-%m-%d %H:%M:%S\")\n| sort - last_event_time\n```\n\nUnderstanding this SPL\n\n**Door Open/Close Event Detection and Alerts (Meraki MT)** — Tracks door access events for security and facility monitoring.\n\nDocumented **Data sources**: `index=meraki sourcetype=meraki:sensorreadingshistory metric=\"door\"` from the `cisco_meraki_sensor_readings_history` input in `Splunk_TA_cisco_meraki` (Splunkbase 5580). Key fields: `serial`, `network.name`, `metric`, `door.open` (boolean), `ts`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:sensorreadingshistory. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=meraki, sourcetype=\"meraki:sensorreadingshistory\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Renames fields with `rename` for clarity or joins.\n• `eval` defines or adjusts **action** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by serial, \"network.name\", action** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• `eval` defines or adjusts **last_event** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Door event timeline; access pattern analysis; alert table.",
-  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with this area: door open and close event detection and alerts before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with this area: door open and close event detection and alerts before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

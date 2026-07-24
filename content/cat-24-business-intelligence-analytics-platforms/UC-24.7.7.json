@@ -9,29 +9,55 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:task`), Airflow StatsD/OTel metrics, dbt `run_results.json`/`sources.json` (`dbt:run_results`), dbt Cloud API run history, Dagster/Prefect run events.",
-  "app": "Apache Airflow scheduler/worker logs and StatsD/OTel metrics via HEC; dbt run-results/manifest artifacts and dbt Cloud API via HEC scripted inputs; Dagster/Prefect event logs.",
+  "exclusions": "Covers the detection logic documented for 'Airflow Import and DAG Parse Errors' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_airflow_import_and_dag_parse_errors` (UC-24.7.7), SOC dashboard panel \"Operations — Airflow Import and DAG Parse Errors\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.7.7 positive (Airflow, Import, and, DAG, Parse): ingest synthetic events into `index=dataops` sourcetype='airflow:scheduler' where `count` grouped by `filename` satisfies `errors` > 0 for 'Airflow Import and DAG Parse Errors'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.7 negative (Parse Errors): ingest benign `dataops` / `airflow:scheduler` events where `filename` stays below `errors` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Airflow Import and DAG Parse Errors'."
+  },
+  "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:task`), Airflow StatsD/OTel metrics, dbt `run_results.json`/`sources.json` (`dbt:run_results`), dbt Cloud API run history, Dagster/Prefect run events. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Apache Airflow scheduler/worker logs and StatsD/OTel metrics via HEC; dbt run-results/manifest artifacts and dbt Cloud API via HEC scripted inputs; Dagster/Prefect event logs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dataops sourcetype=airflow:scheduler event=dag_import_error\n| stats count as errors, latest(error_message) as last_error by filename\n| where errors>0\n| sort - errors",
-  "description": "Detects Airflow DAG import/parse errors, which silently prevent a pipeline from being scheduled at all after a bad code deploy.",
-  "value": "A DAG that fails to import never runs and never fails visibly; catching parse errors after deploys prevents pipelines from vanishing unnoticed.",
+  "description": "Identifies UC-24.7.7 — Airflow, Import, and, DAG, Parse — using `index=dataops` sourcetype `airflow:scheduler`, grouped by `filename`. Outputs `count` each `the scheduled window`; alert when `errors` > 0. Primary focus: Parse Errors. Purpose-built for 'Airflow Import and DAG Parse Errors' in Operations workflows.",
+  "value": "UC-24.7.7 operationalises 'Airflow Import and DAG Parse Errors' against `airflow:scheduler` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ingest scheduler import-error events; schedule every 15 minutes; alert on new errors. Gate DAG deploys with CI parsing (cat-12).",
   "visualization": "Table of files with import errors, timechart after deploys.",
   "cimModels": [],
   "references": [
     {
       "title": "Apache Airflow — Metrics",
-      "url": "https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html"
+      "url": "https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/metrics.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `dataops` (UC-24.7.7)** — Planned work for 'Airflow Import and DAG Parse Errors' shifts `count` over `span=1h` while `filename` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `airflow:scheduler`** — Scheduled automation elevates `src` without crossing `errors` > 0 for UC-24.7.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `filename`** — Health checks in `dataops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `airflow:scheduler`** — First 48h baseline for UC-24.7.7 on `filename` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `filename`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache"
   ],
   "equipmentModels": [
     "apache_httpd"
   ],
-  "grandmaExplanation": "We catch when a change to a data workflow stops it from loading at all, so it does not silently disappear after an update."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Apache Airflow scheduler/worker logs and StatsD/OTel metrics via HEC; dbt run-results/manifest artifacts and dbt Cloud API via HEC scripted inputs; Dagster/Prefect event logs. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=airflow:scheduler into dataops. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`errors, filename`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We catch when a change to a data workflow stops it from loading at all, so it does not silently disappear after an update.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

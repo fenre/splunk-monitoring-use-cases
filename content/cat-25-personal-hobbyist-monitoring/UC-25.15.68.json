@@ -9,26 +9,55 @@
     "Quality"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Sourdough monitor (`sourdough:reading`), BBQ/sous-vide probes (`bbq:probe`), fridge/freezer/oven temperature (`kitchen:appliance`), espresso shots (`espresso:shot`), pantry inventory (`pantry:item`), kombucha brew (`kombucha:reading`).",
-  "app": "ESP32/ESPHome kitchen sensors (sourdough rise, BBQ/sous-vide probes, fridge/freezer temperature), espresso-shot logs, and pantry inventory via MQTT and Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Therapen Bluetooth Log Failure Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_therapen_bluetooth_log_failure_rate` (UC-25.15.68), SOC dashboard panel \"Personal — Therapen Bluetooth Log Failure Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.15.68 positive (Therapen, Bluetooth, Log, Failure, Rate): ingest synthetic events into `index=personal` sourcetype='thermapen:log' where `failed_events` grouped by `food_item` satisfies detection threshold for 'Therapen Bluetooth Log Failure Rate'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.15.68 negative (Failure Rate): ingest benign `personal` / `thermapen:log` events where `food_item` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 0 confirms zero alert rows for 'Therapen Bluetooth Log Failure Rate'."
+  },
+  "dataSources": "Sourdough monitor (`sourdough:reading`), BBQ/sous-vide probes (`bbq:probe`), fridge/freezer/oven temperature (`kitchen:appliance`), espresso shots (`espresso:shot`), pantry inventory (`pantry:item`), kombucha brew (`kombucha:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "ESP32/ESPHome kitchen sensors (sourdough rise, BBQ/sous-vide probes, fridge/freezer temperature), espresso-shot logs, and pantry inventory via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=thermapen:log\n| eval status_value=lower(coalesce(log_status,\"unknown\"))\n| eval failed=if(match(status_value,\"error|fail|alert|overdue|late|stale|breach\"),1,0)\n| stats count as events, sum(failed) as failed_events by food_item\n| eval failure_pct=round(100*failed_events/events,1)\n| sort - failure_pct - failed_events",
-  "description": "Measures how often Thermapen Bluetooth log records land in an unhealthy or exception state for each food item.",
-  "value": "A plain failure-rate view highlights noisy devices, flaky automations, and habits that repeatedly slip.",
+  "description": "Surfaces 'Therapen Bluetooth Log Failure Rate' (UC-25.15.68) using `index=personal` sourcetype `thermapen:log` by aggregating `failed_events` grouped by `food_item` over `the scheduled window` and alerting when configured threshold. Keywords: Therapen, Bluetooth, Log, Failure, Rate. Focuses on Failure Rate behaviour so personal teams can triage UC-25.15.68 without ad-hoc log review.",
+  "value": "UC-25.15.68 accelerates insight into Failure Rate ('Therapen Bluetooth Log Failure Rate') by tracking `failed_events` on `thermapen:log` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Normalize log_status values into good or bad states and review the failure percentage per food item.",
   "visualization": "Bar chart of failure percentage by entity.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk ES Content Management",
+      "url": "https://docs.splunk.com/Documentation/ES/latest/Admin/ContentManagement",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.15.68)** — Connector for 'Therapen Bluetooth Log Failure Rate' stops polling `thermapen:log`; stale `failed_events` on `food_item` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `failed_events` over `1w` is expected for UC-25.15.68, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `thermapen:log`. Dedup with `stats latest(*) by food_item`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Therapen Bluetooth Log Failure Rate'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It steadily which parts of your Thermapen Bluetooth log data keep ending up in a bad state instead of working cleanly."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Kitchen, Cooking & Fermentation — typical feeds: Sourdough monitor (`sourdough:reading`), BBQ/sous-vide probes (`bbq:probe`), fridge/freezer/oven temperature (`kitchen:appliance`), espresso shots (`espresso:shot`), pantry inventory (`pantry:item`), .\n• **Sourcetypes in this search**: `thermapen:log`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=thermapen:log`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** ESP32/ESPHome kitchen sensors (sourdough rise, BBQ/sous-vide probes, fridge/freezer temperature), espresso-shot logs, and pantry inventory via MQTT and Splunk HEC..\n\n**Author notes:** Normalize log_status values into good or bad states and review the failure percentage per food item.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"thermapen:log\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=thermapen:log earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Therapen Bluetooth Log Failure Rate** over `personal` data (primarily `sourcetype=thermapen:log`) across the full search range. The `sum` aggregation groups by `food_item`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `failed`, `food_item`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=thermapen:log\n| eval status_value=lower(coalesce(log_status,\"unknown\"))\n| eval failed=if(match(status_value,\"error|fail|alert|overdue|late|stale|breach\"),1,0)\n| stats count as events, sum(failed) as failed_events by food_item\n| eval failure_pct=round(100*failed_events/events,1)\n| sort - failure_pct - failed_events\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=thermapen:log earliest=-7d\n| head 50\n| table failed, food_item\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=thermapen:log earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.15.68: Personal evidence` with the following panel layout:\n\n**Panel 1 — Bar Chart Of Failure Percentage By Entity (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `thermapen:log` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=thermapen:log | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It steadily which parts of your Thermapen Bluetooth log data keep ending up in a bad state instead of working cleanly.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

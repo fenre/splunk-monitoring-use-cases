@@ -9,11 +9,17 @@
     "Data Quality"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "PagerDuty webhook delivery diagnostics normalized to `pagerduty:webhook_delivery`",
-  "app": "Custom log forwarder from PagerDuty Event Orchestration debug logs or proxy logs",
+  "exclusions": "Covers the detection logic documented for 'PagerDuty Webhook Delivery Non-200 Response Clustering' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_pagerduty_webhook_delivery_non_200_response_clus` (UC-16.2.24), SOC dashboard panel \"Operations — PagerDuty Webhook Delivery Non-200 Response Clustering\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-16.2.24 positive (PagerDuty, Webhook, Delivery, Non, 200): ingest synthetic events into `index=alerts` sourcetype='pagerduty:webhook_delivery' where `count` grouped by `subscription_id`, `endpoint_host` satisfies `http_status` >= 400 for 'PagerDuty Webhook Delivery Non-200 Response Clustering'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.2.24 negative (Response Clustering): ingest benign `alerts` / `pagerduty:webhook_delivery` events where `subscription_id`, `endpoint_host` stays below `http_status` >= 400, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'PagerDuty Webhook Delivery Non-200 Response Clustering'."
+  },
+  "dataSources": "PagerDuty webhook delivery diagnostics normalized to `pagerduty:webhook_delivery` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom log forwarder from PagerDuty Event Orchestration debug logs or proxy logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=alerts sourcetype=\"pagerduty:webhook_delivery\" OR sourcetype=\"pagerduty:audit\"\n| where http_status>=400 OR delivery_status=\"failed\"\n| stats count by subscription_id, endpoint_host\n| sort -count",
-  "description": "Failed webhooks break bidirectional ITSM sync and runbook triggers.",
-  "value": "Shows which outbound integration endpoints need cert or firewall fixes.",
+  "description": "Monitors UC-16.2.24 — PagerDuty, Webhook, Delivery, Non, 200 — using `index=alerts` sourcetype `pagerduty:webhook_delivery`, grouped by `subscription_id`, `endpoint_host`. Outputs `count` each `the scheduled window`; alert when `http_status` >= 400. Primary focus: Response Clustering. Purpose-built for 'PagerDuty Webhook Delivery Non-200 Response Clustering' in Operations workflows.",
+  "value": "Alerting on PagerDuty, Webhook, Delivery, Non, 200 through UC-16.2.24 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Correlate with Cloudflare/AWS WAF logs if available.",
   "visualization": "Table (endpoint × status), Timeline.",
   "cimModels": [
@@ -23,17 +29,33 @@
   "references": [
     {
       "title": "PagerDuty App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3013"
+      "url": "https://splunkbase.splunk.com/app/3013",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Opsgenie for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3759"
+      "url": "https://splunkbase.splunk.com/app/3759",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short webhook hiccups during deploys, certificate work, or network blips; confirm endpoint and subscription health in the on-call product.",
+  "knownFalsePositives": "1. **Maintenance window on `alerts` (UC-16.2.24)** — Planned work for 'PagerDuty Webhook Delivery Non-200 Response Clustering' shifts `count` over `span=1h` while `subscription_id`, `endpoint_host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `pagerduty:webhook_delivery`** — Scheduled automation elevates `endpoint_host` without crossing `http_status` >= 400 for UC-16.2.24. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `subscription_id`, `endpoint_host`** — Health checks in `alerts` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `pagerduty:webhook_delivery`** — First 48h baseline for UC-16.2.24 on `subscription_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `subscription_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cloudflare",
     "pagerduty"
+  ],
+  "equipmentModels": [
+    "cloudflare_generic",
+    "pagerduty_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -42,6 +64,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure: Custom log forwarder from PagerDuty Event Orchestration debug logs or proxy logs.\n• Data: PagerDuty webhook delivery diagnostics normalized to `pagerduty:webhook_delivery`.\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nCorrelate with Cloudflare/AWS WAF logs if available.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=alerts sourcetype=\"pagerduty:webhook_delivery\" OR sourcetype=\"pagerduty:audit\"\n| where http_status>=400 OR delivery_status=\"failed\"\n| stats count by subscription_id, endpoint_host\n| sort -count\n```\n\nUnderstanding this search\nFailed webhooks break bidirectional ITSM sync and runbook triggers.\n\nStep 3 — Validate\nCompare with the PagerDuty incident timeline and service view for the same window. Reconcile a few incident numbers, state changes, and acknowledgement times. If anything disagrees, check export lag, time zone, and which API fields we map.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Table (endpoint × status), Timeline.",
-  "grandmaExplanation": "We look for a burst of bad answers from the place we post events, so the pipe that feeds the on-call system is not quietly broken."
+  "detailedImplementation": "Prerequisites\n• Install and configure: Custom log forwarder from PagerDuty Event Orchestration debug logs or proxy logs.\n• Data: PagerDuty webhook delivery diagnostics normalized to `pagerduty:webhook_delivery`.\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nCorrelate with Cloudflare/AWS WAF logs if available.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=alerts sourcetype=\"pagerduty:webhook_delivery\" OR sourcetype=\"pagerduty:audit\"\n| where http_status>=400 OR delivery_status=\"failed\"\n| stats count by subscription_id, endpoint_host\n| sort -count\n```\n\nUnderstanding this search\nFailed webhooks break bidirectional ITSM sync and runbook triggers.\n\nStep 3 — Validate\nCompare with the PagerDuty incident timeline and service view for the same window. Reconcile a few incident numbers, state changes, and acknowledgement times. If anything disagrees, check export lag, time zone, and which API fields we map.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Table (endpoint × status), Timeline.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom log forwarder from PagerDuty Event Orchestration debug logs or proxy logs — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=pagerduty:webhook_delivery, pagerduty:audit into alerts. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`endpoint_host, http_status, subscription_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We look for a burst of bad answers from the place we post events, so the pipe that feeds the on-call system is not quietly broken.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

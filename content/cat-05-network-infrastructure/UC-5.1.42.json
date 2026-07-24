@@ -8,21 +8,43 @@
     "Capacity"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'MAC Flooding and Bridge Table Exhaustion (Meraki MS)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_mac_flooding_and_bridge_table_exhaustion_meraki_` (UC-5.1.42), SOC dashboard panel \"Operations — MAC Flooding and Bridge Table Exhaustion (Meraki MS)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.1.42 positive (MAC, Flooding, and, Bridge, Table): ingest synthetic events into `index=meraki` sourcetype='meraki:assurancealerts' where `values` grouped by `scope.devices{}.serial`, `scope.devices{}.name`, `network.name` satisfies -24h for 'MAC Flooding and Bridge Table Exhaustion (Meraki MS)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.1.42 negative ((Meraki MS)): ingest benign `meraki` / `meraki:assurancealerts` events where `scope.devices{}.serial`, `scope.devices{}.name`, `network.name` stays below -24h, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'MAC Flooding and Bridge Table Exhaustion (Meraki MS)'."
+  },
   "dataSources": "Splunk_TA_cisco_meraki (Splunkbase #5580): Assurance Alerts input (sourcetype=meraki:assurancealerts). NOTE: Meraki MS switches do NOT emit per-port MAC flooding or bridge-table-exhaustion events to syslog. The closest signal is the Assurance Alerts feed which fires on switch performance issues.",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580)",
   "spl": "index=meraki sourcetype=\"meraki:assurancealerts\"\n    deviceType=\"MS\"\n    (title=\"*MAC*\" OR title=\"*flood*\" OR title=\"*storm*\"\n     OR categoryType=\"performance\")\n    earliest=-24h\n| stats count as alert_count,\n        values(title) as alert_titles,\n        latest(severity) as severity\n         by scope.devices{}.serial, scope.devices{}.name, network.name\n| sort - alert_count",
-  "description": "Detects MAC address table exhaustion and flooding attacks that could overwhelm switch resources.",
-  "value": "Security teams detect MAC flooding attacks and bridge table exhaustion on Meraki MS switches, identifying ports generating excessive MAC addresses that compromise network segmentation.",
+  "description": "Detects UC-5.1.42 — MAC, Flooding, and, Bridge, Table — using `index=meraki` sourcetype `meraki:assurancealerts`, grouped by `scope.devices{}.serial`, `scope.devices{}.name`, `network.name`. Outputs `values` each `the scheduled window`; alert when -24h. Primary focus: (Meraki MS). Purpose-built for 'MAC Flooding and Bridge Table Exhaustion (Meraki MS)' in Operations workflows.",
+  "value": "Alerting on MAC, Flooding, and, Bridge, Table through UC-5.1.42 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "1. Enable the Assurance Alerts input in Splunk_TA_cisco_meraki (TA v3+, hourly polling of GET /organizations/{orgId}/assurance/alerts). 2. Filter to deviceType=switch with MAC/flood/storm keywords. 3. For deeper inspection use Meraki Dashboard -> Switch -> Switches -> [select switch] -> Tools -> MAC table to see live entries; the MAC table size is not exposed via API.",
   "visualization": "Table of affected switches/ports; time-series of flood events; alert dashboard.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Meraki (Splunkbase 5631)",
+      "url": "https://splunkbase.splunk.com/app/5631",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "VMware vMotion, imaging carts, and conference room churn move MACs often. Baseline by VLAN before calling an attack.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki` (UC-5.1.42)** — Planned work for 'MAC Flooding and Bridge Table Exhaustion (Meraki MS)' shifts `values` over `span=1h` while `scope.devices{}.serial`, `scope.devices{}.name`, `network.name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `meraki:assurancealerts`** — Scheduled automation elevates `scope.devices{}.name` without crossing configured threshold for UC-5.1.42. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `scope.devices{}.serial`, `scope.devices{}.name`, `network.name`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `meraki:assurancealerts`** — First 48h baseline for UC-5.1.42 on `scope.devices{}.serial` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `scope.devices{}.serial`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "kubernetes",
@@ -32,6 +54,12 @@
     "cisco_meraki",
     "kubernetes_helm"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).\n• Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Assurance Alerts input (sourcetype=meraki:assurancealerts). NOTE: Meraki MS switches do NOT emit per-port MAC flooding or bridge-table-exhaustion events to syslog. The closest signal is the Assurance Alerts feed which fires on switch performance issues..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n1. Enable the Assurance Alerts input in Splunk_TA_cisco_meraki (TA v3+, hourly polling of GET /organizations/{orgId}/assurance/alerts). 2. Filter to deviceType=switch with MAC/flood/storm keywords. 3. For deeper inspection use Meraki Dashboard -> Switch -> Switches -> [select switch] -> Tools -> MAC table to see live entries; the MAC table size is not exposed via API.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=meraki sourcetype=\"meraki:assurancealerts\"\n    deviceType=\"MS\"\n    (title=\"*MAC*\" OR title=\"*flood*\" OR title=\"*storm*\"\n     OR categoryType=\"performance\")\n    earliest=-24h\n| stats count as alert_count,\n        values(title) as alert_titles,\n        latest(severity) as severity\n         by scope.devices{}.serial, scope.devices{}.name, network.name\n| sort - alert_count\n```\n\nUnderstanding this SPL\n\n**MAC Flooding and Bridge Table Exhaustion (Meraki MS)** — Security teams detect MAC flooding attacks and bridge table exhaustion on Meraki MS switches, identifying ports generating excessive MAC addresses that compromise network segmentation.\n\nDocumented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Assurance Alerts input (sourcetype=meraki:assurancealerts). NOTE: Meraki MS switches do NOT emit per-port MAC flooding or bridge-table-exhaustion events to syslog. The closest signal is the Assurance Alerts feed which fires on switch performance issues. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:assurancealerts. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=meraki, sourcetype=\"meraki:assurancealerts\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by scope.devices{}.serial, scope.devices{}.name, network.name** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of affected switches/ports; time-series of flood events; alert dashboard.",
-  "grandmaExplanation": "We help you know early when something looks wrong with mac flooding and bridge table exhaustion so the team can act before it grows into a bigger outage."
+  "grandmaExplanation": "We help you know early when something looks wrong with mac flooding and bridge table exhaustion so the team can act before it grows into a bigger outage.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

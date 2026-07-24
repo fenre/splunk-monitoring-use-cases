@@ -8,21 +8,43 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=snmp:interface`",
-  "app": "SNMP Modular Input, IF-MIB, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog",
+  "exclusions": "Covers the detection logic documented for 'CRC Error Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_crc_error_trending` (UC-5.1.21), SOC dashboard panel \"Operations — CRC Error Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.1.21 positive (CRC, Error, Trending): ingest synthetic events into `index=network` sourcetype='snmp:interface' where `avg` grouped by `host`, `ifDescr`, `limit=20` satisfies `error_rate` > 0 for 'CRC Error Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.1.21 negative (Error Trending): ingest benign `network` / `snmp:interface` events where `host`, `ifDescr`, `limit=20` stays below `error_rate` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'CRC Error Trending'."
+  },
+  "dataSources": "`sourcetype=snmp:interface` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "SNMP Modular Input, IF-MIB, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"snmp:interface\"\n| streamstats current=f last(ifInErrors) as prev_errors, last(_time) as prev_time by host, ifDescr\n| eval error_rate=(ifInErrors-prev_errors)/(_time-prev_time)\n| where error_rate > 0\n| timechart span=1h avg(error_rate) by host limit=20",
-  "description": "Increasing CRC errors indicate failing cables, SFPs, or electromagnetic interference. Early detection prevents link failures.",
-  "value": "Network engineers trend CRC error counters across switch and router interfaces, identifying physical layer degradation from bad cables, contaminated fiber connectors, or failing SFP optics.",
+  "description": "Detects UC-5.1.21 — CRC, Error, Trending — using `index=network` sourcetype `snmp:interface`, grouped by `host`, `ifDescr`, `limit=20`. Outputs `avg` each `1h`; alert when `error_rate` > 0. Primary focus: Error Trending. Purpose-built for 'CRC Error Trending' in Operations workflows.",
+  "value": "UC-5.1.21 operationalises 'CRC Error Trending' against `snmp:interface` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Poll IF-MIB counters every 300s. Use `streamstats` to compute deltas. Trend over days to detect worsening interfaces. Cross-reference with interface utilization.",
   "visualization": "Line chart (error rate over time per interface), Heatmap (device × interface), Table.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned work, test traffic, and known moves can look like a fault for «CRC Error Trending». Filter by change windows, lab sites, and maintenance notices you already trust.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.1.21)** — Planned work for 'CRC Error Trending' shifts `avg` over `span=1h` while `host`, `ifDescr`, `limit=20` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `snmp:interface`** — Scheduled automation elevates `ifDescr` without crossing `error_rate` > 0 for UC-5.1.21. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `ifDescr`, `limit=20`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:interface`** — First 48h baseline for UC-5.1.21 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "snmp",
@@ -32,6 +54,10 @@
     "cisco_ios",
     "snmp_generic"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "premiumApps": [
     {
       "name": "Splunk User Behavior Analytics",
@@ -39,7 +65,9 @@
       "note": "UBA"
     }
   ],
-  "detailedImplementation": "Prerequisites\n* CRC error counter data from SNMP or syslog. Data in `index=network` with SNMP or `sourcetype=cisco:ios`. Key SNMP OID: dot3StatsFCSErrors (.1.3.6.1.2.1.10.7.2.1.3). CLI: `show interface <intf> | include CRC`.\n* CRC errors: Frame Check Sequence failures indicating corrupted frames. Causes: bad cable, damaged SFP/optics, electromagnetic interference, connector contamination. CRC errors always indicate a physical layer problem and should never be ignored.\n\nStep 1 -- Configure data collection\n```\n# SNMP polling for CRC/FCS error counters\n[snmp_crc_errors]\ninterval = 300\nsourcetype = snmp:crc:errors\nindex = network\n# OID: dot3StatsFCSErrors (.1.3.6.1.2.1.10.7.2.1.3)\n# Also poll: ifInErrors for correlation\n```\nVerify:\n```spl\nindex=network earliest=-4h\n| eval crc=tonumber(coalesce(dot3StatsFCSErrors, crc_errors, fcs_errors))\n| where crc > 0\n| stats latest(crc) by host, ifName\n| sort -latest(crc)\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- CRC error trending:**\n```spl\nindex=network earliest=-24h\n| eval crc=tonumber(coalesce(dot3StatsFCSErrors, crc_errors, fcs_errors))\n| eval interface=coalesce(ifName, interface, port)\n| eval device=coalesce(host, device_name)\n| where isnotnull(crc)\n| bin _time span=5m\n| stats latest(crc) as crc_count by _time, device, interface\n| sort device, interface, _time\n| streamstats current=f last(crc_count) as prev_crc by device, interface\n| eval delta_crc=crc_count - prev_crc\n| where delta_crc > 0\n| eventstats sum(delta_crc) as total_crc avg(delta_crc) as avg_crc by device, interface\n| eval severity=case(\n    delta_crc > 100, \"CRITICAL -- rapid CRC error accumulation\",\n    total_crc > 500, \"WARNING -- sustained CRC errors over period\",\n    delta_crc > 10, \"WARNING -- CRC errors increasing\",\n    1==1, \"INFO\")\n| where severity != \"INFO\"\n| table _time, device, interface, delta_crc, total_crc, severity\n| sort severity, -delta_crc\n```\n\nStep 3 -- Validate\n(a) CLI: `show interface <intf>` -- check CRC, input errors, runts, giants counters.\n(b) CLI: `show interface transceiver` -- check SFP Rx/Tx power levels.\n(c) Physical inspection: check cable condition, connector cleanliness.\n\nStep 4 -- Operationalize\nDashboard (\"Network -- CRC Error Trending\"):\n* Row 1 -- Single-value: \"Interfaces with CRC errors\", \"Total CRC delta (24h)\".\n* Row 2 -- CRC error rate timechart by interface.\n\nAlert: Critical (>100 CRC errors/5min): physical layer failure, dispatch technician.\n\nStep 5 -- Troubleshooting\n\n* **CRC errors on copper** -- Replace patch cable first (cheapest test). If persistent, test with cable tester. Check for electromagnetic interference from power cables running parallel.\n\n* **CRC errors on fiber** -- Clean fiber connectors with proper cleaning tools. Check SFP optic power levels: Rx power below receiver sensitivity indicates dirty connector, bend loss, or failing SFP. Replace SFP if power levels out of spec.\n\n* **CRC errors on single direction** -- Problem is on the transmitting side. Check the remote device's transmit optics/cable.",
+  "detailedImplementation": "Prerequisites\n* CRC error counter data from SNMP or syslog. Data in `index=network` with SNMP or `sourcetype=cisco:ios`. Key SNMP OID: dot3StatsFCSErrors (.1.3.6.1.2.1.10.7.2.1.3). CLI: `show interface <intf> | include CRC`.\n* CRC errors: Frame Check Sequence failures indicating corrupted frames. Causes: bad cable, damaged SFP/optics, electromagnetic interference, connector contamination. CRC errors always indicate a physical layer problem and should never be ignored.\n\nStep 1 -- Configure data collection\n```\n# SNMP polling for CRC/FCS error counters\n[snmp_crc_errors]\ninterval = 300\nsourcetype = snmp:crc:errors\nindex = network\n# OID: dot3StatsFCSErrors (.1.3.6.1.2.1.10.7.2.1.3)\n# Also poll: ifInErrors for correlation\n```\nVerify:\n```spl\nindex=network earliest=-4h\n| eval crc=tonumber(coalesce(dot3StatsFCSErrors, crc_errors, fcs_errors))\n| where crc > 0\n| stats latest(crc) by host, ifName\n| sort -latest(crc)\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- CRC error trending:**\n```spl\nindex=network earliest=-24h\n| eval crc=tonumber(coalesce(dot3StatsFCSErrors, crc_errors, fcs_errors))\n| eval interface=coalesce(ifName, interface, port)\n| eval device=coalesce(host, device_name)\n| where isnotnull(crc)\n| bin _time span=5m\n| stats latest(crc) as crc_count by _time, device, interface\n| sort device, interface, _time\n| streamstats current=f last(crc_count) as prev_crc by device, interface\n| eval delta_crc=crc_count - prev_crc\n| where delta_crc > 0\n| eventstats sum(delta_crc) as total_crc avg(delta_crc) as avg_crc by device, interface\n| eval severity=case(\n    delta_crc > 100, \"CRITICAL -- rapid CRC error accumulation\",\n    total_crc > 500, \"WARNING -- sustained CRC errors over period\",\n    delta_crc > 10, \"WARNING -- CRC errors increasing\",\n    1==1, \"INFO\")\n| where severity != \"INFO\"\n| table _time, device, interface, delta_crc, total_crc, severity\n| sort severity, -delta_crc\n```\n\nStep 3 -- Validate\n(a) CLI: `show interface <intf>` -- check CRC, input errors, runts, giants counters.\n(b) CLI: `show interface transceiver` -- check SFP Rx/Tx power levels.\n(c) Physical inspection: check cable condition, connector cleanliness.\n\nStep 4 -- Operationalize\nDashboard (\"Network -- CRC Error Trending\"):\n* Row 1 -- Single-value: \"Interfaces with CRC errors\", \"Total CRC delta (24h)\".\n* Row 2 -- CRC error rate timechart by interface.\n\nAlert: Critical (>100 CRC errors/5min): physical layer failure, dispatch technician.\n\nStep 5 -- Troubleshooting\n\n* **CRC errors on copper** -- Replace patch cable first (cheapest test). If persistent, test with cable tester. Check for electromagnetic interference from power cables running parallel.\n\n* **CRC errors on fiber** -- Clean fiber connectors with proper cleaning tools. Check SFP optic power levels: Rx power below receiver sensitivity indicates dirty connector, bend loss, or failing SFP. Replace SFP if power levels out of spec.\n\n* **CRC errors on single direction** -- Problem is on the transmitting side. Check the remote device's transmit optics/cable.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (SNMP Modular Input, IF-MIB, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=snmp:interface into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`error_rate, host, ifDescr, limit=20`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We help you know early when something looks wrong with crc error trending so the team can act before it grows into a bigger outage.",
-  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360"
+  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

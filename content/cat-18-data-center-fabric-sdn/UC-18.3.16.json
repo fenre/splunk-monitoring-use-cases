@@ -11,11 +11,15 @@
   "splunkPillar": "Observability",
   "exclusions": "Pure EVPN neighbor-state dashboards without NVE counter or RTT lanes (UC-18.3.14); BGP RIB-only convergence without dataplane loss (UC-18.3.15); hardware TCAM or ACL-only telemetry lacking VTEP peers (UC-18.3.20); ACI APIC fault-only views without NX-OS NVE exports when fabrics are standalone Nexus.",
   "evidence": "Saved searches vtep_loss_core and vtep_loss_alert plus Dashboard Studio workspace VTEP Loss & Latency",
+  "controlTest": {
+    "positiveScenario": "UC-18.3.16 positive (VTEP, Reachability, and, Loss): ingest synthetic events into `index=dc_fabric` sourcetype='nxos:nve_peers' where `worst_rtt_ms`, `worst_loss_pct`, `encap_sum` grouped by `_time`, `leaf`, `fabric_site`, `vni` satisfies `loss_pct` > 1, `loss_pct` >= 0.5, `rtt_ms` > 25, or `rtt_ms` > 30 for 'VTEP Reachability and Loss'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-18.3.16 negative (and Loss): ingest benign `dc_fabric` / `nxos:nve_peers` events where `_time`, `leaf`, `fabric_site`, `vni` stays below `loss_pct` > 1, `loss_pct` >= 0.5, `rtt_ms` > 25, or `rtt_ms` > 30, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'VTEP Reachability and Loss'."
+  },
   "dataSources": "`index=dc_fabric` / `index=network_ops` / `index=network` — five sourcetypes: **`nxos:nve_peers`** (**`show nve peers detail`** JSON: **peer_ip**, **vtep_ip**, **vni**, state); **`nxos:nve_counters`** from **`show nve interface`** (**encap_errors**, **decap_errors**); **`network:vxlan_tunnel`** (**tunnel_state**, **loss_pct**, **rtt_ms**); **`cisco:nxos:syslog`** (**NVE-**, **VTEP**, **L2RIB** strings); **`network:ping_results`** from **`ping nve`** (**rtt_ms**, **loss_pct**). Ingest via Splunk REST API Modular Input ([Splunkbase **1546**](https://splunkbase.splunk.com/app/1546)), Cisco Data Center Networking ([Splunkbase **7777**](https://splunkbase.splunk.com/app/7777)) reference dashboards, Splunk Add-on for Cisco ACI ([Splunkbase 1897](https://splunkbase.splunk.com/app/1897)) for hybrid sites only, Splunk Add-on for VMware NSX ([Splunkbase 4241](https://splunkbase.splunk.com/app/4241)) and Splunk Add-on for VMware ([Splunkbase 3215](https://splunkbase.splunk.com/app/3215)) when compute motion explains asymmetric paths.",
   "app": "**Splunk REST API Modular Input** ([Splunkbase **1546**](https://splunkbase.splunk.com/app/1546)); **Cisco Data Center Networking for Splunk Platform** ([Splunkbase **7777**](https://splunkbase.splunk.com/app/7777)); **Splunk Add-on for Cisco ACI** ([Splunkbase 1897](https://splunkbase.splunk.com/app/1897)); **Splunk Add-on for VMware NSX** ([Splunkbase 4241](https://splunkbase.splunk.com/app/4241)); **Splunk Add-on for VMware** ([Splunkbase 3215](https://splunkbase.splunk.com/app/3215)).",
   "spl": "(index=dc_fabric OR index=network_ops OR index=network)\n(sourcetype=\"nxos:nve_peers\" OR sourcetype=\"nxos:nve_counters\" OR sourcetype=\"network:vxlan_tunnel\" OR sourcetype=\"cisco:nxos:syslog\" OR sourcetype=\"network:ping_results\")\nearliest=-4h@m\n| eval leaf=trim(coalesce(host,device_name,switch_name,nms_hostname,router_id,\"\"))\n| eval fabric_site=trim(coalesce(site_code,fabric_site,pod_id,\"unspecified\"))\n| eval peer_ip=trim(coalesce(peer_ip,nve_peer_ip,remote_vtep,vtep_peer,\"\"))\n| eval vtep_ip=trim(coalesce(vtep_ip,src_vtep,local_nve_ip,nve_source_ip,\"\"))\n| eval rtt_ms=tonumber(coalesce(rtt_ms,avg_rtt,ping_rtt_ms,icmp_rtt,latency_ms,\"\"))\n| eval loss_pct=tonumber(coalesce(loss_pct,packet_loss_pct,icmp_loss_pct,ploss,\"\"))\n| eval encap_errors=tonumber(coalesce(encap_errors,nve_encap_err,encap_drops,\"\"))\n| eval decap_errors=tonumber(coalesce(decap_errors,nve_decap_err,decap_drops,\"\"))\n| eval vni=tonumber(coalesce(vni,l2vni,bd_vni,\"\"))\n| eval tunnel_health=lower(trim(coalesce(tunnel_state,vxlan_state,path_state,\"\")))\n| eval nve_peer_down=if(sourcetype=\"nxos:nve_peers\" AND match(lower(_raw),\"(down|failed|init|unknown)\"),1,0)\n| eval loss_breach=if(sourcetype=\"network:ping_results\" AND (loss_pct>1 OR (isnotnull(loss_pct) AND loss_pct>=0.5 AND isnotnull(rtt_ms) AND rtt_ms>25)),1,0)\n| eval latency_breach=if(sourcetype=\"network:ping_results\" AND isnotnull(rtt_ms) AND rtt_ms>30,1,0)\n| eval counter_breach=if(sourcetype=\"nxos:nve_counters\" AND ((isnotnull(encap_errors) AND encap_errors>0) OR (isnotnull(decap_errors) AND decap_errors>0)),1,0)\n| eval agg_tunnel_bad=if(sourcetype=\"network:vxlan_tunnel\" AND match(tunnel_health,\"(down|degraded|failed|unknown)\"),1,0)\n| eval syslog_nve_fault=if(sourcetype=\"cisco:nxos:syslog\" AND match(_raw,\"(?i)NVE-\\\\d|%NVE-|nve peer|vtep\"),1,0)\n| where match(leaf,\".+\")\n| fillnull value=0 nve_peer_down loss_breach latency_breach counter_breach agg_tunnel_bad syslog_nve_fault\n| eval signal=nve_peer_down*5 + loss_breach*3 + latency_breach*2 + counter_breach*4 + agg_tunnel_bad*4 + syslog_nve_fault*3\n| bin _time span=10m\n| stats max(rtt_ms) AS worst_rtt_ms max(loss_pct) AS worst_loss_pct sum(encap_errors) AS encap_sum sum(decap_errors) AS decap_sum max(signal) AS signal_peak values(peer_ip) AS peers values(vtep_ip) AS local_vteps values(sourcetype) AS sourcetypes_seen dc(sourcetype) AS st_diversity BY _time leaf fabric_site vni\n| where signal_peak>=3 OR worst_loss_pct>=1 OR worst_rtt_ms>=35 OR encap_sum>500 OR decap_sum>500\n| eval story=leaf.\"|vni=\".if(isnotnull(vni),tostring(vni),\"any\").\"|loss=\".tostring(round(coalesce(worst_loss_pct,0))).\"|rtt=\".tostring(round(coalesce(worst_rtt_ms,0)))\n| sort - signal_peak - _time\n| head 200\n| table _time fabric_site leaf vni peers local_vteps worst_rtt_ms worst_loss_pct encap_sum decap_sum signal_peak sourcetypes_seen story",
-  "description": "Correlates NX-OS NVE peer detail, NVE interface counters, normalized VXLAN tunnel health, NVE syslog faults, and orchestrated ping nve results so operators see packet loss, RTT inflation, and encapsulation errors across VTEPs and VNIs—not only peer Up/Down state.",
-  "value": "East-west revenue workloads ride the same VXLAN mesh; small sustained loss or asymmetric latency shows up as intermittent SQL timeouts, storage retries, and unexplained help-desk bursts long after BGP neighbors look Established. Quantifying loss_pct and rtt_ms per fabric_site gives SRE and capacity teams evidence to prioritize optics, queue tuning, or automation fixes before executives see SLA rebates.",
+  "description": "Monitors UC-18.3.16 — VTEP, Reachability, and, Loss — using `index=dc_fabric` sourcetype `nxos:nve_peers`, grouped by `_time`, `leaf`, `fabric_site`, `vni`. Outputs `worst_rtt_ms`, `worst_loss_pct`, `encap_sum` each `10m`; alert when `loss_pct` > 1, `loss_pct` >= 0.5, `rtt_ms` > 25, or `rtt_ms` > 30. Primary focus: and Loss. Purpose-built for 'VTEP Reachability and Loss' in Operations workflows.",
+  "value": "UC-18.3.16 operationalises 'VTEP Reachability and Loss' against `nxos:nve_peers` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Poll NX-API for show nve peers detail into nxos:nve_peers and show nve interface into nxos:nve_counters; emit network:vxlan_tunnel health tuples; keep cisco:nxos:syslog for NVE faults; land network:ping_results from ping nve automation. FIELDALIAS peer_ip, vtep_ip, rtt_ms, loss_pct, encap_errors, decap_errors, vni. Maintain vtep_loss_thresholds.csv. Schedule vtep_loss_core and vtep_loss_alert every five minutes with throttles.",
   "visualization": "(1) Heat map — VTEP × VTEP loss_pct from network:ping_results. (2) Line chart — perc95(rtt_ms) by fabric_site. (3) Table — top signal_peak with peers and vni. (4) Single value — encap/decap breach counts from nxos:nve_counters.",
   "cimModels": [
@@ -27,34 +31,41 @@
   "references": [
     {
       "title": "IETF RFC 8365 — Network Virtualization Overlay Using EVPN",
-      "url": "https://datatracker.ietf.org/doc/html/rfc8365"
+      "url": "https://datatracker.ietf.org/doc/html/rfc8365",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco Nexus 9000 NX-OS VXLAN BGP EVPN Configuration Guide",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk REST API Modular Input (Splunkbase 1546)",
-      "url": "https://splunkbase.splunk.com/app/1546"
+      "url": "https://splunkbase.splunk.com/app/1546",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco Data Center Networking for Splunk (Splunkbase 7777)",
-      "url": "https://splunkbase.splunk.com/app/7777"
+      "url": "https://splunkbase.splunk.com/app/7777",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for Cisco ACI (Splunkbase 1897)",
-      "url": "https://splunkbase.splunk.com/app/1897"
+      "url": "https://splunkbase.splunk.com/app/1897",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for VMware NSX (Splunkbase 4241)",
-      "url": "https://splunkbase.splunk.com/app/4241"
+      "url": "https://splunkbase.splunk.com/app/4241",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for VMware (Splunkbase 3215)",
-      "url": "https://splunkbase.splunk.com/app/3215"
+      "url": "https://splunkbase.splunk.com/app/3215",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**mt_scheduled_ping** — Maintenance windows sometimes pause orchestrated **`ping nve`** jobs while data plane keeps forwarding; Splunk shows stale **`network:ping_results`** gaps that look like loss until `_indextime` proves the probe stopped. Pair gaps with change tickets before paging overlay owners.\n\n**icmp_priority_deny** — Control-plane policers or CoPP can silently drop ICMP toward VTEP loopbacks even when VXLAN encapsulation is healthy; `worst_rtt_ms` spikes without `encap_errors` growth often trace to classification updates rather than fabric faults. Validate with scripted TCP or BFD-sidecars before blaming underlay optics.\n\n**counter_reset_window** — `show nve interface` counter clears during linecard restarts produce synthetic decap deceleration in `nxos:nve_counters` for a single poll; ignore single-bin decap_sum spikes when syslog shows %CMGR- or module reload markers in the same minute bucket.\n\n**lldp_hostname_drift** — ZTP or partial bootstrap can leave syslog hostnames mismatched to NX-API `host` fields until DNS catches up; duplicate leaf rows or missing joins mimic VTEP skew until normalization macros align identities.\n\n**asymmetric_ecmp_probe** — Hash-selected ICMP paths may traverse colder uplinks while production VXLAN flows stay balanced; loss_pct from probes can over-state tenant impact unless you compare against bidirectional samples or multi-source pings.\n\n**sup_spine_upgrade** — Planned spine rotations flood transient NVE syslog warnings as RIBs relearn even though tunnel endpoints stay Up; widen suppression when CAB references SUP spine change tokens without dataplane blackholes.\n\n**telemetry_batching_skew** — Heavy forwarders batching multiple polls into one second can compress `loss_pct` math; when in doubt, compare against CLI `ping nve` manual spot checks for the same tuple.\n\n**duplicate_collector_polls** — Two modular inputs hitting the same leaf double encap_sum/decap_sum and inflate `signal_peak`. Run forwarder audits whenever REST stanzas proliferate without ownership.",
+  "knownFalsePositives": "1. **Maintenance window on `dc_fabric` (UC-18.3.16)** — Planned work for 'VTEP Reachability and Loss' shifts `worst_rtt_ms`, `worst_loss_pct`, `encap_sum` over `span=10m` while `_time`, `leaf`, `fabric_site`, `vni` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `nxos:nve_peers`** — Scheduled automation elevates `leaf` without crossing `loss_pct` > 1 for UC-18.3.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `leaf`, `fabric_site`, `vni`** — Health checks in `dc_fabric` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nxos:nve_peers`** — First 48h baseline for UC-18.3.16 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "detectionType": "Anomaly",
   "securityDomain": "network",
   "equipment": [

@@ -9,11 +9,17 @@
     "Security"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "AWX analytics activity stream (`sourcetype=awx:activity_stream`, `logger_name=awx.analytics.activity_stream`)",
-  "app": "AWX external logging integration (see ansible/awx logging_integration.md)",
+  "exclusions": "Covers the detection logic documented for 'AWX Activity Stream Privileged Object Changes' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_awx_activity_stream_privileged_object_changes` (UC-12.3.16), SOC dashboard panel \"Operations — AWX Activity Stream Privileged Object Changes\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.3.16 positive (AWX, Activity, Stream, Privileged, Object): ingest synthetic events into `index=automation` sourcetype='awx:activity_stream' where `count` grouped by `actor`, `operation`, `object1` satisfies detection threshold for 'AWX Activity Stream Privileged Object Changes'. Validate filter `object1=\"*credential*\" OR object1=\"*execution_environment*\" `. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.3.16 negative (Object Changes): ingest benign `automation` / `awx:activity_stream` events where `actor`, `operation`, `object1` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'AWX Activity Stream Privileged Object Changes'."
+  },
+  "dataSources": "AWX analytics activity stream (`sourcetype=awx:activity_stream`, `logger_name=awx.analytics.activity_stream`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "AWX external logging integration (see ansible/awx logging_integration.md) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=automation sourcetype=\"awx:activity_stream\" logger_name=\"awx.analytics.activity_stream\"\n| search object1=\"*credential*\" OR object1=\"*execution_environment*\" OR operation=\"create\" OR operation=\"delete\"\n| stats count by actor, operation, object1\n| sort -count",
-  "description": "Credential and EE changes must be traceable for break-glass and supply-chain audits.",
-  "value": "Captures who changed automation credentials and execution environments.",
+  "description": "Surfaces UC-12.3.16 — AWX, Activity, Stream, Privileged, Object — using `index=automation` sourcetype `awx:activity_stream`, grouped by `actor`, `operation`, `object1`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `object1=\"*credential*\" OR object1=\"*execution_environment*\" `. Purpose-built for 'AWX Activity Stream Privileged Object Changes' in Operations workflows.",
+  "value": "Tracking `activity` via UC-12.3.16 on `awx:activity_stream` feeds improves response to 'AWX Activity Stream Privileged Object Changes' and reduces operational risk and delayed incident response.",
   "implementation": "Route to restricted index; retain per policy. Join actors to IdP username format.",
   "visualization": "Table (actor × operation), Timeline.",
   "cimModels": [
@@ -23,16 +29,31 @@
   "references": [
     {
       "title": "AWX logging integration (job events, activity stream)",
-      "url": "https://github.com/ansible/awx/blob/devel/docs/logging_integration.md"
+      "url": "https://github.com/ansible/awx/blob/devel/docs/logging_integration.md",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HEC — HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Alerts from scheduled scans, pilot repositories, or vendor API throttling during bulk operations.",
+  "knownFalsePositives": "1. **Maintenance window on `automation` (UC-12.3.16)** — Planned work for 'AWX Activity Stream Privileged Object Changes' shifts `count` over `span=1h` while `actor`, `operation`, `object1` remains in-scope. Applies filter `object1=\"*credential*\" OR object1=\"*execution_environment*\" `. Cross-check CMDB CHG.\n\n2. **Batch `count` on `awx:activity_stream`** — Scheduled automation elevates `operation` without crossing configured threshold for UC-12.3.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `actor`, `operation`, `object1`** — Health checks in `automation` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `awx:activity_stream`** — First 48h baseline for UC-12.3.16 on `actor` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `actor`, `exception_reason`, `valid_until`.",
   "equipment": [
     "ansible"
+  ],
+  "equipmentModels": [
+    "ansible_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch this part of your delivery chain for risks and reliability so issues show up before they hit customers."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (AWX external logging integration (see ansible/awx logging_integration.md) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=awx:activity_stream into automation. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`actor, object1, operation`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch this part of your delivery chain for risks and reliability so issues show up before they hit customers.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

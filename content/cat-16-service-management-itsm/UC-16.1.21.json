@@ -8,11 +8,17 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Incident updates with war-room flag, collaboration events (`sourcetype=snow:incident:activity` or chat)",
-  "app": "Custom (ServiceNow tags/tasks, Slack/Teams webhooks, Zoom API)",
+  "exclusions": "Covers the detection logic documented for 'War Room Activation Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_war_room_activation_tracking` (UC-16.1.21), SOC dashboard panel \"Operations — War Room Activation Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-16.1.21 positive (War, Room, Activation, Tracking): ingest synthetic events into `index=itsm` sourcetype='snow:incident:activity' where `count` grouped by `incident_number` satisfies detection threshold for 'War Room Activation Tracking'. Validate filter `war_room=true OR match(raw,\"(?i)bridge`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.1.21 negative (Activation Tracking): ingest benign `itsm` / `snow:incident:activity` events where `incident_number` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'War Room Activation Tracking'."
+  },
+  "dataSources": "Incident updates with war-room flag, collaboration events (`sourcetype=snow:incident:activity` or chat) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom (ServiceNow tags/tasks, Slack/Teams webhooks, Zoom API) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm (sourcetype=\"snow:incident:activity\" OR sourcetype=\"chat:war_room\")\n| search war_room=true OR match(raw,\"(?i)bridge|war room|command center\")\n| stats earliest(_time) as first_bridge by incident_number\n| join max=1 incident_number [ search index=itsm sourcetype=\"snow:incident\" u_major_incident=true | rename number as incident_number ]\n| eval bridge_delay_mins=round((first_bridge-opened_at)/60,0)\n| table incident_number, opened_at, first_bridge, bridge_delay_mins",
-  "description": "Tracks when bridge/war-room workflows activate (chat, conference bridges, tags) for major incidents — supporting governance and after-action metrics.",
-  "value": "Tracks when bridge/war-room workflows activate (chat, conference bridges, tags) for major incidents — supporting governance and after-action metrics.",
+  "description": "Detects UC-16.1.21 — War, Room, Activation, Tracking — using `index=itsm` sourcetype `snow:incident:activity`, grouped by `incident_number`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `war_room=true OR match(raw,\"(?i)bridge`. Purpose-built for 'War Room Activation Tracking' in Operations workflows.",
+  "value": "UC-16.1.21 operationalises 'War Room Activation Tracking' against `snow:incident:activity` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Normalize on `incident_number`. Ingest chat or activity logs where bridges are declared. Measure delay from incident open to first war-room event. Report monthly activations and average delay.",
   "visualization": "Table (MI + bridge times), Line chart (activations per month), Histogram (bridge delay).",
   "cimModels": [
@@ -22,13 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Late completion when a major event is still open, legal review slows close-out, or a new runbook is not followed yet.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm` (UC-16.1.21)** — Planned work for 'War Room Activation Tracking' shifts `count` over `span=1h` while `incident_number` remains in-scope. Applies filter `war_room=true OR match(raw,\"(?i)bridge`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `snow:incident:activity`** — Scheduled automation elevates `bridge_delay_mins` without crossing configured threshold for UC-16.1.21. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `incident_number`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:incident:activity`** — First 48h baseline for UC-16.1.21 on `incident_number` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `incident_number`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],
+  "equipmentModels": [
+    "servicenow_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (ServiceNow tags/tasks, Slack/Teams webhooks, Zoom API).\n• Ensure the following data sources are available: Incident updates with war-room flag, collaboration events (`sourcetype=snow:incident:activity` or chat).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNormalize on `incident_number`. Ingest chat or activity logs where bridges are declared. Measure delay from incident open to first war-room event. Report monthly activations and average delay.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsm (sourcetype=\"snow:incident:activity\" OR sourcetype=\"chat:war_room\")\n| search war_room=true OR match(raw,\"(?i)bridge|war room|command center\")\n| stats earliest(_time) as first_bridge by incident_number\n| join max=1 incident_number [ search index=itsm sourcetype=\"snow:incident\" u_major_incident=true | rename number as incident_number ]\n| eval bridge_delay_mins=round((first_bridge-opened_at)/60,0)\n| table incident_number, opened_at, first_bridge, bridge_delay_mins\n```\n\nUnderstanding this SPL\n\n**War Room Activation Tracking** — Tracks when bridge/war-room workflows activate (chat, conference bridges, tags) for major incidents — supporting governance and after-action metrics.\n\nDocumented **Data sources**: Incident updates with war-room flag, collaboration events (`sourcetype=snow:incident:activity` or chat). **App/TA** (typical add-on context): Custom (ServiceNow tags/tasks, Slack/Teams webhooks, Zoom API). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsm; **sourcetype**: snow:incident:activity, chat:war_room. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsm, sourcetype=\"snow:incident:activity\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by incident_number** so each row reflects one combination of those dimensions.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `eval` defines or adjusts **bridge_delay_mins** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **War Room Activation Tracking**): table incident_number, opened_at, first_bridge, bridge_delay_mins\n\n\nStep 3 — Validate\nCompare with the ServiceNow list or form that matches this data (for example the incident, request, or problem view). Reconcile a few record numbers, states, and times. Confirm the add-on poll or export time lines up with what you see in the browser.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (MI + bridge times), Line chart (activations per month), Histogram (bridge delay).",
-  "grandmaExplanation": "We log when the serious bridge room and command habits turn on, so we can show leaders how often we go to full response mode."
+  "grandmaExplanation": "We log when the serious bridge room and command habits turn on, so we can show leaders how often we go to full response mode.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

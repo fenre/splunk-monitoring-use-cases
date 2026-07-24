@@ -9,11 +9,17 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=voip` · `sourcetype=\"asterisk:ami\"`",
-  "app": "Custom TA, HEC, or Universal Forwarder mapping Asterisk logs to `asterisk:pjsip`, `asterisk:cdr`, `asterisk:queue_log`, `asterisk:full`, `asterisk:messages`, `asterisk:security`, `asterisk:ami`",
+  "exclusions": "Covers the detection logic documented for 'Asterisk AMI ConfBridge Concurrent Participant Load' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_asterisk_ami_confbridge_concurrent_participant_l` (UC-11.7.6), SOC dashboard panel \"Operations — Asterisk AMI ConfBridge Concurrent Participant Load\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-11.7.6 positive (Asterisk, AMI, ConfBridge, Concurrent, Participant): ingest synthetic events into `index=voip` sourcetype='asterisk:ami' where `j`, `l` grouped by `bridge` satisfies -4h for 'Asterisk AMI ConfBridge Concurrent Participant Load'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.7.6 negative (Participant Load): ingest benign `voip` / `asterisk:ami` events where `bridge` stays below -4h, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Asterisk AMI ConfBridge Concurrent Participant Load'."
+  },
+  "dataSources": "`index=voip` · `sourcetype=\"asterisk:ami\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom TA, HEC, or Universal Forwarder mapping Asterisk logs to `asterisk:pjsip`, `asterisk:cdr`, `asterisk:queue_log`, `asterisk:full`, `asterisk:messages`, `asterisk:security`, `asterisk:ami` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=voip sourcetype=\"asterisk:ami\" earliest=-4h\n| eval action=coalesce(event, Action, \"\")\n| eval bridge=coalesce(confbridge, Bridge, conference, \"\")\n| where match(lower(action), \"(?i)confbridge\")\n| eval join=if(match(lower(action), \"(?i)join|enter\"),1,0)\n| eval leave=if(match(lower(action), \"(?i)leave|end\"),1,0)\n| streamstats sum(join) as j sum(leave) as l by bridge\n| eval participants=j-l\n| timechart max(participants) by bridge",
-  "description": "Large conferences stress CPU and licensing. Tracking concurrent Confbridge members prevents all-hands meltdowns.",
-  "value": "Protects executive and investor calls; informs host sizing.",
+  "description": "Detects UC-11.7.6 — Asterisk, AMI, ConfBridge, Concurrent, Participant — using `index=voip` sourcetype `asterisk:ami`, grouped by `bridge`. Outputs `j`, `l` each `the scheduled window`; alert when -4h. Primary focus: Participant Load. Purpose-built for 'Asterisk AMI ConfBridge Concurrent Participant Load' in Operations workflows.",
+  "value": "UC-11.7.6 helps teams contain Asterisk, AMI, ConfBridge, Concurrent, Participant scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "(1) AMI read-only user with Confbridge events. (2) Validate Action parsing. (3) Threshold alerts per bridge. (4) Correlate with MOS UC.",
   "visualization": "Area max concurrency; table peak by bridge.",
   "cimModels": [
@@ -23,16 +29,31 @@
   "references": [
     {
       "title": "Asterisk Wiki",
-      "url": "https://wiki.asterisk.org/"
+      "url": "https://wiki.asterisk.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk — Monitor network ports",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/Monitornetworkports"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/Monitornetworkports",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "All-hands, large conferences, and support bridges that max conference capacity legitimately.",
+  "knownFalsePositives": "1. **Maintenance window on `voip` (UC-11.7.6)** — Planned work for 'Asterisk AMI ConfBridge Concurrent Participant Load' shifts `j`, `l` over `span=1h` while `bridge` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `asterisk:ami`** — Scheduled automation elevates `action` without crossing configured threshold for UC-11.7.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `bridge`** — Health checks in `voip` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `asterisk:ami`** — First 48h baseline for UC-11.7.6 on `bridge` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `bridge`, `exception_reason`, `valid_until`.",
   "equipment": [
     "asterisk"
+  ],
+  "equipmentModels": [
+    "asterisk_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -41,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch this Asterisk system’s calls and health, so trunks, queues, and voicemail stay in shape for everyday use."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom TA, HEC, or Universal Forwarder mapping Asterisk logs to `asterisk:pjsip`, `asterisk:cdr`, `asterisk:queue_log`, `asterisk:full`, `asterisk:messages`, `asterisk:security`, `asterisk:ami` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=asterisk:ami into voip. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`bridge, join, leave`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch this Asterisk system’s calls and health, so trunks, queues, and voicemail stay in shape for everyday use.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

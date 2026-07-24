@@ -73,7 +73,14 @@ def enhance_uc(uc: dict[str, Any], *, write: bool) -> list[str]:
     index, sourcetype, filt = _parse_spl(spl)
 
     new_spl = _rebuild_spl(index, sourcetype, filt)
-    if new_spl != spl:
+    # Preserve rich legacy SPL from main quality uplift (bin/eventstats/stats pipelines)
+    preserve_spl = (
+        len(spl) > 180
+        or "eventstats" in spl
+        or "bin _time" in spl
+        or "| bin " in spl
+    )
+    if new_spl != spl and not preserve_spl:
         uc["spl"] = new_spl
         changes.append("spl")
 

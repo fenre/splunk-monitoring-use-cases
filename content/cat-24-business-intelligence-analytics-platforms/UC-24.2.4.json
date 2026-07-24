@@ -9,31 +9,57 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Power BI activity events (`o365:management:activity` with `Workload=PowerBI`), Power BI REST Admin API (`/admin/groups`, `/datasets/refreshes`, `/capacities/refreshables`), on-prem data gateway `Mashup`/`GatewayInfo` logs, Premium capacity metrics.",
-  "app": "Splunk Add-on for Microsoft Cloud Services / Microsoft 365 (`Splunk_TA_microsoft-cloudservices`) for the Power BI activity log; Power BI REST Admin API and on-prem data gateway logs via HEC scripted inputs.",
+  "exclusions": "Covers the detection logic documented for 'Power BI Gateway Query Errors and Throughput' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_power_bi_gateway_query_errors_and_throughput` (UC-24.2.4), SOC dashboard panel \"Operations — Power BI Gateway Query Errors and Throughput\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.2.4 positive (Power, Gateway, Query, Errors, and): ingest synthetic events into `index=bi` sourcetype='powerbi:gateway:mashup' where `avg_ms` grouped by `dataSource` satisfies `errors` > 0 for 'Power BI Gateway Query Errors and Throughput'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.2.4 negative (and Throughput): ingest benign `bi` / `powerbi:gateway:mashup` events where `dataSource` stays below `errors` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Power BI Gateway Query Errors and Throughput'."
+  },
+  "dataSources": "Power BI activity events (`o365:management:activity` with `Workload=PowerBI`), Power BI REST Admin API (`/admin/groups`, `/datasets/refreshes`, `/capacities/refreshables`), on-prem data gateway `Mashup`/`GatewayInfo` logs, Premium capacity metrics. Collected via Splunk Add-on for Microsoft Office 365 (Splunkbase 4054) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for Microsoft Cloud Services / Microsoft 365 (`Splunk_TA_microsoft-cloudservices`) for the Power BI activity log; Power BI REST Admin API and on-prem data gateway logs via HEC scripted inputs. — Splunk Add-on for Microsoft Office 365 (Splunkbase 4054)",
   "spl": "index=bi sourcetype=powerbi:gateway:mashup\n| stats count as queries, sum(eval(isnotnull(errorMessage))) as errors, avg(durationMs) as avg_ms by dataSource\n| eval error_rate=round(100*errors/queries,1)\n| where errors>0\n| sort - error_rate",
-  "description": "Analyses gateway Mashup query logs to surface data sources with high error rates or slow query times, pinpointing the connections degrading Power BI performance.",
-  "value": "Gateway query errors translate directly into failed report loads; source-level error rates show which backend connection to fix first.",
+  "description": "Monitors 'Power BI Gateway Query Errors and Throughput' (UC-24.2.4) using `index=bi` sourcetype `powerbi:gateway:mashup` by aggregating `avg_ms` grouped by `dataSource` over `the scheduled window` and alerting when `errors` > 0. Keywords: Power, Gateway, Query, Errors, and. Focuses on and Throughput behaviour so operations teams can triage UC-24.2.4 without ad-hoc log review.",
+  "value": "UC-24.2.4 accelerates insight into and Throughput ('Power BI Gateway Query Errors and Throughput') by tracking `avg_ms` on `powerbi:gateway:mashup` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Ingest gateway Mashup logs; schedule hourly; alert on rising error rate per source. Correlate slow sources with the underlying database health.",
   "visualization": "Table by error_rate, timechart of gateway errors, latency distribution.",
   "cimModels": [],
   "references": [
     {
       "title": "Power BI — Track user activities (audit log)",
-      "url": "https://learn.microsoft.com/power-bi/enterprise/service-admin-auditing"
+      "url": "https://learn.microsoft.com/power-bi/enterprise/service-admin-auditing",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Power BI REST Admin API",
-      "url": "https://learn.microsoft.com/rest/api/power-bi/admin"
+      "url": "https://learn.microsoft.com/rest/api/power-bi/admin",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.2.4)** — Planned work for 'Power BI Gateway Query Errors and Throughput' shifts `avg_ms` over `span=1h` while `dataSource` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `powerbi:gateway:mashup`** — Scheduled automation elevates `error_rate` without crossing `errors` > 0 for UC-24.2.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dataSource`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `powerbi:gateway:mashup`** — First 48h baseline for UC-24.2.4 on `dataSource` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dataSource`, `exception_reason`, `valid_until`.",
   "equipment": [
     "azure",
     "m365"
   ],
-  "grandmaExplanation": "We watch the queries the Power BI bridge sends to your databases and flag the ones that fail or run slowly, so the weak link gets fixed."
+  "equipmentModels": [
+    "azure_generic",
+    "m365_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Microsoft Cloud Services / Microsoft 365 (`Splunk_TA_microsoft-cloudservices`) for the Power BI activity log; Power BI REST Admin API and on-prem data gateway logs via HEC scripted inputs. — Splunk Add-on for Microsoft Office 365 (Splunkbase 4054)). Enable the modular input or HEC token that writes sourcetype=powerbi:gateway:mashup into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`dataSource, errors`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch the queries the Power BI bridge sends to your databases and flag the ones that fail or run slowly, so the weak link gets fixed.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

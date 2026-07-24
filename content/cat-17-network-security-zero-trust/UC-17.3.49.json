@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Akamai Guardicore REST API or syslog via the Add-on",
+  "exclusions": "Covers the detection logic documented for 'Akamai Guardicore Segmentation Policy Violations' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_akamai_guardicore_segmentation_policy_violations` (UC-17.3.49), SOC dashboard panel \"Network — Akamai Guardicore Segmentation Policy Violations\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.49 positive (Akamai, Guardicore, Segmentation, Policy, Violations): ingest synthetic events into `index=microseg` sourcetype='guardicore:network' where `count` grouped by `src_asset`, `dst_asset`, `dst_port`, `policy_name` satisfies -24h for 'Akamai Guardicore Segmentation Policy Violations'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.49 negative (Policy Violations): ingest benign `microseg` / `guardicore:network` events where `src_asset`, `dst_asset`, `dst_port`, `policy_name` stays below -24h, or exclude the test entity via `network_exception_register.csv`. Variant 9 confirms zero alert rows for 'Akamai Guardicore Segmentation Policy Violations'."
+  },
+  "dataSources": "Akamai Guardicore REST API or syslog via the Add-on Indexes: microseg. Sourcetypes: guardicore:network. Key fields: dst_asset, dst_port, policy_name, src_asset. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Akamai Guardicore Add-on for Splunk (Splunkbase 7426)",
   "spl": "index=microseg sourcetype=\"guardicore:network\" earliest=-24h\n| where match(lower(action),\"(?i)block|deny|drop|reject\")\n| stats count by src_asset, dst_asset, dst_port, policy_name\n| sort -count",
-  "description": "Akamai Guardicore enforces microsegmentation at the workload level across on-prem, cloud, and hybrid environments. Policy violation events (blocked lateral movement) validate that default-deny segmentation is enforced and detect attempted east-west attacks.",
-  "value": "Zero Trust teams track Akamai Guardicore segmentation policy violations over time, detecting lateral movement attempts (one source scanning many targets), distinguishing legitimate application changes from attacker behavior, and identifying new workloads deployed without segmentation policies.",
+  "description": "Detects UC-17.3.49 — Akamai, Guardicore, Segmentation, Policy, Violations — using `index=microseg` sourcetype `guardicore:network`, grouped by `src_asset`, `dst_asset`, `dst_port`, `policy_name`. Outputs `count` each `the scheduled window`; alert when -24h. Primary focus: Policy Violations. Purpose-built for 'Akamai Guardicore Segmentation Policy Violations' in Network workflows.",
+  "value": "Operators running UC-17.3.49 on `guardicore:network` feeds shorten triage for Policy Violations tied to 'Akamai Guardicore Segmentation Policy Violations', lowering unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Install the Akamai Guardicore Add-on. Map `src_asset` and `dst_asset` to application labels from the Guardicore Reveal map. Alert on blocked flows to critical assets (databases, domain controllers). Report on deny-to-allow ratio per segmentation ring.",
   "visualization": "Table (blocked flows), Heatmap (source × destination), Bar chart (blocks by policy), Sankey (traffic flow map).",
   "cimModels": [],
@@ -21,14 +27,26 @@
   "references": [
     {
       "title": "Akamai Guardicore Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/7426"
+      "url": "https://splunkbase.splunk.com/app/7426",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Network_Traffic",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Microseg blocks from new app deployments, missing exception rules, or planned segmentation rollouts.",
+  "knownFalsePositives": "1. **Maintenance window on `microseg` (UC-17.3.49)** — Planned work for 'Akamai Guardicore Segmentation Policy Violations' shifts `count` over `span=1h` while `src_asset`, `dst_asset`, `dst_port`, `policy_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `guardicore:network`** — Scheduled automation elevates `dst_asset` without crossing configured threshold for UC-17.3.49. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src_asset`, `dst_asset`, `dst_port`, `policy_name`** — Health checks in `microseg` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `guardicore:network`** — First 48h baseline for UC-17.3.49 on `src_asset` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `src_asset`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1021",
     "T1570"
@@ -37,7 +55,17 @@
     "guardicore",
     "syslog"
   ],
-  "detailedImplementation": "Prerequisites\n• Akamai Guardicore Centra logs in `index=microseg` with `sourcetype=guardicore:syslog`. Key fields: `src_ip`, `dst_ip`, `src_label`, `dst_label`, `policy_name`, `action` (allow/block), `rule_type` (specific/default), `dstPort`, `proto`.\n• Guardicore Segmentation creates micro-perimeters around workloads. Policy violations = traffic blocked by segmentation rules. This UC is specific to Guardicore in the Zero Trust context (separate from UC-17.6.x which covers Guardicore in the general microsegmentation category).\n\nStep 1 — Configure data collection\nVerify Guardicore events:\n```spl\nindex=microseg sourcetype=\"guardicore:syslog\" action=block earliest=-24h\n| stats count by src_label, dst_label, dstPort\n| sort - count\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Policy violation trends:\n```spl\nindex=microseg sourcetype=\"guardicore:syslog\" action=block earliest=-7d\n| timechart span=1h count by policy_name limit=10\n```\n\nUnderstanding this SPL: Trends segmentation policy violations over time. A spike in violations on one policy means either: a legitimate application changed its communication pattern (needs policy update), an attacker is attempting lateral movement (blocked by policy), or a new workload was deployed without a corresponding policy.\n\nLateral movement indicators:\n```spl\nindex=microseg sourcetype=\"guardicore:syslog\" action=block earliest=-24h\n| stats count dc(dst_ip) as targets dc(dstPort) as ports by src_ip, src_label\n| where targets > 10 OR ports > 10\n| sort - targets\n```\n\nStep 3 — Validate\n(a) In Guardicore Centra: Reveal tab > filter by blocked traffic.\n(b) Attempt traffic between restricted segments. Verify block.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Violation trend. Row 2 — Lateral movement suspects. Row 3 — New violations.\nAlert: When lateral movement pattern detected (one source, many targets).\n\nRunbook:\n1. **Lateral movement pattern** — Possible breach. Isolate source immediately.\n2. **Policy violation after deployment** — New app needs policy. Create after verification.\n3. **Spike after policy change** — New policy blocking legitimate traffic. Review.\n\nStep 5 — Troubleshooting\n• **No block events** — Guardicore may be in Reveal (monitor) mode. Switch to Enforcement.\n• **`policy_name` always 'Default'** — No specific policies created. Traffic falling to default deny.",
+  "equipmentModels": [
+    "guardicore_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Akamai Guardicore Centra logs in `index=microseg` with `sourcetype=guardicore:syslog`. Key fields: `src_ip`, `dst_ip`, `src_label`, `dst_label`, `policy_name`, `action` (allow/block), `rule_type` (specific/default), `dstPort`, `proto`.\n• Guardicore Segmentation creates micro-perimeters around workloads. Policy violations = traffic blocked by segmentation rules. This UC is specific to Guardicore in the Zero Trust context (separate from UC-17.6.x which covers Guardicore in the general microsegmentation category).\n\nStep 1 — Configure data collection\nVerify Guardicore events:\n```spl\nindex=microseg sourcetype=\"guardicore:syslog\" action=block earliest=-24h\n| stats count by src_label, dst_label, dstPort\n| sort - count\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Policy violation trends:\n```spl\nindex=microseg sourcetype=\"guardicore:syslog\" action=block earliest=-7d\n| timechart span=1h count by policy_name limit=10\n```\n\nUnderstanding this SPL: Trends segmentation policy violations over time. A spike in violations on one policy means either: a legitimate application changed its communication pattern (needs policy update), an attacker is attempting lateral movement (blocked by policy), or a new workload was deployed without a corresponding policy.\n\nLateral movement indicators:\n```spl\nindex=microseg sourcetype=\"guardicore:syslog\" action=block earliest=-24h\n| stats count dc(dst_ip) as targets dc(dstPort) as ports by src_ip, src_label\n| where targets > 10 OR ports > 10\n| sort - targets\n```\n\nStep 3 — Validate\n(a) In Guardicore Centra: Reveal tab > filter by blocked traffic.\n(b) Attempt traffic between restricted segments. Verify block.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Violation trend. Row 2 — Lateral movement suspects. Row 3 — New violations.\nAlert: When lateral movement pattern detected (one source, many targets).\n\nRunbook:\n1. **Lateral movement pattern** — Possible breach. Isolate source immediately.\n2. **Policy violation after deployment** — New app needs policy. Create after verification.\n3. **Spike after policy change** — New policy blocking legitimate traffic. Review.\n\nStep 5 — Troubleshooting\n• **No block events** — Guardicore may be in Reveal (monitor) mode. Switch to Enforcement.\n• **`policy_name` always 'Default'** — No specific policies created. Traffic falling to default deny.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Akamai Guardicore Add-on for Splunk (Splunkbase 7426)). Enable the modular input or HEC token that writes sourcetype=guardicore:network into microseg. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`dst_asset, dst_port, policy_name, src_asset`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We set up invisible walls between groups of servers so even if an attacker gets into one, they cannot move to others. We watch for traffic hitting these walls — it could be a legitimate application that needs an exception, or it could be an attacker trying to spread through our network.",
-  "hardware": "Akamai Guardicore Centra (management), Guardicore Agents (workload), Guardicore Aggregators"
+  "hardware": "Akamai Guardicore Centra (management), Guardicore Agents (workload), Guardicore Aggregators",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

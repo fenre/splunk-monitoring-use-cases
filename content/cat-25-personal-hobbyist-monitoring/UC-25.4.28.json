@@ -9,50 +9,75 @@
     "Reliability"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Home automation orchestration (`homeassistant:event`, `matter:event`, `thread:router`, `alexa:routine`, `googlehome:event`, `zigbee2mqtt:bridge`, `smartthings:event`, `nodered:event`).",
-  "app": "Home Assistant, Matter and Thread border routers, Alexa routine logs, Google Home automations, Zigbee2MQTT bridges, SmartThings, Node-RED, and webhooks streamed to Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Google Home Presence State Mismatch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_google_home_presence_state_mismatch` (UC-25.4.28), SOC dashboard panel \"Personal — Google Home Presence State Mismatch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.4.28 positive (Google, Home, Presence, State, Mismatch): ingest synthetic events into `index=personal` sourcetype='googlehome:event' where `presence_states` grouped by `person`, `_time` satisfies `updates` > 2, or `presence_states` > 1 for 'Google Home Presence State Mismatch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.4.28 negative (State Mismatch): ingest benign `personal` / `googlehome:event` events where `person`, `_time` stays below `updates` > 2, or `presence_states` > 1, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Google Home Presence State Mismatch'."
+  },
+  "dataSources": "Home automation orchestration (`homeassistant:event`, `matter:event`, `thread:router`, `alexa:routine`, `googlehome:event`, `zigbee2mqtt:bridge`, `smartthings:event`, `nodered:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Home Assistant, Matter and Thread border routers, Alexa routine logs, Google Home automations, Zigbee2MQTT bridges, SmartThings, Node-RED, and webhooks streamed to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=googlehome:event event_type=presence_sync\n| bin _time span=1d\n| stats dc(presence_state) as presence_states, count as updates by person _time\n| where updates>2 AND presence_states>1\n| sort - updates",
-  "description": "Uses Google Home presence sync events telemetry to monitor days where household presence bounced between conflicting states in index=personal.",
-  "value": "Splunk turns the feed into an operational check for presence automations that are likely to misfire, so the signal does not stay buried inside separate consumer apps or exports.",
+  "description": "Identifies State Mismatch anomalies for UC-25.4.28 with window `1d` on `index=personal` sourcetype `googlehome:event`. Combines `presence_states` by `person`, `_time` and compares against `updates` > 2, or `presence_states` > 1. Mapped to keywords Google, Home, Presence, State, Mismatch for dashboard routing.",
+  "value": "Alerting on Google, Home, Presence, State, Mismatch through UC-25.4.28 reduces missed training goals, stale hobby data, and connector failures by surfacing `presence_states` early.",
   "implementation": "Ingest Google Home presence sync events data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Daily person table of updates and distinct states.",
   "cimModels": [],
   "references": [
     {
       "title": "Home Assistant",
-      "url": "https://www.home-assistant.io/docs/"
+      "url": "https://www.home-assistant.io/docs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Home Assistant Matter integration",
-      "url": "https://www.home-assistant.io/integrations/matter/"
+      "url": "https://www.home-assistant.io/integrations/matter/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Home Assistant Thread integration",
-      "url": "https://www.home-assistant.io/integrations/thread/"
+      "url": "https://www.home-assistant.io/integrations/thread/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Alexa smart home docs",
-      "url": "https://developer.amazon.com/en-US/docs/alexa/smarthome/steps-to-build-a-smart-home-skill.html"
+      "url": "https://developer.amazon.com/en-US/docs/alexa/smarthome/steps-to-build-a-smart-home-skill.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Google Home automations",
-      "url": "https://developers.home.google.com/automations"
+      "url": "https://developers.home.google.com/automations",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Node-RED",
-      "url": "https://nodered.org/docs/"
+      "url": "https://nodered.org/docs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Zigbee2MQTT",
-      "url": "https://www.zigbee2mqtt.io/"
+      "url": "https://www.zigbee2mqtt.io/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.4.28)** — Connector for 'Google Home Presence State Mismatch' stops polling `googlehome:event`; stale `presence_states` on `person`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `presence_states` over `1d` is expected for UC-25.4.28, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `googlehome:event`. Dedup with `stats latest(*) by person`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `updates` > 2 for 'Google Home Presence State Mismatch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It blends days where household presence bounced between conflicting states so you can spot presence automations that are likely to misfire before it becomes annoying."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Smart Home Platforms & Automation — typical feeds: Home Assistant state/logbook events (`homeassistant:event`), Homey flow/insights (`homey:flow`), SmartThings events (`smartthings:event`), Hubitat/openHAB logs, Node-RED flow events (`nodered:event`)..\n• **Sourcetypes in this search**: `googlehome:event`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=googlehome:event`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Home Assistant / Homey / SmartThings / Hubitat / openHAB event streams via MQTT, webhooks, and REST — forwarded to Splunk HEC..\n\n**Author notes:** Ingest Google Home presence sync events data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"googlehome:event\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=googlehome:event earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Google Home Presence State Mismatch** over `personal` data (primarily `sourcetype=googlehome:event`) across the full search range. It applies numeric thresholds on `updates` (> 2) after dc — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `person`, `presence_states`, `updates`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=googlehome:event event_type=presence_sync\n| bin _time span=1d\n| stats dc(presence_state) as presence_states, count as updates by person _time\n| where updates>2 AND presence_states>1\n| sort - updates\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=googlehome:event earliest=-7d\n| head 50\n| table _time, person, presence_states, updates\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=googlehome:event earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `updates` before alerting:\n\n```spl\nindex=personal sourcetype=googlehome:event earliest=-30d\n| stats perc50(updates) AS p50 perc90(updates) AS p90 perc99(updates) AS p99 max(updates) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.4.28: Personal evidence` with the following panel layout:\n\n**Panel 1 — Daily Person Table Of Updates And Distinct States (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `googlehome:event` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=googlehome:event | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It blends days where household presence bounced between conflicting states so you can spot presence automations that are likely to misfire before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

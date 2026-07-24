@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Host performance metrics (CPU, memory utilization)",
-  "app": "Infrastructure monitoring TAs (various), Splunk `predict` command",
+  "exclusions": "Covers the detection logic documented for 'Compute Capacity Forecasting' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_compute_capacity_forecasting` (UC-20.2.1), SOC dashboard panel \"Operations — Compute Capacity Forecasting\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-20.2.1 positive (Compute, Capacity, Forecasting): ingest synthetic events into `index=infrastructure` sourcetype='cpu' where `avg_cpu` grouped by `host` satisfies detection threshold for 'Compute Capacity Forecasting'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-20.2.1 negative (Capacity Forecasting): ingest benign `infrastructure` / `cpu` events where `host` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Compute Capacity Forecasting'."
+  },
+  "dataSources": "Host performance metrics (CPU, memory utilization) Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
+  "app": "Infrastructure monitoring TAs (various), Splunk `predict` command — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
   "spl": "index=infrastructure (sourcetype=\"cpu\" OR sourcetype=\"vmware:host:perf\" OR sourcetype=\"nix:cpu\")\n| timechart span=1d avg(cpu_load_percent) as avg_cpu by host\n| predict avg_cpu as predicted_cpu algorithm=LLP5 future_timespan=30\n| eval days_to_threshold=if('upper95(predicted_cpu)'>90, \"Within 30 days\", \"OK\")",
-  "description": "Running out of compute capacity causes provisioning failures and performance degradation. Forecasting when CPU and memory will be exhausted enables proactive procurement or scaling, avoiding emergency purchases at premium cost.",
-  "value": "Running out of compute capacity causes provisioning failures and performance degradation. Forecasting when CPU and memory will be exhausted enables proactive procurement or scaling, avoiding emergency purchases at premium cost.",
+  "description": "Identifies 'Compute Capacity Forecasting' patterns (UC-20.2.1) sourced from `index=infrastructure` sourcetype `cpu`. Threshold bundle: configured threshold; aggregation grain: `host`; metrics: `avg_cpu`. Watch terms: Compute, Capacity, Forecasting.",
+  "value": "UC-20.2.1 gives Operations teams earlier visibility into Capacity Forecasting through `cpu` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Collect CPU and memory metrics from all hosts. Aggregate to daily averages for trending. Use Splunk `predict` with LLP5 for 30/60/90-day forecasting. Set alerts when forecast predicts >90% utilization within 30 days. Report quarterly on capacity headroom across infrastructure tiers.",
   "visualization": "Timechart (utilization with forecast overlay), Table (hosts approaching capacity), Gauge (current vs capacity), Single value (days to threshold).",
   "cimModels": [
@@ -22,13 +28,39 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 3684",
+      "url": "https://splunkbase.splunk.com/app/3684",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Forecasts vary with seasonal load, new project ramps, or M&A integration spending.",
+  "knownFalsePositives": "1. **Maintenance window on `infrastructure` (UC-20.2.1)** — Planned work for 'Compute Capacity Forecasting' shifts `avg_cpu` over `span=1d` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `cpu`** — Scheduled automation elevates `days_to_threshold` without crossing configured threshold for UC-20.2.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `infrastructure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cpu`** — First 48h baseline for UC-20.2.1 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "vmware"
   ],
+  "equipmentModels": [
+    "vmware_esxi",
+    "vmware_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Infrastructure monitoring TAs (various), Splunk `predict` command.\n• Ensure the following data sources are available: Host performance metrics (CPU, memory utilization).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect CPU and memory metrics from all hosts. Aggregate to daily averages for trending. Use Splunk `predict` with LLP5 for 30/60/90-day forecasting. Set alerts when forecast predicts >90% utilization within 30 days. Report quarterly on capacity headroom across infrastructure tiers.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=infrastructure (sourcetype=\"cpu\" OR sourcetype=\"vmware:host:perf\" OR sourcetype=\"nix:cpu\")\n| timechart span=1d avg(cpu_load_percent) as avg_cpu by host\n| predict avg_cpu as predicted_cpu algorithm=LLP5 future_timespan=30\n| eval days_to_threshold=if('upper95(predicted_cpu)'>90, \"Within 30 days\", \"OK\")\n```\n\nUnderstanding this SPL\n\n**Compute Capacity Forecasting** — Running out of compute capacity causes provisioning failures and performance degradation. Forecasting when CPU and memory will be exhausted enables proactive procurement or scaling, avoiding emergency purchases at premium cost.\n\nDocumented **Data sources**: Host performance metrics (CPU, memory utilization). **App/TA** (typical add-on context): Infrastructure monitoring TAs (various), Splunk `predict` command. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes **index** `infrastructure` to host CPU metrics from your chosen sourcetypes (Linux, VMware, or other agents that populate `cpu_load_percent`).\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=infrastructure with per-host CPU utilisation from the sourcetypes you ingest.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by host** — ideal for trending and alerting on this use case.\n• Pipeline stage: `predict` for forward-looking CPU trend.\n• `eval` defines **days_to_threshold** from the forecast upper band.\n\nStep 3 — Validate\ncompare with vROps capacity dashboard; compare with the cloud billing console for the same scope, accounts, and time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart (utilization with forecast overlay), Table (hosts approaching capacity), Gauge (current vs capacity), Single value (days to threshold).\n",
-  "grandmaExplanation": "Cost and capacity tools watch how much we spend on cloud and the data center, and where we have spare or strained capacity."
+  "grandmaExplanation": "Cost and capacity tools watch how much we spend on cloud and the data center, and where we have spare or strained capacity.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

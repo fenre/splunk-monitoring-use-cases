@@ -9,24 +9,50 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=proxy` `sourcetype=traefik:log` provider notifications",
-  "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes",
+  "exclusions": "Covers the detection logic documented for 'Traefik Dynamic Configuration Reload Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_traefik_dynamic_configuration_reload_events` (UC-5.14.50), SOC dashboard panel \"Operations — Traefik Dynamic Configuration Reload Events\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.14.50 positive (Traefik, Dynamic, Configuration, Reload, Events): ingest synthetic events into `index=proxy` sourcetype='traefik:log' where `count` grouped by `_raw` satisfies detection threshold for 'Traefik Dynamic Configuration Reload Events'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.14.50 negative (Reload Events): ingest benign `proxy` / `traefik:log` events where `_raw` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Traefik Dynamic Configuration Reload Events'."
+  },
+  "dataSources": "`index=proxy` `sourcetype=traefik:log` provider notifications Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"traefik:log\"\n| regex _raw=\"(?i)(Configuration loaded|Provider event|Reloaded)\"\n| stats count by _raw\n| sort - count\n| head 30",
-  "description": "Reload storms during incidents explain sudden behavior changes.",
-  "value": "Operations teams detect Traefik dynamic configuration reload events and errors across providers (file, Docker, Kubernetes, Consul), catching failed reloads where old config remains active.",
+  "description": "Monitors UC-5.14.50 — Traefik, Dynamic, Configuration, Reload, Events — using `index=proxy` sourcetype `traefik:log`, grouped by `_raw`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Reload Events. Purpose-built for 'Traefik Dynamic Configuration Reload Events' in Operations workflows.",
+  "value": "Alerting on Traefik, Dynamic, Configuration, Reload, Events through UC-5.14.50 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Correlate with GitOps commits; alert only on error-level reload failures in prod.",
   "visualization": "Time series for rates and latency, top/dedup for hotspots, single-value alerts on health thresholds.",
   "cimModels": [],
   "references": [
     {
       "title": "Vendor documentation",
-      "url": "https://doc.traefik.io/traefik/providers/overview/"
+      "url": "https://doc.traefik.io/traefik/providers/overview/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Edge cases: multi-vendor mixes and ad hoc feeds can include lab traffic and partial visibility that mimics issues until scopes are defined. Tuning tip: match this to «Traefik Dynamic Configuration Reload Events» and exclude change windows, scans, and lab VLANs you already expect.",
+  "knownFalsePositives": "1. **Maintenance window on `proxy` (UC-5.14.50)** — Planned work for 'Traefik Dynamic Configuration Reload Events' shifts `count` over `span=1h` while `_raw` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `traefik:log`** — Scheduled automation elevates `src` without crossing configured threshold for UC-5.14.50. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_raw`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `traefik:log`** — First 48h baseline for UC-5.14.50 on `_raw` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_raw`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog",
     "traefik"
+  ],
+  "equipmentModels": [
+    "syslog_generic",
+    "traefik_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -36,5 +62,7 @@
   ],
   "reviewer": "catalog-team",
   "detailedImplementation": "Prerequisites\n* Traefik logs with configuration reload events. Data in `index=proxy` with `sourcetype=traefik:log`. Key events: configuration reload (from file, Docker, Kubernetes, Consul providers), reload success/failure, new routes/services/middlewares.\n* Dynamic configuration: Traefik automatically detects changes from providers (file, Docker labels, Kubernetes Ingress/IngressRoute, Consul, etc.) and reloads without restart. Failed reloads keep the old config active. Frequent reloads may indicate: (1) configuration churn, (2) flapping services in Docker/K8s, (3) provider connectivity issues.\n\nStep 1 -- Configure data collection\nTraefik logs include provider events by default. Set log level to INFO or DEBUG for provider details:\n```yaml\n# traefik.yml\nlog:\n  level: INFO\n  filePath: /var/log/traefik/traefik.log\n```\nVerify:\n```spl\nindex=proxy sourcetype=\"traefik:log\" earliest=-24h\n| where match(_raw, \"(?i)configuration.*received|provider|configuration.*changed|reload|new.*router|new.*service\")\n| stats count\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Configuration reload detection:**\n```spl\nindex=proxy sourcetype=\"traefik:log\" earliest=-24h\n| where match(_raw, \"(?i)configuration.*received|provider.*event|configuration.*changed|reload|router.*added|router.*removed|service.*added|service.*removed\")\n| eval reload_event=case(match(_raw, \"(?i)configuration.*received|configuration.*changed\"), \"CONFIG_RECEIVED\", match(_raw, \"(?i)error|fail|invalid\"), \"RELOAD_ERROR\", match(_raw, \"(?i)router.*(added|created)\"), \"ROUTER_ADDED\", match(_raw, \"(?i)router.*(removed|deleted)\"), \"ROUTER_REMOVED\", match(_raw, \"(?i)service.*(added|created)\"), \"SERVICE_ADDED\", match(_raw, \"(?i)service.*(removed|deleted)\"), \"SERVICE_REMOVED\", 1==1, \"OTHER\")\n| rex \"provider\\s*[:=]\\s*(?<provider>\\w+)\"\n| bin _time span=1h\n| stats count as events dc(provider) as providers values(provider) as provider_list by _time, reload_event\n| eval severity=case(reload_event=\"RELOAD_ERROR\", \"CRITICAL -- configuration reload failed\", events > 100 AND reload_event=\"CONFIG_RECEIVED\", \"WARNING -- excessive reloads (\".events.\"/hr)\", reload_event=\"ROUTER_REMOVED\", \"INFO -- routes removed\", 1==1, \"INFO\")\n| where severity != \"INFO\" OR reload_event=\"RELOAD_ERROR\"\n| table _time, reload_event, events, provider_list, severity\n```\n\nStep 3 -- Validate\n(a) Change a dynamic config file and verify Traefik logs the reload.\n(b) Introduce a syntax error in config and verify RELOAD_ERROR is logged.\n(c) Traefik API: `curl http://localhost:8080/api/http/routers` -- compare before and after reload.\n\nStep 4 -- Operationalize\nDashboard (\"Traefik -- Configuration\"):\n* Row 1 -- Single-value: \"Reloads (24h)\", \"Reload errors\", \"Routes added/removed\".\n* Row 2 -- Reload event timeline.\n\nAlerting:\n* Critical (reload error): new configuration failed -- old config active.\n* Warning (> 100 reloads/hr): configuration churn.\n\nStep 5 -- Troubleshooting\n\n* **Reload error** -- Check Traefik logs for specific error message. Common: (1) YAML/TOML syntax error, (2) invalid TLS certificate path, (3) duplicate router name.\n\n* **Excessive reloads from Docker provider** -- Docker containers starting/stopping frequently trigger reloads. Consider: `docker.watch = true` with `docker.exposedByDefault = false` to reduce noise.\n\n* **Excessive reloads from Kubernetes** -- Frequent pod reschedules or Ingress changes. Consider: `kubernetes.throttleDuration` to debounce reloads.",
-  "grandmaExplanation": "We watch traefik dynamic configuration reload events and catch issues early, before they turn into outages for the people who rely on the network."
+  "grandmaExplanation": "We watch traefik dynamic configuration reload events and catch issues early, before they turn into outages for the people who rely on the network.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

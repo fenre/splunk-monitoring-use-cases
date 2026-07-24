@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "F5 request logging (server_latency)",
-  "app": "`Splunk_TA_f5-bigip`",
+  "exclusions": "Covers the detection logic documented for 'Response Time Degradation (F5 BIG-IP)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_response_time_degradation_f5_big_ip` (UC-5.3.6), SOC dashboard panel \"Operations — Response Time Degradation (F5 BIG-IP)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.3.6 positive (Response, Time, Degradation, (F5, BIG): ingest synthetic events into `index=network` sourcetype='f5:bigip:ltm:http' where `count` grouped by `virtual_server` satisfies `p95` > 2000 for 'Response Time Degradation (F5 BIG-IP)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.3.6 negative (BIG IP)): ingest benign `network` / `f5:bigip:ltm:http` events where `virtual_server` stays below `p95` > 2000, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'Response Time Degradation (F5 BIG-IP)'."
+  },
+  "dataSources": "F5 request logging (server_latency) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_f5-bigip` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"f5:bigip:ltm:http\"\n| timechart span=5m perc95(server_latency) as p95 by virtual_server | where p95>2000",
-  "description": "Increasing response times indicate backend bottlenecks before they become outages.",
-  "value": "Application delivery teams track F5 BIG-IP response times per VIP and pool member with SLA threshold comparison, detecting backend latency degradation before it breaches service level agreements.",
+  "description": "Surfaces UC-5.3.6 — Response, Time, Degradation, (F5, BIG — using `index=network` sourcetype `f5:bigip:ltm:http`, grouped by `virtual_server`. Outputs `count` each `5m`; alert when `p95` > 2000. Primary focus: BIG IP). Purpose-built for 'Response Time Degradation (F5 BIG-IP)' in Operations workflows.",
+  "value": "Tracking `activity` via UC-5.3.6 on `f5:bigip:ltm:http` feeds improves response to 'Response Time Degradation (F5 BIG-IP)' and reduces operational risk and delayed incident response.",
   "implementation": "Enable request logging with server-side timing. Track P95 latency per VIP. Alert when exceeding SLA threshold.",
   "visualization": "Line chart (P50/P95/P99), Table, Single value.",
   "cimModels": [],
@@ -21,20 +27,38 @@
   "references": [
     {
       "title": "Splunk_TA_f5-bigip",
-      "url": "https://splunkbase.splunk.com/app/2680"
+      "url": "https://splunkbase.splunk.com/app/2680",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Traffic bursts, long downloads, and cold caches can raise latency for short spans without a chronic problem.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.3.6)** — Planned work for 'Response Time Degradation (F5 BIG-IP)' shifts `count` over `span=5m` while `virtual_server` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `f5:bigip:ltm:http`** — Scheduled automation elevates `src` without crossing `p95` > 2000 for UC-5.3.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `virtual_server`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `f5:bigip:ltm:http`** — First 48h baseline for UC-5.3.6 on `virtual_server` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `virtual_server`, `exception_reason`, `valid_until`.",
   "equipment": [
     "f5"
   ],
   "equipmentModels": [
     "f5_bigip"
   ],
-  "detailedImplementation": "Prerequisites\n* Splunk Add-on for F5 BIG-IP (`Splunk_TA_f5-bigip`, Splunkbase 2680). F5 request logging profile capturing response time (`$RESPONSE_MSECS`). Data in `index=network` with `sourcetype=f5:bigip:ltm:http:request`. Key fields: `response_time_ms` or `response_msecs`, `virtual_server`, `pool_member`, `uri`.\n\nStep 1 -- Configure data collection\nEnsure the F5 request logging profile includes `$RESPONSE_MSECS` in the template. Verify:\n```spl\nindex=network sourcetype=\"f5:bigip:ltm:http:request\" earliest=-4h\n| where isnotnull(response_time_ms) OR isnotnull(response_msecs)\n| stats avg(response_time_ms) as avg_ms by virtual_server\n| sort -avg_ms\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Response time degradation by VIP:**\n```spl\nindex=network sourcetype=\"f5:bigip:ltm:http:request\" earliest=-4h\n| eval rt=coalesce(response_time_ms, response_msecs)\n| eval vs=coalesce(virtual_server, virtual_name)\n| eval member=coalesce(pool_member, server_ip)\n| stats avg(rt) as avg_ms p95(rt) as p95_ms p99(rt) as p99_ms max(rt) as max_ms count as requests by vs, member\n| lookup f5_vip_inventory.csv virtual_server as vs OUTPUT application, tier, sla_ms\n| eval sla_breach=if(isnotnull(sla_ms) AND p95_ms > sla_ms, \"YES\", \"No\")\n| eval severity=case(p95_ms > 5000, \"CRITICAL\", p95_ms > 2000, \"HIGH\", p95_ms > 1000, \"WARNING\", sla_breach=\"YES\", \"SLA_BREACH\", 1==1, \"OK\")\n| where severity != \"OK\"\n| sort severity, -p95_ms\n```\n\n**Response time trending:**\n```spl\nindex=network sourcetype=\"f5:bigip:ltm:http:request\" earliest=-24h\n| eval rt=coalesce(response_time_ms, response_msecs)\n| eval vs=coalesce(virtual_server, virtual_name)\n| bin _time span=5m\n| stats p95(rt) as p95_ms avg(rt) as avg_ms count as requests by _time, vs\n| timechart span=5m avg(p95_ms) by vs\n```\n\nStep 3 -- Validate\n(a) Make a request to a known slow endpoint and verify the response time appears in Splunk.\n(b) Compare p95 values with application APM data or backend server metrics.\n(c) Add artificial delay to a test backend and verify the degradation shows in Splunk.\n\nStep 4 -- Operationalize\nDashboard (\"F5 -- Response Times\"):\n* Row 1 -- Single-value: \"Average response time\", \"P95 (all VIPs)\", \"SLA breaches\", \"Slowest VIP\".\n* Row 2 -- Per-VIP/member response time table with SLA comparison.\n* Row 3 -- P95 response time trending timechart.\n\nAlerting:\n* Critical (p95 > 5s for prod VIP over 5 min): severe latency -- users impacted.\n* Warning (p95 > SLA threshold for 15 min): SLA breach.\n\nStep 5 -- Troubleshooting\n\n* **High response time on all members of one pool** -- Backend application is slow. Check: database queries, external API calls, GC pauses. This is not an F5 issue.\n\n* **One pool member much slower than others** -- That server may be degraded. Check CPU/memory/disk on the backend. Consider marking it maintenance until resolved.\n\n* **Response time spikes at specific times** -- Correlate with batch jobs, backups, or database maintenance on the backend.",
-  "grandmaExplanation": "We track how slow answers are from the load balancer to important URLs so a creeping delay is a signal before a full timeout storm."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n* Splunk Add-on for F5 BIG-IP (`Splunk_TA_f5-bigip`, Splunkbase 2680). F5 request logging profile capturing response time (`$RESPONSE_MSECS`). Data in `index=network` with `sourcetype=f5:bigip:ltm:http:request`. Key fields: `response_time_ms` or `response_msecs`, `virtual_server`, `pool_member`, `uri`.\n\nStep 1 -- Configure data collection\nEnsure the F5 request logging profile includes `$RESPONSE_MSECS` in the template. Verify:\n```spl\nindex=network sourcetype=\"f5:bigip:ltm:http:request\" earliest=-4h\n| where isnotnull(response_time_ms) OR isnotnull(response_msecs)\n| stats avg(response_time_ms) as avg_ms by virtual_server\n| sort -avg_ms\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Response time degradation by VIP:**\n```spl\nindex=network sourcetype=\"f5:bigip:ltm:http:request\" earliest=-4h\n| eval rt=coalesce(response_time_ms, response_msecs)\n| eval vs=coalesce(virtual_server, virtual_name)\n| eval member=coalesce(pool_member, server_ip)\n| stats avg(rt) as avg_ms p95(rt) as p95_ms p99(rt) as p99_ms max(rt) as max_ms count as requests by vs, member\n| lookup f5_vip_inventory.csv virtual_server as vs OUTPUT application, tier, sla_ms\n| eval sla_breach=if(isnotnull(sla_ms) AND p95_ms > sla_ms, \"YES\", \"No\")\n| eval severity=case(p95_ms > 5000, \"CRITICAL\", p95_ms > 2000, \"HIGH\", p95_ms > 1000, \"WARNING\", sla_breach=\"YES\", \"SLA_BREACH\", 1==1, \"OK\")\n| where severity != \"OK\"\n| sort severity, -p95_ms\n```\n\n**Response time trending:**\n```spl\nindex=network sourcetype=\"f5:bigip:ltm:http:request\" earliest=-24h\n| eval rt=coalesce(response_time_ms, response_msecs)\n| eval vs=coalesce(virtual_server, virtual_name)\n| bin _time span=5m\n| stats p95(rt) as p95_ms avg(rt) as avg_ms count as requests by _time, vs\n| timechart span=5m avg(p95_ms) by vs\n```\n\nStep 3 -- Validate\n(a) Make a request to a known slow endpoint and verify the response time appears in Splunk.\n(b) Compare p95 values with application APM data or backend server metrics.\n(c) Add artificial delay to a test backend and verify the degradation shows in Splunk.\n\nStep 4 -- Operationalize\nDashboard (\"F5 -- Response Times\"):\n* Row 1 -- Single-value: \"Average response time\", \"P95 (all VIPs)\", \"SLA breaches\", \"Slowest VIP\".\n* Row 2 -- Per-VIP/member response time table with SLA comparison.\n* Row 3 -- P95 response time trending timechart.\n\nAlerting:\n* Critical (p95 > 5s for prod VIP over 5 min): severe latency -- users impacted.\n* Warning (p95 > SLA threshold for 15 min): SLA breach.\n\nStep 5 -- Troubleshooting\n\n* **High response time on all members of one pool** -- Backend application is slow. Check: database queries, external API calls, GC pauses. This is not an F5 issue.\n\n* **One pool member much slower than others** -- That server may be degraded. Check CPU/memory/disk on the backend. Consider marking it maintenance until resolved.\n\n* **Response time spikes at specific times** -- Correlate with batch jobs, backups, or database maintenance on the backend.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_f5-bigip` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=f5:bigip:ltm:http into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`p95, virtual_server`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We track how slow answers are from the load balancer to important URLs so a creeping delay is a signal before a full timeout storm.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,26 +8,55 @@
     "Quality"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Sourdough monitor (`sourdough:reading`), BBQ/sous-vide probes (`bbq:probe`), fridge/freezer/oven temperature (`kitchen:appliance`), espresso shots (`espresso:shot`), pantry inventory (`pantry:item`), kombucha brew (`kombucha:reading`).",
-  "app": "ESP32/ESPHome kitchen sensors (sourdough rise, BBQ/sous-vide probes, fridge/freezer temperature), espresso-shot logs, and pantry inventory via MQTT and Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Espresso Shot Extraction Consistency' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_espresso_shot_extraction_consistency` (UC-25.15.7), SOC dashboard panel \"Personal — Espresso Shot Extraction Consistency\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.15.7 positive (Espresso, Shot, Extraction, Consistency): ingest synthetic events into `index=personal` sourcetype='espresso:shot' where `avg_time`, `time_sd`, `avg_ratio` grouped by `bean` satisfies `time_sd` < 3 for 'Espresso Shot Extraction Consistency'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.15.7 negative (Extraction Consistency): ingest benign `personal` / `espresso:shot` events where `bean` stays below `time_sd` < 3, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 3 confirms zero alert rows for 'Espresso Shot Extraction Consistency'."
+  },
+  "dataSources": "Sourdough monitor (`sourdough:reading`), BBQ/sous-vide probes (`bbq:probe`), fridge/freezer/oven temperature (`kitchen:appliance`), espresso shots (`espresso:shot`), pantry inventory (`pantry:item`), kombucha brew (`kombucha:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "ESP32/ESPHome kitchen sensors (sourdough rise, BBQ/sous-vide probes, fridge/freezer temperature), espresso-shot logs, and pantry inventory via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=espresso:shot\n| eval ratio=round(yield_g/dose_g,2)\n| stats avg(shot_time_s) as avg_time, stdev(shot_time_s) as time_sd, avg(ratio) as avg_ratio by bean\n| eval consistency=if(time_sd<3,\"dialed in\",\"variable\")\n| sort - avg_ratio",
-  "description": "Tracks your espresso shot time and brew ratio per bean so you can tell when a coffee is dialed in versus all over the place.",
-  "value": "Great espresso is repeatable espresso; measuring shot-time variation shows whether your grind is dialed in or still guesswork.",
+  "description": "Detects when Extraction Consistency criteria fire for 'Espresso Shot Extraction Consistency' (UC-25.15.7) in `index=personal` sourcetype `espresso:shot`. Pipeline aggregates `avg_time`, `time_sd`, `avg_ratio` by `bean` over `the scheduled window`. Alert logic enforces `time_sd` < 3. Title terms: Espresso, Shot, Extraction, Consistency. Eliminates manual hunting for UC-25.15.7 conditions.",
+  "value": "UC-25.15.7 helps teams contain Espresso, Shot, Extraction, Consistency scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Log each shot's dose, yield, and time to `index=personal`; review consistency per bean to fine-tune the grinder.",
   "visualization": "Table of beans with average shot time, ratio, and a consistency label.",
   "cimModels": [],
   "references": [
     {
       "title": "Home Assistant — REST sensor",
-      "url": "https://www.home-assistant.io/integrations/rest/"
+      "url": "https://www.home-assistant.io/integrations/rest/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.15.7)** — Connector for 'Espresso Shot Extraction Consistency' stops polling `espresso:shot`; stale `avg_time`, `time_sd`, `avg_ratio` on `bean` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_time`, `time_sd`, `avg_ratio` over `1w` is expected for UC-25.15.7, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `espresso:shot`. Dedup with `stats latest(*) by bean`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `time_sd` < 3 for 'Espresso Shot Extraction Consistency'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It records how your espresso shots turn out so you can see when a coffee is perfectly tuned and when it needs adjusting."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Kitchen, Cooking & Fermentation — typical feeds: Sourdough monitor (`sourdough:reading`), BBQ/sous-vide probes (`bbq:probe`), fridge/freezer/oven temperature (`kitchen:appliance`), espresso shots (`espresso:shot`), pantry inventory (`pantry:item`), .\n• **Sourcetypes in this search**: `espresso:shot`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=espresso:shot`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** ESP32/ESPHome kitchen sensors (sourdough rise, BBQ/sous-vide probes, fridge/freezer temperature), espresso-shot logs, and pantry inventory via MQTT and Splunk HEC..\n\n**Author notes:** Log each shot's dose, yield, and time to `index=personal`; review consistency per bean to fine-tune the grinder.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"espresso:shot\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=espresso:shot earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Espresso Shot Extraction Consistency** over `personal` data (primarily `sourcetype=espresso:shot`) across the full search range. It applies numeric thresholds on `time_sd` (< 3) after avg, stdev — tune these constants to your household baseline.\n\n**Fields this search depends on:** `bean`, `consistency`, `time_sd`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=espresso:shot\n| eval ratio=round(yield_g/dose_g,2)\n| stats avg(shot_time_s) as avg_time, stdev(shot_time_s) as time_sd, avg(ratio) as avg_ratio by bean\n| eval consistency=if(time_sd<3,\"dialed in\",\"variable\")\n| sort - avg_ratio\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=espresso:shot earliest=-7d\n| head 50\n| table bean, consistency, time_sd\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=espresso:shot earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `time_sd` before alerting:\n\n```spl\nindex=personal sourcetype=espresso:shot earliest=-30d\n| stats perc50(time_sd) AS p50 perc90(time_sd) AS p90 perc99(time_sd) AS p99 max(time_sd) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.15.7: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Beans With Average Shot Time (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n**Panel 2 — Ratio (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n**Panel 3 — And A Consistency Label (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `espresso:shot` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=espresso:shot | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It records how your espresso shots turn out so you can see when a coffee is perfectly tuned and when it needs adjusting.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

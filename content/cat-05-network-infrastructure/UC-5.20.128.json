@@ -8,24 +8,42 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=juniper:junos` — Detects IPv6 BGP route leaks (RFC 7908) where routes learned from one peer are incorrectly propagated to another, causing traffic redirection or black holes. Route leaks differ from prefix hijacks — the route is legitimate but propagated through an unauthorized path.",
-  "app": "Splunk Enterprise Security",
+  "exclusions": "Covers the detection logic documented for 'IPv6 BGP Route Leak Detection and Classification' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ipv6_bgp_route_leak_detection_and_classification` (UC-5.20.128), SOC dashboard panel \"Operations — IPv6 BGP Route Leak Detection and Classification\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.128 positive (IPv6, BGP, Route, Leak, Detection): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `count` grouped by `host`, `prefix`, `as_path`, `route_leak` satisfies `path_length` > 6 for 'IPv6 BGP Route Leak Detection and Classification'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.128 negative (and Classification): ingest benign `network` / `cisco:ios` events where `host`, `prefix`, `as_path`, `route_leak` stays below `path_length` > 6, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'IPv6 BGP Route Leak Detection and Classification'."
+  },
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=juniper:junos` — Detects IPv6 BGP route leaks (RFC 7908) where routes learned from one peer are incorrectly propagated to another, causing traffic redirection or black holes. Route leaks differ from prefix hijacks — the route is legitimate but propagated through an unauthorized path. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise Security — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"juniper:junos\") earliest=-24h\n  \"%BGP\" AND (\"ipv6\" OR \"afi.*2\") AND (\"UPDATE\" OR \"AS_PATH\")\n| rex field=_raw \"AS_PATH\\s*(?<as_path>[\\d\\s]+)\"\n| rex field=_raw \"prefix\\s*(?<prefix>[0-9a-fA-F:/]+)\"\n| eval path_length=len(replace(trim(as_path), \"\\d+\", \".\")) + 1\n| eval route_leak=case(\n    path_length > 6 AND match(as_path, \"(?:^|\\s)(174|3356|1299|2914|6461|3257)(\\s|$)\"), \"POSSIBLE LEAK — transit AS in path from peer\",\n    match(as_path, \"(\\d+)\\s+\\1\"), \"PREPENDING detected (may indicate leak mitigation)\",\n    1=1, null())\n| where isnotnull(route_leak)\n| stats count as events by host, prefix, as_path, route_leak\n| sort -events",
-  "description": "Detects IPv6 BGP route leaks (RFC 7908) where routes are propagated through unauthorized paths. Route leaks can cause traffic to traverse unintended autonomous systems, enabling surveillance or causing congestion. Classifies leaks by type and severity.",
-  "value": "BGP route leaks are a frequent cause of internet outages and traffic interception. Unlike prefix hijacks (which forge the origin), route leaks propagate legitimate routes through unauthorized paths. Monitoring for anomalous AS paths — especially transit ASes appearing in paths from non-transit peers — provides early detection before the leak causes widespread impact.",
+  "description": "Surfaces UC-5.20.128 — IPv6, BGP, Route, Leak, Detection — using `index=network` sourcetype `cisco:ios`, grouped by `host`, `prefix`, `as_path`, `route_leak`. Outputs `count` each `the scheduled window`; alert when `path_length` > 6. Primary focus: and Classification. Purpose-built for 'IPv6 BGP Route Leak Detection and Classification' in Operations workflows.",
+  "value": "Operators running UC-5.20.128 on `cisco:ios` feeds shorten triage for and Classification tied to 'IPv6 BGP Route Leak Detection and Classification', lowering operational risk and delayed incident response.",
   "implementation": "Monitor BGP UPDATE messages for anomalous AS path patterns. Detect transit ASes in non-transit peer paths. Track path length anomalies.",
   "visualization": "(1) Table: detected route leaks. (2) Timeline: leak events. (3) AS path analysis. (4) Single-value: active leaks.",
   "references": [
     {
       "title": "RFC 7908 — Problem Definition and Classification of BGP Route Leaks",
-      "url": "https://www.rfc-editor.org/rfc/rfc7908"
+      "url": "https://www.rfc-editor.org/rfc/rfc7908",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9234 — Route Leak Prevention and Detection Using Roles in UPDATE and OPEN Messages",
-      "url": "https://www.rfc-editor.org/rfc/rfc9234"
+      "url": "https://www.rfc-editor.org/rfc/rfc9234",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Legitimate transit.** Some paths legitimately traverse transit ASes. Baseline normal paths before alerting.\n\n**BGP communities.** Some route leaks are mitigated before they reach you via BGP communities. The alert may fire for paths that are already mitigated upstream.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.128)** — Planned work for 'IPv6 BGP Route Leak Detection and Classification' shifts `count` over `span=1h` while `host`, `prefix`, `as_path`, `route_leak` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ios`** — Scheduled automation elevates `prefix` without crossing `path_length` > 6 for UC-5.20.128. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `prefix`, `as_path`, `route_leak`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.20.128 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "juniper"
@@ -42,7 +60,7 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• BGP peering with AS path logging.\n• Knowledge of expected AS paths for your prefixes.\n\nStep 1 — Enable BGP UPDATE logging.\n\nStep 2 — Create monitoring searches for anomalous AS paths.\n\nStep 3 — Validate: Compare detected paths against expected paths.\n\nStep 4 — Operationalize\n**Dashboard:** BGP route leak detection. **Alert:** Route leak detected — critical.\n\nStep 5 — Troubleshooting\n• Deploy BGP Roles (RFC 9234) to prevent route leaks at the protocol level.",
+  "detailedImplementation": "Prerequisites\n• BGP peering with AS path logging.\n• Knowledge of expected AS paths for your prefixes.\n\nStep 1 — Enable BGP UPDATE logging.\n\nStep 2 — Create monitoring searches for anomalous AS paths.\n\nStep 3 — Validate: Compare detected paths against expected paths.\n\nStep 4 — Operationalize\n**Dashboard:** BGP route leak detection. **Alert:** Route leak detected — critical.\n\nStep 5 — Troubleshooting\n• Deploy BGP Roles (RFC 9234) to prevent route leaks at the protocol level.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ios, juniper:junos into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`as_path, host, path_length, prefix`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "A route leak is when a postal worker accidentally shares your mail route with the wrong postal network, so your letters take a detour through places they shouldn't go. We watch for these routing mistakes because they can cause delays or let someone peek at the letters.",
   "prerequisiteUseCases": [
     "UC-5.20.44",

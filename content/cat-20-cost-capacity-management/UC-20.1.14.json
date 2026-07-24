@@ -8,11 +8,17 @@
     "Cost"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Savings Plans utilization report",
-  "app": "AWS Cost Explorer export, `aws:savings_plan` sourcetype",
+  "exclusions": "Covers the detection logic documented for 'Savings Plan Utilization and Hourly Burn' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_savings_plan_utilization_and_hourly_burn` (UC-20.1.14), SOC dashboard panel \"Operations — Savings Plan Utilization and Hourly Burn\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-20.1.14 positive (Savings, Plan, Utilization, and, Hourly): ingest synthetic events into `index=cloud_cost` sourcetype='aws:savings_plan' where `count` grouped by `savings_plan_arn` satisfies `util` < 90, or `unused` > 100 for 'Savings Plan Utilization and Hourly Burn'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-20.1.14 negative (Hourly Burn): ingest benign `cloud_cost` / `aws:savings_plan` events where `savings_plan_arn` stays below `util` < 90, or `unused` > 100, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'Savings Plan Utilization and Hourly Burn'."
+  },
+  "dataSources": "Savings Plans utilization report Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "AWS Cost Explorer export, `aws:savings_plan` sourcetype — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=cloud_cost sourcetype=\"aws:savings_plan\" earliest=-7d\n| stats latest(utilization_pct) as util, latest(unused_commitment_hrs) as unused by savings_plan_arn\n| where util < 90 OR unused>100\n| table savings_plan_arn, util, unused",
-  "description": "Savings Plan utilization % and unused commitment hours — operational view for FinOps reviews (related to UC-20.2.9).",
-  "value": "Savings Plan utilization % and unused commitment hours — operational view for FinOps reviews (related to UC-20.2.9).",
+  "description": "Identifies UC-20.1.14 — Savings, Plan, Utilization, and, Hourly — using `index=cloud_cost` sourcetype `aws:savings_plan`, grouped by `savings_plan_arn`. Outputs `count` each `the scheduled window`; alert when `util` < 90, or `unused` > 100. Primary focus: Hourly Burn. Purpose-built for 'Savings Plan Utilization and Hourly Burn' in Operations workflows.",
+  "value": "Operators running UC-20.1.14 on `aws:savings_plan` feeds shorten triage for Hourly Burn tied to 'Savings Plan Utilization and Hourly Burn', lowering operational risk and delayed incident response.",
   "implementation": "Schedule daily SP utilization CSV from S3. Alert when utilization <90% for 3+ days. Recommend exchange/modify.",
   "visualization": "Gauge (SP utilization), Table (underutilized plans), Line chart (util trend).",
   "cimModels": [
@@ -22,14 +28,40 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1876",
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Idle resources for DR standby capacity, scheduled batch processors, or planned future-use staging.",
+  "knownFalsePositives": "1. **Maintenance window on `cloud_cost` (UC-20.1.14)** — Planned work for 'Savings Plan Utilization and Hourly Burn' shifts `count` over `span=1h` while `savings_plan_arn` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:savings_plan`** — Scheduled automation elevates `src` without crossing `util` < 90 for UC-20.1.14. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `savings_plan_arn`** — Health checks in `cloud_cost` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:savings_plan`** — First 48h baseline for UC-20.1.14 on `savings_plan_arn` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `savings_plan_arn`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "exchange"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: AWS Cost Explorer export, `aws:savings_plan` sourcetype.\n• Ensure the following data sources are available: Savings Plans utilization report.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nSchedule daily SP utilization CSV from S3. Alert when utilization <90% for 3+ days. Recommend exchange/modify.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud_cost sourcetype=\"aws:savings_plan\" earliest=-7d\n| stats latest(utilization_pct) as util, latest(unused_commitment_hrs) as unused by savings_plan_arn\n| where util < 90 OR unused>100\n| table savings_plan_arn, util, unused\n```\n\nUnderstanding this SPL\n\n**Savings Plan Utilization and Hourly Burn** — Savings Plan utilization % and unused commitment hours — operational view for FinOps reviews (related to UC-20.2.9).\n\nDocumented **Data sources**: Savings Plans utilization report. **App/TA** (typical add-on context): AWS Cost Explorer export, `aws:savings_plan` sourcetype. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud_cost; **sourcetype**: aws:savings_plan. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud_cost, sourcetype=\"aws:savings_plan\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by savings_plan_arn** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where util < 90 OR unused>100` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Savings Plan Utilization and Hourly Burn**): table savings_plan_arn, util, unused\n\n\nStep 3 — Validate\ncompare with Cost Explorer; compare with the cloud billing console for the same scope, accounts, and time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (SP utilization), Table (underutilized plans), Line chart (util trend).",
-  "grandmaExplanation": "Cost and capacity tools watch how much we spend on cloud and the data center, and where we have spare or strained capacity."
+  "equipmentModels": [
+    "aws_generic",
+    "exchange_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: AWS Cost Explorer export, `aws:savings_plan` sourcetype.\n• Ensure the following data sources are available: Savings Plans utilization report.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nSchedule daily SP utilization CSV from S3. Alert when utilization <90% for 3+ days. Recommend exchange/modify.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud_cost sourcetype=\"aws:savings_plan\" earliest=-7d\n| stats latest(utilization_pct) as util, latest(unused_commitment_hrs) as unused by savings_plan_arn\n| where util < 90 OR unused>100\n| table savings_plan_arn, util, unused\n```\n\nUnderstanding this SPL\n\n**Savings Plan Utilization and Hourly Burn** — Savings Plan utilization % and unused commitment hours — operational view for FinOps reviews (related to UC-20.2.9).\n\nDocumented **Data sources**: Savings Plans utilization report. **App/TA** (typical add-on context): AWS Cost Explorer export, `aws:savings_plan` sourcetype. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud_cost; **sourcetype**: aws:savings_plan. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud_cost, sourcetype=\"aws:savings_plan\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by savings_plan_arn** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where util < 90 OR unused>100` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Savings Plan Utilization and Hourly Burn**): table savings_plan_arn, util, unused\n\n\nStep 3 — Validate\ncompare with Cost Explorer; compare with the cloud billing console for the same scope, accounts, and time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (SP utilization), Table (underutilized plans), Line chart (util trend).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (AWS Cost Explorer export, `aws:savings_plan` sourcetype — Splunk Add-on for Amazon Web Services (Splunkbase 1876)). Enable the modular input or HEC token that writes sourcetype=aws:savings_plan into cloud_cost. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`savings_plan_arn, unused, util`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "Cost and capacity tools watch how much we spend on cloud and the data center, and where we have spare or strained capacity.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

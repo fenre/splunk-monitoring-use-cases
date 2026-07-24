@@ -9,27 +9,55 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Kestra executions (`kestra:execution`).",
-  "app": "Kestra execution events via the Kestra API to HEC and server logs via UF.",
+  "exclusions": "Covers the detection logic documented for 'Kestra Flow Freshness SLA' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_kestra_flow_freshness_sla` (UC-24.7.73), SOC dashboard panel \"Operations — Kestra Flow Freshness SLA\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.7.73 positive (Kestra, Flow, Freshness, SLA): ingest synthetic events into `index=bi` sourcetype='kestra:execution' where `count` grouped by `flow_id` satisfies `hours_stale` > 12 for 'Kestra Flow Freshness SLA'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.73 negative (Freshness SLA): ingest benign `bi` / `kestra:execution` events where `flow_id` stays below `hours_stale` > 12, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'Kestra Flow Freshness SLA'."
+  },
+  "dataSources": "Kestra executions (`kestra:execution`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Kestra execution events via the Kestra API to HEC and server logs via UF. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=kestra:execution state=\"SUCCESS\"\n| stats latest(_time) as last_success by flow_id\n| eval hours_stale=round((now()-last_success)/3600,1)\n| where hours_stale>12\n| sort - hours_stale",
-  "description": "Tracks the last successful update of each Kestra flow and flags those that have not refreshed within their freshness window, catching stale data even when no job reports a failure.",
-  "value": "A flow can go stale without any error (a paused schedule, a missed trigger); freshness-SLA monitoring closes that blind spot for Kestra.",
+  "description": "Surfaces UC-24.7.73 — Kestra, Flow, Freshness, SLA — using `index=bi` sourcetype `kestra:execution`, grouped by `flow_id`. Outputs `count` each `the scheduled window`; alert when `hours_stale` > 12. Primary focus: Freshness SLA. Purpose-built for 'Kestra Flow Freshness SLA' in Operations workflows.",
+  "value": "Tracking `activity` via UC-24.7.73 on `kestra:execution` feeds improves response to 'Kestra Flow Freshness SLA' and reduces operational risk and delayed incident response.",
   "implementation": "Ingest Kestra success events; schedule hourly and alert when a critical flow exceeds its freshness window.",
   "visualization": "Table of flow by hours stale, freshness heat map.",
   "cimModels": [],
   "references": [
     {
       "title": "Kestra — Documentation",
-      "url": "https://kestra.io/docs"
+      "url": "https://kestra.io/docs",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Kestra — Monitoring & metrics",
-      "url": "https://kestra.io/docs/administrator-guide/monitoring"
+      "url": "https://kestra.io/docs/administrator-guide/monitoring",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "We check that each part of Kestra has updated recently so nobody relies on old data."
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.7.73)** — Planned work for 'Kestra Flow Freshness SLA' shifts `count` over `span=1h` while `flow_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `kestra:execution`** — Scheduled automation elevates `hours_stale` without crossing `hours_stale` > 12 for UC-24.7.73. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `flow_id`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kestra:execution`** — First 48h baseline for UC-24.7.73 on `flow_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `flow_id`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Kestra execution events via the Kestra API to HEC and server logs via UF. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=kestra:execution into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`flow_id, hours_stale`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We check that each part of Kestra has updated recently so nobody relies on old data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

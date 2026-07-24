@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'New OT Device Detection Alert' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_new_ot_device_detection_alert` (UC-14.9.2), SOC dashboard panel \"Operations — New OT Device Detection Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.9.2 positive (New, Device, Detection, Alert): ingest synthetic events into `index=nozomi` sourcetype='nozomi:alert' where `count` grouped by `entity` satisfies detection threshold for 'New OT Device Detection Alert'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.9.2 negative (Detection Alert): ingest benign `nozomi` / `nozomi:alert` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'New OT Device Detection Alert'."
+  },
   "dataSources": "`sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id=\"ASSET-NEW\")",
   "app": "`Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)",
   "spl": "index=nozomi sourcetype=\"nozomi:alert\" type_id=\"ASSET-NEW\"\n| table _time, name, ip, mac_address, zone, risk\n| sort -_time",
-  "description": "Any new device appearing on a baselined OT network is a potential threat — rogue devices, unauthorized laptops, or attacker implants. OT security platforms detect new components automatically and generate alerts. Immediate alerting enables rapid investigation before a threat can spread.",
-  "value": "Any new device appearing on a baselined OT network is a potential threat — rogue devices, unauthorized laptops, or attacker implants. OT security platforms detect new components automatically and generate alerts. Immediate alerting enables rapid investigation before a threat can spread.",
+  "description": "Identifies UC-14.9.2 — New, Device, Detection, Alert — using `index=nozomi` sourcetype `nozomi:alert`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Detection Alert. Purpose-built for 'New OT Device Detection Alert' in Operations workflows.",
+  "value": "Operators running UC-14.9.2 on `nozomi:alert` feeds shorten triage for Detection Alert tied to 'New OT Device Detection Alert', lowering operational risk and delayed incident response.",
   "implementation": "**Cyber Vision:** Forward syslog to Splunk (CEF format via TCP/TLS); alert on `component_new` events. **Nozomi:** Enable `alert` data input; filter on `type_id=\"ASSET-NEW\"`. Both platforms detect new devices automatically. Enrich with sensor/zone location to identify physical site. Cross-reference against approved asset list. Investigate unauthorized devices within SLA.",
   "visualization": "New device alert timeline; device location map by sensor; unauthorized device table.",
   "cimModels": [
@@ -22,18 +28,40 @@
   "references": [
     {
       "title": "Splunkbase app 5748",
-      "url": "https://splunkbase.splunk.com/app/5748"
+      "url": "https://splunkbase.splunk.com/app/5748",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase app 6905",
-      "url": "https://splunkbase.splunk.com/app/6905"
+      "url": "https://splunkbase.splunk.com/app/6905",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Newly seen devices from VLAN mirrors, test gear, or temporary contractor laptops on process segments.",
+  "knownFalsePositives": "1. **Maintenance window on `nozomi` (UC-14.9.2)** — Planned work for 'New OT Device Detection Alert' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `nozomi:alert`** — Scheduled automation elevates `src` without crossing configured threshold for UC-14.9.2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `nozomi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nozomi:alert`** — First 48h baseline for UC-14.9.2 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
   ],
+  "equipmentModels": [
+    "cisco_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905).\n• Ensure the following data sources are available: `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id=\"ASSET-NEW\").\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n**Cyber Vision:** Forward syslog to Splunk (CEF format via TCP/TLS); alert on `component_new` events. **Nozomi:** Enable `alert` data input; filter on `type_id=\"ASSET-NEW\"`. Both platforms detect new devices automatically. Enrich with sensor/zone location to identify physical site. Cross-reference against approved asset list. Investigate unauthorized devices within SLA.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=nozomi sourcetype=\"nozomi:alert\" type_id=\"ASSET-NEW\"\n| table _time, name, ip, mac_address, zone, risk\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**New OT Device Detection Alert** — Any new device appearing on a baselined OT network is a potential threat — rogue devices, unauthorized laptops, or attacker implants. OT security platforms detect new components automatically and generate alerts. Immediate alerting enables rapid investigation before a threat can spread.\n\nDocumented **Data sources**: `sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:alert` (type_id=\"ASSET-NEW\"). **App/TA** (typical add-on context): `Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: nozomi; **sourcetype**: nozomi:alert. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=nozomi, sourcetype=\"nozomi:alert\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Pipeline stage (see **New OT Device Detection Alert**): table _time, name, ip, mac_address, zone, risk\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nRun the search for a time range that should include both routine and change activity, then compare the same assets, flows, and alerts in the Cisco Cyber Vision UI and in Nozomi Guardian or CMC, matching whichever source the event came from. Reconcile severities, counts, and key fields in both tools.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: New device alert timeline; device location map by sensor; unauthorized device table.",
-  "grandmaExplanation": "We flag devices we have not seen before on the OT side so a rogue or mis-placed box is not just another line on a diagram."
+  "grandmaExplanation": "We flag devices we have not seen before on the OT side so a rogue or mis-placed box is not just another line on a diagram.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

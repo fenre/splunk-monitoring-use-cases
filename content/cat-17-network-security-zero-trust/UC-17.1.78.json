@@ -8,6 +8,8 @@
     "Operations"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Covers the detection logic documented for 'ISE PSN Authentication Distribution Imbalance and Sticky-Session Detection' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_ise_psn_authentication_distribution_imbalance_an` (UC-17.1.78), SOC dashboard panel \"Network — ISE PSN Authentication Distribution Imbalance and Sticky-Session Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "iso-27001",
@@ -35,14 +37,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Disable secondary RADIUS server on a NAD; one PSN receives all auth traffic. UC-17.1.78 fires.",
-    "negativeScenario": "Balanced cluster. No fire."
+    "positiveScenario": "UC-17.1.78 positive (ISE, PSN, Authentication, Distribution, Imbalance): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `avg_count`, `stdev_count` grouped by `host` satisfies detection threshold for 'ISE PSN Authentication Distribution Imbalance and Sticky-Session Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.78 negative (Session Detection): ingest benign `nac` / `cisco:ise:syslog` events where `host` stays below detection threshold, or exclude the test entity via `network_exception_register.csv`. Variant 12 confirms zero alert rows for 'ISE PSN Authentication Distribution Imbalance and Sticky-Session Detection'."
   },
-  "dataSources": "ISE syslog *Passed-Authentications* (5200) — count auths per PSN. Authentication is normally distributed across PSNs by NAD primary/secondary RADIUS server config or by load-balancer (F5, Catalyst PBR-LB).",
-  "app": "`Splunk Add-on for Cisco Identity Services`.",
+  "dataSources": "ISE syslog *Passed-Authentications* (5200) — count auths per PSN. Authentication is normally distributed across PSNs by NAD primary/secondary RADIUS server config or by load-balancer (F5, Catalyst PBR-LB). Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode=5200\n| stats count as auth_count by host\n| eventstats avg(auth_count) as avg_count, stdev(auth_count) as stdev_count\n| eval z_score=(auth_count - avg_count) / stdev_count\n| where abs(z_score) > 2",
-  "description": "Detects when one PSN is receiving disproportionately more or fewer auths than its peers — usually caused by NAD misconfiguration (forgotten secondary RADIUS), load-balancer health-check failure, or sticky-session affinity gone wrong.",
-  "value": "Imbalanced PSN load means one PSN works hard while others sit idle — and is often the first sign of a load-balancer or RADIUS-server-list misconfiguration. Catching it preserves capacity headroom on the busy PSN.",
+  "description": "Alerts on UC-17.1.78 — ISE, PSN, Authentication, Distribution, Imbalance — using `index=nac` sourcetype `cisco:ise:syslog`, grouped by `host`. Outputs `avg_count`, `stdev_count` each `the scheduled window`; alert when configured threshold. Primary focus: Session Detection. Purpose-built for 'ISE PSN Authentication Distribution Imbalance and Sticky-Session Detection' in Network workflows.",
+  "value": "Tracking `avg_count`, `stdev_count` via UC-17.1.78 on `cisco:ise:syslog` feeds improves response to 'ISE PSN Authentication Distribution Imbalance and Sticky-Session Detection' and reduces unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Schedule every 30 min.",
   "visualization": "Per-PSN auth distribution; z-score chart; load-balancer health.",
   "cimModels": [],
@@ -50,10 +52,26 @@
   "references": [
     {
       "title": "Cisco ISE 3.4 — Load Distribution",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "ISO/IEC 27001:2022",
+      "url": "https://www.iso.org/standard/27001",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) Geographic load distribution — campus PSNs serve only local NADs.\n(b) Active/standby designs.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'ISE PSN Authentication Distribution Imbalance and Sticky-Session Detection'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "N/A (SLO monitoring — measures PSN load distribution, no adversary technique)"
   ],
@@ -71,7 +89,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Standard pattern.",
+  "detailedImplementation": "Standard pattern.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "ISE has multiple servers. They should share work equally. We notice when one server suddenly does much more (or less) than the others, which usually means something is misconfigured.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

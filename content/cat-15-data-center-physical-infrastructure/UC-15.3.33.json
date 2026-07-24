@@ -9,11 +9,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Cisco Spaces Firehose API (IOT_TELEMETRY events), Meraki sensor API",
+  "exclusions": "Covers the detection logic documented for 'Environmental Sensor Monitoring (Temperature, Humidity, Air Quality)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_environmental_sensor_monitoring_temperature_humi` (UC-15.3.33), SOC dashboard panel \"Operations — Environmental Sensor Monitoring (Temperature, Humidity, Air Quality)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-15.3.33 positive (Environmental, Sensor, Monitoring, (Temperature,, Humidity,): ingest synthetic events into `index=cisco_spaces` sourcetype='cisco:spaces:sensors' where `values` grouped by `sensorName`, `sensorModel`, `location`, `building` satisfies `temperature` > 28, `temperature` < 16, `humidity` > 70, or `humidity` < 20 for 'Environmental Sensor Monitoring (Temperature, Humidity, Air Quality)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-15.3.33 negative (Air Quality)): ingest benign `cisco_spaces` / `cisco:spaces:sensors` events where `sensorName`, `sensorModel`, `location`, `building` stays below `temperature` > 28, `temperature` < 16, `humidity` > 70, or `humidity` < 20, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Environmental Sensor Monitoring (Temperature, Humidity, Air Quality)'."
+  },
+  "dataSources": "Cisco Spaces Firehose API (IOT_TELEMETRY events), Meraki sensor API Indexes: cisco_spaces. Sourcetypes: cisco:spaces:sensors. Key fields: alert, building, co2, humidity, location, pm25, sensorModel, sensorName. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Spaces Add-On for Splunk` (Splunkbase 8485), Cisco Spaces IoT Explorer, Meraki Dashboard API",
   "spl": "index=cisco_spaces sourcetype=\"cisco:spaces:sensors\"\n| eval alert=case(temperature>28, \"High Temperature\", temperature<16, \"Low Temperature\", humidity>70, \"High Humidity\", humidity<20, \"Low Humidity\", pm25>35, \"Poor Air Quality (PM2.5)\", co2>1000, \"High CO2\", tvoc>500, \"High TVOC\", waterDetected=\"true\", \"Water Leak Detected\", 1==1, null())\n| where isnotnull(alert)\n| stats latest(temperature) as temp, latest(humidity) as humidity, latest(pm25) as pm25, latest(co2) as co2, values(alert) as alerts by sensorName, sensorModel, location, building\n| sort -temp\n| table sensorName, sensorModel, location, building, temp, humidity, pm25, co2, alerts",
-  "description": "Monitors environmental conditions using Meraki MT sensors — temperature, humidity, air quality (PM2.5, TVOC, CO2), and water leaks. Protects server rooms and network closets from overheating, monitors warehouse cold-chain compliance, detects water leaks before they cause damage, and ensures office air quality meets health standards. Sensor data with five days of onboard storage survives network outages. Threshold-based alerting enables immediate response to environmental hazards.",
-  "value": "Monitors environmental conditions using Meraki MT sensors — temperature, humidity, air quality (PM2.5, TVOC, CO2), and water leaks. Protects server rooms and network closets from overheating, monitors warehouse cold-chain compliance, detects water leaks before they cause damage, and ensures office air quality meets health standards. Sensor data with five days of onboard storage survives network outages. Threshold-based alerting enables immediate response to environmental hazards.",
+  "description": "Detects UC-15.3.33 — Environmental, Sensor, Monitoring, (Temperature,, Humidity, — using `index=cisco_spaces` sourcetype `cisco:spaces:sensors`, grouped by `sensorName`, `sensorModel`, `location`, `building`. Outputs `values` each `the scheduled window`; alert when `temperature` > 28, `temperature` < 16, `humidity` > 70, or `humidity` < 20. Primary focus: Air Quality). Purpose-built for 'Environmental Sensor Monitoring (Temperature, Humidity, Air Quality)' in Operations workflows.",
+  "value": "UC-15.3.33 accelerates insight into Air Quality) ('Environmental Sensor Monitoring (Temperature, Humidity, Air Quality)') by tracking `activity` on `cisco:spaces:sensors` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Deploy Meraki MT sensors and associate them with Meraki MR access points as BLE gateways. Configure sensor thresholds in Meraki Dashboard for local alerting. Stream telemetry to Splunk via the Spaces Add-On or direct Meraki webhook integration to HEC. Define location-specific thresholds (server rooms: 18-27°C; offices: 20-24°C; cold storage: 2-8°C). Create severity tiers: warning (approaching threshold), critical (exceeding threshold), emergency (water leak, extreme temperature). MT sensors have five-year battery life and five days of onboard data storage.",
   "visualization": "Gauge panels (current temp/humidity per zone), Line chart (environmental trends over 7 days), Map (sensor locations with color-coded status), Alert table (active environmental alerts).",
   "cimModels": [
@@ -23,10 +29,26 @@
   "references": [
     {
       "title": "Splunkbase app 8485",
-      "url": "https://splunkbase.splunk.com/app/8485"
+      "url": "https://splunkbase.splunk.com/app/8485",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Security (Splunkbase 1352)",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Leak alerts from condensation, scheduled maintenance moisture, or false-trigger sensors.",
+  "knownFalsePositives": "1. **Maintenance window on `cisco_spaces` (UC-15.3.33)** — Planned work for 'Environmental Sensor Monitoring (Temperature, Humidity, Air Quality)' shifts `values` over `span=1h` while `sensorName`, `sensorModel`, `location`, `building` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `cisco:spaces:sensors`** — Scheduled automation elevates `sensorModel` without crossing `temperature` > 28 for UC-15.3.33. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sensorName`, `sensorModel`, `location`, `building`** — Health checks in `cisco_spaces` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:spaces:sensors`** — First 48h baseline for UC-15.3.33 on `sensorName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `sensorName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
@@ -34,7 +56,13 @@
     "cisco_meraki",
     "cisco_spaces"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Spaces Add-On for Splunk` (Splunkbase 8485), Cisco Spaces IoT Explorer, Meraki Dashboard API.\n• Ensure the following data sources are available: Cisco Spaces Firehose API (IOT_TELEMETRY events), Meraki sensor API.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy Meraki MT sensors and associate them with Meraki MR access points as BLE gateways. Configure sensor thresholds in Meraki Dashboard for local alerting. Stream telemetry to Splunk via the Spaces Add-On or direct Meraki webhook integration to HEC. Define location-specific thresholds (server rooms: 18-27°C; offices: 20-24°C; cold storage: 2-8°C). Create severity tiers: warning (approaching threshold), critical (exceeding threshold), emergency (water leak, extreme temperature). MT sensors have…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cisco_spaces sourcetype=\"cisco:spaces:sensors\"\n| eval alert=case(temperature>28, \"High Temperature\", temperature<16, \"Low Temperature\", humidity>70, \"High Humidity\", humidity<20, \"Low Humidity\", pm25>35, \"Poor Air Quality (PM2.5)\", co2>1000, \"High CO2\", tvoc>500, \"High TVOC\", waterDetected=\"true\", \"Water Leak Detected\", 1==1, null())\n| where isnotnull(alert)\n| stats latest(temperature) as temp, latest(humidity) as humidity, latest(pm25) as pm25, latest(co2) as co2, values(alert) as alerts by sensorName, sensorModel, location, building\n| sort -temp\n| table sensorName, sensorModel, location, building, temp, humidity, pm25, co2, alerts\n```\n\nUnderstanding this SPL\n\n**Environmental Sensor Monitoring (Temperature, Humidity, Air Quality)** — Monitors environmental conditions using Meraki MT sensors — temperature, humidity, air quality (PM2.5, TVOC, CO2), and water leaks. Protects server rooms and network closets from overheating, monitors warehouse cold-chain compliance, detects water leaks before they cause damage, and ensures office air quality meets health standards. Sensor data with five days of onboard storage survives network outages. Threshold-based alerting enables immediate response to environmental…\n\nDocumented **Data sources**: Cisco Spaces Firehose API (IOT_TELEMETRY events), Meraki sensor API. **App/TA** (typical add-on context): `Spaces Add-On for Splunk` (Splunkbase 8485), Cisco Spaces IoT Explorer, Meraki Dashboard API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cisco_spaces; **sourcetype**: cisco:spaces:sensors. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cisco_spaces, sourcetype=\"cisco:spaces:sensors\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **alert** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where isnotnull(alert)` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by sensorName, sensorModel, location, building** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Environmental Sensor Monitoring (Temperature, Humidity, Air Quality)**): table sensorName, sensorModel, location, building, temp, humidity, pm25, co2, alerts\n\n\nStep 3 — Validate\nCompare with the BMS console for the same equipment, sensors, and time range.\n\n\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge panels (current temp/humidity per zone), Line chart (environmental trends over 7 days), Map (sensor locations with color-coded status), Alert table (active environmental alerts).",
   "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
-  "hardware": "Cisco Meraki MT10 (temperature/humidity), MT11 (temperature probe), MT12 (water leak), MT14 (air quality — PM2.5, TVOC, noise, temp, humidity), MT15 (CO2, PM2.5, TVOC, noise, temp, humidity), MT20 (open/close door sensor), MT30 (smart automation button)"
+  "hardware": "Cisco Meraki MT10 (temperature/humidity), MT11 (temperature probe), MT12 (water leak), MT14 (air quality — PM2.5, TVOC, noise, temp, humidity), MT15 (CO2, PM2.5, TVOC, noise, temp, humidity), MT20 (open/close door sensor), MT30 (smart automation button)",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

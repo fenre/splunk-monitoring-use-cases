@@ -9,23 +9,55 @@
     "Anomaly"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`).",
-  "app": "Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as file inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Running Pace Improvement Trend' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_running_pace_improvement_trend` (UC-25.1.2), SOC dashboard panel \"Personal — Running Pace Improvement Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.1.2 positive (Running, Pace, Improvement, Trend): ingest synthetic events into `index=personal` sourcetype='strava:activity' where `avg_pace`, `season_avg` grouped by `entity` satisfies `distance_km` > 3 for 'Running Pace Improvement Trend'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.1.2 negative (Improvement Trend): ingest benign `personal` / `strava:activity` events where `entity` stays below `distance_km` > 3, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 7 confirms zero alert rows for 'Running Pace Improvement Trend'."
+  },
+  "dataSources": "Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as file inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=strava:activity type=Run distance_km>3\n| eval pace_min_km=round((moving_time_s/60)/distance_km,2)\n| timechart span=1w avg(pace_min_km) as avg_pace\n| eventstats avg(avg_pace) as season_avg\n| eval faster_than_season=if(avg_pace<season_avg,1,0)",
-  "description": "Calculates your average minutes-per-kilometre pace each week and trends it so you can see whether your training is actually making you faster.",
-  "value": "Weekly pace trending separates real fitness progress from a single good or bad run, showing whether a training block is paying off before a race.",
+  "description": "Monitors UC-25.1.2 — Running, Pace, Improvement, Trend — using `index=personal` sourcetype `strava:activity`, grouped by `entity`. Outputs `avg_pace`, `season_avg` each `1w`; alert when `distance_km` > 3. Primary focus: Improvement Trend. Purpose-built for 'Running Pace Improvement Trend' in Personal workflows.",
+  "value": "UC-25.1.2 operationalises 'Running Pace Improvement Trend' against `strava:activity` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Ingest Strava runs with distance and moving time; schedule weekly and review the pace line against your season average before planning the next block.",
   "visualization": "Line chart of weekly average pace (lower is better) with a season-average band.",
   "cimModels": [],
   "references": [
     {
       "title": "Strava — API reference",
-      "url": "https://developers.strava.com/docs/reference/"
+      "url": "https://developers.strava.com/docs/reference/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It works out how fast you have been running each week and shows whether you are getting quicker over time."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.1.2)** — Connector for 'Running Pace Improvement Trend' stops polling `strava:activity`; stale `avg_pace`, `season_avg` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_pace`, `season_avg` over `1w` is expected for UC-25.1.2, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `strava:activity`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `distance_km` > 3 for 'Running Pace Improvement Trend'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Strava — REST API or webhook → Splunk HEC scripted input.\n• **Subcategory context**: Fitness & Activity Tracking — typical feeds: Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`), Zwift/TrainingPeaks exports..\n• **Sourcetypes in this search**: `strava:activity`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Strava** events into `index=personal` with `sourcetype=strava:activity`.\n\n**Collection method:** REST API or webhook → Splunk HEC scripted input.\n\n**Reference endpoint / path:** `GET https://www.strava.com/api/v3/athlete/activities`.\n\n**Suggested poll interval:** 900s (or push via Strava webhook subscription).\n\n**Key fields to extract:** `type, distance_km, moving_time_s, start_date, athlete_id`.\n\n**Typical connector stack:** Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as files..\n\n**Author notes:** Ingest Strava runs with distance and moving time; schedule weekly and review the pace line against your season average before planning the next block.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"strava:activity\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=strava:activity earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Running Pace Improvement Trend** over `personal` data (primarily `sourcetype=strava:activity`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `distance_km`, `faster_than_season`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=strava:activity type=Run distance_km>3\n| eval pace_min_km=round((moving_time_s/60)/distance_km,2)\n| timechart span=1w avg(pace_min_km) as avg_pace\n| eventstats avg(avg_pace) as season_avg\n| eval faster_than_season=if(avg_pace<season_avg,1,0)\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Strava app → You → Activities list for the same week totals. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=strava:activity earliest=-7d\n| head 50\n| table distance_km, faster_than_season\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=strava:activity earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `distance_km` before alerting:\n\n```spl\nindex=personal sourcetype=strava:activity earliest=-30d\n| stats perc50(distance_km) AS p50 perc90(distance_km) AS p90 perc99(distance_km) AS p99 max(distance_km) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.1.2: Personal evidence` with the following panel layout:\n\n**Panel 1 — Line Chart Of Weekly Average Pace (`lower is better`):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Strava — no Strava events / missing fields:** If `strava:activity` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Strava connector script is still running (`systemctl status` or cron log).\n\n**Strava — NULL values in extracted fields:** The Strava JSON export shape drifted — compare a raw event (`index=personal sourcetype=strava:activity | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Strava — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Strava — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Strava APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Bucket misalignment:** `span=1w` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1w` buckets.",
+  "grandmaExplanation": "It works out how fast you have been running each week and shows whether you are getting quicker over time.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

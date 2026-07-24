@@ -8,11 +8,17 @@
     "Configuration"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 4771)",
-  "app": "`Splunk_TA_windows`",
+  "exclusions": "Covers the detection logic documented for 'Kerberos Authentication Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_kerberos_authentication_failures` (UC-1.2.31), SOC dashboard panel \"Linux — Kerberos Authentication Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.2.31 positive (Kerberos, Authentication, Failures): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4771 where `count` grouped by `TargetUserName`, `IpAddress`, `failure`, `host` satisfies `count` > 5 for 'Kerberos Authentication Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.2.31 negative (Authentication Failures): ingest benign `wineventlog` / `WinEventLog:Security` events where `TargetUserName`, `IpAddress`, `failure`, `host` stays below `count` > 5, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 8 confirms zero alert rows for 'Kerberos Authentication Failures'."
+  },
+  "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 4771) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4771\n| eval failure=case(Status=\"0x6\",\"Unknown username\",Status=\"0x12\",\"Account disabled/expired/locked\",Status=\"0x17\",\"Password expired\",Status=\"0x18\",\"Bad password\",Status=\"0x25\",\"Clock skew\",1=1,Status)\n| stats count by TargetUserName, IpAddress, failure, host\n| where count > 5\n| sort -count",
-  "description": "Kerberos failures (EventCode 4771) reveal password spraying, expired accounts, clock skew, and misconfigured SPNs. Distinct from NTLM failures and requires separate monitoring.",
-  "value": "Kerberos noise often precedes a wider auth outage—trending by code and user cuts war-room time.",
+  "description": "Identifies UC-1.2.31 — Kerberos, Authentication, Failures — using `index=wineventlog` sourcetype `WinEventLog:Security`, grouped by `TargetUserName`, `IpAddress`, `failure`, `host`. Outputs `count` each `the scheduled window`; alert when `count` > 5. Primary focus: Authentication Failures. Purpose-built for 'Kerberos Authentication Failures' in Linux workflows.",
+  "value": "UC-1.2.31 accelerates insight into Authentication Failures ('Kerberos Authentication Failures') by tracking `activity` on `WinEventLog:Security` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
   "implementation": "Collect Security event logs from all domain controllers. EventCode 4771 is Kerberos pre-auth failure. Status codes: 0x18=wrong password (most common attack indicator), 0x12=disabled/locked, 0x25=clock skew (infrastructure issue). Alert on >10 failures per user in 5 minutes (spray detection). Correlate IpAddress with known endpoints.",
   "visualization": "Table (failures by user and reason), Bar chart (top failing accounts), Timechart (failure rate trending).",
   "cimModels": [
@@ -23,17 +29,38 @@
   "references": [
     {
       "title": "Splunk_TA_windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Clock skew, service accounts with bad secrets, and lab Kerberos hiccups create clusters. NTP and account hygiene fix many rows.",
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `TargetUserName` metrics for 'Kerberos Authentication Failures'. Correlate with apt/yum logs in the same `WinEventLog:Security` window.\n\n2. **Nightly backup I/O on `TargetUserName`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Security`** — Nagios/Zabbix polls `TargetUserName` and mimics sustained load without crossing `count` > 5.\n\n4. **New host onboarding** — `TargetUserName` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `TargetUserName`, `valid_until`.",
   "equipment": [
     "windows"
   ],
+  "equipmentModels": [
+    "windows_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Security` (EventCode 4771).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect Security event logs from all domain controllers. EventCode 4771 is Kerberos pre-auth failure. Status codes: 0x18=wrong password (most common attack indicator), 0x12=disabled/locked, 0x25=clock skew (infrastructure issue). Alert on >10 failures per user in 5 minutes (spray detection). Correlate IpAddress with known endpoints.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4771\n| eval failure=case(Status=\"0x6\",\"Unknown username\",Status=\"0x12\",\"Account disabled/expired/locked\",Status=\"0x17\",\"Password expired\",Status=\"0x18\",\"Bad password\",Status=\"0x25\",\"Clock skew\",1=1,Status)\n| stats count by TargetUserName, IpAddress, failure, host\n| where count > 5\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Kerberos Authentication Failures** — Kerberos failures (EventCode 4771) reveal password spraying, expired accounts, clock skew, and misconfigured SPNs. Distinct from NTLM failures and requires separate monitoring.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 4771). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:Security. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:Security\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **failure** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by TargetUserName, IpAddress, failure, host** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where count > 5` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Authentication where nodename=Authentication\n  where Authentication.action=failure\n  by Authentication.user Authentication.src span=1h\n| where count>0\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Kerberos Authentication Failures** — Kerberos failures (EventCode 4771) reveal password spraying, expired accounts, clock skew, and misconfigured SPNs. Distinct from NTLM failures and requires separate monitoring.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 4771). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n• Filters the current rows with `where count > 10` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (failures by user and reason), Bar chart (top failing accounts), Timechart (failure rate trending).",
-  "grandmaExplanation": "We count Kerberos sign-in problems so you can tell bad keys and clocks from someone guessing passwords at the domain door."
+  "grandmaExplanation": "We count Kerberos sign-in problems so you can tell bad keys and clocks from someone guessing passwords at the domain door.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

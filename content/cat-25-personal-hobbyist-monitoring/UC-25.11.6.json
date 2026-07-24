@@ -8,26 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Pet tracker location/activity (`tractive:position`, `whistle:activity`), smart feeder events (`petfeeder:event`), litter-box usage (`litterrobot:cycle`), bird-feeder detections.",
-  "app": "Pet GPS/activity trackers (Tractive/Fi/Whistle), smart feeders and litter boxes, bird feeders/cams, and plant sensors via vendor APIs and MQTT to HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Pet Sleep and Rest Pattern' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_pet_sleep_and_rest_pattern` (UC-25.11.6), SOC dashboard panel \"Personal — Pet Sleep and Rest Pattern\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.11.6 positive (Pet, Sleep, and, Rest, Pattern): ingest synthetic events into `index=personal` sourcetype='whistle:activity' where `rest`, `active` grouped by `pet_name` satisfies detection threshold for 'Pet Sleep and Rest Pattern'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.11.6 negative (Rest Pattern): ingest benign `personal` / `whistle:activity` events where `pet_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 14 confirms zero alert rows for 'Pet Sleep and Rest Pattern'."
+  },
+  "dataSources": "Pet tracker location/activity (`tractive:position`, `whistle:activity`), smart feeder events (`petfeeder:event`), litter-box usage (`litterrobot:cycle`), bird-feeder detections. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Pet GPS/activity trackers (Tractive/Fi/Whistle), smart feeders and litter boxes, bird feeders/cams, and plant sensors via vendor APIs and MQTT to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=whistle:activity\n| timechart span=1d avg(rest_minutes) as rest, avg(active_minutes) as active by pet_name",
-  "description": "Trends your pet's rest and activity balance day to day, giving you a baseline that makes a lethargic or restless spell obvious.",
-  "value": "Changes in a pet's rest pattern are a subtle health signal; a baseline turns 'seems a bit off' into something you can actually see.",
+  "description": "Monitors UC-25.11.6 — Pet, Sleep, and, Rest, Pattern — using `index=personal` sourcetype `whistle:activity`, grouped by `pet_name`. Outputs `rest`, `active` each `1d`; alert when configured threshold. Primary focus: Rest Pattern. Purpose-built for 'Pet Sleep and Rest Pattern' in Personal workflows.",
+  "value": "Alerting on Pet, Sleep, and, Rest, Pattern through UC-25.11.6 reduces missed training goals, stale hobby data, and connector failures by surfacing `rest`, `active` early.",
   "implementation": "Ingest pet rest/activity data; schedule daily and review the balance for sudden shifts.",
   "visualization": "Line chart of pet rest versus active minutes per day.",
   "cimModels": [],
   "references": [
     {
       "title": "Whistle — Pet health and GPS",
-      "url": "https://www.whistle.com/"
+      "url": "https://www.whistle.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.11.6)** — Connector for 'Pet Sleep and Rest Pattern' stops polling `whistle:activity`; stale `rest`, `active` on `pet_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `rest`, `active` over `1d` is expected for UC-25.11.6, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `whistle:activity`. Dedup with `stats latest(*) by pet_name`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold for 'Pet Sleep and Rest Pattern'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It shows how much your pet rested and played each day, so you notice if they suddenly seem off."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Pets & Home Life — typical feeds: Pet tracker location/activity (`tractive:position`, `whistle:activity`), smart feeder events (`petfeeder:event`), litter-box usage (`litterrobot:cycle`), bird-feeder cam detections, plant/soil sensors.\n• **Sourcetypes in this search**: `whistle:activity`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=whistle:activity`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Pet GPS/activity trackers (Tractive/Fi/Whistle), smart feeders and litter boxes, bird feeders/cams, and plant sensors via vendor APIs and MQTT to HEC..\n\n**Author notes:** Ingest pet rest/activity data; schedule daily and review the balance for sudden shifts.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"whistle:activity\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=whistle:activity earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Pet Sleep and Rest Pattern** over `personal` data (primarily `sourcetype=whistle:activity`) across the full search range. The `avg` aggregation groups by `pet_name`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `pet_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=whistle:activity\n| timechart span=1d avg(rest_minutes) as rest, avg(active_minutes) as active by pet_name\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=whistle:activity earliest=-7d\n| head 50\n| table pet_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=whistle:activity earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.11.6: Personal evidence` with the following panel layout:\n\n**Panel 1 — Line Chart Of Pet Rest Versus Active Minutes Per Day (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `whistle:activity` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=whistle:activity | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It shows how much your pet rested and played each day, so you notice if they suddenly seem off.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

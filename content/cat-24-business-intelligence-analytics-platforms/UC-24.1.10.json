@@ -9,28 +9,43 @@
     "Data Quality"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Tableau Prep Conductor Flow Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_tableau_prep_conductor_flow_failures` (UC-24.1.10), SOC dashboard panel \"Operations — Tableau Prep Conductor Flow Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.1.10 positive (Tableau, Prep, Conductor, Flow, Failures): ingest synthetic events into `index=bi` sourcetype='tableau:backgrounder' where `sum` grouped by `flow_name` satisfies `failures` > 0 for 'Tableau Prep Conductor Flow Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.1.10 negative (Flow Failures): ingest benign `bi` / `tableau:backgrounder` events where `flow_name` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Tableau Prep Conductor Flow Failures'."
+  },
   "dataSources": "Tableau Server logs (`tableau:backgrounder`, `tableau:vizqlserver`, `tableau:httpd`), `workgroup` repository tables (`background_jobs`, `http_requests`, `_views_stats`, `licensing`) via DB Connect, Tableau Cloud Admin Insights / Activity Log exports.",
   "app": "Splunk DB Connect (Splunkbase 2686) against the Tableau Server `workgroup` PostgreSQL repository; Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC scripted inputs.",
   "spl": "index=bi sourcetype=tableau:backgrounder job_type=run_flow\n| stats count as runs, sum(eval(finish_code!=0)) as failures, latest(finish_code) as last_code by flow_name\n| where failures>0\n| sort - failures",
-  "description": "Tracks Tableau Prep Conductor flow runs and flags data-prep flows that fail, which break the extracts and dashboards downstream of them.",
-  "value": "A failed Prep flow starves every dashboard built on its output; catching flow failures protects the whole downstream chain of Tableau content.",
+  "description": "Detects 'Tableau Prep Conductor Flow Failures' (UC-24.1.10) using `index=bi` sourcetype `tableau:backgrounder` by aggregating `sum` grouped by `flow_name` over `the scheduled window` and alerting when `failures` > 0. Keywords: Tableau, Prep, Conductor, Flow, Failures. Focuses on Flow Failures behaviour so operations teams can triage UC-24.1.10 without ad-hoc log review.",
+  "value": "UC-24.1.10 accelerates insight into Flow Failures ('Tableau Prep Conductor Flow Failures') by tracking `activity` on `tableau:backgrounder` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Ingest Backgrounder run_flow events; schedule hourly and alert. Map each flow to the workbooks it feeds for impact analysis.",
   "visualization": "Table of failing flows, timechart of flow failures.",
   "cimModels": [],
   "references": [
     {
       "title": "Tableau Server — View server logs",
-      "url": "https://help.tableau.com/current/server/en-us/logs_server_view.htm"
+      "url": "https://help.tableau.com/current/server/en-us/logs_server_view.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Tableau REST API reference",
-      "url": "https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api.htm"
+      "url": "https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk DB Connect",
-      "url": "https://splunkbase.splunk.com/app/2686"
+      "url": "https://splunkbase.splunk.com/app/2686",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.1.10)** — Planned work for 'Tableau Prep Conductor Flow Failures' shifts `sum` over `span=1h` while `flow_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `tableau:backgrounder`** — Scheduled automation elevates `src` without crossing `failures` > 0 for UC-24.1.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `flow_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `tableau:backgrounder`** — First 48h baseline for UC-24.1.10 on `flow_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `flow_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "db_connect",
@@ -40,5 +55,12 @@
     "apache_httpd",
     "postgresql_pg"
   ],
-  "grandmaExplanation": "We watch the data-preparation steps that feed your Tableau reports so a broken one is caught before it spoils everything built on top of it."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk DB Connect (Splunkbase 2686) against the Tableau Server `workgroup` PostgreSQL repository; Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC scripted inputs.). Enable the modular input or HEC token that writes sourcetype=tableau:backgrounder into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`failures, flow_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch the data-preparation steps that feed your Tableau reports so a broken one is caught before it spoils everything built on top of it.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

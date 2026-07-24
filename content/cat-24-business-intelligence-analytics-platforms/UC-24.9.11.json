@@ -9,27 +9,55 @@
     "Analytics"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Monte Carlo incident events (`montecarlo:incident`), GraphQL monitor results, and audit exports.",
-  "app": "Monte Carlo webhook/notification events to HEC; Monte Carlo GraphQL API incident and monitor queries via scripted inputs.",
+  "exclusions": "Covers the detection logic documented for 'Monte Carlo Incident MTTR by Domain' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_monte_carlo_incident_mttr_by_domain` (UC-24.9.11), SOC dashboard panel \"Operations — Monte Carlo Incident MTTR by Domain\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.9.11 positive (Monte, Carlo, Incident, MTTR, Domain): ingest synthetic events into `index=bi` sourcetype='montecarlo:incident' where `avg_mttr` grouped by `domain` satisfies detection threshold for 'Monte Carlo Incident MTTR by Domain'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.9.11 negative (by Domain): ingest benign `bi` / `montecarlo:incident` events where `domain` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Monte Carlo Incident MTTR by Domain'."
+  },
+  "dataSources": "Monte Carlo incident events (`montecarlo:incident`), GraphQL monitor results, and audit exports. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Monte Carlo webhook/notification events to HEC; Monte Carlo GraphQL API incident and monitor queries via scripted inputs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=montecarlo:incident\n| transaction incident_id startswith=eval(status=\"NEW\") endswith=eval(status=\"RESOLVED\")\n| eval mttr_hours=round(duration/3600,1)\n| stats avg(mttr_hours) as avg_mttr, p90(mttr_hours) as p90_mttr, count as incidents by domain\n| sort - avg_mttr",
-  "description": "Pairs Monte Carlo incident open/resolve events to compute mean-time-to-resolution per data domain, showing where data-reliability response is slowest.",
-  "value": "MTTR by domain reveals which data teams are overwhelmed and where reliability investment pays off, turning incident noise into an operating metric.",
+  "description": "Alerts on UC-24.9.11 — Monte, Carlo, Incident, MTTR, Domain — using `index=bi` sourcetype `montecarlo:incident`, grouped by `domain`. Outputs `avg_mttr` each `the scheduled window`; alert when configured threshold. Primary focus: by Domain. Purpose-built for 'Monte Carlo Incident MTTR by Domain' in Operations workflows.",
+  "value": "Alerting on Monte, Carlo, Incident, MTTR, Domain through UC-24.9.11 reduces operational risk and delayed incident response by surfacing `avg_mttr` early.",
   "implementation": "Ingest Monte Carlo incident lifecycle events; schedule daily over a trailing month and review MTTR trends with domain owners.",
   "visualization": "Table of domain by MTTR, trend line, incident volume.",
   "cimModels": [],
   "references": [
     {
       "title": "Monte Carlo — API & webhooks",
-      "url": "https://docs.getmontecarlo.com/docs/using-the-api"
+      "url": "https://docs.getmontecarlo.com/docs/using-the-api",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Monte Carlo — Incident notifications",
-      "url": "https://docs.getmontecarlo.com/docs/notifications"
+      "url": "https://docs.getmontecarlo.com/docs/notifications",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "We measure how quickly each data team fixes data problems so leaders can see where help is needed."
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.9.11)** — Planned work for 'Monte Carlo Incident MTTR by Domain' shifts `avg_mttr` over `span=1h` while `domain` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `montecarlo:incident`** — Scheduled automation elevates `mttr_hours` without crossing configured threshold for UC-24.9.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `domain`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `montecarlo:incident`** — First 48h baseline for UC-24.9.11 on `domain` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `domain`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Monte Carlo webhook/notification events to HEC; Monte Carlo GraphQL API incident and monitor queries via scripted inputs. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=montecarlo:incident into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`domain`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We measure how quickly each data team fixes data problems so leaders can see where help is needed.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

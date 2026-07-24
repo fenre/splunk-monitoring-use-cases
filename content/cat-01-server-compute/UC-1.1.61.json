@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=custom:netstat` (parsed `ss -tan` or `netstat` output) with a `state` (or `status`) of `TIME_WAIT` per line",
-  "app": "`Splunk_TA_nix` with a custom scripted input for netstat-style snapshots",
+  "exclusions": "Covers the detection logic documented for 'TCP TIME_WAIT Accumulation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_tcp_time_wait_accumulation` (UC-1.1.61), SOC dashboard panel \"Linux — TCP TIME_WAIT Accumulation\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.61 positive (TCP, TIME, WAIT, Accumulation): ingest synthetic events into `index=os` sourcetype='custom:netstat' where `count` grouped by `host` satisfies detection threshold for 'TCP TIME_WAIT Accumulation'. Validate filter `state=\"TIME_WAIT\" OR status=\"TIME_WAIT\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.61 negative (TIME_WAIT Accumulation): ingest benign `os` / `custom:netstat` events where `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 10 confirms zero alert rows for 'TCP TIME_WAIT Accumulation'."
+  },
+  "dataSources": "`sourcetype=custom:netstat` (parsed `ss -tan` or `netstat` output) with a `state` (or `status`) of `TIME_WAIT` per line Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` with a custom scripted input for netstat-style snapshots — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=custom:netstat host=*\n| search state=\"TIME_WAIT\" OR status=\"TIME_WAIT\"\n| stats count as time_wait_count by host\n| eval warning_level=32000\n| where time_wait_count > warning_level",
-  "description": "Counts how many socket rows in each snapshot are in **TIME_WAIT**, then alerts when a host carries more than about thirty-two thousand of them—common when ephemeral ports or aggressive close patterns go wrong under load.",
-  "value": "A giant TIME_WAIT pile often sits next to “cannot assign requested address” or connect failures; catching it in Splunk spares you from guessing in `ss` on dozens of nodes during an outage.",
+  "description": "Alerts on UC-1.1.61 — TCP, TIME, WAIT, Accumulation — using `index=os` sourcetype `custom:netstat`, grouped by `host`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `state=\"TIME_WAIT\" OR status=\"TIME_WAIT\"`. Purpose-built for 'TCP TIME_WAIT Accumulation' in Linux workflows.",
+  "value": "For 'TCP TIME_WAIT Accumulation', UC-1.1.61 converts `activity` on `custom:netstat` feeds into actionable rows and reduces capacity incidents, patch regressions, and service outages.",
   "implementation": "Parse **netstat**-class output with one event per row or a pre-counted `time_wait_count` per host. The sample assumes many lines per host with `state`/`status`; if you pre-aggregate, adjust the `stats` to `sum(time_wait_count)` instead.",
   "visualization": "Gauge, Single Value",
   "cimModels": [
@@ -21,17 +27,38 @@
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Load generators that open huge fan-out short-lived connections on purpose; `warning_level=32000` may be too low on massive connection brokers—raise per service tier; `search` that misses your field name if the parser used `ST` instead of `state`.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'TCP TIME_WAIT Accumulation'. Correlate with apt/yum logs in the same `custom:netstat` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `custom:netstat`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
-  "detailedImplementation": "Prerequisites\n• Script **ss -tan** or `netstat -tan` on a fixed schedule; `ss` is usually preferred for speed. Emit **key=value** including **host** and the socket **state**.\n\nStep 1 — Configure data collection\nCoalesce `state` and `status` in **props** if vendors differ, so the `search` line works without OR spam.\n\nStep 2 — Create the search and alert\nSPL in the `spl` field; change **32000** to a number derived from your OS `ip_local_port_range` and workload.\n\n**Understanding this SPL** — `search` first keeps only `TIME_WAIT` lines, `stats` counts per host, then applies a static ceiling. Add `| bucket _time span=1m` earlier if a single giant snapshot misleads you—some teams prefer a **timechart** of counts instead of static max.\n\n\nStep 3 — Validate\nOn the host, `ss -s` and `ss -tan state time-wait | wc -l` should be in the same ballpark as Splunk in the last poll. For tuning, also check `sysctl` values for `tcp_fin_timeout` and `ip_local_port_range`.\n\nStep 4 — Operationalize\nWork with the app on connection pool sizing, `TIME_WAIT` reuse settings where safe, and whether the service should move to a connection-oriented proxy.\n\n",
-  "grandmaExplanation": "We help you know when a computer is keeping an unusually large pile of “recently finished” network connections, which can get in the way of opening new ones when traffic is very busy."
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Script **ss -tan** or `netstat -tan` on a fixed schedule; `ss` is usually preferred for speed. Emit **key=value** including **host** and the socket **state**.\n\nStep 1 — Configure data collection\nCoalesce `state` and `status` in **props** if vendors differ, so the `search` line works without OR spam.\n\nStep 2 — Create the search and alert\nSPL in the `spl` field; change **32000** to a number derived from your OS `ip_local_port_range` and workload.\n\n**Understanding this SPL** — `search` first keeps only `TIME_WAIT` lines, `stats` counts per host, then applies a static ceiling. Add `| bucket _time span=1m` earlier if a single giant snapshot misleads you—some teams prefer a **timechart** of counts instead of static max.\n\n\nStep 3 — Validate\nOn the host, `ss -s` and `ss -tan state time-wait | wc -l` should be in the same ballpark as Splunk in the last poll. For tuning, also check `sysctl` values for `tcp_fin_timeout` and `ip_local_port_range`.\n\nStep 4 — Operationalize\nWork with the app on connection pool sizing, `TIME_WAIT` reuse settings where safe, and whether the service should move to a connection-oriented proxy.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_nix` with a custom scripted input for netstat-style snapshots — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=custom:netstat into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you know when a computer is keeping an unusually large pile of “recently finished” network connections, which can get in the way of opening new ones when traffic is very busy.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "TEAP adoption tracked daily.",
-    "negativeScenario": "No TEAP usage. Evidence captures gap; remediation triggered."
+    "positiveScenario": "UC-22.14.81 positive (NIST, 800, 2(1), TEAP, Joint): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `count` grouped by `site`, `ssid_or_nad` satisfies -1d for 'NIST 800-53 IA-2(1) — TEAP Joint User+Machine Authentication Evidence'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.14.81 negative (Authentication Evidence): ingest benign `nac` / `cisco:ise:syslog` events where `site`, `ssid_or_nad` stays below -1d, or exclude the test entity via `compliance_exception_register.csv`. Variant 7 confirms zero alert rows for 'NIST 800-53 IA-2(1) — TEAP Joint User+Machine Authentication Evidence'."
   },
-  "dataSources": "`index=nac sourcetype=cisco:ise:syslog` *Authentication*. Cross-reference UC-17.1.69.",
-  "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915).",
+  "dataSources": "`index=nac sourcetype=cisco:ise:syslog` *Authentication*. Cross-reference UC-17.1.69. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915). (Splunkbase) — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode=5200 earliest=-1d\n| stats count, count(eval(EapAuthentication==\"EAP-TEAP\")) as teap_count by site, ssid_or_nad\n| eval teap_pct=round(teap_count/count*100, 2), nist_clause=\"IA-2(1)\", control=\"MFA_Network_Auth\"\n| collect index=audit_evidence",
-  "description": "We continuously evidence NIST 800-53 IA-2(1) via TEAP joint user+machine adoption tracking.",
-  "value": "TEAP provides true joint user+machine attestation — equivalent to MFA for network access. NIST auditors require evidence of MFA coverage; this UC produces it.",
+  "description": "Detects UC-22.14.81 — NIST, 800, 2(1), TEAP, Joint — using `index=nac` sourcetype `cisco:ise:syslog`, grouped by `site`, `ssid_or_nad`. Outputs `count` each `the scheduled window`; alert when -1d. Primary focus: Authentication Evidence. Purpose-built for 'NIST 800-53 IA-2(1) — TEAP Joint User+Machine Authentication Evidence' in Compliance workflows.",
+  "value": "UC-22.14.81 operationalises 'NIST 800-53 IA-2(1) — TEAP Joint User+Machine Authentication Evidence' against `cisco:ise:syslog` feeds so operators reduce audit findings, regulatory gaps, and attestation delays without manual correlation.",
   "implementation": "Schedule the saved search daily at 06:00 local time; archive results to the `audit_evidence` summary index for CMMC 2.0 evidence.",
   "visualization": "NIST 800-53 IA-2(1) panel: TEAP adoption %.",
   "cimModels": [
@@ -43,14 +43,26 @@
   "references": [
     {
       "title": "NIST 800-53 Rev.5",
-      "url": "https://csrc.nist.gov/Publications/detail/sp/800-53/rev-5/final"
+      "url": "https://csrc.nist.gov/Publications/detail/sp/800-53/rev-5/final",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "UC-17.1.69 — TEAP Authentication Tracking",
-      "url": "../cat-17-network-security-zero-trust/UC-17.1.69.json"
+      "url": "../cat-17-network-security-zero-trust/UC-17.1.69.json",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "NIST Cybersecurity Framework",
+      "url": "https://www.nist.gov/cyberframework",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "ISO/IEC 27001 Information Security",
+      "url": "https://www.iso.org/standard/27001",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. Initial TEAP rollout — adoption builds gradually.",
+  "knownFalsePositives": "1. **Authorised NIST 800 53 control testing** — Internal audit exercises 'NIST 800-53 IA-2(1) — TEAP Joint User+Machine Authentication Evidence' (UC-22.14.81) on `site` during scheduled clause IA-2(1) sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=nac` `cisco:ise:syslog` without crossing evidence threshold. Cross-check engagement letter in `nist_800_53_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `nac` for `site`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `site` during normal service delivery.\n\n**Suppression mechanism:** `nist_800_53_exception_register.csv` keyed on `site`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "requiredFields": [
     "_time",
     "ssid_or_nad",
@@ -72,6 +84,8 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.69 operational.\n\n## Step 1-5\n\n```ini\n[UC-22.14.81: NIST 800-53 IA-2(1) — TEAP Evidence]\ncron_schedule = 0 6 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.14.81,reg=NIST_800_53,clause=IA-2(1)\n```",
-  "grandmaExplanation": "We continuously evidence NIST 800-53 IA-2(1) via TEAP joint user+machine adoption tracking. That is important for the audit, where proof needs to line up with what the rules expect."
+  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.69 operational.\n\n## Step 1-5\n\n```ini\n[UC-22.14.81: NIST 800-53 IA-2(1) — TEAP Evidence]\ncron_schedule = 0 6 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.14.81,reg=NIST_800_53,clause=IA-2(1)\n```\n\n**Ecosystem integration:** Forward compliance detections to Splunk SOAR for automated incident triage and escalation playbooks. Enrich events with asset context from ServiceNow CMDB. Cross-reference with CrowdStrike Falcon or Microsoft Defender for Endpoint for host forensics and threat detection context. Integrate Okta or Azure AD identity context to determine if the acting user had appropriate authorisation. Feed validated findings into the GRC platform (e.g., RSA Archer, ServiceNow GRC, or AuditBoard) for regulatory compliance tracking and audit evidence management.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915). (Splunkbase) — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac, audit_evidence. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`site, ssid_or_nad`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We continuously evidence NIST 800-53 IA-2(1) via TEAP joint user+machine adoption tracking. That is important for the audit, where proof needs to line up with what the rules expect.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

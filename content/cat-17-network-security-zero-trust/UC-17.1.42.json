@@ -10,6 +10,8 @@
     "Operations"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Adaptive Network Control (ANC) Action Auditing and Excessive Quarantine Detection' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_adaptive_network_control_anc_action_auditing_and` (UC-17.1.42), SOC dashboard panel \"Network — Adaptive Network Control (ANC) Action Auditing and Excessive Quarantine Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "nis2",
@@ -86,14 +88,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "From the ISE PAN UI, select an endpoint and apply an ANC policy. ISE emits 60150/60153 events. UC-17.1.42 records the action. Repeat 11 times in 15 min and the alert fires for the admin user.",
-    "negativeScenario": "Apply 5 ANC actions in 15 min via SOAR (with a service account flagged as low-noise). UC-17.1.42 records the actions but does not alert (count threshold not crossed)."
+    "positiveScenario": "UC-17.1.42 positive (Adaptive, Network, Control, (ANC), Action): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `sum` grouped by `trigger`, `action`, `admin` satisfies `count` > 50, or `count` > 10 for 'Adaptive Network Control (ANC) Action Auditing and Excessive Quarantine Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.42 negative (Quarantine Detection): ingest benign `nac` / `cisco:ise:syslog` events where `trigger`, `action`, `admin` stays below `count` > 50, or `count` > 10, or exclude the test entity via `network_exception_register.csv`. Variant 6 confirms zero alert rows for 'Adaptive Network Control (ANC) Action Auditing and Excessive Quarantine Detection'."
   },
   "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Adaptive Network Control* category — codes `60150` (ANC policy applied to endpoint), `60151` (ANC policy removed from endpoint), `60152` (ANC quarantine — auto), `60153` (ANC quarantine — manual via UI), `60154` (ANC quarantine — pxGrid published action), `60155` (ANC unquarantine), `60156` (ANC port-bounce executed), `60157` (ANC port-shutdown executed). Fields: `endpoint_mac`, `anc_policy`, `triggered_by` (system|admin|pxgrid|api), `admin_user`, `policy_name`. CIM mapping: `Change.action=modified`, `Change.object_category=anc_quarantine`.",
   "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (60150, 60151, 60152, 60153, 60154, 60155, 60156, 60157)\n| rex \"endpoint_mac=(?<mac>[^,\\s]+)\"\n| rex \"anc_policy=(?<policy>[^,\\s]+)\"\n| rex \"triggered_by=(?<trigger>[^,\\s]+)\"\n| rex \"admin_user=(?<admin>[^,\\s]+)\"\n| eval action = case(\n    MessageCode IN (60150,60152,60153,60154,60156,60157), \"quarantine\",\n    MessageCode IN (60151, 60155), \"unquarantine\")\n| stats count by trigger, action, admin\n| eventstats sum(eval(if(action==\"quarantine\",count,0))) as total_q sum(eval(if(action==\"unquarantine\",count,0))) as total_unq\n| eval ratio = round(total_q / (total_unq+1), 2)\n| where (action==\"quarantine\" AND count > 50) OR (trigger==\"admin\" AND count > 10)",
-  "description": "Audits all ANC actions (quarantine, unquarantine, port-bounce, port-shutdown) and detects excessive quarantine activity that may signal a misconfigured automation, a compromised admin account, or a legitimate large-scale incident-response action.",
-  "value": "ANC is the live arm of incident response — when SOAR/SIEM/SOC pushes a quarantine action, it's enforced through ANC. Auditing every action is foundational for incident-response evidence, compliance reporting, and detecting misuse (compromised admin pushing thousands of quarantine actions). Excessive quarantine detection is also a 'kill-switch' — if a runaway automation is quarantining the entire fleet, this UC catches it within 5 minutes.",
+  "description": "Alerts on Quarantine Detection anomalies for UC-17.1.42 with window `the scheduled window` on `index=nac` sourcetype `cisco:ise:syslog`. Combines `sum` by `trigger`, `action`, `admin` and compares against `count` > 50, or `count` > 10. Mapped to keywords Adaptive, Network, Control, (ANC), Action for dashboard routing.",
+  "value": "Alerting on Adaptive, Network, Control, (ANC), Action through UC-17.1.42 reduces unauthorized access, segmentation drift, and NAC policy failures by surfacing `activity` early.",
   "implementation": "Confirm the *Adaptive Network Control* category is at INFO. Schedule the search every 5 min, search window `-15m@m to @m`, trigger on count > 0, throttle suppression on `trigger`+`admin` for 30 min.",
   "visualization": "(1) Single value: ANC actions last 24h. (2) Stacked bar: actions by trigger source last 7d. (3) Top-N: admin users by ANC actions last 30d (audit). (4) Trend: quarantine vs unquarantine ratio over 30d.",
   "cimModels": [
@@ -103,14 +105,26 @@
   "references": [
     {
       "title": "Cisco ISE 3.4 — Adaptive Network Control",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco ISE — ANC API",
-      "url": "https://developer.cisco.com/docs/"
+      "url": "https://developer.cisco.com/docs/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) **Phishing-tabletop drill** — A planned IR exercise generates many quarantine actions in a short window. Cross-reference change tickets / IR exercise calendar. (b) **SOAR playbook bulk-action** — A SOAR playbook quarantining endpoints based on a campaign rule may legitimately push 50+ actions. Treat as expected if from a known SOAR service account. (c) **Initial deployment of an automated rule** — First-day operation may quarantine many endpoints as the ruleset evaluates against the fleet. Suppress for 24h after a known new rule deployment.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'Adaptive Network Control (ANC) Action Auditing and Excessive Quarantine Detection'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "N/A (control-plane response — Adaptive Network Control quarantine telemetry, not adversary behaviour)"
   ],
@@ -128,7 +142,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• ISE *Adaptive Network Control* category at INFO.\n• `anc_authorized_admins.csv` lookup of admin users authorised to apply ANC actions manually.\n• Splunk role with `srchIndexesAllowed = nac`.\n\nStep 1 — Configure data collection\nValidate event flow:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (60150, 60153) earliest=-7d\n| stats count by trigger, admin_user\n```\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 5 min.\n\nStep 3 — Validate\nProvoke as in controlTest. Confirm alert.\n\nStep 4 — Operationalize\nDashboard \"ISE — ANC Audit\":\n• Single value: actions last 24h, last 30d.\n• Stacked bar: actions by trigger.\n• Top-N: admins by action volume.\n• Trend: quarantine/unquarantine ratio.\n\nMonthly audit attestation: ANC admin team signs off on the report; archived 7 years.\n\nAlerting: high-urgency on excessive quarantine; medium on unauthorised admin (admin_user not in lookup).\n\nStep 5 — Troubleshooting\n• **`admin_user` blank** — Action triggered by automation/pxGrid not by a human admin; expected.\n• **Excessive volume from one SOAR account** — Coordinate with the SOAR team to investigate the playbook.\n• **No 60150 events** — *Adaptive Network Control* category not enabled or set to WARN.",
+  "detailedImplementation": "Prerequisites\n• ISE *Adaptive Network Control* category at INFO.\n• `anc_authorized_admins.csv` lookup of admin users authorised to apply ANC actions manually.\n• Splunk role with `srchIndexesAllowed = nac`.\n\nStep 1 — Configure data collection\nValidate event flow:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (60150, 60153) earliest=-7d\n| stats count by trigger, admin_user\n```\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 5 min.\n\nStep 3 — Validate\nProvoke as in controlTest. Confirm alert.\n\nStep 4 — Operationalize\nDashboard \"ISE — ANC Audit\":\n• Single value: actions last 24h, last 30d.\n• Stacked bar: actions by trigger.\n• Top-N: admins by action volume.\n• Trend: quarantine/unquarantine ratio.\n\nMonthly audit attestation: ANC admin team signs off on the report; archived 7 years.\n\nAlerting: high-urgency on excessive quarantine; medium on unauthorised admin (admin_user not in lookup).\n\nStep 5 — Troubleshooting\n• **`admin_user` blank** — Action triggered by automation/pxGrid not by a human admin; expected.\n• **Excessive volume from one SOAR account** — Coordinate with the SOAR team to investigate the playbook.\n• **No 60150 events** — *Adaptive Network Control* category not enabled or set to WARN.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`action, admin, trigger`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "When ISE blocks or releases a device — like putting it in time-out — we record exactly who or what made the decision. If too many time-outs happen too quickly, we ring the bell so a human can verify it's not a runaway automation or a misuse of admin powers.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

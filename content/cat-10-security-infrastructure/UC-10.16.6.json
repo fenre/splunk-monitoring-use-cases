@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`Network_Traffic` data model (firewall allow/deny), `index=network` `sourcetype=pan:traffic` or equivalent",
-  "app": "`Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX), Splunk Common Information Model",
+  "exclusions": "Covers the detection logic documented for 'Firewall Rule Hit Rate Trending' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_firewall_rule_hit_rate_trending` (UC-10.16.6), SOC dashboard panel \"Security Infra — Firewall Rule Hit Rate Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.16.6 positive (Firewall, Rule, Hit, Rate, Trending): ingest synthetic events into `index=network_traffic` sourcetype='target_sourcetype' where `hits` grouped by `_time`, `All_Traffic.rule`, `rule`, `useother=f` satisfies -30d for 'Firewall Rule Hit Rate Trending'. Validate macro `summariesonly`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.16.6 negative (Rate Trending): ingest benign `network_traffic` / `target_sourcetype` events where `_time`, `All_Traffic.rule`, `rule`, `useother=f` stays below -30d, or exclude the test entity via `soc_exception_register.csv`. Variant 7 confirms zero alert rows for 'Firewall Rule Hit Rate Trending'."
+  },
+  "dataSources": "`Network_Traffic` data model (firewall allow/deny), `index=network` `sourcetype=pan:traffic` or equivalent Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX), Splunk Common Information Model — Universal Forwarder (Splunkbase 617)",
   "spl": "| tstats `summariesonly` count FROM datamodel=Network_Traffic WHERE nodename=All_Traffic All_Traffic.action IN (\"allowed\",\"accept\") earliest=-30d\n    BY _time span=1d All_Traffic.rule\n| `drop_dm_object_name(All_Traffic)`\n| timechart span=1d sum(count) as hits by rule useother=f limit=10",
-  "description": "Top rules by hit count over 30 days expose noisy policies, overly broad permits, and candidates for segmentation review. Flat or rising hit rates on “catch-all” rules often precede policy hygiene projects.",
-  "value": "Top rules by hit count over 30 days expose noisy policies, overly broad permits, and candidates for segmentation review. Flat or rising hit rates on “catch-all” rules often precede policy hygiene projects.",
+  "description": "Alerts on UC-10.16.6 — Firewall, Rule, Hit, Rate, Trending — using datamodel `Network_Traffic`, grouped by `_time`, `All_Traffic.rule`, `rule`, `useother=f`. Outputs `hits` each `1d`; alert when -30d. Filter chain includes macro `summariesonly`. Purpose-built for 'Firewall Rule Hit Rate Trending' in Security Infra workflows.",
+  "value": "UC-10.16.6 operationalises 'Firewall Rule Hit Rate Trending' against `Network_Traffic` telemetry so operators reduce missed threat campaigns, control regressions, and SOC SLA breaches without manual correlation.",
   "implementation": "If `rule` is missing, derive from `policy_id` or `rule_uid` via vendor TA. Exclude health-check and internal monitoring sources with a subnet lookup. Use accelerated DM or summary `sourcetype=stash` for very high volume. Pair with change tickets when hit rates jump after policy pushes.",
   "visualization": "Bar chart (top rules by hits), line chart (daily hits for top five rules), treemap (rule share of total hits).",
   "cimModels": [
@@ -22,14 +28,26 @@
   "references": [
     {
       "title": "Splunk_TA_paloalto",
-      "url": "https://splunkbase.splunk.com/app/2757"
+      "url": "https://splunkbase.splunk.com/app/2757",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Network_Traffic",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Firewall hit rates jump after any policy push, new app rollout, or bot traffic — the jump may be a configuration side effect, not a breach.",
+  "knownFalsePositives": "1. **ESCU content update for UC-10.16.6** — Vendor macro `summariesonly` changes `hits` on `_time`, `All_Traffic.rule`, `rule`, `useother=f` for 'Firewall Rule Hit Rate Trending' without a real endpoint incident. Uses macro `summariesonly`. Compare Content Management `lastModified`.\n\n2. **TA field alias drift on `Network_Traffic`** — Upgrade to the Endpoint datamodel TA renames ``_time`, `All_Traffic.rule`, `rule`, `useother=f``; baseline ``hits`` before re-enabling alerts.\n\n3. **Approved atomic test on `network_traffic`** — Red-team replays 'Firewall Rule Hit Rate Trending' detections from exercise hosts in `datamodel=Network_Traffic` during scheduled pen-test window.\n\n4. **EDR bulk install on ``_time`, `All_Traffic.rule`, `rule`, `useother=f``** — Mass ``hits`` spike during agent rollout mimics 'Firewall Rule Hit Rate Trending'; suppress via `soc_exception_register.csv` keyed on deployment tag.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on ``_time`, `All_Traffic.rule`, `rule`, `useother=f``, `search_name`, `valid_until`.",
   "equipment": [
     "cisco",
     "fortinet",
@@ -40,6 +58,12 @@
     "fortinet_fortigate",
     "paloalto_pan_firewall"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX), Splunk Common Information Model.\n• Ensure the following data sources are available: `Network_Traffic` data model (firewall allow/deny), `index=network` `sourcetype=pan:traffic` or equivalent.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIf `rule` is missing, derive from `policy_id` or `rule_uid` via vendor TA. Exclude health-check and internal monitoring sources with a subnet lookup. Use accelerated DM or summary `sourcetype=stash` for very high volume. Pair with change tickets when hit rates jump after policy pushes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| tstats `summariesonly` count FROM datamodel=Network_Traffic WHERE nodename=All_Traffic All_Traffic.action IN (\"allowed\",\"accept\") earliest=-30d\n    BY _time span=1d All_Traffic.rule\n| `drop_dm_object_name(All_Traffic)`\n| timechart span=1d sum(count) as hits by rule useother=f limit=10\n```\n\nUnderstanding this SPL\n\n**Firewall Rule Hit Rate Trending** — Top rules by hit count over 30 days expose noisy policies, overly broad permits, and candidates for segmentation review. Flat or rising hit rates on “catch-all” rules often precede policy hygiene projects.\n\nDocumented **Data sources**: `Network_Traffic` data model (firewall allow/deny), `index=network` `sourcetype=pan:traffic` or equivalent. **App/TA** (typical add-on context): `Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX), Splunk Common Information Model. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Network_Traffic` — enable acceleration for that model.\n• Invokes macro `drop_dm_object_name(All_Traffic)` — in Search, use the UI or expand to inspect the underlying SPL.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by rule useother=f limit=10** — ideal for trending and alerting on this use case.\n\nStep 3 — Validate\nCompare a policy **change ticket**’s time to the start of a hit-rate jump so you can tell a rule push from a real attack window.\n\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (top rules by hits), line chart (daily hits for top five rules), treemap (rule share of total hits).\n",
-  "grandmaExplanation": "We track how often our firewall rules actually fire so policy pushes and new apps do not silently break or get bypassed in one region."
+  "grandmaExplanation": "We track how often our firewall rules actually fire so policy pushes and new apps do not silently break or get bypassed in one region.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

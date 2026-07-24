@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`AWS/ApiGateway` metrics, execution logs",
-  "app": "`Splunk_TA_aws` CloudWatch",
+  "exclusions": "Covers the detection logic documented for 'AWS API Gateway 4xx/5xx Trends' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_aws_api_gateway_4xx_5xx_trends` (UC-8.4.11), SOC dashboard panel \"Operations — AWS API Gateway 4xx/5xx Trends\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.4.11 positive (AWS, API, Gateway, 4xx, 5xx): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `err` grouped by `ApiName`, `Stage`, `metric_name` satisfies `err` > 0 for 'AWS API Gateway 4xx/5xx Trends'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.4.11 negative (4xx/5xx Trends): ingest benign `aws` / `aws:cloudwatch` events where `ApiName`, `Stage`, `metric_name` stays below `err` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'AWS API Gateway 4xx/5xx Trends'."
+  },
+  "dataSources": "`AWS/ApiGateway` metrics, execution logs Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_aws` CloudWatch — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/ApiGateway\" metric_name IN (\"4XXError\",\"5XXError\")\n| timechart span=5m sum(Sum) as err by ApiName, Stage, metric_name\n| where err > 0",
-  "description": "CloudWatch `4XXError`, `5XXError`, `Latency` per API stage. Single pane for serverless API frontends.",
-  "value": "CloudWatch `4XXError`, `5XXError`, `Latency` per API stage. Single pane for serverless API frontends.",
+  "description": "Monitors UC-8.4.11 — AWS, API, Gateway, 4xx, 5xx — using `index=aws` sourcetype `aws:cloudwatch`, grouped by `ApiName`, `Stage`, `metric_name`. Outputs `err` each `5m`; alert when `err` > 0. Primary focus: 4xx/5xx Trends. Purpose-built for 'AWS API Gateway 4xx/5xx Trends' in Operations workflows.",
+  "value": "UC-8.4.11 gives Operations teams earlier visibility into 4xx/5xx Trends through `aws:cloudwatch` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Enable detailed metrics per stage. Alert on 5XX >0 sustained or 4XX spike vs baseline. Join with Lambda logs for root cause.",
   "visualization": "Stacked area (4xx vs 5xx), Line chart (error rate), Table (API, stage, errors).",
   "cimModels": [
@@ -23,17 +29,38 @@
   "references": [
     {
       "title": "Splunk_TA_aws",
-      "url": "https://splunkbase.splunk.com/app/1876"
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "5xx errors spike during deployment rollouts, restart sequences, or backend service maintenance. Health-check noise and synthetic traffic can add false volume if not filtered.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-8.4.11)** — Planned work for 'AWS API Gateway 4xx/5xx Trends' shifts `err` over `span=5m` while `ApiName`, `Stage`, `metric_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:cloudwatch`** — Scheduled automation elevates `Stage` without crossing `err` > 0 for UC-8.4.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ApiName`, `Stage`, `metric_name`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for UC-8.4.11 on `ApiName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ApiName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws` CloudWatch.\n• Ensure the following data sources are available: `AWS/ApiGateway` metrics, execution logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable detailed metrics per stage. Alert on 5XX >0 sustained or 4XX spike vs baseline. Join with Lambda logs for root cause.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/ApiGateway\" metric_name IN (\"4XXError\",\"5XXError\")\n| timechart span=5m sum(Sum) as err by ApiName, Stage, metric_name\n| where err > 0\n```\n\nUnderstanding this SPL\n\n**AWS API Gateway 4xx/5xx Trends** — CloudWatch `4XXError`, `5XXError`, `Latency` per API stage. Single pane for serverless API frontends.\n\nDocumented **Data sources**: `AWS/ApiGateway` metrics, execution logs. **App/TA** (typical add-on context): `Splunk_TA_aws` CloudWatch. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by ApiName, Stage, metric_name** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where err > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nCompare with the API gateway or mesh admin (Kong, Apigee, AWS API Gateway, etc.) and a raw log tail for the same time range.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked area (4xx vs 5xx), Line chart (error rate), Table (API, stage, errors).",
-  "grandmaExplanation": "We watch for signs that cloudWatch, per stage."
+  "equipmentModels": [
+    "aws_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws` CloudWatch.\n• Ensure the following data sources are available: `AWS/ApiGateway` metrics, execution logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable detailed metrics per stage. Alert on 5XX >0 sustained or 4XX spike vs baseline. Join with Lambda logs for root cause.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/ApiGateway\" metric_name IN (\"4XXError\",\"5XXError\")\n| timechart span=5m sum(Sum) as err by ApiName, Stage, metric_name\n| where err > 0\n```\n\nUnderstanding this SPL\n\n**AWS API Gateway 4xx/5xx Trends** — CloudWatch `4XXError`, `5XXError`, `Latency` per API stage. Single pane for serverless API frontends.\n\nDocumented **Data sources**: `AWS/ApiGateway` metrics, execution logs. **App/TA** (typical add-on context): `Splunk_TA_aws` CloudWatch. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by ApiName, Stage, metric_name** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where err > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nCompare with the API gateway or mesh admin (Kong, Apigee, AWS API Gateway, etc.) and a raw log tail for the same time range.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked area (4xx vs 5xx), Line chart (error rate), Table (API, stage, errors).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_aws` CloudWatch — Splunk Add-on for Amazon Web Services (Splunkbase 1876)). Enable the modular input or HEC token that writes sourcetype=aws:cloudwatch into aws. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`ApiName, Stage, err, metric_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch for signs that cloudWatch, per stage.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

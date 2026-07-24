@@ -9,26 +9,55 @@
     "Quality"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Sourdough monitor (`sourdough:reading`), BBQ/sous-vide probes (`bbq:probe`), fridge/freezer/oven temperature (`kitchen:appliance`), espresso shots (`espresso:shot`), pantry inventory (`pantry:item`), kombucha brew (`kombucha:reading`).",
-  "app": "ESP32/ESPHome kitchen sensors (sourdough rise, BBQ/sous-vide probes, fridge/freezer temperature), espresso-shot logs, and pantry inventory via MQTT and Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Sous-Vide Hold-Time Safety Guard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_sous_vide_hold_time_safety_guard` (UC-25.15.17), SOC dashboard panel \"Personal — Sous-Vide Hold-Time Safety Guard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.15.17 positive (Sous, Vide, Hold, Time, Safety): ingest synthetic events into `index=personal` sourcetype='bbq:probe' where `danger_min` grouped by `cook_id` satisfies `danger_min` > 120, or `core_temp` < 54 for 'Sous-Vide Hold-Time Safety Guard'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.15.17 negative (Safety Guard): ingest benign `personal` / `bbq:probe` events where `cook_id` stays below `danger_min` > 120, or `core_temp` < 54, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 7 confirms zero alert rows for 'Sous-Vide Hold-Time Safety Guard'."
+  },
+  "dataSources": "Sourdough monitor (`sourdough:reading`), BBQ/sous-vide probes (`bbq:probe`), fridge/freezer/oven temperature (`kitchen:appliance`), espresso shots (`espresso:shot`), pantry inventory (`pantry:item`), kombucha brew (`kombucha:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "ESP32/ESPHome kitchen sensors (sourdough rise, BBQ/sous-vide probes, fridge/freezer temperature), espresso-shot logs, and pantry inventory via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=bbq:probe mode=sousvide\n| stats max(time_in_danger_zone_min) as danger_min, latest(core_temp_c) as core_temp by cook_id\n| where danger_min>120 OR core_temp<54\n| sort - danger_min",
-  "description": "Tracks how long a sous-vide cook spent in unsafe temperature territory so food-safety decisions are based on data rather than crossed fingers.",
-  "value": "Precision cooking is only truly precise if safety limits are respected; this monitor gives you that second half of the promise.",
+  "description": "Alerts on UC-25.15.17 — Sous, Vide, Hold, Time, Safety — using `index=personal` sourcetype `bbq:probe`, grouped by `cook_id`. Outputs `danger_min` each `the scheduled window`; alert when `danger_min` > 120, or `core_temp` < 54. Primary focus: Safety Guard. Purpose-built for 'Sous-Vide Hold-Time Safety Guard' in Personal workflows.",
+  "value": "UC-25.15.17 operationalises 'Sous-Vide Hold-Time Safety Guard' against `bbq:probe` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Forward bath or probe telemetry with derived danger-zone duration; alert immediately when the hold window becomes risky.",
   "visualization": "Table of sous-vide cooks by danger-zone minutes and current core temperature.",
   "cimModels": [],
   "references": [
     {
       "title": "ESPHome - sensor components",
-      "url": "https://esphome.io/index.html"
+      "url": "https://esphome.io/index.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.15.17)** — Connector for 'Sous-Vide Hold-Time Safety Guard' stops polling `bbq:probe`; stale `danger_min` on `cook_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `danger_min` over `1w` is expected for UC-25.15.17, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `bbq:probe`. Dedup with `stats latest(*) by cook_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `danger_min` > 120 for 'Sous-Vide Hold-Time Safety Guard'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It compares when a sous-vide cook has spent too long in temperatures that are not safe for food."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Kitchen, Cooking & Fermentation — typical feeds: Sourdough monitor (`sourdough:reading`), BBQ/sous-vide probes (`bbq:probe`), fridge/freezer/oven temperature (`kitchen:appliance`), espresso shots (`espresso:shot`), pantry inventory (`pantry:item`), .\n• **Sourcetypes in this search**: `bbq:probe`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=bbq:probe`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** ESP32/ESPHome kitchen sensors (sourdough rise, BBQ/sous-vide probes, fridge/freezer temperature), espresso-shot logs, and pantry inventory via MQTT and Splunk HEC..\n\n**Author notes:** Forward bath or probe telemetry with derived danger-zone duration; alert immediately when the hold window becomes risky.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"bbq:probe\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=bbq:probe earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Sous-Vide Hold-Time Safety Guard** over `personal` data (primarily `sourcetype=bbq:probe`) across the full search range. It applies numeric thresholds on `danger_min` (> 120) after max, latest — tune these constants to your household baseline.\n\n**Fields this search depends on:** `cook_id`, `core_temp`, `danger_min`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=bbq:probe mode=sousvide\n| stats max(time_in_danger_zone_min) as danger_min, latest(core_temp_c) as core_temp by cook_id\n| where danger_min>120 OR core_temp<54\n| sort - danger_min\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=bbq:probe earliest=-7d\n| head 50\n| table cook_id, core_temp, danger_min\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=bbq:probe earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `danger_min` before alerting:\n\n```spl\nindex=personal sourcetype=bbq:probe earliest=-30d\n| stats perc50(danger_min) AS p50 perc90(danger_min) AS p90 perc99(danger_min) AS p99 max(danger_min) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.15.17: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Sous-Vide Cooks By Danger-Zone Minutes And Current Core Temperature (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `bbq:probe` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=bbq:probe | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It compares when a sous-vide cook has spent too long in temperatures that are not safe for food.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

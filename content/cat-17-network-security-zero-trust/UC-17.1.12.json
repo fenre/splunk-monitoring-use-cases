@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "ISE authentication logs, profiling",
-  "app": "`Splunk_TA_cisco-ise`, `TA-cisco_ios`, HPE Aruba CX syslog",
+  "exclusions": "Covers the detection logic documented for 'Rogue Device Detection' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_rogue_device_detection` (UC-17.1.12), SOC dashboard panel \"Network — Rogue Device Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.1.12 positive (Rogue, Device, Detection): ingest synthetic events into `index=nac` sourcetype='cisco:ise:auth' where `count` grouped by `mac`, `switch`, `location` satisfies `count` >= 3 for 'Rogue Device Detection'. Validate lookup `corp_device_inventory.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.12 negative (Device Detection): ingest benign `nac` / `cisco:ise:auth` events where `mac`, `switch`, `location` stays below `count` >= 3, or exclude the test entity via `network_exception_register.csv`. Variant 3 confirms zero alert rows for 'Rogue Device Detection'."
+  },
+  "dataSources": "ISE authentication logs, profiling Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_cisco-ise`, `TA-cisco_ios`, HPE Aruba CX syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:auth\" earliest=-24h\n| eval mac=upper(replace(endpoint_mac,\":\",\"-\"))\n| lookup corp_device_inventory.csv mac OUTPUT asset_tag\n| where isnull(asset_tag) AND match(auth_status,\"(?i)success|pass\")\n| stats count by mac, switch, location\n| where count>=3\n| sort -count",
-  "description": "Identifies MACs or devices that authenticate or probe but are not in the corporate device inventory — common NAC use case for unauthorized hardware.",
-  "value": "Security teams detect devices on the network that are not in the corporate inventory (CMDB), identifying rogue access points, unauthorized personal devices, and potential attacker hardware by cross-referencing NAC authentication data with the approved endpoint database.",
+  "description": "Surfaces when Device Detection criteria fire for 'Rogue Device Detection' (UC-17.1.12) in `index=nac` sourcetype `cisco:ise:auth`. Pipeline aggregates `count` by `mac`, `switch`, `location` over `the scheduled window`. Alert logic enforces `count` >= 3. SPL signature: lookup `corp_device_inventory.csv`. Eliminates manual hunting for UC-17.1.12 conditions.",
+  "value": "UC-17.1.12 helps teams contain Rogue, Device, Detection scenarios and reduce unauthorized access, segmentation drift, and NAC policy failures before incidents compound.",
   "implementation": "Maintain `corp_device_inventory.csv` from MDM/CMDB (MAC, owner). Tune minimum event count to reduce noise. Correlate with port-security and DHCP snooping if available.",
   "visualization": "Table (unknown MACs), Bar chart (rogue events by site), Timeline (first seen).",
   "cimModels": [
@@ -23,14 +29,26 @@
   "references": [
     {
       "title": "Splunk_TA_cisco-ise",
-      "url": "https://splunkbase.splunk.com/app/1915"
+      "url": "https://splunkbase.splunk.com/app/1915",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'Rogue Device Detection'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:auth` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "T1200"
   ],
@@ -42,6 +60,10 @@
     "cisco_ios",
     "cisco_ise"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "premiumApps": [
     {
       "name": "Splunk User Behavior Analytics",
@@ -49,7 +71,9 @@
       "note": "UBA"
     }
   ],
-  "detailedImplementation": "Prerequisites\n• Cisco ISE Profiling and Endpoint Analytics. Data in `index=nac` with `sourcetype=cisco:ise:syslog`. Key fields: `CallingStationID`, `EndPointPolicy` (profile), `EndpointOUI`, `AuthenticationMethod`, `NetworkDeviceName`, `NAS-Port-Id`, `SelectedAuthorizationProfiles`.\n• Rogue devices are endpoints that are not in the corporate inventory (not managed by MDM, not in CMDB, not previously seen). They can be personal devices, rogue APs, or attacker devices.\n• Create a `corporate_endpoints.csv` lookup: `mac_address,asset_id,asset_type,owner,managed_by` — sourced from CMDB or MDM. This is the authoritative list of approved endpoints.\n\nStep 1 — Configure data collection\nVerify endpoint event flow:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" earliest=-24h\n| dedup CallingStationID sortby -_time\n| stats count\n```\nThis shows the number of unique endpoints seen in 24 hours.\n\nStep 2 — Create the search and alert\n\nPrimary search — Devices not in corporate inventory:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" earliest=-24h\n| dedup CallingStationID sortby -_time\n| lookup corporate_endpoints.csv mac_address as CallingStationID OUTPUT asset_id asset_type managed_by\n| where isnull(asset_id)\n| eval oui=substr(CallingStationID, 1, 8)\n| lookup oui_manufacturer.csv oui OUTPUT manufacturer\n| table _time, CallingStationID, manufacturer, EndPointPolicy, EndpointOUI, AuthenticationMethod, NetworkDeviceName, NAS-Port-Id, SelectedAuthorizationProfiles\n| sort _time\n```\n\nUnderstanding this SPL: Identifies every endpoint seen on the network that is not in the corporate CMDB. The OUI lookup helps identify what kind of device it is (Raspberry Pi = suspicious, HP = probably a printer, Apple = probably a personal phone). The network device and port help physical location tracking. The authorization profile shows what network access the rogue device received.\n\nRogue AP detection:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" earliest=-24h\n| dedup CallingStationID sortby -_time\n| lookup corporate_endpoints.csv mac_address as CallingStationID OUTPUT asset_id\n| where isnull(asset_id)\n| where match(EndPointPolicy, \"(?i)router\") OR match(EndPointPolicy, \"(?i)access.point\") OR match(EndpointOUI, \"(?i)ubiquiti\") OR match(EndpointOUI, \"(?i)tp-link\")\n| table _time, CallingStationID, EndPointPolicy, EndpointOUI, NetworkDeviceName, NAS-Port-Id\n```\n\nStep 3 — Validate\n(a) Connect a personal device (not in CMDB). Verify it appears as rogue.\n(b) Compare with ISE: Context Visibility > Endpoints > filter 'Known' = No.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Rogue device count trend. Row 2 — Rogue devices by manufacturer. Row 3 — Rogue AP candidates.\nAlert: Immediate when a device profiled as 'router' or 'access-point' is not in CMDB.\n\nRunbook:\n1. **Rogue AP** — Physical security investigation. Locate the port and building.\n2. **Personal device** — May be BYOD needing onboarding. Contact user.\n3. **Unknown manufacturer** — Highest risk. Could be attacker hardware. Isolate port.\n\nStep 5 — Troubleshooting\n• **Too many rogues** — CMDB may be incomplete. Cross-reference with MDM enrollment.\n• **Rogue count = 0** — The corporate_endpoints.csv lookup may contain wildcards. Verify lookup accuracy.",
+  "detailedImplementation": "Prerequisites\n• Cisco ISE Profiling and Endpoint Analytics. Data in `index=nac` with `sourcetype=cisco:ise:syslog`. Key fields: `CallingStationID`, `EndPointPolicy` (profile), `EndpointOUI`, `AuthenticationMethod`, `NetworkDeviceName`, `NAS-Port-Id`, `SelectedAuthorizationProfiles`.\n• Rogue devices are endpoints that are not in the corporate inventory (not managed by MDM, not in CMDB, not previously seen). They can be personal devices, rogue APs, or attacker devices.\n• Create a `corporate_endpoints.csv` lookup: `mac_address,asset_id,asset_type,owner,managed_by` — sourced from CMDB or MDM. This is the authoritative list of approved endpoints.\n\nStep 1 — Configure data collection\nVerify endpoint event flow:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" earliest=-24h\n| dedup CallingStationID sortby -_time\n| stats count\n```\nThis shows the number of unique endpoints seen in 24 hours.\n\nStep 2 — Create the search and alert\n\nPrimary search — Devices not in corporate inventory:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" earliest=-24h\n| dedup CallingStationID sortby -_time\n| lookup corporate_endpoints.csv mac_address as CallingStationID OUTPUT asset_id asset_type managed_by\n| where isnull(asset_id)\n| eval oui=substr(CallingStationID, 1, 8)\n| lookup oui_manufacturer.csv oui OUTPUT manufacturer\n| table _time, CallingStationID, manufacturer, EndPointPolicy, EndpointOUI, AuthenticationMethod, NetworkDeviceName, NAS-Port-Id, SelectedAuthorizationProfiles\n| sort _time\n```\n\nUnderstanding this SPL: Identifies every endpoint seen on the network that is not in the corporate CMDB. The OUI lookup helps identify what kind of device it is (Raspberry Pi = suspicious, HP = probably a printer, Apple = probably a personal phone). The network device and port help physical location tracking. The authorization profile shows what network access the rogue device received.\n\nRogue AP detection:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" earliest=-24h\n| dedup CallingStationID sortby -_time\n| lookup corporate_endpoints.csv mac_address as CallingStationID OUTPUT asset_id\n| where isnull(asset_id)\n| where match(EndPointPolicy, \"(?i)router\") OR match(EndPointPolicy, \"(?i)access.point\") OR match(EndpointOUI, \"(?i)ubiquiti\") OR match(EndpointOUI, \"(?i)tp-link\")\n| table _time, CallingStationID, EndPointPolicy, EndpointOUI, NetworkDeviceName, NAS-Port-Id\n```\n\nStep 3 — Validate\n(a) Connect a personal device (not in CMDB). Verify it appears as rogue.\n(b) Compare with ISE: Context Visibility > Endpoints > filter 'Known' = No.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Rogue device count trend. Row 2 — Rogue devices by manufacturer. Row 3 — Rogue AP candidates.\nAlert: Immediate when a device profiled as 'router' or 'access-point' is not in CMDB.\n\nRunbook:\n1. **Rogue AP** — Physical security investigation. Locate the port and building.\n2. **Personal device** — May be BYOD needing onboarding. Contact user.\n3. **Unknown manufacturer** — Highest risk. Could be attacker hardware. Isolate port.\n\nStep 5 — Troubleshooting\n• **Too many rogues** — CMDB may be incomplete. Cross-reference with MDM enrollment.\n• **Rogue count = 0** — The corporate_endpoints.csv lookup may contain wildcards. Verify lookup accuracy.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_cisco-ise`, `TA-cisco_ios`, HPE Aruba CX syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:auth into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`asset_tag, location, mac, switch`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We compare every device we see on the network against our list of approved company equipment. If a device shows up that is not on the list, we investigate — it could be someone's personal laptop, or worse, a device planted by an intruder.",
-  "hardware": "Cisco ISE, switch/WLC syslog"
+  "hardware": "Cisco ISE, switch/WLC syslog",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

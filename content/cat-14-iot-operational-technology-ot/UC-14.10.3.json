@@ -9,11 +9,17 @@
     "Physical"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=environment` · `sourcetype=\"aranet:sensor\"` (co2_ppm, temp_c, humidity_pct, pressure_hpa, battery_pct, rssi_dbm)",
-  "app": "Custom HEC or scripted input from Aranet Cloud API / Aranet PRO base station",
+  "exclusions": "Covers the detection logic documented for 'Aranet Humidity Out of Range for Server Room RH Band' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_aranet_humidity_out_of_range_for_server_room_rh_` (UC-14.10.3), SOC dashboard panel \"Operations — Aranet Humidity Out of Range for Server Room RH Band\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.10.3 positive (Aranet, Humidity, Out, Range, for): ingest synthetic events into `index=environment` sourcetype='aranet:sensor' where `avg` grouped by `sensor_id`, `loc` satisfies `rh` < 40, or `rh` > 60 for 'Aranet Humidity Out of Range for Server Room RH Band'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.10.3 negative (RH Band): ingest benign `environment` / `aranet:sensor` events where `sensor_id`, `loc` stays below `rh` < 40, or `rh` > 60, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Aranet Humidity Out of Range for Server Room RH Band'."
+  },
+  "dataSources": "`index=environment` · `sourcetype=\"aranet:sensor\"` (co2_ppm, temp_c, humidity_pct, pressure_hpa, battery_pct, rssi_dbm) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom HEC or scripted input from Aranet Cloud API / Aranet PRO base station — Universal Forwarder (Splunkbase 617)",
   "spl": "index=environment sourcetype=\"aranet:sensor\" earliest=-24h\n| eval rh=tonumber(coalesce(humidity_pct, rh_pct, \"\"))\n| eval loc=coalesce(location, zone, \"\")\n| where (rh<40 OR rh>60) AND match(lower(loc), \"(?i)server|idc|mdf|network\")\n| stats sparkline(avg(rh),1h) as rh_trend latest(rh) as humidity_pct by sensor_id loc",
-  "description": "ASHRAE-style guidance for data halls often targets 40–60% RH to balance static and condensation risk.",
-  "value": "Protects hardware from corrosion and static discharge in edge closets.",
+  "description": "Monitors 'Aranet Humidity Out of Range for Server Room RH Band' patterns (UC-14.10.3) sourced from `index=environment` sourcetype `aranet:sensor`. Threshold bundle: `rh` < 40, or `rh` > 60; aggregation grain: `sensor_id`, `loc`; metrics: `avg`. Watch terms: Aranet, Humidity, Out, Range, for.",
+  "value": "UC-14.10.3 gives Operations teams earlier visibility into RH Band through `aranet:sensor` feeds, lowering operational risk and delayed incident response.",
   "implementation": "(1) Tag sensor locations. (2) Adjust RH band to site policy. (3) Correlate with cooling valves.",
   "visualization": "Gauge vs band; trend sparkline.",
   "cimModels": [
@@ -22,19 +28,31 @@
   "references": [
     {
       "title": "Aranet — environmental monitoring",
-      "url": "https://aranet.com/"
+      "url": "https://aranet.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ASHRAE — IAQ",
-      "url": "https://www.ashrae.org/"
+      "url": "https://www.ashrae.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "OSHA indoor air",
-      "url": "https://www.osha.gov/indoor-air-quality"
+      "url": "https://www.osha.gov/indoor-air-quality",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `environment` (UC-14.10.3)** — Planned work for 'Aranet Humidity Out of Range for Server Room RH Band' shifts `avg` over `span=1h` while `sensor_id`, `loc` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `aranet:sensor`** — Scheduled automation elevates `loc` without crossing `rh` < 40 for UC-14.10.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sensor_id`, `loc`** — Health checks in `environment` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aranet:sensor`** — First 48h baseline for UC-14.10.3 on `sensor_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `sensor_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aranet"
+  ],
+  "equipmentModels": [
+    "aranet_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -43,5 +61,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch humidity in server rooms so air is neither too dry nor too damp."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom HEC or scripted input from Aranet Cloud API / Aranet PRO base station — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=aranet:sensor into environment. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`loc, rh, sensor_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch humidity in server rooms so air is neither too dry nor too damp.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,11 +9,17 @@
     "Data Quality"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=environment` · `sourcetype=\"aranet:sensor\"` (co2_ppm, temp_c, humidity_pct, pressure_hpa, battery_pct, rssi_dbm)",
-  "app": "Custom HEC or scripted input from Aranet Cloud API / Aranet PRO base station",
+  "exclusions": "Covers the detection logic documented for 'Aranet Sensor Data Gap and Offline Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_aranet_sensor_data_gap_and_offline_detection` (UC-14.10.6), SOC dashboard panel \"Operations — Aranet Sensor Data Gap and Offline Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.10.6 positive (Aranet, Sensor, Data, Gap, and): ingest synthetic events into `index=environment` sourcetype='aranet:sensor' where `count` grouped by `sensor_id` satisfies `age_m` > 30 for 'Aranet Sensor Data Gap and Offline Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.10.6 negative (Offline Detection): ingest benign `environment` / `aranet:sensor` events where `sensor_id` stays below `age_m` > 30, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Aranet Sensor Data Gap and Offline Detection'."
+  },
+  "dataSources": "`index=environment` · `sourcetype=\"aranet:sensor\"` (co2_ppm, temp_c, humidity_pct, pressure_hpa, battery_pct, rssi_dbm) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom HEC or scripted input from Aranet Cloud API / Aranet PRO base station — Universal Forwarder (Splunkbase 617)",
   "spl": "index=environment sourcetype=\"aranet:sensor\" earliest=-24h\n| stats latest(_time) as last_seen by sensor_id\n| eval age_m=round((now()-last_seen)/60,1)\n| where age_m>30\n| table sensor_id last_seen age_m",
-  "description": "Missing telemetry blindfolds compliance and safety dashboards; stale sensors often indicate power, mesh, or gateway faults.",
-  "value": "Restores observability before regulators or customers notice gaps.",
+  "description": "Identifies UC-14.10.6 — Aranet, Sensor, Data, Gap, and — using `index=environment` sourcetype `aranet:sensor`, grouped by `sensor_id`. Outputs `count` each `the scheduled window`; alert when `age_m` > 30. Primary focus: Offline Detection. Purpose-built for 'Aranet Sensor Data Gap and Offline Detection' in Operations workflows.",
+  "value": "For 'Aranet Sensor Data Gap and Offline Detection', UC-14.10.6 converts `activity` on `aranet:sensor` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "(1) Prefer `tstats`/metrics last-seen for scale; simplify with per-sensor scheduled search if small. (2) Tune staleness minutes to reporting interval. (3) Auto-ticket RMA.",
   "visualization": "Table offline sensors; count single value.",
   "cimModels": [
@@ -22,19 +28,31 @@
   "references": [
     {
       "title": "Aranet — environmental monitoring",
-      "url": "https://aranet.com/"
+      "url": "https://aranet.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ASHRAE — IAQ",
-      "url": "https://www.ashrae.org/"
+      "url": "https://www.ashrae.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "OSHA indoor air",
-      "url": "https://www.osha.gov/indoor-air-quality"
+      "url": "https://www.osha.gov/indoor-air-quality",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `environment` (UC-14.10.6)** — Planned work for 'Aranet Sensor Data Gap and Offline Detection' shifts `count` over `span=1h` while `sensor_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `aranet:sensor`** — Scheduled automation elevates `age_m` without crossing `age_m` > 30 for UC-14.10.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sensor_id`** — Health checks in `environment` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aranet:sensor`** — First 48h baseline for UC-14.10.6 on `sensor_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `sensor_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aranet"
+  ],
+  "equipmentModels": [
+    "aranet_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -43,5 +61,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We find sensors that stopped reporting so blind spots do not linger."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom HEC or scripted input from Aranet Cloud API / Aranet PRO base station — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=aranet:sensor into environment. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`age_m, sensor_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We find sensors that stopped reporting so blind spots do not linger.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

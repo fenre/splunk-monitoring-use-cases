@@ -9,6 +9,8 @@
     "Operations"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'ISE-Cisco ACI / Cisco Secure Workload SGT Binding Synchronisation' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_ise_cisco_aci_cisco_secure_workload_sgt_binding_` (UC-17.1.37), SOC dashboard panel \"Network — ISE-Cisco ACI / Cisco Secure Workload SGT Binding Synchronisation\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "pci-dss",
@@ -49,14 +51,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "On a lab ACI fabric, delete an EPG that ISE has an active SGT-to-EPG binding for. ISE emits 83022 (binding update failed). UC-17.1.37 fires showing the (sgt, epg) pair with `failures > 0`.",
-    "negativeScenario": "Recreate the EPG. ISE re-syncs and emits 83020 (binding created). UC-17.1.37 does not fire on the next schedule."
+    "positiveScenario": "UC-17.1.37 positive (ISE, Cisco, ACI, Cisco, Secure): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `count` grouped by `sgt_name`, `epg_name` satisfies `failures` > 0 for 'ISE-Cisco ACI / Cisco Secure Workload SGT Binding Synchronisation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.37 negative (Binding Synchronisation): ingest benign `nac` / `cisco:ise:syslog` events where `sgt_name`, `epg_name` stays below `failures` > 0, or exclude the test entity via `network_exception_register.csv`. Variant 0 confirms zero alert rows for 'ISE-Cisco ACI / Cisco Secure Workload SGT Binding Synchronisation'."
   },
   "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *TrustSec* and *pxGrid* categories — codes `83020` (SGT-EPG mapping created), `83021` (SGT-EPG mapping deleted), `83022` (SGT-EPG mapping update failed). The Cisco ACI APIC controller syslog `index=network sourcetype=cisco:apic` reports `epg_static_path_change` and `EPG-binding-failure` events. Cisco Secure Workload (formerly Tetration) reports its scope-binding via the OpenAPI `/openapi/v1/inventory_filters` polled by a custom modular input.",
   "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)) + `Cisco ACI Connector` ([Splunkbase 4309](https://splunkbase.splunk.com/app/4309)) + custom Secure Workload poller.",
   "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (83020, 83021, 83022))\n  OR (index=network sourcetype=\"cisco:apic\" event_type IN (\"epg_static_path_change\", \"EPG-binding-failure\"))\n| stats count latest(_time) as last_event, count(eval(MessageCode==\"83022\" OR event_type==\"EPG-binding-failure\")) as failures by sgt_name, epg_name\n| where failures > 0\n| sort - failures",
-  "description": "Detects SGT-to-EPG (Cisco ACI Endpoint Group) binding synchronisation failures and SGT-to-Secure-Workload-scope binding update failures — symptoms of integration drift between ISE TrustSec policy and Cisco ACI / Secure Workload enforcement.",
-  "value": "When ISE's TrustSec policy and ACI/Secure Workload enforcement diverge, traffic that ISE classified as 'production' may be enforced by ACI as 'staging' (or vice versa). Catching binding-update failures in real time prevents silent classification drift.",
+  "description": "Monitors 'ISE-Cisco ACI / Cisco Secure Workload SGT Binding Synchronisation' (UC-17.1.37) using `index=nac` sourcetype `cisco:ise:syslog` by aggregating `count` grouped by `sgt_name`, `epg_name` over `the scheduled window` and alerting when `failures` > 0. Keywords: ISE, Cisco, ACI, Cisco, Secure. Focuses on Binding Synchronisation behaviour so network teams can triage UC-17.1.37 without ad-hoc log review.",
+  "value": "UC-17.1.37 accelerates insight into Binding Synchronisation ('ISE-Cisco ACI / Cisco Secure Workload SGT Binding Synchronisation') by tracking `activity` on `cisco:ise:syslog` feeds, reducing unauthorized access, segmentation drift, and NAC policy failures before spreadsheet checks hide regressions.",
   "implementation": "Onboard ACI APIC syslog into `index=network`. Onboard Secure Workload binding events via the OpenAPI poller. Schedule the search every 30 min, search window `-1h@h to @h`, trigger on count > 0.",
   "visualization": "(1) Single value: count of failed bindings last 24h. (2) Sankey: sgt_name → epg_name → status (success/failure). (3) Top-N table: SGTs with most failed bindings.",
   "cimModels": [],
@@ -64,14 +66,26 @@
   "references": [
     {
       "title": "Cisco ISE 3.4 Admin Guide — TrustSec / ACI Integration",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco APIC — REST API",
-      "url": "https://developer.cisco.com/docs/aci/"
+      "url": "https://developer.cisco.com/docs/aci/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) **Bulk ACI EPG renames** — A scheduled rename causes a transient binding miss until ACI re-resolves. Suppress within scheduled change windows. (b) **Secure Workload scope reorganisation** — Major scope-tree changes generate binding update activity that may transiently fail before the new tree is applied.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'ISE-Cisco ACI / Cisco Secure Workload SGT Binding Synchronisation'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "T1599"
   ],
@@ -90,7 +104,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• ISE-ACI integration configured (Administration > pxGrid Services > ACI Settings).\n• ACI APIC syslog forwarded to Splunk.\n• Splunk credentials for the Secure Workload OpenAPI; modular input or cron poller.\n• `sgt_epg_mapping.csv` lookup (SGT → expected EPG).\n\nStep 1 — Configure data collection\nEnable ISE *TrustSec* category at INFO. Verify ACI APIC syslog is arriving at `index=network sourcetype=cisco:apic`.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 30 min.\n\nStep 3 — Validate\nProvoke a binding failure as in controlTest. Confirm fire.\n\nStep 4 — Operationalize\nDashboard panels listed above. Slack notification to `#network-segmentation-platform`.\n\nStep 5 — Troubleshooting\n• **No ACI syslog events** — APIC syslog target not configured. Configure under APIC: Admin > External Data Collectors > Syslog.\n• **Binding-failure events from ISE without ACI events** — APIC may be reachable but Secure Workload integration broken. Validate Secure Workload OpenAPI auth.\n• **Persistent failures for one SGT** — That SGT has no matching EPG defined in ACI. Coordinate with the ACI admin to create or rename the EPG.",
+  "detailedImplementation": "Prerequisites\n• ISE-ACI integration configured (Administration > pxGrid Services > ACI Settings).\n• ACI APIC syslog forwarded to Splunk.\n• Splunk credentials for the Secure Workload OpenAPI; modular input or cron poller.\n• `sgt_epg_mapping.csv` lookup (SGT → expected EPG).\n\nStep 1 — Configure data collection\nEnable ISE *TrustSec* category at INFO. Verify ACI APIC syslog is arriving at `index=network sourcetype=cisco:apic`.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 30 min.\n\nStep 3 — Validate\nProvoke a binding failure as in controlTest. Confirm fire.\n\nStep 4 — Operationalize\nDashboard panels listed above. Slack notification to `#network-segmentation-platform`.\n\nStep 5 — Troubleshooting\n• **No ACI syslog events** — APIC syslog target not configured. Configure under APIC: Admin > External Data Collectors > Syslog.\n• **Binding-failure events from ISE without ACI events** — APIC may be reachable but Secure Workload integration broken. Validate Secure Workload OpenAPI auth.\n• **Persistent failures for one SGT** — That SGT has no matching EPG defined in ACI. Coordinate with the ACI admin to create or rename the EPG.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)) + `Cisco ACI Connector` ([Splunkbase 4309](https://splunkbase.splunk.com/app/4309)) + custom Secure Workload poller.). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog, cisco:apic into nac, network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`epg_name, failures, sgt_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "ISE labels users by group, but the data-centre fabric and the workload-protection tool need to know about the same groups. We make sure those tools agree with ISE — and ring the bell when one of them refuses a label, so security rules stay consistent.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

@@ -9,11 +9,17 @@
     "Anomaly"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Broadcom Symantec SEP SONAR Behavioral Detection Rate Trending' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_broadcom_symantec_sep_sonar_behavioral_detection` (UC-10.18.2), SOC dashboard panel \"Security Infra — Broadcom Symantec SEP SONAR Behavioral Detection Rate Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.18.2 positive (Broadcom, Symantec, SEP, SONAR, Behavioral): ingest synthetic events into `index=endpoint` sourcetype='symantec:ep:proactive:file' where `baseline`, `sd` grouped by `_time`, `risk` satisfies `z_score` > 3 for 'Broadcom Symantec SEP SONAR Behavioral Detection Rate Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.18.2 negative (Rate Trending): ingest benign `endpoint` / `symantec:ep:proactive:file` events where `_time`, `risk` stays below `z_score` > 3, or exclude the test entity via `soc_exception_register.csv`. Variant 9 confirms zero alert rows for 'Broadcom Symantec SEP SONAR Behavioral Detection Rate Trending'."
+  },
   "dataSources": "`sourcetype=symantec:ep:proactive:file` SONAR / proactive threat events from SEP clients",
   "app": "Splunk Add-on for Symantec Endpoint Protection (Splunkbase 2772)",
   "spl": "index=endpoint sourcetype=\"symantec:ep:proactive:file\" earliest=-30d@d\n| eval risk=coalesce(Risk_Name, risk_name, Threat_Name, threat_name, \"SONAR\")\n| bin _time span=1d\n| stats count by _time risk\n| eventstats avg(count) as baseline stdev(count) as sd by risk\n| eval sd_safe=if(sd=0 OR isnull(sd),1,sd)\n| eval z_score=round((count-baseline)/sd_safe,2)\n| where z_score>3 OR count>baseline*4",
-  "description": "SONAR and behavioral layers catch file-less and polymorphic malware that signatures miss. Sudden spikes in proactive detections can signal a new campaign, a policy misconfiguration, or an aggressive false-positive signature.",
-  "value": "Gives SOC early warning on behavioral malware waves and helps tune SONAR sensitivity before help-desk volume or business disruption rises.",
+  "description": "Alerts on UC-10.18.2 — Broadcom, Symantec, SEP, SONAR, Behavioral — using `index=endpoint` sourcetype `symantec:ep:proactive:file`, grouped by `_time`, `risk`. Outputs `baseline`, `sd` each `1d`; alert when `z_score` > 3. Primary focus: Rate Trending. Purpose-built for 'Broadcom Symantec SEP SONAR Behavioral Detection Rate Trending' in Security Infra workflows.",
+  "value": "Operators running UC-10.18.2 on `symantec:ep:proactive:file` feeds shorten triage for Rate Trending tied to 'Broadcom Symantec SEP SONAR Behavioral Detection Rate Trending', lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "(1) Enable proactive / SONAR log forwarding from SEPM. (2) Normalize `Risk_Name` and `Actual_Action` fields. (3) Baseline daily counts per risk category over 30 days. (4) Alert on statistical spikes and cross-check with release notes for new definitions. (5) Feed top risks into threat hunting.",
   "visualization": "Multi-series line chart (blocked vs monitored over time), stacked bar by risk family, table of spike days.",
   "cimModels": [
@@ -22,16 +28,32 @@
   "references": [
     {
       "title": "Splunk Add-on for Symantec Endpoint Protection — sourcetypes",
-      "url": "https://docs.splunk.com/Documentation/AddOns/released/SymantecEP/Sourcetypes/"
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/SymantecEP/Sourcetypes/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Broadcom — SONAR protection overview",
-      "url": "https://knowledge.broadcom.com/"
+      "url": "https://knowledge.broadcom.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Approved vulnerability scanner** — Scanner `src` triggers high-severity signatures for 'Broadcom Symantec SEP SONAR Behavioral Detection Rate Trending'. Join `scanner_ips` before threshold.\n\n2. **Signature definition update** — Vendor content push reclassifies benign traffic. Compare threat_id first_seen with content release date.\n\n3. **Red-team emulation** — Atomic test traffic from approved exercise hosts.\n\n4. **Backup replication traffic** — Off-hours bulk transfer matches lateral-movement heuristics.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `src`, `threat_id`, `valid_until`.",
   "securityDomain": "endpoint",
   "equipment": [
     "broadcom_symantec"
+  ],
+  "equipmentModels": [
+    "broadcom_symantec_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -40,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch Broadcom Symantec’s behavioral anti-malware layer for unusual bursts of suspicious activity so new attacks are caught early."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Symantec Endpoint Protection (Splunkbase 2772)). Enable the modular input or HEC token that writes sourcetype=symantec:ep:proactive:file into endpoint. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, risk, sd_safe, z_score`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch Broadcom Symantec’s behavioral anti-malware layer for unusual bursts of suspicious activity so new attacks are caught early.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

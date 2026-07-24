@@ -8,26 +8,55 @@
     "Anomaly"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Whole-home water flow (`watermeter:flow`), sump pump (`sumppump:event`), well pump (`wellpump:event`), pool/spa chemistry (`pool:chemistry`), water softener (`watersoftener:status`), irrigation zones (`irrigation:zone`).",
-  "app": "Smart water meters (Flume / Flo / HomeWizard), sump- and well-pump sensors, pool/spa controllers, water-softener and irrigation controllers via vendor APIs, MQTT, and HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Continuous-Flow Water Leak Detection' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_continuous_flow_water_leak_detection` (UC-25.19.1), SOC dashboard panel \"Personal — Continuous-Flow Water Leak Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.19.1 positive (Continuous, Flow, Water, Leak, Detection): ingest synthetic events into `index=personal` sourcetype='watermeter:flow' where `flow` grouped by `entity` satisfies `flow` > 0, or `consecutive` >= 8 for 'Continuous-Flow Water Leak Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.19.1 negative (Leak Detection): ingest benign `personal` / `watermeter:flow` events where `entity` stays below `flow` > 0, or `consecutive` >= 8, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 4 confirms zero alert rows for 'Continuous-Flow Water Leak Detection'."
+  },
+  "dataSources": "Whole-home water flow (`watermeter:flow`), sump pump (`sumppump:event`), well pump (`wellpump:event`), pool/spa chemistry (`pool:chemistry`), water softener (`watersoftener:status`), irrigation zones (`irrigation:zone`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Smart water meters (Flume / Flo / HomeWizard), sump- and well-pump sensors, pool/spa controllers, water-softener and irrigation controllers via vendor APIs, MQTT, and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=watermeter:flow\n| timechart span=15m max(flow_lpm) as flow\n| streamstats current=t count(eval(flow>0)) as consecutive reset_after=\"(flow=0)\"\n| eval leak_suspected=if(consecutive>=8,1,0)",
-  "description": "Detects water flowing continuously for hours with no pause, the tell-tale signature of a running toilet or a burst pipe.",
-  "value": "A silent leak can waste thousands of litres and cause real damage; catching non-stop flow early turns a disaster into a quick fix.",
+  "description": "Identifies risk tied to Continuous, Flow, Water, Leak, Detection through UC-25.19.1 on `index=personal` sourcetype `watermeter:flow`. Summarises `flow` grouped by `entity` across `15m` before applying `flow` > 0, or `consecutive` >= 8. Operators tune 'Continuous-Flow Water Leak Detection' using UC-25.19.1 runbook steps.",
+  "value": "Tracking `flow` via UC-25.19.1 on `watermeter:flow` feeds improves response to 'Continuous-Flow Water Leak Detection' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Feed a smart water meter into `index=personal`; alert when flow never returns to zero over a sustained window.",
   "visualization": "Time chart of water flow with continuous-flow periods highlighted.",
   "cimModels": [],
   "references": [
     {
       "title": "Flume — personal API",
-      "url": "https://help.flumewater.com/en/articles/3457857-flume-personal-api"
+      "url": "https://help.flumewater.com/en/articles/3457857-flume-personal-api",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.19.1)** — Connector for 'Continuous-Flow Water Leak Detection' stops polling `watermeter:flow`; stale `flow` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `flow` over `15m` is expected for UC-25.19.1, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `watermeter:flow`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `15m` bins on UTC vs local schedule skew `flow` > 0 for 'Continuous-Flow Water Leak Detection'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It spots water running non-stop for a long time, which usually means a running toilet or a leak, so you can act fast."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Water, Plumbing & Utilities — typical feeds: Whole-home water flow (`watermeter:flow`), sump pump (`sumppump:event`), well pump (`wellpump:event`), pool/spa chemistry (`pool:chemistry`), water softener (`watersoftener:status`), irrigation zones .\n• **Sourcetypes in this search**: `watermeter:flow`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=watermeter:flow`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Smart water meters (Flume/Flo/HomeWizard), sump- and well-pump sensors, pool/spa controllers, water-softener and irrigation controllers via vendor APIs, MQTT, and HEC..\n\n**Author notes:** Feed a smart water meter into `index=personal`; alert when flow never returns to zero over a sustained window.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"watermeter:flow\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=watermeter:flow earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Continuous-Flow Water Leak Detection** over `personal` data (primarily `sourcetype=watermeter:flow`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `consecutive`, `flow`, `leak_suspected`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=watermeter:flow\n| timechart span=15m max(flow_lpm) as flow\n| streamstats current=t count(eval(flow>0)) as consecutive reset_after=\"(flow=0)\"\n| eval leak_suspected=if(consecutive>=8,1,0)\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=watermeter:flow earliest=-7d\n| head 50\n| table consecutive, flow, leak_suspected\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=watermeter:flow earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `flow` before alerting:\n\n```spl\nindex=personal sourcetype=watermeter:flow earliest=-30d\n| stats perc50(flow) AS p50 perc90(flow) AS p90 perc99(flow) AS p99 max(flow) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.19.1: Personal evidence` with the following panel layout:\n\n**Panel 1 — Time Chart Of Water Flow With Continuous-Flow Periods Highlighted (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `watermeter:flow` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=watermeter:flow | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Bucket misalignment:** `span=15m` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `15m` buckets.",
+  "grandmaExplanation": "It spots water running non-stop for a long time, which usually means a running toilet or a leak, so you can act fast.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

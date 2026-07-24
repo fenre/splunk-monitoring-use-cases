@@ -8,23 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Fishing catches (`fishing:catch`), fishfinder sonar (`fishfinder:reading`), foraging finds (`foraging:find`), game-cam triggers (`gamecam:trigger`).",
-  "app": "Outdoor logs — fishing apps (Fishbrain), sonar / fishfinder exports, game/trail cameras, and foraging journals — streamed to Splunk HEC via APIs and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Foraging Finds Map and Seasonality' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_foraging_finds_map_and_seasonality` (UC-25.44.5), SOC dashboard panel \"Personal — Foraging Finds Map and Seasonality\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.44.5 positive (Foraging, Finds, Map, and, Seasonality): ingest synthetic events into `index=personal` sourcetype='foraging:find' where `values` grouped by `species`, `month` satisfies detection threshold for 'Foraging Finds Map and Seasonality'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.44.5 negative (and Seasonality): ingest benign `personal` / `foraging:find` events where `species`, `month` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 12 confirms zero alert rows for 'Foraging Finds Map and Seasonality'."
+  },
+  "dataSources": "Fishing catches (`fishing:catch`), fishfinder sonar (`fishfinder:reading`), foraging finds (`foraging:find`), game-cam triggers (`gamecam:trigger`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Outdoor logs — fishing apps (Fishbrain), sonar / fishfinder exports, game/trail cameras, and foraging journals — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=foraging:find\n| eval month=strftime(_time,\"%B\")\n| stats count as finds, values(location) as spots by species month\n| sort species",
-  "description": "Logs your foraging finds by species, spot, and month, learning the seasonal calendar of your patch.",
-  "value": "Foraging rewards memory of where and when things grow; a logged calendar makes your patch pay off year after year.",
+  "description": "Identifies UC-25.44.5 — Foraging, Finds, Map, and, Seasonality — using `index=personal` sourcetype `foraging:find`, grouped by `species`, `month`. Outputs `values` each `the scheduled window`; alert when configured threshold. Primary focus: and Seasonality. Purpose-built for 'Foraging Finds Map and Seasonality' in Personal workflows.",
+  "value": "Tracking `activity` via UC-25.44.5 on `foraging:find` feeds improves response to 'Foraging Finds Map and Seasonality' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest foraging finds into `index=personal`; summarise by species and month.",
   "visualization": "Table of foraging finds by species and season.",
   "cimModels": [],
   "references": [
     {
       "title": "iNaturalist — species observations",
-      "url": "https://www.inaturalist.org/"
+      "url": "https://www.inaturalist.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It logs where and when you find wild mushrooms and plants, learning your patch's seasons."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.44.5)** — Connector for 'Foraging Finds Map and Seasonality' stops polling `foraging:find`; stale `values` on `species`, `month` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `values` over `1w` is expected for UC-25.44.5, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `foraging:find`. Dedup with `stats latest(*) by species`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Foraging Finds Map and Seasonality'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Fishing, Hunting & Foraging — typical feeds: Fishing catches (`fishing:catch`), fishfinder sonar (`fishfinder:reading`), foraging finds (`foraging:find`), game-cam triggers (`gamecam:trigger`)..\n• **Sourcetypes in this search**: `foraging:find`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=foraging:find`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Outdoor logs — fishing apps (Fishbrain), sonar / fishfinder exports, game/trail cameras, and foraging journals — streamed to Splunk HEC via APIs and scripted inputs..\n\n**Author notes:** Ingest foraging finds into `index=personal`; summarise by species and month.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"foraging:find\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=foraging:find earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Foraging Finds Map and Seasonality** over `personal` data (primarily `sourcetype=foraging:find`) across the full search range. The `values` aggregation groups by `species`, `month`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `month`, `species`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=foraging:find\n| eval month=strftime(_time,\"%B\")\n| stats count as finds, values(location) as spots by species month\n| sort species\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=foraging:find earliest=-7d\n| head 50\n| table month, species\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=foraging:find earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.44.5: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Foraging Finds By Species And Season (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `foraging:find` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=foraging:find | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It logs where and when you find wild mushrooms and plants, learning your patch's seasons.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

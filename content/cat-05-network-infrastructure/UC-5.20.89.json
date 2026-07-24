@@ -9,28 +9,42 @@
     "Compliance"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "`index=network sourcetype=pan:traffic` or `sourcetype=netflow` — detection of Unique Local Address (ULA, fc00::/7) traffic crossing organisational perimeters. ULA addresses (RFC 4193) are the IPv6 equivalent of RFC 1918 private addresses. Key properties and risks:\n\n1. **ULA must not cross perimeters.** Like RFC 1918 addresses, ULA should be confined to the organisation's internal network. ULA in transit traffic indicates routing leakage, misconfiguration, or tunneling.\n2. **DISA STIG NET-IPV6-032.** Requires blocking ULA at all external perimeter interfaces.\n3. **fc00::/8 vs fd00::/8.** The fc00::/8 block was reserved for a (never-implemented) centralised allocation scheme. Only fd00::/8 is currently used for locally-assigned ULA. Traffic with fc00::/8 source should not exist.\n4. **ULA in VPN tunnels.** ULA may legitimately traverse site-to-site VPN tunnels between branches of the same organisation. However, ULA should never appear on internet-facing interfaces.\n5. **Split-horizon risk.** If ULA leaks into BGP, it may be accepted by peers who have no route to the ULA prefix, creating black holes.",
-  "app": "Palo Alto Networks Add-on / Cisco Add-on / NetFlow Add-on",
+  "exclusions": "Covers the detection logic documented for 'ULA (fc00::/7) Perimeter Leakage and Containment Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ula_fc00_7_perimeter_leakage_and_containment_mon` (UC-5.20.89), SOC dashboard panel \"Operations — ULA (fc00::/7) Perimeter Leakage and Containment Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.89 positive (ULA, (fc00::, Perimeter, Leakage, and): ingest synthetic events into `index=network` sourcetype='pan:traffic' where `total_bytes`, `unique_sources`, `unique_dests` grouped by `host`, `direction` satisfies -24h for 'ULA (fc00::/7) Perimeter Leakage and Containment Monitoring'. Validate lookup `perimeter_interfaces.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.89 negative (Containment Monitoring): ingest benign `network` / `pan:traffic` events where `host`, `direction` stays below -24h, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'ULA (fc00::/7) Perimeter Leakage and Containment Monitoring'."
+  },
+  "dataSources": "`index=network sourcetype=pan:traffic` or `sourcetype=netflow` — detection of Unique Local Address (ULA, fc00::/7) traffic crossing organisational perimeters. ULA addresses (RFC 4193) are the IPv6 equivalent of RFC 1918 private addresses. Key properties and risks:\n\n1. **ULA must not cross perimeters.** Like RFC 1918 addresses, ULA should be confined to the organisation's internal network. ULA in transit traffic indicates routing leakage, misconfiguration, or tunneling.\n2. **DISA STIG NET-IPV6-032.** Requires blocking ULA at all external perimeter interfaces.\n3. **fc00::/8 vs fd00::/8.** The fc00::/8 block was reserved for a (never-implemented) centralised allocation scheme. Only fd00::/8 is currently used for locally-assigned ULA. Traffic with fc00::/8 source should not exist.\n4. **ULA in VPN tunnels.** ULA may legitimately traverse site-to-site VPN tunnels between branches of the same organisation. However, ULA should never appear on internet-facing interfaces.\n5. **Split-horizon risk.** If ULA leaks into BGP, it may be accepted by peers who have no route to the ULA prefix, creating black holes. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Palo Alto Networks Add-on / Cisco Add-on / NetFlow Add-on — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network (sourcetype=\"pan:traffic\" OR sourcetype=\"netflow\" OR sourcetype=\"cisco:asa\") earliest=-24h\n| eval src_ula=if(match(src, \"^[Ff][CcDd]\"), 1, 0)\n| eval dst_ula=if(match(dest, \"^[Ff][CcDd]\"), 1, 0)\n| where src_ula=1 OR dst_ula=1\n| eval interface_type=coalesce(ingress_zone, inbound_if, \"unknown\")\n| eval direction=case(\n    src_ula=1 AND dst_ula=0, \"ULA source to non-ULA destination (EGRESS LEAK)\",\n    src_ula=0 AND dst_ula=1, \"Non-ULA source to ULA destination (INGRESS LEAK)\",\n    src_ula=1 AND dst_ula=1, \"ULA-to-ULA (internal, expected on site-to-site VPN)\",\n    1=1, \"unknown\")\n| lookup perimeter_interfaces.csv interface as interface_type OUTPUT is_perimeter\n| where is_perimeter=\"yes\"\n| stats count as events sum(bytes) as total_bytes dc(src) as unique_sources dc(dest) as unique_dests by host, direction\n| eval alert=direction . \" — \" . events . \" flows, \" . unique_sources . \" sources, \" . round(total_bytes/1048576, 1) . \" MB on perimeter device \" . host\n| sort -events",
-  "description": "Detects Unique Local Address (ULA, fc00::/7) traffic crossing organisational perimeter devices. ULA addresses are the IPv6 equivalent of RFC 1918 private addresses and must be filtered at all external boundaries. ULA leakage indicates routing misconfiguration, missing perimeter filters, or potential data exfiltration via internal addressing. DISA STIG NET-IPV6-032 mandates ULA filtering at all external perimeter interfaces.",
-  "value": "ULA perimeter leakage is a compliance violation (DISA STIG) and a routing hygiene issue. Leaked ULA traffic creates unreachable destinations for external peers, may reveal internal network topology, and indicates missing perimeter ACLs. In the worst case, ULA leakage via BGP can create route announcements that cause traffic black holes for peers who accept the route.",
+  "description": "Identifies UC-5.20.89 — ULA, (fc00::, Perimeter, Leakage, and — using `index=network` sourcetype `pan:traffic`, grouped by `host`, `direction`. Outputs `total_bytes`, `unique_sources`, `unique_dests` each `the scheduled window`; alert when -24h. Filter chain includes lookup `perimeter_interfaces.csv`. Purpose-built for 'ULA (fc00::/7) Perimeter Leakage and Containment Monitoring' in Operations workflows.",
+  "value": "UC-5.20.89 accelerates insight into Containment Monitoring ('ULA (fc00::/7) Perimeter Leakage and Containment Monitoring') by tracking `total_bytes`, `unique_sources`, `unique_dests` on `pan:traffic` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Monitor perimeter firewall and flow data for any traffic with ULA source or destination addresses. Alert on ULA traffic crossing internet-facing interfaces. Verify perimeter ACLs block ULA.",
   "visualization": "(1) Single-value: ULA flows on perimeter (target: 0). (2) Table: ULA leakage events with source, destination, and volume. (3) Timechart: ULA leakage over 24 hours. (4) Map: perimeter interfaces with ULA leakage highlighted.",
   "references": [
     {
       "title": "RFC 4193 — Unique Local IPv6 Unicast Addresses",
-      "url": "https://www.rfc-editor.org/rfc/rfc4193"
+      "url": "https://www.rfc-editor.org/rfc/rfc4193",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "DISA STIG NET-IPV6-032 — ULA must be filtered at external perimeters",
-      "url": "https://public.cyber.mil/stigs/"
+      "url": "https://public.cyber.mil/stigs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.4.2 — address filtering)",
-      "url": "https://www.rfc-editor.org/rfc/rfc9099"
+      "url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Site-to-site VPN with ULA.** Organisations using ULA for internal inter-site communication over VPN tunnels will see ULA traffic on VPN interfaces. This is legitimate if the VPN is between the organisation's own sites. Exclude VPN tunnel interfaces from perimeter monitoring.\n\n**ULA in NAT64 environments.** Some NAT64 deployments use ULA for the internal IPv6 addressing. Verify NAT is translating ULA to GUA before traffic reaches the perimeter.\n\n**Lab/test networks.** Development and test environments may use ULA and occasionally leak traffic to production perimeters.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.89)** — Planned work for 'ULA (fc00::/7) Perimeter Leakage and Containment Monitoring' shifts `total_bytes`, `unique_sources`, `unique_dests` over `span=1h` while `host`, `direction` remains in-scope. Applies lookup `perimeter_interfaces.csv`. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `pan:traffic`** — Scheduled automation elevates `direction` without crossing configured threshold for UC-5.20.89. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `direction`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `pan:traffic`** — First 48h baseline for UC-5.20.89 on `host` is unstable; join `perimeter_interfaces.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "fortinet",

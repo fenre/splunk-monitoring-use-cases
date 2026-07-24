@@ -9,26 +9,55 @@
     "Quality"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Home Assistant state/logbook events (`homeassistant:event`), Homey flow/insights (`homey:flow`), SmartThings events (`smartthings:event`), Node-RED flow events (`nodered:event`).",
-  "app": "Home Assistant / Homey / SmartThings / Hubitat / openHAB event streams via MQTT, webhooks, and REST — forwarded to Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Presence Detection Accuracy' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_presence_detection_accuracy` (UC-25.4.5), SOC dashboard panel \"Personal — Presence Detection Accuracy\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.4.5 positive (Presence, Detection, Accuracy): ingest synthetic events into `index=personal` sourcetype='homeassistant:event' where `avg_home_s` grouped by `entity_id` satisfies `transitions` > 20 for 'Presence Detection Accuracy'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.4.5 negative (Detection Accuracy): ingest benign `personal` / `homeassistant:event` events where `entity_id` stays below `transitions` > 20, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 11 confirms zero alert rows for 'Presence Detection Accuracy'."
+  },
+  "dataSources": "Home Assistant state/logbook events (`homeassistant:event`), Homey flow/insights (`homey:flow`), SmartThings events (`smartthings:event`), Node-RED flow events (`nodered:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Home Assistant / Homey / SmartThings / Hubitat / openHAB event streams via MQTT, webhooks, and REST — forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=homeassistant:event entity_id=\"person.*\"\n| transaction entity_id startswith=\"state=home\" endswith=\"state=not_home\" maxspan=1d\n| stats count as transitions, avg(duration) as avg_home_s by entity_id\n| eval flaps_flag=if(transitions>20,\"flapping\",\"ok\")",
-  "description": "Measures how often your home/away presence state flips, catching the flapping that makes presence-based automations unreliable.",
-  "value": "Flapping presence turns the heating and lights on and off all day; detecting it lets you tune the device trackers behind it.",
+  "description": "Monitors UC-25.4.5 — Presence, Detection, Accuracy — using `index=personal` sourcetype `homeassistant:event`, grouped by `entity_id`. Outputs `avg_home_s` each `1d`; alert when `transitions` > 20. Primary focus: Detection Accuracy. Purpose-built for 'Presence Detection Accuracy' in Personal workflows.",
+  "value": "UC-25.4.5 helps teams contain Presence, Detection, Accuracy scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Forward person-entity state changes; schedule daily and investigate entities that flap excessively.",
   "visualization": "Table of people by presence transitions per day.",
   "cimModels": [],
   "references": [
     {
       "title": "Home Assistant — Documentation",
-      "url": "https://www.home-assistant.io/docs/"
+      "url": "https://www.home-assistant.io/docs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.4.5)** — Connector for 'Presence Detection Accuracy' stops polling `homeassistant:event`; stale `avg_home_s` on `entity_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_home_s` over `1d` is expected for UC-25.4.5, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `homeassistant:event`. Dedup with `stats latest(*) by entity_id`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `transitions` > 20 for 'Presence Detection Accuracy'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It checks whether your home reliably knows when you are in or out, so the lights and heating behave correctly."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Home Assistant — HA Splunk integration, webhook, or MQTT → HEC.\n• **Subcategory context**: Smart Home Platforms & Automation — typical feeds: Home Assistant state/logbook events (`homeassistant:event`), Homey flow/insights (`homey:flow`), SmartThings events (`smartthings:event`), Hubitat/openHAB logs, Node-RED flow events (`nodered:event`)..\n• **Sourcetypes in this search**: `homeassistant:event`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Home Assistant** events into `index=personal` with `sourcetype=homeassistant:event`.\n\n**Collection method:** HA Splunk integration, webhook, or MQTT → HEC.\n\n**Reference endpoint / path:** `POST /api/events/state_changed or logbook stream`.\n\n**Suggested poll interval:** real-time (event-driven).\n\n**Key fields to extract:** `entity_id, state, attributes, domain`.\n\n**Typical connector stack:** Home Assistant / Homey / SmartThings / Hubitat / openHAB event streams via MQTT, webhooks, and REST — forwarded to Splunk HEC..\n\n**Author notes:** Forward person-entity state changes; schedule daily and investigate entities that flap excessively.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"homeassistant:event\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=homeassistant:event earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Presence Detection Accuracy** over `personal` data (primarily `sourcetype=homeassistant:event`) across the full search range. The `avg` aggregation groups by `entity_id`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `entity_id`, `flaps_flag`, `transitions`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=homeassistant:event entity_id=\"person.*\"\n| transaction entity_id startswith=\"state=home\" endswith=\"state=not_home\" maxspan=1d\n| stats count as transitions, avg(duration) as avg_home_s by entity_id\n| eval flaps_flag=if(transitions>20,\"flapping\",\"ok\")\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Home Assistant → Developer Tools → States. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=homeassistant:event earliest=-7d\n| head 50\n| table entity_id, flaps_flag, transitions\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=homeassistant:event earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `transitions` before alerting:\n\n```spl\nindex=personal sourcetype=homeassistant:event earliest=-30d\n| stats perc50(transitions) AS p50 perc90(transitions) AS p90 perc99(transitions) AS p99 max(transitions) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.4.5: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of People By Presence Transitions Per Day (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Home Assistant — no Home Assistant events / missing fields:** If `homeassistant:event` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Home Assistant connector script is still running (`systemctl status` or cron log).\n\n**Home Assistant — NULL values in extracted fields:** The Home Assistant JSON export shape drifted — compare a raw event (`index=personal sourcetype=homeassistant:event | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Home Assistant — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Home Assistant — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Home Assistant APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It checks whether your home reliably knows when you are in or out, so the lights and heating behave correctly.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -10,11 +10,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=cp_log` (audit/admin logs)",
+  "exclusions": "Covers the detection logic documented for 'Check Point Harmony SASE Admin Audit (Check Point)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_check_point_harmony_sase_admin_audit_check_point` (UC-17.3.47), SOC dashboard panel \"Network — Check Point Harmony SASE Admin Audit (Check Point)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.47 positive (Check, Point, Harmony, SASE, Admin): ingest synthetic events into `index=checkpoint` sourcetype='cp_log' where `values` grouped by `administrator`, `object_name` satisfies -30d for 'Check Point Harmony SASE Admin Audit (Check Point)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.47 negative ((Check Point)): ingest benign `checkpoint` / `cp_log` events where `administrator`, `object_name` stays below -30d, or exclude the test entity via `network_exception_register.csv`. Variant 13 confirms zero alert rows for 'Check Point Harmony SASE Admin Audit (Check Point)'."
+  },
+  "dataSources": "`sourcetype=cp_log` (audit/admin logs) Indexes: checkpoint. Sourcetypes: cp_log. Key fields: administrator, object_name. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Check Point App for Splunk (Splunkbase 4293)",
   "spl": "index=checkpoint sourcetype=\"cp_log\" product=\"SmartConsole\" earliest=-30d\n| where match(lower(operation),\"(?i)create|modify|delete|publish|install\")\n| stats count earliest(_time) as first latest(_time) as last values(operation) as ops by administrator, object_name\n| sort -last",
-  "description": "Centralized SASE policy changes affect all connected users and sites. Audit logs enable compliance, change correlation, and accountability.",
-  "value": "Security governance teams track all Check Point Harmony SASE administrative operations — policy installs, rule deletions, and permission changes — flagging high-impact modifications and out-of-hours activity that bypasses the change review process.",
+  "description": "Surfaces UC-17.3.47 — Check, Point, Harmony, SASE, Admin — using `index=checkpoint` sourcetype `cp_log`, grouped by `administrator`, `object_name`. Outputs `values` each `the scheduled window`; alert when -30d. Primary focus: (Check Point). Purpose-built for 'Check Point Harmony SASE Admin Audit (Check Point)' in Network workflows.",
+  "value": "UC-17.3.47 gives Network teams earlier visibility into (Check Point) through `cp_log` feeds, lowering unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Forward audit logs via Log Exporter or Smart-1 Cloud. Alert on after-hours changes or policy publishes without change ticket. Correlate access anomalies with recent policy changes.",
   "visualization": "Table (recent changes), Timeline (admin activity), Bar chart (changes by admin).",
   "cimModels": [
@@ -26,14 +32,26 @@
   "references": [
     {
       "title": "Check Point App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/4293"
+      "url": "https://splunkbase.splunk.com/app/4293",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Maintenance window on `checkpoint` (UC-17.3.47)** — Planned work for 'Check Point Harmony SASE Admin Audit (Check Point)' shifts `values` over `span=1h` while `administrator`, `object_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `cp_log`** — Scheduled automation elevates `object_name` without crossing configured threshold for UC-17.3.47. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `administrator`, `object_name`** — Health checks in `checkpoint` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cp_log`** — First 48h baseline for UC-17.3.47 on `administrator` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `administrator`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1562.004",
     "T1133"
@@ -42,7 +60,17 @@
     "checkpoint",
     "m365"
   ],
-  "detailedImplementation": "Prerequisites\n• Check Point Harmony SASE admin audit events in `index=checkpoint` with `sourcetype=checkpoint:harmony` or `sourcetype=checkpoint:audit`. Key fields: `administrator`, `operation` (Create/Modify/Delete/Login), `objecttype` (Rule/Network/User/Policy), `objectname`, `details`, `client` (SmartConsole/WebUI).\n• Check Point audit tracks all administrative operations. Critical operations: policy install, rule deletion, blade disable, and admin permission changes.\n\nStep 1 — Configure data collection\nVerify audit events:\n```spl\nindex=checkpoint sourcetype IN (\"checkpoint:harmony\",\"checkpoint:audit\") earliest=-30d\n| where isnotnull(administrator) AND isnotnull(operation)\n| stats count by operation, objecttype\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Admin audit trail:\n```spl\nindex=checkpoint sourcetype IN (\"checkpoint:harmony\",\"checkpoint:audit\") earliest=-7d\n| where isnotnull(administrator)\n| eval change_hour=strftime(_time, \"%H\")\n| eval out_of_hours=if(change_hour<\"08\" OR change_hour>\"18\", \"YES\", \"no\")\n| table _time, administrator, operation, objecttype, objectname, details, client, out_of_hours\n| sort - _time\n```\n\nUnderstanding this SPL: Provides a complete admin audit trail with out-of-hours flagging. Policy installs are the highest-impact operation — they push changes live. Rule deletions may create security gaps. Admin permission changes may indicate privilege escalation.\n\nPolicy install tracking:\n```spl\nindex=checkpoint sourcetype IN (\"checkpoint:harmony\",\"checkpoint:audit\") operation=\"Install Policy\" earliest=-30d\n| stats count by administrator, objectname\n| sort - count\n```\n\nStep 3 — Validate\n(a) Make a test policy change. Verify audit event.\n(b) In SmartConsole: Logs & Monitor > Audit.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Admin operations per day. Row 2 — Policy installs. Row 3 — Out-of-hours changes.\nAlert: Immediate on policy install or rule deletion outside change window.\n\nRunbook:\n1. **Policy install** — Verify change ticket. Confirm no disruption.\n2. **Rule deletion** — Check dependencies. Restore if unintended.\n3. **Admin permission change** — Verify authorization.\n\nStep 5 — Troubleshooting\n• **No audit events** — Log Exporter may not include audit events. Check export filter.\n• **`operation` field generic** — Check Point uses specific audit event codes. Ensure proper parsing.",
+  "equipmentModels": [
+    "checkpoint_generic",
+    "m365_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Check Point Harmony SASE admin audit events in `index=checkpoint` with `sourcetype=checkpoint:harmony` or `sourcetype=checkpoint:audit`. Key fields: `administrator`, `operation` (Create/Modify/Delete/Login), `objecttype` (Rule/Network/User/Policy), `objectname`, `details`, `client` (SmartConsole/WebUI).\n• Check Point audit tracks all administrative operations. Critical operations: policy install, rule deletion, blade disable, and admin permission changes.\n\nStep 1 — Configure data collection\nVerify audit events:\n```spl\nindex=checkpoint sourcetype IN (\"checkpoint:harmony\",\"checkpoint:audit\") earliest=-30d\n| where isnotnull(administrator) AND isnotnull(operation)\n| stats count by operation, objecttype\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Admin audit trail:\n```spl\nindex=checkpoint sourcetype IN (\"checkpoint:harmony\",\"checkpoint:audit\") earliest=-7d\n| where isnotnull(administrator)\n| eval change_hour=strftime(_time, \"%H\")\n| eval out_of_hours=if(change_hour<\"08\" OR change_hour>\"18\", \"YES\", \"no\")\n| table _time, administrator, operation, objecttype, objectname, details, client, out_of_hours\n| sort - _time\n```\n\nUnderstanding this SPL: Provides a complete admin audit trail with out-of-hours flagging. Policy installs are the highest-impact operation — they push changes live. Rule deletions may create security gaps. Admin permission changes may indicate privilege escalation.\n\nPolicy install tracking:\n```spl\nindex=checkpoint sourcetype IN (\"checkpoint:harmony\",\"checkpoint:audit\") operation=\"Install Policy\" earliest=-30d\n| stats count by administrator, objectname\n| sort - count\n```\n\nStep 3 — Validate\n(a) Make a test policy change. Verify audit event.\n(b) In SmartConsole: Logs & Monitor > Audit.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Admin operations per day. Row 2 — Policy installs. Row 3 — Out-of-hours changes.\nAlert: Immediate on policy install or rule deletion outside change window.\n\nRunbook:\n1. **Policy install** — Verify change ticket. Confirm no disruption.\n2. **Rule deletion** — Check dependencies. Restore if unintended.\n3. **Admin permission change** — Verify authorization.\n\nStep 5 — Troubleshooting\n• **No audit events** — Log Exporter may not include audit events. Check export filter.\n• **`operation` field generic** — Check Point uses specific audit event codes. Ensure proper parsing.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Check Point App for Splunk (Splunkbase 4293)). Enable the modular input or HEC token that writes sourcetype=cp_log into checkpoint. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`administrator, object_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We record every action administrators take in our Check Point security system — especially when they push new rules live or delete existing ones. Changes outside normal hours get special attention because a mistake at midnight can affect everyone by morning.",
-  "hardware": "Check Point Harmony SASE management portal, Smart-1 Cloud"
+  "hardware": "Check Point Harmony SASE management portal, Smart-1 Cloud",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

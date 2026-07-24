@@ -8,11 +8,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=Perfmon:Paging_File` (counter: % Usage, % Usage Peak)",
-  "app": "`Splunk_TA_windows`",
+  "exclusions": "Covers the detection logic documented for 'Page File Usage & Exhaustion' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_page_file_usage_exhaustion` (UC-1.2.69), SOC dashboard panel \"Linux — Page File Usage & Exhaustion\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.2.69 positive (Page, File, Usage, Exhaustion): ingest synthetic events into `index=perfmon` sourcetype='Perfmon:Paging_File' where `pf_pct` grouped by `host` satisfies `pf_pct` > 70 for 'Page File Usage & Exhaustion'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.2.69 negative (& Exhaustion): ingest benign `perfmon` / `Perfmon:Paging_File` events where `host` stays below `pf_pct` > 70, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 7 confirms zero alert rows for 'Page File Usage & Exhaustion'."
+  },
+  "dataSources": "`sourcetype=Perfmon:Paging_File` (counter: % Usage, % Usage Peak) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_windows` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=perfmon sourcetype=\"Perfmon:Paging_File\" counter=\"% Usage\" instance=\"_Total\"\n| timechart span=15m avg(Value) as pf_pct by host\n| where pf_pct > 70",
-  "description": "Page file exhaustion prevents new process creation and causes \"out of virtual memory\" errors. System-managed page files can grow to fill the disk.",
-  "value": "When the page file is full, applications can fail to start and services can become unstable. Watching usage helps the team add RAM, fix leaks, or resize the page file before users see widespread errors.",
+  "description": "Identifies UC-1.2.69 — Page, File, Usage, Exhaustion — using `index=perfmon` sourcetype `Perfmon:Paging_File`, grouped by `host`. Outputs `pf_pct` each `15m`; alert when `pf_pct` > 70. Primary focus: & Exhaustion. Purpose-built for 'Page File Usage & Exhaustion' in Linux workflows.",
+  "value": "UC-1.2.69 operationalises 'Page File Usage & Exhaustion' against `Perfmon:Paging_File` feeds so operators reduce capacity incidents, patch regressions, and service outages without manual correlation.",
   "implementation": "Configure Perfmon inputs for Paging File object: `% Usage`, `% Usage Peak` (interval=300). Alert when usage exceeds 70% sustained (indicates memory pressure requiring page file). Track peak usage — if it regularly exceeds 80%, the system needs more RAM or has a memory leak. Also monitor EventCode 2004 in System log (page file too small) as a reactive indicator.",
   "visualization": "Line chart (page file usage over time), Gauge (current usage), Table (hosts with high usage).",
   "cimModels": [
@@ -23,17 +29,38 @@
   "references": [
     {
       "title": "Splunk_TA_windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during batch jobs, backups, or memory-heavy reporting; large SQL or analytics nodes with sustained paging that is still within capacity planning. Use host role baselines; pair with `Perfmon:Memory` Available MBytes and process memory if needed.",
+  "knownFalsePositives": "1. **Patch Tuesday on `perfmon`** — Package managers spike `host` metrics for 'Page File Usage & Exhaustion'. Correlate with apt/yum logs in the same `Perfmon:Paging_File` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `Perfmon:Paging_File`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `pf_pct` > 70.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],
+  "equipmentModels": [
+    "windows_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=Perfmon:Paging_File` (counter: % Usage, % Usage Peak).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIn `inputs.conf` on the forwarder, add a `perfmon` stanza for the **Paging File** object, counters `% Usage` and `% Usage Peak`, instance `_Total` (or per-drive instances if you split alerts), `interval=300` or `60` per volume needs. The TA typically maps this to `sourcetype=Perfmon:Paging_File`. Alert when `% Usage` stays above 70% across multiple intervals; track **% Usage Peak** for capacity. Also watch System EventCode 2004 (page file too small) as a secondary signal.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=perfmon sourcetype=\"Perfmon:Paging_File\" counter=\"% Usage\" instance=\"_Total\"\n| timechart span=15m avg(Value) as pf_pct by host\n| where pf_pct > 70\n```\n\nUnderstanding this SPL\n\n**Page File Usage & Exhaustion** — Page file exhaustion prevents new process creation and causes \"out of virtual memory\" errors. System-managed page files can grow to fill the disk.\n\nDocumented **Data sources**: `sourcetype=Perfmon:Paging_File` (counter: % Usage, % Usage Peak). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: perfmon; **sourcetype**: Perfmon:Paging_File. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=perfmon, sourcetype=\"Perfmon:Paging_File\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=15m** buckets with a separate series **by host** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where pf_pct > 70` — typically the threshold or rule expression for this monitoring goal.\n\nOptional CIM / accelerated variant (Memory node: map paging activity to `swap_used_percent` when CIM is built from the same `Perfmon:Paging_File` feed — validate alias in your environment):\n\n```spl\n| tstats `summariesonly` avg(Performance.swap_used_percent) as page_pct\n  from datamodel=Performance where nodename=Performance.Memory\n  by Performance.host span=15m\n| where page_pct > 70\n```\n\nEnable **data model acceleration** on `Performance` (Memory). If summaries are empty, use the `Perfmon:Paging_File` search above; confirm props/transforms and CIM field aliases for the TA.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (page file usage over time), Gauge (current usage), Table (hosts with high usage).",
-  "grandmaExplanation": "We keep an eye on how full the page file is on Windows servers so we can spot memory pressure before applications start failing or the disk fills from an oversized page file."
+  "grandmaExplanation": "We keep an eye on how full the page file is on Windows servers so we can spot memory pressure before applications start failing or the disk fills from an oversized page file.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

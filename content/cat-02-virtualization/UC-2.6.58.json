@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Citrix Analytics for Performance Data Export' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_citrix_analytics_for_performance_data_export` (UC-2.6.58), SOC dashboard panel \"Linux — Citrix Analytics for Performance Data Export\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.6.58 positive (Citrix, Analytics, for, Performance, Data): ingest synthetic events into `index=citrix` sourcetype='citrix:analytics:performance' where `count` grouped by `reason`, `user_principal` satisfies `score` > 0, `score` < 70, `rtt` > 300, or `logon` > 15000 for 'Citrix Analytics for Performance Data Export'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.6.58 negative (Data Export): ingest benign `citrix` / `citrix:analytics:performance` events where `reason`, `user_principal` stays below `score` > 0, `score` < 70, `rtt` > 300, or `logon` > 15000, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 11 confirms zero alert rows for 'Citrix Analytics for Performance Data Export'."
+  },
   "dataSources": "`index=citrix` `sourcetype=\"citrix:analytics:performance\"` with `session_id`, `user_principal`, `ux_score`, `logon_duration_ms`, `ica_rtt`, `vda_name`, `machine_event_type` from the Citrix Analytics for Performance data export via Citrix Analytics Add-on for Splunk (Splunkbase 6280); optional join to `sourcetype=\"citrix:vda:events\"` for on-host correlation",
   "app": "Citrix Analytics Add-on for Splunk (Splunkbase 6280)",
   "spl": "index=citrix sourcetype=\"citrix:analytics:performance\"\n| eval score=tonumber(coalesce(ux_score, user_experience_score, session_score, -1))\n| eval rtt=tonumber(coalesce(ica_rtt, round_trip_ms, 0))\n| eval logon=tonumber(coalesce(logon_duration_ms, logon_ms, 0))\n| where (score>0 AND score<70) OR rtt>300 OR logon>15000\n| eval reason=case(score>0 AND score<70, \"low_ux_score\", rtt>300, \"high_ica_rtt\", logon>15000, \"slow_logon\", true(), \"other\")\n| timechart span=1h count by reason, user_principal\n| fillnull value=0",
-  "description": "Citrix Analytics for Performance scores sessions and surfaces machine and session lifecycle events with modeled user-experience metrics. When those streams land in a dedicated index, you can trend score regressions by delivery group, catch rising ICA round trip before the help desk floods, and separate image issues from home-network problems. This use case focuses on continuous performance observability and capacity-driven tuning, not on raw security forensics (see related security export use case).",
-  "value": "Citrix Analytics for Performance scores sessions and surfaces machine and session lifecycle events with modeled user-experience metrics. When those streams land in a dedicated index, you can trend score regressions by delivery group, catch rising ICA round trip before the help desk floods, and separate image issues from home-network problems. This use case focuses on continuous performance observability and capacity-driven tuning, not on raw security forensics (see related security export use case).",
+  "description": "Monitors UC-2.6.58 — Citrix, Analytics, for, Performance, Data — using `index=citrix` sourcetype `citrix:analytics:performance`, grouped by `reason`, `user_principal`. Outputs `count` each `1h`; alert when `score` > 0, `score` < 70, `rtt` > 300, or `logon` > 15000. Primary focus: Data Export. Purpose-built for 'Citrix Analytics for Performance Data Export' in Linux workflows.",
+  "value": "UC-2.6.58 helps teams contain Citrix, Analytics, for, Performance, Data scenarios and reduce capacity incidents, patch regressions, and service outages before incidents compound.",
   "implementation": "Complete Citrix Cloud onboarding for Analytics, enable the Performance export, and install Splunkbase 6280 on a test search head. Map exported fields to a stable schema: prefer `user_principal` and `session_id` as join keys. Build baseline weekly medians of UX score and logon time per app group. Alert on a sustained drop in median score (for example 15 points for two hours) or on percentile shifts of ICA RTT. Route reports to EUC and network teams. Mask or hash identifiers if exports leave regulated regions. Keep raw exports within retention that matches your DLP policy.",
   "visualization": "Time chart of median UX score by delivery group; scatter of logon time versus ICA RTT; table of worst sessions in the last hour with drill to machine name and region.",
   "cimModels": [
@@ -21,14 +27,26 @@
   "references": [
     {
       "title": "Citrix Analytics Add-on for Splunk (Splunkbase 6280)",
-      "url": "https://splunkbase.splunk.com/app/6280"
+      "url": "https://splunkbase.splunk.com/app/6280",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Citrix Analytics for Performance (overview)",
-      "url": "https://docs.citrix.com/en-us/citrix-analytics/"
+      "url": "https://docs.citrix.com/en-us/citrix-analytics/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Citrix environments often coordinate broker, VDA, gateway, and profile layers; a single noisy component may clear when maintenance or a publish job completes.",
+  "knownFalsePositives": "1. **Patch Tuesday on `citrix`** — Package managers spike `reason` metrics for 'Citrix Analytics for Performance Data Export'. Correlate with apt/yum logs in the same `citrix:analytics:performance` window.\n\n2. **Nightly backup I/O on `reason`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `citrix:analytics:performance`** — Nagios/Zabbix polls `reason` and mimics sustained load without crossing `score` > 0.\n\n4. **New host onboarding** — `reason` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `reason`, `valid_until`.",
   "equipment": [
     "citrix"
   ],
@@ -36,6 +54,12 @@
     "citrix_cvad"
   ],
   "lastReviewed": "2026-04-24",
-  "detailedImplementation": "Prerequisites\n• Citrix Cloud entitlement for Analytics; data export permissions; Splunkbase app 6280 installed with correct credentials and index routing (for example `index=citrix`).\n• Field extraction verified on `citrix:analytics:performance` for scores and durations.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nValidate event volume and sampling; if volume is high, sample heavy dashboards to five-minute rollups. Document field synonyms your tenant uses (some orgs customize labels).\n\nStep 2 — Create the search and alert\nStart with a weekly report before paging; tune thresholds with two weeks of data. Add suppressions for image rollout windows using a change calendar lookup.\n\nStep 3 — Validate\nCompare a handful of poor-score sessions in this index with the Citrix Cloud UI for the same `session_id` to confirm mapping.\n\nStep 4 — Operationalize\nPublish an executive one-page on median score trend; tie to golden-image releases and autoscale events.",
-  "grandmaExplanation": "We turn the cloud’s picture of how smooth each session feels into simple charts, so you spot when slowness spreads before the phones light up and you know whether the fix is the app image or the network path."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Citrix Cloud entitlement for Analytics; data export permissions; Splunkbase app 6280 installed with correct credentials and index routing (for example `index=citrix`).\n• Field extraction verified on `citrix:analytics:performance` for scores and durations.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nValidate event volume and sampling; if volume is high, sample heavy dashboards to five-minute rollups. Document field synonyms your tenant uses (some orgs customize labels).\n\nStep 2 — Create the search and alert\nStart with a weekly report before paging; tune thresholds with two weeks of data. Add suppressions for image rollout windows using a change calendar lookup.\n\nStep 3 — Validate\nCompare a handful of poor-score sessions in this index with the Citrix Cloud UI for the same `session_id` to confirm mapping.\n\nStep 4 — Operationalize\nPublish an executive one-page on median score trend; tie to golden-image releases and autoscale events.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Citrix Analytics Add-on for Splunk (Splunkbase 6280)). Enable the modular input or HEC token that writes sourcetype=citrix:analytics:performance into citrix. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`logon, reason, rtt, score`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We turn the cloud’s picture of how smooth each session feels into simple charts, so you spot when slowness spreads before the phones light up and you know whether the fix is the app image or the network path.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

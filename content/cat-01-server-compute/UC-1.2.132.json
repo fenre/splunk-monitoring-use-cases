@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`WinEventLog:Microsoft-Windows-TaskScheduler/Operational` (EventCode 201, 101)",
-  "app": "`Splunk_TA_windows`",
+  "exclusions": "Covers the detection logic documented for 'Windows Scheduled Task Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_windows_scheduled_task_failures` (UC-1.2.132), SOC dashboard panel \"Linux — Windows Scheduled Task Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.2.132 positive (Windows, Scheduled, Task, Failures): ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=201 where `count` grouped by `host`, `TaskName` satisfies detection threshold for 'Windows Scheduled Task Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.2.132 negative (Task Failures): ingest benign `wineventlog` / `target_sourcetype` events where `host`, `TaskName` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 15 confirms zero alert rows for 'Windows Scheduled Task Failures'."
+  },
+  "dataSources": "`WinEventLog:Microsoft-Windows-TaskScheduler/Operational` (EventCode 201, 101) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog source=\"WinEventLog:Microsoft-Windows-TaskScheduler/Operational\" EventCode=201 ResultCode!=0\n| stats count by host, TaskName\n| sort -count",
-  "description": "Detect tasks that failed to run or returned non-zero result codes. Indicates missed backups, sync jobs, or automation failures.",
-  "value": "Detect tasks that failed to run or returned non-zero result codes. Indicates missed backups, sync jobs, or automation failures.",
+  "description": "Monitors UC-1.2.132 — Windows, Scheduled, Task, Failures — using `index=wineventlog` sourcetype `configured sourcetype`, grouped by `host`, `TaskName`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Task Failures. Purpose-built for 'Windows Scheduled Task Failures' in Linux workflows.",
+  "value": "UC-1.2.132 operationalises 'Windows Scheduled Task Failures' against UC-1.2.132 search results so operators reduce capacity incidents, patch regressions, and service outages without manual correlation.",
   "implementation": "Enable Task Scheduler Operational log input. EventCode 201 = task completed; EventCode 101 = task started. Parse ResultCode (0 = success). Alert on ResultCode != 0. Common codes: 0x1 (incorrect function), 0x2 (file not found), 0x5 (access denied). Exclude known flaky tasks from alert if acceptable.",
   "visualization": "Table (task, host, result code), Alert on failed tasks, Bar chart (failed task count by task name).",
   "cimModels": [
@@ -21,12 +27,38 @@
   "references": [
     {
       "title": "Splunk_TA_windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'Windows Scheduled Task Failures'. Correlate with apt/yum logs in the same `cpu` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `cpu`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "windows"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `WinEventLog:Microsoft-Windows-TaskScheduler/Operational` (EventCode 201, 101).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable Task Scheduler Operational log input. EventCode 201 = task completed; EventCode 101 = task started. Parse ResultCode (0 = success). Alert on ResultCode != 0. Common codes: 0x1 (incorrect function), 0x2 (file not found), 0x5 (access denied). Exclude known flaky tasks from alert if acceptable.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog source=\"WinEventLog:Microsoft-Windows-TaskScheduler/Operational\" EventCode=201 ResultCode!=0\n| stats count by host, TaskName\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Windows Scheduled Task Failures** — Detect tasks that failed to run or returned non-zero result codes. Indicates missed backups, sync jobs, or automation failures.\n\nDocumented **Data sources**: `WinEventLog:Microsoft-Windows-TaskScheduler/Operational` (EventCode 201, 101). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, TaskName** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (task, host, result code), Alert on failed tasks, Bar chart (failed task count by task name).",
-  "grandmaExplanation": "Detect tasks that failed to run or returned non-zero result codes — so you find out before users do when something is slowing down or breaking."
+  "equipmentModels": [
+    "windows_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `WinEventLog:Microsoft-Windows-TaskScheduler/Operational` (EventCode 201, 101).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable Task Scheduler Operational log input. EventCode 201 = task completed; EventCode 101 = task started. Parse ResultCode (0 = success). Alert on ResultCode != 0. Common codes: 0x1 (incorrect function), 0x2 (file not found), 0x5 (access denied). Exclude known flaky tasks from alert if acceptable.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog source=\"WinEventLog:Microsoft-Windows-TaskScheduler/Operational\" EventCode=201 ResultCode!=0\n| stats count by host, TaskName\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Windows Scheduled Task Failures** — Detect tasks that failed to run or returned non-zero result codes. Indicates missed backups, sync jobs, or automation failures.\n\nDocumented **Data sources**: `WinEventLog:Microsoft-Windows-TaskScheduler/Operational` (EventCode 201, 101). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, TaskName** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (task, host, result code), Alert on failed tasks, Bar chart (failed task count by task name).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)). Enable the modular input or HEC token that writes sourcetype=see SPL into wineventlog. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`TaskName, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "Detect tasks that failed to run or returned non-zero result codes — so you find out before users do when something is slowing down or breaking.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

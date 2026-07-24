@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=linux_secure`",
-  "app": "`Splunk_TA_nix, custom scripted input`",
+  "exclusions": "Covers the detection logic documented for 'Inactive User Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_inactive_user_detection` (UC-1.1.110), SOC dashboard panel \"Linux — Inactive User Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.110 positive (Inactive, User, Detection): ingest synthetic events into `index=os` sourcetype='linux_secure' where `last_login` grouped by `user`, `host` satisfies `days_inactive` > 90 for 'Inactive User Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.110 negative (User Detection): ingest benign `os` / `linux_secure` events where `user`, `host` stays below `days_inactive` > 90, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 1 confirms zero alert rows for 'Inactive User Detection'."
+  },
+  "dataSources": "`sourcetype=linux_secure` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix, custom scripted input` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=linux_secure \"Accepted\"\n| stats max(_time) as last_login by user, host\n| eval days_inactive=(now()-last_login)/86400\n| where days_inactive > 90",
-  "description": "Inactive users with enabled accounts represent security risk and should be disabled to reduce attack surface.",
-  "value": "Inactive users with enabled accounts represent security risk and should be disabled to reduce attack surface.",
+  "description": "Surfaces User Detection activity in UC-1.1.110 ('Inactive User Detection') from `index=os` sourcetype `linux_secure`. Rolls up `last_login` by `user`, `host` across `the scheduled window` and pages when `days_inactive` > 90. Covers Inactive, User, Detection. Linux operators treat UC-1.1.110 as the canonical signal.",
+  "value": "Operators running UC-1.1.110 on `linux_secure` feeds shorten triage for User Detection tied to 'Inactive User Detection', lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Track user login activity from `/var/log/auth.log` (linux_secure). Calculate days since last successful login. Alert on users inactive >90 days. Include list of inactive accounts for review and disabling.",
   "visualization": "Table, Alert",
   "cimModels": [
@@ -23,17 +29,38 @@
   "references": [
     {
       "title": "Splunk_TA_nix",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Break-glass or shared functional accounts may show no SSH “Accepted” lines if people only use `sudo` or console—join with directory data. Short `last_login` windows after a password reset or key-only logins without matching `linux_secure` patterns can false-negative; validate against identity tools.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `user` metrics for 'Inactive User Detection'. Correlate with apt/yum logs in the same `linux_secure` window.\n\n2. **Nightly backup I/O on `user`** — Predictable `max` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `linux_secure`** — Nagios/Zabbix polls `user` and mimics sustained load without crossing `days_inactive` > 90.\n\n4. **New host onboarding** — `user` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `user`, `valid_until`.",
   "equipment": [
     "linux"
   ],
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=linux_secure`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nTrack user login activity from `/var/log/auth.log`. Calculate days since last login. Alert on users inactive >90 days. Include list of inactive accounts for review and disabling.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=linux_secure \"Accepted\"\n| stats max(_time) as last_login by user, host\n| eval days_inactive=(now()-last_login)/86400\n| where days_inactive > 90\n```\n\nUnderstanding this SPL\n\n**Inactive User Detection** — Inactive users with enabled accounts represent security risk and should be disabled to reduce attack surface.\n\nDocumented **Data sources**: `sourcetype=linux_secure`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: linux_secure. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=linux_secure. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by user, host** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **days_inactive** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where days_inactive > 90` — typically the threshold or rule expression for this monitoring goal.\n\nOptional CIM / accelerated variant (successful authentication events normalized to the Authentication data model):\n\n```spl\n| tstats `summariesonly` max(_time) as last_success\n  from datamodel=Authentication.Authentication\n  where Authentication.action=success\n  by Authentication.user Authentication.dest\n| eval days_inactive=(now()-last_success)/86400\n| where days_inactive > 90\n```\n\nUnderstanding this CIM / accelerated SPL\n\nThis variant requires **CIM** tagging of your authentication sources to **Authentication.Authentication** and **Data Model Acceleration** on the Authentication data model. Field names must align (`Authentication.user` matches your identity field).\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Alert",
-  "grandmaExplanation": "We list people who have not logged in for a long time so we can disable stale Linux accounts that attackers could try next."
+  "grandmaExplanation": "We list people who have not logged in for a long time so we can disable stale Linux accounts that attackers could try next.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

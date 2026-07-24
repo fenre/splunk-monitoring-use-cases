@@ -9,11 +9,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=xd` `sourcetype=\"citrix:monitor:odata\"` (Machines, Sessions, and LoadIndex fields from the Citrix Monitor Service OData collection); field aliases such as `load_index` or `LoadIndex` depending on the collector; `MachineName` / `CatalogName` / `DesktopGroupName` for grouping",
-  "app": "Citrix Monitor Service OData poller (custom scripted input) or a supported Splunk Citrix add-on that writes `citrix:monitor:odata`",
+  "exclusions": "Covers the detection logic documented for 'Citrix Monitor OData Load Index Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_citrix_monitor_odata_load_index_trending` (UC-2.6.46), SOC dashboard panel \"Linux — Citrix Monitor OData Load Index Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.6.46 positive (Citrix, Monitor, OData, Load, Index): ingest synthetic events into `index=xd` sourcetype='citrix:monitor:odata' where `peak_li` grouped by `machine`, `dg`, `_time` satisfies `li` >= 0, or `peak_li` > 5000 for 'Citrix Monitor OData Load Index Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.6.46 negative (Index Trending): ingest benign `xd` / `citrix:monitor:odata` events where `machine`, `dg`, `_time` stays below `li` >= 0, or `peak_li` > 5000, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 0 confirms zero alert rows for 'Citrix Monitor OData Load Index Trending'."
+  },
+  "dataSources": "`index=xd` `sourcetype=\"citrix:monitor:odata\"` (Machines, Sessions, and LoadIndex fields from the Citrix Monitor Service OData collection); field aliases such as `load_index` or `LoadIndex` depending on the collector; `MachineName` / `CatalogName` / `DesktopGroupName` for grouping Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Citrix Monitor Service OData poller (custom scripted input) or a supported Splunk Citrix add-on that writes `citrix:monitor:odata` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=xd sourcetype=\"citrix:monitor:odata\" odata_resource=\"Machines\"\n| eval li=tonumber(coalesce(load_index, LoadIndex, 0))\n| eval machine=coalesce(machine_name, MachineName, host)\n| eval dg=coalesce(delivery_group, DesktopGroupName, \"Unknown\")\n| where li >= 0\n| bin _time span=1h\n| stats latest(li) as load_index, max(li) as peak_li by machine, dg, _time\n| where peak_li > 5000\n| timechart max(peak_li) by dg",
-  "description": "The Citrix load evaluator reports a load index (0 to 10,000) that combines session count, application load, and other factors per machine. Trending that index at the machine and delivery group level shows who is overassigned before new sessions fail, validates load-balancing policy effectiveness, and helps capacity planning. Spikes in average or peak load index that persist across hours point to too few hosts, heavy users, or runaway published applications, not one-off blips. Pair this with session counts to separate genuine saturation from a broken load metric source.",
-  "value": "The Citrix load evaluator reports a load index (0 to 10,000) that combines session count, application load, and other factors per machine. Trending that index at the machine and delivery group level shows who is overassigned before new sessions fail, validates load-balancing policy effectiveness, and helps capacity planning. Spikes in average or peak load index that persist across hours point to too few hosts, heavy users, or runaway published applications, not one-off blips. Pair this with session counts to separate genuine saturation from a broken load metric source.",
+  "description": "Surfaces 'Citrix Monitor OData Load Index Trending' (UC-2.6.46) using `index=xd` sourcetype `citrix:monitor:odata` by aggregating `peak_li` grouped by `machine`, `dg`, `_time` over `1h` and alerting when `li` >= 0, or `peak_li` > 5000. Keywords: Citrix, Monitor, OData, Load, Index. Focuses on Index Trending behaviour so linux teams can triage UC-2.6.46 without ad-hoc log review.",
+  "value": "UC-2.6.46 accelerates insight into Index Trending ('Citrix Monitor OData Load Index Trending') by tracking `peak_li` on `citrix:monitor:odata` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
   "implementation": "Stand up a scheduled OData poll with authentication to the on-premises Monitor service and persist JSON into `citrix:monitor:odata` with a stable `odata_resource` field. Map OData property names to lowercase Splunk fields for `LoadIndex` and `MachineName`. Create hourly or fifteen-minute baselines. Alert when peak load index exceeds 5,000 (tunable) for any machine for more than two consecutive samples, or when the delivery group average crosses your internal green/yellow line. Onboard a dashboard of top ten machines by load index with drilldowns to process and session data.",
   "visualization": "Line chart of max load index by delivery group, heatmap of machines over time, table of current worst offenders with load index and session count if joined.",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Monitor Service and OData in CVAD",
-      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/"
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Citrix environments often coordinate broker, VDA, gateway, and profile layers; a single noisy component may clear when maintenance or a publish job completes.",
+  "knownFalsePositives": "1. **Patch Tuesday on `xd`** — Package managers spike `machine` metrics for 'Citrix Monitor OData Load Index Trending'. Correlate with apt/yum logs in the same `citrix:monitor:odata` window.\n\n2. **Nightly backup I/O on `machine`** — Predictable `max` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `citrix:monitor:odata`** — Nagios/Zabbix polls `machine` and mimics sustained load without crossing `li` >= 0.\n\n4. **New host onboarding** — `machine` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `machine`, `valid_until`.",
   "equipment": [
     "citrix"
   ],
@@ -33,6 +55,12 @@
     "citrix_cvad"
   ],
   "lastReviewed": "2026-04-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: A Citrix Monitor OData poller (scripted or third-party) that writes to `index=xd` with `sourcetype=\"citrix:monitor:odata\"`.\n• Ensure the following data sources are available: OData `Machines` and optionally `Sessions` for joins; service account with least privilege.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nSchedule polls at least every five minutes. Use incremental queries if the API supports it. Add credentials in `password.conf` and reference a modular or scripted input. Normalize field names. Log HTTP failures from the poller to a separate index so you can alert on collector outages separately from high load index.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; fix `coalesce` field list to the names your poller actually emits):\n\n```spl\nindex=xd sourcetype=\"citrix:monitor:odata\" odata_resource=\"Machines\"\n| eval li=tonumber(coalesce(load_index, LoadIndex, 0))\n| eval machine=coalesce(machine_name, MachineName, host)\n| eval dg=coalesce(delivery_group, DesktopGroupName, \"Unknown\")\n| bin _time span=1h\n| stats latest(li) as load_index, max(li) as peak_li by machine, dg, _time\n| where peak_li > 5000\n```\n\n**Citrix Monitor OData Load Index Trending** — The `5,000` cut is a starting point: busy single-session physical hosts may be lower. For multi-session, lower thresholds are common. Add `streamstats` to require sustained elevation before alerting.\n\nStep 3 — Validate\nCompare a known busy host’s on-console load index in Citrix against the poll. If deltas appear, check clock skew, poll interval, and whether you are using cached OData responses.\n\nStep 4 — Operationalize\nTie the alert to capacity reviews: new hardware, more instances, or session limits per user. Revisit delivery group power management so hosts come online before load index pegs at shift start.",
-  "grandmaExplanation": "We track how “full” each desktop server is using Citrix’s own load number over time, so you add capacity or balance work before that host stops taking new people."
+  "grandmaExplanation": "We track how “full” each desktop server is using Citrix’s own load number over time, so you add capacity or balance work before that host stops taking new people.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=proxy` `sourcetype=squid:cache`",
-  "app": "Universal Forwarder on Squid host",
+  "exclusions": "Covers the detection logic documented for 'Squid cache.log ERROR and FATAL Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_squid_cache_log_error_and_fatal_events` (UC-8.6.21), SOC dashboard panel \"Operations — Squid cache.log ERROR and FATAL Events\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.6.21 positive (Squid, cache.log, ERROR, and, FATAL): ingest synthetic events into `index=proxy` sourcetype='squid:cache' where `count` grouped by `host` satisfies detection threshold for 'Squid cache.log ERROR and FATAL Events'. Validate filter `\" ERROR \" OR \" FATAL \"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.6.21 negative (FATAL Events): ingest benign `proxy` / `squid:cache` events where `host` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Squid cache.log ERROR and FATAL Events'."
+  },
+  "dataSources": "`index=proxy` `sourcetype=squid:cache` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Universal Forwarder on Squid host — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"squid:cache\"\n| search \" ERROR \" OR \" FATAL \"\n| stats count by host\n| sort -count",
-  "description": "ERROR/FATAL lines capture disk I/O failures, rock store corruption, and TLS helper crashes.",
-  "value": "Protects forward-proxy availability beyond access-log HTTP codes.",
+  "description": "Identifies UC-8.6.21 — Squid, cache.log, ERROR, and, FATAL — using `index=proxy` sourcetype `squid:cache`, grouped by `host`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `\" ERROR \" OR \" FATAL \"`. Purpose-built for 'Squid cache.log ERROR and FATAL Events' in Operations workflows.",
+  "value": "UC-8.6.21 accelerates insight into FATAL Events ('Squid cache.log ERROR and FATAL Events') by tracking `activity` on `squid:cache` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Ensure log rotation preserves file tail; escalate FATAL immediately.",
   "visualization": "Table (host), timeline, integration with disk SMART alerts.",
   "cimModels": [
@@ -22,12 +28,31 @@
   "references": [
     {
       "title": "Squid Configuration Manual — Access Log",
-      "url": "http://www.squid-cache.org/Doc/config/access_log/"
+      "url": "http://www.squid-cache.org/Doc/config/access_log/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Cache misses spike after cache flush, deploys with new cache keys, or during warm-up after restart. Compare with those events before treating as a fault.",
+  "knownFalsePositives": "1. **Maintenance window on `proxy` (UC-8.6.21)** — Planned work for 'Squid cache.log ERROR and FATAL Events' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `\" ERROR \" OR \" FATAL \"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `squid:cache`** — Scheduled automation elevates `src` without crossing configured threshold for UC-8.6.21. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `squid:cache`** — First 48h baseline for UC-8.6.21 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "squid"
+  ],
+  "equipmentModels": [
+    "squid_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -36,6 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Universal Forwarder on Squid host.\n• Ensure the following data sources are available: `index=proxy` `sourcetype=squid:cache`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPad spaces in search to reduce false positives or use `rex` for syslog severity.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=proxy sourcetype=\"squid:cache\"\n| search \" ERROR \" OR \" FATAL \"\n| stats count by host\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Squid cache.log ERROR and FATAL Events** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=proxy` `sourcetype=squid:cache`. **App/TA**: Universal Forwarder on Squid host. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nCompare with the application or platform source of truth (logs, UI, or metrics) for the same time range, and with known change or maintenance windows.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Table (host), timeline, integration with disk SMART alerts..",
-  "grandmaExplanation": "We use this to protect forward-proxy availability beyond access-log HTTP codes."
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Universal Forwarder on Squid host.\n• Ensure the following data sources are available: `index=proxy` `sourcetype=squid:cache`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPad spaces in search to reduce false positives or use `rex` for syslog severity.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=proxy sourcetype=\"squid:cache\"\n| search \" ERROR \" OR \" FATAL \"\n| stats count by host\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Squid cache.log ERROR and FATAL Events** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=proxy` `sourcetype=squid:cache`. **App/TA**: Universal Forwarder on Squid host. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nCompare with the application or platform source of truth (logs, UI, or metrics) for the same time range, and with known change or maintenance windows.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Table (host), timeline, integration with disk SMART alerts..\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Universal Forwarder on Squid host — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=squid:cache into proxy. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to protect forward-proxy availability beyond access-log HTTP codes.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

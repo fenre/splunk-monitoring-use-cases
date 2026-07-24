@@ -9,11 +9,17 @@
     "Fault"
   ],
   "splunkPillar": "IT Operations",
-  "dataSources": "`index=ovirt` `sourcetype=\"ovirt:storagedomain\"` with `backend=gluster` OR dedicated `sourcetype=\"ovirt:gluster\"` — `volume`, `brick`, `state`, `rebalance_status`",
-  "app": "Gluster CLI or gstatus JSON via scripted input; join to oVirt domain names",
+  "exclusions": "Covers the detection logic documented for 'oVirt GlusterFS Brick and Volume Health Signals' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_ovirt_glusterfs_brick_and_volume_health_signals` (UC-2.8.9), SOC dashboard panel \"Linux — oVirt GlusterFS Brick and Volume Health Signals\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.8.9 positive (oVirt, GlusterFS, Brick, and, Volume): ingest synthetic events into `index=ovirt` sourcetype='ovirt:storagedomain' where `values` grouped by `st` satisfies -1h for 'oVirt GlusterFS Brick and Volume Health Signals'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.8.9 negative (Health Signals): ingest benign `ovirt` / `ovirt:storagedomain` events where `st` stays below -1h, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 5 confirms zero alert rows for 'oVirt GlusterFS Brick and Volume Health Signals'."
+  },
+  "dataSources": "`index=ovirt` `sourcetype=\"ovirt:storagedomain\"` with `backend=gluster` OR dedicated `sourcetype=\"ovirt:gluster\"` — `volume`, `brick`, `state`, `rebalance_status` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Gluster CLI or gstatus JSON via scripted input; join to oVirt domain names — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ovirt (sourcetype=\"ovirt:storagedomain\" OR sourcetype=\"ovirt:gluster\") earliest=-1h\n| eval st=lower(coalesce(state, brick_state, status))\n| where match(st, \"(?i)down|faulty|degraded|unknown|out of sync\")\n| stats latest(_time) as t, values(volume) as vols, values(brick) as bricks by st\n| sort - t",
-  "description": "Gluster-backed domains fail differently than block storage. Brick faults and split-brain signatures need early detection to avoid silent corruption risk.",
-  "value": "Protects distributed storage-backed VMs from prolonged degraded modes.",
+  "description": "Detects 'oVirt GlusterFS Brick and Volume Health Signals' patterns (UC-2.8.9) sourced from `index=ovirt` sourcetype `ovirt:storagedomain`. Threshold bundle: -1h; aggregation grain: `st`; metrics: `values`. Watch terms: oVirt, GlusterFS, Brick, and, Volume.",
+  "value": "UC-2.8.9 gives Linux teams earlier visibility into Health Signals through `ovirt:storagedomain` feeds, lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Ingest gluster health more frequently than generic domain polls. Train operators on heal procedures. Correlate with network partitions.",
   "visualization": "Map of bricks; timeline degraded state; table volumes.",
   "cimModels": [
@@ -22,12 +28,31 @@
   "references": [
     {
       "title": "GlusterFS with oVirt",
-      "url": "https://www.ovirt.org/documentation/administration_guide/#gluster"
+      "url": "https://www.ovirt.org/documentation/administration_guide/#gluster",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "AOS storage metrics can look worse during background heal, curator, or disk removal work; match alerts to Nutanix task progress and maintenance windows.",
+  "knownFalsePositives": "1. **Patch Tuesday on `ovirt`** — Package managers spike `st` metrics for 'oVirt GlusterFS Brick and Volume Health Signals'. Correlate with apt/yum logs in the same `ovirt:storagedomain` window.\n\n2. **Nightly backup I/O on `st`** — Predictable `values` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `ovirt:storagedomain`** — Nagios/Zabbix polls `st` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `st` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `st`, `valid_until`.",
   "equipment": [
     "ovirt"
+  ],
+  "equipmentModels": [
+    "ovirt_generic"
   ],
   "status": "verified",
   "lastReviewed": "2025-06-01",
@@ -36,5 +61,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We keep an eye on the control panel that runs your virtual datacenter—who changed what, whether storage and hosts are healthy, and when something is about to strand running machines."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Gluster CLI or gstatus JSON via scripted input; join to oVirt domain names — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ovirt:storagedomain, ovirt:gluster into ovirt. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`st`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We keep an eye on the control panel that runs your virtual datacenter—who changed what, whether storage and hosts are healthy, and when something is about to strand running machines.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=ot` IDS/IPS `sourcetype=\"ics:ids\"`, firewall deny logs",
+  "exclusions": "Covers the detection logic documented for 'OT Network Reconnaissance and Scanning' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_ot_network_reconnaissance_and_scanning` (UC-10.14.8), SOC dashboard panel \"Security Infra — OT Network Reconnaissance and Scanning\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.14.8 positive (Network, Reconnaissance, and, Scanning): ingest synthetic events into `index=ot` sourcetype='ics:ids' where `targets`, `ports` grouped by `_time`, `src` satisfies `targets` >= 10, or `ports` >= 20 for 'OT Network Reconnaissance and Scanning'. Validate lookup `ot_asset_inventory`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.14.8 negative (and Scanning): ingest benign `ot` / `ics:ids` events where `_time`, `src` stays below `targets` >= 10, or `ports` >= 20, or exclude the test entity via `soc_exception_register.csv`. Variant 9 confirms zero alert rows for 'OT Network Reconnaissance and Scanning'."
+  },
+  "dataSources": "`index=ot` IDS/IPS `sourcetype=\"ics:ids\"`, firewall deny logs Indexes: ot. Sourcetypes: ics:ids, ics:firewall. Key fields: _time, asset_owner zone, ports, src, targets. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "OT Security Add-on for Splunk (Splunkbase 5151)",
   "spl": "index=ot (sourcetype=\"ics:ids\" OR sourcetype=\"ics:firewall\" action=\"deny\")\n| bin _time span=5m\n| stats dc(dest) as targets dc(dest_port) as ports count by _time, src\n| where targets>=10 OR ports>=20\n| lookup ot_asset_inventory src OUTPUT asset_owner zone",
-  "description": "Detects port and service scanning inside ICS VLANs (T0846), often precursors to exploitation or lateral movement toward PLCs and HMIs.",
-  "value": "Detects port and service scanning inside ICS VLANs (T0846), often precursors to exploitation or lateral movement toward PLCs and HMIs.",
+  "description": "Detects UC-10.14.8 — Network, Reconnaissance, and, Scanning — using `index=ot` sourcetype `ics:ids`, grouped by `_time`, `src`. Outputs `targets`, `ports` each `5m`; alert when `targets` >= 10, or `ports` >= 20. Filter chain includes lookup `ot_asset_inventory`. Purpose-built for 'OT Network Reconnaissance and Scanning' in Security Infra workflows.",
+  "value": "Operators running UC-10.14.8 on `ics:ids` feeds shorten triage for and Scanning tied to 'OT Network Reconnaissance and Scanning', lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Use OT Security Add-on with ES. Distinguish vulnerability scanners from adversary behavior via source allow-lists. Map to T0846 in ES MITRE views.",
   "visualization": "Heatmap (time × src), Bubble chart (targets vs ports).",
   "cimModels": [
@@ -22,17 +28,41 @@
   "references": [
     {
       "title": "OT Security Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/5151"
+      "url": "https://splunkbase.splunk.com/app/5151",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Intrusion_Detection",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Asset discovery, passive scanners, and legitimate vulnerability assessments generate recon-style noise — time-box with approved security testing windows.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-10.14.8)** — Planned work for 'OT Network Reconnaissance and Scanning' shifts `targets`, `ports` over `span=5m` while `_time`, `src` remains in-scope. Applies lookup `ot_asset_inventory`. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `ics:ids`** — Scheduled automation elevates `src` without crossing `targets` >= 10 for UC-10.14.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `src`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ics:ids`** — First 48h baseline for UC-10.14.8 on `_time` is unstable; join `ot_asset_inventory` prior to threshold.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "premiumApps": [
     "Splunk OT Security Add-on"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: OT Security Add-on for Splunk (Splunkbase 5151).\n• Ensure the following data sources are available: `index=ot` IDS/IPS `sourcetype=\"ics:ids\"`, firewall deny logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nUse OT Security Add-on with ES. Distinguish vulnerability scanners from adversary behavior via source allow-lists. Map to T0846 in ES MITRE views.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot (sourcetype=\"ics:ids\" OR sourcetype=\"ics:firewall\" action=\"deny\")\n| bin _time span=5m\n| stats dc(dest) as targets dc(dest_port) as ports count by _time, src\n| where targets>=10 OR ports>=20\n| lookup ot_asset_inventory src OUTPUT asset_owner zone\n```\n\nUnderstanding this SPL\n\n**OT Network Reconnaissance and Scanning** — Detects port and service scanning inside ICS VLANs (T0846), often precursors to exploitation or lateral movement toward PLCs and HMIs.\n\nDocumented **Data sources**: `index=ot` IDS/IPS `sourcetype=\"ics:ids\"`, firewall deny logs. **App/TA** (typical add-on context): OT Security Add-on for Splunk (Splunkbase 5151). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: ics:ids, ics:firewall. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"ics:ids\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by _time, src** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where targets>=10 OR ports>=20` — typically the threshold or rule expression for this monitoring goal.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n\nStep 3 — Validate\nCompare recon spikes to the **OT Security** / IDS view and any **scheduled vulnerability** scan that day so friendly scanning does not look like a threat actor.\n\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Heatmap (time × src), Bubble chart (targets vs ports).\n",
-  "grandmaExplanation": "We notice when someone is mapping or poking the OT network the way a thief cases a building before a break-in."
+  "grandmaExplanation": "We notice when someone is mapping or poking the OT network the way a thief cases a building before a break-in.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

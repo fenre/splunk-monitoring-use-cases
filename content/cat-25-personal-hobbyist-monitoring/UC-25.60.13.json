@@ -9,23 +9,55 @@
     "Anomaly"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Forecasts (`prediction:forecast`), resolved outcomes (`prediction:outcome`), personal bets (`bet:personal`), calibration scores (`calibration:score`), Brier scores (`brier:score`).",
-  "app": "Personal forecasting and calibration — a private prediction journal of dated forecasts about your own life, resolved outcomes, and calibration / Brier scoring — streamed to Splunk HEC via scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Confidence Band Compression Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_confidence_band_compression_watch` (UC-25.60.13), SOC dashboard panel \"Personal — Confidence Band Compression Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.60.13 positive (Confidence, Band, Compression, Watch): ingest synthetic events into `index=personal` sourcetype='prediction:forecast' where `count` grouped by `confidence_band` satisfies `confidence` < 40, `confidence` < 60, or `confidence` < 80 for 'Confidence Band Compression Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.60.13 negative (Compression Watch): ingest benign `personal` / `prediction:forecast` events where `confidence_band` stays below `confidence` < 40, `confidence` < 60, or `confidence` < 80, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 0 confirms zero alert rows for 'Confidence Band Compression Watch'."
+  },
+  "dataSources": "Forecasts (`prediction:forecast`), resolved outcomes (`prediction:outcome`), personal bets (`bet:personal`), calibration scores (`calibration:score`), Brier scores (`brier:score`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Personal forecasting and calibration — a private prediction journal of dated forecasts about your own life, resolved outcomes, and calibration / Brier scoring — streamed to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=prediction:forecast\n| eval confidence_band=case(confidence<40,\"0-39\",confidence<60,\"40-59\",confidence<80,\"60-79\",1=1,\"80-100\")\n| stats count as forecasts by confidence_band\n| sort - forecasts",
-  "description": "Shows whether your probability forecasts are using a healthy range of confidence or clustering too tightly.",
-  "value": "Forecasters who only use a narrow confidence band often fail to express genuine uncertainty.",
+  "description": "Surfaces 'Confidence Band Compression Watch' (UC-25.60.13) using `index=personal` sourcetype `prediction:forecast` by aggregating `count` grouped by `confidence_band` over `the scheduled window` and alerting when `confidence` < 40, `confidence` < 60, or `confidence` < 80. Keywords: Confidence, Band, Compression, Watch. Focuses on Compression Watch behaviour so personal teams can triage UC-25.60.13 without ad-hoc log review.",
+  "value": "UC-25.60.13 accelerates insight into Compression Watch ('Confidence Band Compression Watch') by tracking `activity` on `prediction:forecast` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Classify forecast confidence into broad bands and count how often each band is used.",
   "visualization": "Bar chart of forecast counts by confidence band.",
   "cimModels": [],
   "references": [
     {
       "title": "Good Judgment — forecasting principles",
-      "url": "https://goodjudgment.com/"
+      "url": "https://goodjudgment.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It warns whether you are using a wide enough range of confidence instead of bunching everything together."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.60.13)** — Connector for 'Confidence Band Compression Watch' stops polling `prediction:forecast`; stale `count` on `confidence_band` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.60.13, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `prediction:forecast`. Dedup with `stats latest(*) by confidence_band`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `confidence` < 40 for 'Confidence Band Compression Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Self-Forecasting & Prediction Markets on Yourself — typical feeds: Forecasts (`prediction:forecast`), resolved outcomes (`prediction:outcome`), personal bets (`bet:personal`), calibration scores (`calibration:score`), Brier scores (`brier:score`)..\n• **Sourcetypes in this search**: `prediction:forecast`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=prediction:forecast`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Personal forecasting and calibration — a private prediction journal of dated forecasts about your own life, resolved outcomes, and calibration / Brier scoring — streamed to Splunk HEC via scripted inputs..\n\n**Author notes:** Classify forecast confidence into broad bands and count how often each band is used.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"prediction:forecast\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=prediction:forecast earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Confidence Band Compression Watch** over `personal` data (primarily `sourcetype=prediction:forecast`) across the full search range. It applies numeric thresholds on `confidence` (< 40) after aggregation — tune these constants to your household baseline.\n\n**Fields this search depends on:** `confidence`, `confidence_band`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=prediction:forecast\n| eval confidence_band=case(confidence<40,\"0-39\",confidence<60,\"40-59\",confidence<80,\"60-79\",1=1,\"80-100\")\n| stats count as forecasts by confidence_band\n| sort - forecasts\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=prediction:forecast earliest=-7d\n| head 50\n| table confidence, confidence_band\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=prediction:forecast earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `confidence` before alerting:\n\n```spl\nindex=personal sourcetype=prediction:forecast earliest=-30d\n| stats perc50(confidence) AS p50 perc90(confidence) AS p90 perc99(confidence) AS p99 max(confidence) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.60.13: Personal evidence` with the following panel layout:\n\n**Panel 1 — Bar Chart Of Forecast Counts By Confidence Band (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `prediction:forecast` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=prediction:forecast | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It warns whether you are using a wide enough range of confidence instead of bunching everything together.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

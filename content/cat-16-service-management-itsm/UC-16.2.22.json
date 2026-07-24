@@ -9,11 +9,17 @@
     "Risk"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "PagerDuty schedule audit or maintenance webhooks (`pagerduty:schedule`, `pagerduty:audit`)",
-  "app": "PagerDuty Audit API / Terraform plan logs to Splunk",
+  "exclusions": "Covers the detection logic documented for 'PagerDuty On-Call Schedule Gap — Zero Coverage Window' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_pagerduty_on_call_schedule_gap_zero_coverage_win` (UC-16.2.22), SOC dashboard panel \"Operations — PagerDuty On-Call Schedule Gap — Zero Coverage Window\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-16.2.22 positive (PagerDuty, Call, Schedule, Gap, Zero): ingest synthetic events into `index=alerts` sourcetype='pagerduty:schedule' where `count` grouped by `schedule_name`, `team` satisfies detection threshold for 'PagerDuty On-Call Schedule Gap — Zero Coverage Window'. Validate filter `\"gap\" OR \"no_coverage\" OR \"unassigned\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.2.22 negative (Coverage Window): ingest benign `alerts` / `pagerduty:schedule` events where `schedule_name`, `team` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'PagerDuty On-Call Schedule Gap — Zero Coverage Window'."
+  },
+  "dataSources": "PagerDuty schedule audit or maintenance webhooks (`pagerduty:schedule`, `pagerduty:audit`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "PagerDuty Audit API / Terraform plan logs to Splunk — Universal Forwarder (Splunkbase 617)",
   "spl": "index=alerts sourcetype=\"pagerduty:schedule\" OR sourcetype=\"pagerduty:audit\"\n| search \"gap\" OR \"no_coverage\" OR \"unassigned\"\n| stats latest(_time) as t by schedule_name, team\n| sort -t",
-  "description": "Coverage gaps route pages to void and extend MTTA.",
-  "value": "Detects schedule holes before a holiday weekend.",
+  "description": "Monitors UC-16.2.22 — PagerDuty, Call, Schedule, Gap, Zero — using `index=alerts` sourcetype `pagerduty:schedule`, grouped by `schedule_name`, `team`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `\"gap\" OR \"no_coverage\" OR \"unassigned\"`. Purpose-built for 'PagerDuty On-Call Schedule Gap — Zero Coverage Window' in Operations workflows.",
+  "value": "UC-16.2.22 helps teams contain PagerDuty, Call, Schedule, Gap, Zero scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Hourly synthetic audit pull; join schedules to teams lookup.",
   "visualization": "Calendar heatmap, Table (schedule × gap).",
   "cimModels": [
@@ -23,14 +29,26 @@
   "references": [
     {
       "title": "PagerDuty App for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3013"
+      "url": "https://splunkbase.splunk.com/app/3013",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Opsgenie for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3759"
+      "url": "https://splunkbase.splunk.com/app/3759",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Empty-looking rosters from holidays, not-yet-exported handoffs, or a few minutes of lag in the feed.",
+  "knownFalsePositives": "1. **Maintenance window on `alerts` (UC-16.2.22)** — Planned work for 'PagerDuty On-Call Schedule Gap — Zero Coverage Window' shifts `count` over `span=1h` while `schedule_name`, `team` remains in-scope. Applies filter `\"gap\" OR \"no_coverage\" OR \"unassigned\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `pagerduty:schedule`** — Scheduled automation elevates `team` without crossing configured threshold for UC-16.2.22. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `schedule_name`, `team`** — Health checks in `alerts` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `pagerduty:schedule`** — First 48h baseline for UC-16.2.22 on `schedule_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `schedule_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "hashicorp",
     "pagerduty"
@@ -45,6 +63,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure: PagerDuty Audit API / Terraform plan logs to Splunk.\n• Data: PagerDuty schedule audit or maintenance webhooks (`pagerduty:schedule`, `pagerduty:audit`).\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nHourly synthetic audit pull; join schedules to teams lookup.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=alerts sourcetype=\"pagerduty:schedule\" OR sourcetype=\"pagerduty:audit\"\n| search \"gap\" OR \"no_coverage\" OR \"unassigned\"\n| stats latest(_time) as t by schedule_name, team\n| sort -t\n```\n\nUnderstanding this search\nCoverage gaps route pages to void and extend MTTA.\n\nStep 3 — Validate\nCompare with the PagerDuty incident timeline and service view for the same window. Reconcile a few incident numbers, state changes, and acknowledgement times. If anything disagrees, check export lag, time zone, and which API fields we map.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Calendar heatmap, Table (schedule × gap).",
-  "grandmaExplanation": "We look for a time when nobody is on the schedule, so a night or a region is not an accidental gap with no one to pick up the phone."
+  "detailedImplementation": "Prerequisites\n• Install and configure: PagerDuty Audit API / Terraform plan logs to Splunk.\n• Data: PagerDuty schedule audit or maintenance webhooks (`pagerduty:schedule`, `pagerduty:audit`).\n• For directory layout and inputs, see docs/implementation-guide.md.\n\nStep 1 — Configure data collection\nHourly synthetic audit pull; join schedules to teams lookup.\n\nStep 2 — Create the search and alert\nRun the following search (then save as report or alert; tune time range and threshold):\n\n```spl\nindex=alerts sourcetype=\"pagerduty:schedule\" OR sourcetype=\"pagerduty:audit\"\n| search \"gap\" OR \"no_coverage\" OR \"unassigned\"\n| stats latest(_time) as t by schedule_name, team\n| sort -t\n```\n\nUnderstanding this search\nCoverage gaps route pages to void and extend MTTA.\n\nStep 3 — Validate\nCompare with the PagerDuty incident timeline and service view for the same window. Reconcile a few incident numbers, state changes, and acknowledgement times. If anything disagrees, check export lag, time zone, and which API fields we map.\n\nStep 4 — Operationalize\nAdd to a dashboard, wire alert actions, and document ownership. Suggested view: Calendar heatmap, Table (schedule × gap).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (PagerDuty Audit API / Terraform plan logs to Splunk — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=pagerduty:schedule, pagerduty:audit into alerts. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`schedule_name, team`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We look for a time when nobody is on the schedule, so a night or a region is not an accidental gap with no one to pick up the phone.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

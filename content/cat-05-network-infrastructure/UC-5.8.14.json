@@ -8,21 +8,43 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Admin Activity Logging and Access Control Audit (Meraki)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_admin_activity_logging_and_access_control_audit_` (UC-5.8.14), SOC dashboard panel \"Operations — Admin Activity Logging and Access Control Audit (Meraki)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.8.14 positive (Admin, Activity, Logging, and, Access): ingest synthetic events into `index=meraki` sourcetype='meraki:audit' where `values` grouped by `adminName`, `organizationId` satisfies `admin_action_count` > 0 for 'Admin Activity Logging and Access Control Audit (Meraki)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.8.14 negative (Audit (Meraki)): ingest benign `meraki` / `meraki:audit` events where `adminName`, `organizationId` stays below `admin_action_count` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Admin Activity Logging and Access Control Audit (Meraki)'."
+  },
   "dataSources": "Splunk_TA_cisco_meraki (Splunkbase #5580): Audit input (sourcetype=meraki:audit, daily polling of GET /organizations/{orgId}/configurationChanges, OAuth scope dashboard:general:config:read). NOTE: admin activity is NOT in Meraki syslog — it is only available via the Audit input.",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580)",
   "spl": "index=meraki sourcetype=\"meraki:audit\" earliest=-7d\n| stats count as admin_action_count,\n        values(action) as actions,\n        values(page) as pages,\n        values(label) as targets,\n        earliest(_time) as first_action,\n        latest(_time) as last_action\n         by adminName, organizationId\n| where admin_action_count > 0\n| sort - admin_action_count",
-  "description": "Tracks administrator actions and logins for compliance and security auditing.",
-  "value": "Network operations teams audit Meraki administrator activity for compliance, detecting sensitive configuration changes, after-hours modifications, and unauthorized admin actions across all networks and organizations.",
+  "description": "Surfaces UC-5.8.14 — Admin, Activity, Logging, and, Access — using `index=meraki` sourcetype `meraki:audit`, grouped by `adminName`, `organizationId`. Outputs `values` each `the scheduled window`; alert when `admin_action_count` > 0. Primary focus: Audit (Meraki). Purpose-built for 'Admin Activity Logging and Access Control Audit (Meraki)' in Operations workflows.",
+  "value": "For 'Admin Activity Logging and Access Control Audit (Meraki)', UC-5.8.14 converts `activity` on `meraki:audit` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "1. Enable the Audit input in Splunk_TA_cisco_meraki. The TA polls GET /organizations/{orgId}/configurationChanges daily (configurable to as low as 6 minutes) and emits one event per admin action with adminName, page, label, action, networkName, ssidNumber, ts, and the JSON oldValue / newValue. 2. Group by adminName for per-admin activity dashboards. 3. For privileged-admin / orphaned-admin detection, lookup adminName against your IDM and flag orphans.",
   "visualization": "Admin activity timeline; action type breakdown; user activity detail table.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Meraki (Splunkbase 5631)",
+      "url": "https://splunkbase.splunk.com/app/5631",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Help-desk and automation accounts that log in often can look like noise; focus on new IPs, new admins, and after-hours use against policy.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki` (UC-5.8.14)** — Planned work for 'Admin Activity Logging and Access Control Audit (Meraki)' shifts `values` over `span=1h` while `adminName`, `organizationId` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `meraki:audit`** — Scheduled automation elevates `organizationId` without crossing `admin_action_count` > 0 for UC-5.8.14. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `adminName`, `organizationId`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `meraki:audit`** — First 48h baseline for UC-5.8.14 on `adminName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `adminName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
@@ -30,6 +52,12 @@
   "equipmentModels": [
     "cisco_meraki"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).\n• Ensure the following data sources are available: Splunk_TA_cisco_meraki (Splunkbase #5580): Audit input (sourcetype=meraki:audit, daily polling of GET /organizations/{orgId}/configurationChanges, OAuth scope dashboard:general:config:read). NOTE: admin activity is NOT in Meraki syslog — it is only available via the Audit input..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n1. Enable the Audit input in Splunk_TA_cisco_meraki. The TA polls GET /organizations/{orgId}/configurationChanges daily (configurable to as low as 6 minutes) and emits one event per admin action with adminName, page, label, action, networkName, ssidNumber, ts, and the JSON oldValue / newValue. 2. Group by adminName for per-admin activity dashboards. 3. For privileged-admin / orphaned-admin detection, lookup adminName against your IDM and flag orphans.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=meraki sourcetype=\"meraki:audit\" earliest=-7d\n| stats count as admin_action_count,\n        values(action) as actions,\n        values(page) as pages,\n        values(label) as targets,\n        earliest(_time) as first_action,\n        latest(_time) as last_action\n         by adminName, organizationId\n| where admin_action_count > 0\n| sort - admin_action_count\n```\n\nUnderstanding this SPL\n\n**Admin Activity Logging and Access Control Audit (Meraki)** — Network operations teams audit Meraki administrator activity for compliance, detecting sensitive configuration changes, after-hours modifications, and unauthorized admin actions across all networks and organizations.\n\nDocumented **Data sources**: Splunk_TA_cisco_meraki (Splunkbase #5580): Audit input (sourcetype=meraki:audit, daily polling of GET /organizations/{orgId}/configurationChanges, OAuth scope dashboard:general:config:read). NOTE: admin activity is NOT in Meraki syslog — it is only available via the Audit input. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:audit. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=meraki, sourcetype=\"meraki:audit\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by adminName, organizationId** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where admin_action_count > 0` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Admin activity timeline; action type breakdown; user activity detail table.",
-  "grandmaExplanation": "We help you see who does what in the Meraki admin console, which matters when you need to show who changed a critical setting."
+  "grandmaExplanation": "We help you see who does what in the Meraki admin console, which matters when you need to show who changed a critical setting.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

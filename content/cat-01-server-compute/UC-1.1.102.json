@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=syslog, EDAC kernel driver logs`",
-  "app": "`Splunk_TA_nix, custom scripted input`",
+  "exclusions": "Covers the detection logic documented for 'EDAC Memory Error Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_edac_memory_error_tracking` (UC-1.1.102), SOC dashboard panel \"Linux — EDAC Memory Error Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.102 positive (EDAC, Memory, Error, Tracking): ingest synthetic events into `index=os` sourcetype='syslog' where `count` grouped by `host`, `error_type` satisfies `count` > 0 for 'EDAC Memory Error Tracking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.102 negative (Error Tracking): ingest benign `os` / `syslog` events where `host`, `error_type` stays below `count` > 0, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 11 confirms zero alert rows for 'EDAC Memory Error Tracking'."
+  },
+  "dataSources": "`sourcetype=syslog, EDAC kernel driver logs` Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix, custom scripted input` — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=os sourcetype=syslog \"EDAC\" OR \"MCE\" (\"error\" OR \"correctable\" OR \"uncorrectable\")\n| rex field=_raw max_match=1 \"(?<error_type>correctable|uncorrectable|CE|UE)\"\n| stats count by host, error_type\n| where count > 0",
-  "description": "EDAC memory errors indicate hardware failures predicting imminent memory or system failure.",
-  "value": "EDAC memory errors indicate hardware failures predicting imminent memory or system failure.",
+  "description": "Alerts on UC-1.1.102 — EDAC, Memory, Error, Tracking — using `index=os` sourcetype `syslog`, grouped by `host`, `error_type`. Outputs `count` each `the scheduled window`; alert when `count` > 0. Primary focus: Error Tracking. Purpose-built for 'EDAC Memory Error Tracking' in Linux workflows.",
+  "value": "UC-1.1.102 helps teams contain EDAC, Memory, Error, Tracking scenarios and reduce capacity incidents, patch regressions, and service outages before incidents compound.",
   "implementation": "Monitor EDAC (Error Detection and Correction) and MCE (Machine Check Exception) logs. Create immediate alerts on memory errors with escalation to hardware team for memory replacement.",
   "visualization": "Alert, Table",
   "cimModels": [
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 833",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Correctable ECC errors are often auto-scrubbed and may be acceptable up to a vendor threshold; tune for “uncorrectable” vs “correctable”. MCE strings from non-memory subsystems can match the same keywords—verify DIMM vs CPU cache in the full message.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'EDAC Memory Error Tracking'. Correlate with apt/yum logs in the same `syslog` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `syslog`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `count` > 0.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "hardware_bmc",
     "linux",
@@ -33,6 +55,12 @@
   "equipmentModels": [
     "hardware_bmc_edac"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=syslog, EDAC kernel driver logs`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor EDAC (Error Detection and Correction) and MCE (Machine Check Exception) logs. Create immediate alerts on memory errors with escalation to hardware team for memory replacement.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=syslog \"EDAC\" OR \"MCE\" (\"error\" OR \"correctable\" OR \"uncorrectable\")\n| rex field=_raw max_match=1 \"(?<error_type>correctable|uncorrectable|CE|UE)\"\n| stats count by host, error_type\n| where count > 0\n```\n\nUnderstanding this SPL\n\n**EDAC Memory Error Tracking** — EDAC memory errors indicate hardware failures predicting imminent memory or system failure.\n\nDocumented **Data sources**: `sourcetype=syslog, EDAC kernel driver logs`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: syslog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, error_type** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Table",
-  "grandmaExplanation": "We scan kernel logs for memory hardware errors so we can replace bad DIMMs before random crashes or data corruption spread."
+  "grandmaExplanation": "We scan kernel logs for memory hardware errors so we can replace bad DIMMs before random crashes or data corruption spread.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

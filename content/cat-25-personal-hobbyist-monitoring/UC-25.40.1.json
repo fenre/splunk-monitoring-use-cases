@@ -8,23 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Daily life scores (`lifescore:daily`), personal SLO status (`personalslo:status`), cross-signal correlations (`correlation:pair`), plus every other `index=personal` sourcetype as input.",
-  "app": "The meta layer — correlating every `index=personal` feed (sleep, activity, mood, weather, spend, productivity, home telemetry) into daily life scores, personal SLOs, and cross-signal anomaly detection, all computed in Splunk.",
+  "exclusions": "Covers personal hobby monitoring for 'Daily Life Score Composite' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_daily_life_score_composite` (UC-25.40.1), SOC dashboard panel \"Personal — Daily Life Score Composite\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.40.1 positive (Daily, Life, Score, Composite): ingest synthetic events into `index=personal` sourcetype='lifescore:daily' where `life_score`, `base` grouped by `entity` satisfies detection threshold for 'Daily Life Score Composite'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.40.1 negative (Score Composite): ingest benign `personal` / `lifescore:daily` events where `entity` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 0 confirms zero alert rows for 'Daily Life Score Composite'."
+  },
+  "dataSources": "Daily life scores (`lifescore:daily`), personal SLO status (`personalslo:status`), cross-signal correlations (`correlation:pair`), plus every other `index=personal` sourcetype as input. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "The meta layer — correlating every `index=personal` feed (sleep, activity, mood, weather, spend, productivity, home telemetry) into daily life scores, personal SLOs, and cross-signal anomaly detection, all computed in Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=lifescore:daily\n| timechart span=1d avg(score) as life_score\n| eventstats avg(life_score) as base\n| eval good_day=if(life_score>base,1,0)",
-  "description": "Blends sleep, activity, mood, and productivity into a single daily life score you can watch trend.",
-  "value": "One honest composite is easier to act on than a dozen scattered metrics, turning self-tracking into a clear signal.",
+  "description": "Identifies 'Daily Life Score Composite' (UC-25.40.1) using `index=personal` sourcetype `lifescore:daily` by aggregating `life_score`, `base` grouped by `entity` over `1d` and alerting when configured threshold. Keywords: Daily, Life, Score, Composite. Focuses on Score Composite behaviour so personal teams can triage UC-25.40.1 without ad-hoc log review.",
+  "value": "UC-25.40.1 accelerates insight into Score Composite ('Daily Life Score Composite') by tracking `life_score`, `base` on `lifescore:daily` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Compute a weighted daily score from your feeds into `index=personal`; trend it over time.",
   "visualization": "Line chart of the daily life score with a personal baseline.",
   "cimModels": [],
   "references": [
     {
       "title": "Google — SRE book (SLOs)",
-      "url": "https://sre.google/sre-book/service-level-objectives/"
+      "url": "https://sre.google/sre-book/service-level-objectives/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It blends your sleep, activity, mood, and focus into one daily score, a simple read on how life is going."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.40.1)** — Connector for 'Daily Life Score Composite' stops polling `lifescore:daily`; stale `life_score`, `base` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `life_score`, `base` over `1d` is expected for UC-25.40.1, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lifescore:daily`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold for 'Daily Life Score Composite'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Cross-Stream ML & the Personal Digital Twin — typical feeds: Daily life scores (`lifescore:daily`), personal SLO status (`personalslo:status`), cross-signal correlations (`correlation:pair`), plus every other `index=personal` sourcetype as input..\n• **Sourcetypes in this search**: `lifescore:daily`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=lifescore:daily`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** The meta layer — correlating every `index=personal` feed (sleep, activity, mood, weather, spend, productivity, home telemetry) into daily life scores, personal SLOs, and cross-signal anomaly detection, all computed in Splunk..\n\n**Author notes:** Compute a weighted daily score from your feeds into `index=personal`; trend it over time.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"lifescore:daily\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=lifescore:daily earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Daily Life Score Composite** over `personal` data (primarily `sourcetype=lifescore:daily`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `good_day`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=lifescore:daily\n| timechart span=1d avg(score) as life_score\n| eventstats avg(life_score) as base\n| eval good_day=if(life_score>base,1,0)\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=lifescore:daily earliest=-7d\n| head 50\n| table good_day\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=lifescore:daily earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.40.1: Personal evidence` with the following panel layout:\n\n**Panel 1 — Line Chart Of The Daily Life Score With A Personal Baseline (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `lifescore:daily` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=lifescore:daily | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It blends your sleep, activity, mood, and focus into one daily score, a simple read on how life is going.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

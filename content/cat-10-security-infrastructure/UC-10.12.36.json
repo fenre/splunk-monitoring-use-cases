@@ -9,11 +9,17 @@
   ],
   "splunkPillar": "Security",
   "industry": "Retail and E-Commerce",
-  "dataSources": "`sourcetype=\"ims:sync\"`",
-  "app": "WMS, e-commerce OMS",
+  "exclusions": "Covers the detection logic documented for 'Inventory System Sync Failures' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_inventory_system_sync_failures` (UC-10.12.36), SOC dashboard panel \"Security Infra — Inventory System Sync Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.12.36 positive (Inventory, System, Sync, Failures): ingest synthetic events into `index=retail` sourcetype='ims:sync' where `count` grouped by `sku`, `channel`, `dc_id` satisfies detection threshold for 'Inventory System Sync Failures'. Validate filter `status IN (\"FAIL\",\"TIMEOUT\",\"PARTIAL\")`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.12.36 negative (Sync Failures): ingest benign `retail` / `ims:sync` events where `sku`, `channel`, `dc_id` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv`. Variant 3 confirms zero alert rows for 'Inventory System Sync Failures'."
+  },
+  "dataSources": "`sourcetype=\"ims:sync\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "WMS, e-commerce OMS — Universal Forwarder (Splunkbase 617)",
   "spl": "index=retail sourcetype=\"ims:sync\"\n| search status IN (\"FAIL\",\"TIMEOUT\",\"PARTIAL\")\n| stats count, latest(error_code) as err by sku, channel, dc_id\n| sort -count",
-  "description": "OMS/IMS drift causes oversell, BOPIS failures, and poor customer experience.",
-  "value": "OMS/IMS drift causes oversell, BOPIS failures, and poor customer experience.",
+  "description": "Monitors when Sync Failures criteria fire for 'Inventory System Sync Failures' (UC-10.12.36) in `index=retail` sourcetype `ims:sync`. Pipeline aggregates `count` by `sku`, `channel`, `dc_id` over `the scheduled window`. Alert logic enforces configured threshold. SPL signature: filter `status IN (\"FAIL\",\"TIMEOUT\",\"PARTIAL\")`. Eliminates manual hunting for UC-10.12.36 conditions.",
+  "value": "UC-10.12.36 helps teams contain Inventory, System, Sync, Failures scenarios and reduce missed threat campaigns, control regressions, and SOC SLA breaches before incidents compound.",
   "implementation": "Dead-letter queue depth alerts; reconcile counts nightly; prioritize high-velocity SKUs.",
   "visualization": "Table (failed SKUs), Line chart (sync lag), Single value (unresolved errors).",
   "cimModels": [
@@ -23,10 +29,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Inventory sync failures from DC cutovers, batch jobs that overlap, and seasonal SKU surges; many need ops coordination rather than a security incident.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: WMS, e-commerce OMS.\n• Ensure the following data sources are available: `sourcetype=\"ims:sync\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDead-letter queue depth alerts; reconcile counts nightly; prioritize high-velocity SKUs.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=retail sourcetype=\"ims:sync\"\n| search status IN (\"FAIL\",\"TIMEOUT\",\"PARTIAL\")\n| stats count, latest(error_code) as err by sku, channel, dc_id\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Inventory System Sync Failures** — OMS/IMS drift causes oversell, BOPIS failures, and poor customer experience.\n\nDocumented **Data sources**: `sourcetype=\"ims:sync\"`. **App/TA** (typical add-on context): WMS, e-commerce OMS. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: retail; **sourcetype**: ims:sync. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=retail, sourcetype=\"ims:sync\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by sku, channel, dc_id** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nRun the search on recent production data, spot-check a handful of results against the source system or operational runbooks (cash operations, EHR, payment gateway, etc.), and adjust thresholds to match your seasonal patterns and test windows so teams are not flooded with noise.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (failed SKUs), Line chart (sync lag), Single value (unresolved errors).",
-  "grandmaExplanation": "In Retail and E-Commerce, we pay close attention to \"Inventory System Sync Failures\" in our day-to-day work so that fraud, waste, and compliance issues do not slip by quietly. We help teams focus on the few situations that need a person, not every routine blip in the data."
+  "knownFalsePositives": "1. **Maintenance window on `retail` (UC-10.12.36)** — Planned work for 'Inventory System Sync Failures' shifts `count` over `span=1h` while `sku`, `channel`, `dc_id` remains in-scope. Applies filter `status IN (\"FAIL\",\"TIMEOUT\",\"PARTIAL\")`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ims:sync`** — Scheduled automation elevates `channel` without crossing configured threshold for UC-10.12.36. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sku`, `channel`, `dc_id`** — Health checks in `retail` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ims:sync`** — First 48h baseline for UC-10.12.36 on `sku` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `sku`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: WMS, e-commerce OMS.\n• Ensure the following data sources are available: `sourcetype=\"ims:sync\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDead-letter queue depth alerts; reconcile counts nightly; prioritize high-velocity SKUs.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=retail sourcetype=\"ims:sync\"\n| search status IN (\"FAIL\",\"TIMEOUT\",\"PARTIAL\")\n| stats count, latest(error_code) as err by sku, channel, dc_id\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Inventory System Sync Failures** — OMS/IMS drift causes oversell, BOPIS failures, and poor customer experience.\n\nDocumented **Data sources**: `sourcetype=\"ims:sync\"`. **App/TA** (typical add-on context): WMS, e-commerce OMS. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: retail; **sourcetype**: ims:sync. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=retail, sourcetype=\"ims:sync\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by sku, channel, dc_id** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nRun the search on recent production data, spot-check a handful of results against the source system or operational runbooks (cash operations, EHR, payment gateway, etc.), and adjust thresholds to match your seasonal patterns and test windows so teams are not flooded with noise.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (failed SKUs), Line chart (sync lag), Single value (unresolved errors).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (WMS, e-commerce OMS — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ims:sync into retail. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`channel, dc_id, sku`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "In Retail and E-Commerce, we pay close attention to \"Inventory System Sync Failures\" in our day-to-day work so that fraud, waste, and compliance issues do not slip by quietly. We help teams focus on the few situations that need a person, not every routine blip in the data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

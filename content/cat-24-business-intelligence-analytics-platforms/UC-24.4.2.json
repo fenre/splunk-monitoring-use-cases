@@ -9,27 +9,55 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Qlik Sense logs (`qlik:scheduler`, `qlik:engine`, `qlik:proxy`), reload task history, section access audit, Qlik Cloud events (`com.qlik.v1.*`) and app/reload metrics via REST.",
-  "app": "Qlik Sense Enterprise logs (Scheduler/Engine/Proxy/Repository) via Universal Forwarder; Qlik Cloud events via the Qlik Cloud REST API through HEC scripted inputs.",
+  "exclusions": "Covers the detection logic documented for 'Qlik Engine Memory and RAM Pressure' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_qlik_engine_memory_and_ram_pressure` (UC-24.4.2), SOC dashboard panel \"Operations — Qlik Engine Memory and RAM Pressure\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.4.2 positive (Qlik, Engine, Memory, and, RAM): ingest synthetic events into `index=bi` sourcetype='qlik:engine' where `ram_bytes` grouped by `host`, `_time` satisfies `ram_gb` > 200 for 'Qlik Engine Memory and RAM Pressure'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.4.2 negative (RAM Pressure): ingest benign `bi` / `qlik:engine` events where `host`, `_time` stays below `ram_gb` > 200, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Qlik Engine Memory and RAM Pressure'."
+  },
+  "dataSources": "Qlik Sense logs (`qlik:scheduler`, `qlik:engine`, `qlik:proxy`), reload task history, section access audit, Qlik Cloud events (`com.qlik.v1.*`) and app/reload metrics via REST. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Qlik Sense Enterprise logs (Scheduler/Engine/Proxy/Repository) via Universal Forwarder; Qlik Cloud events via the Qlik Cloud REST API through HEC scripted inputs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=qlik:engine metric=ram_committed_bytes\n| bin _time span=5m\n| stats max(value) as ram_bytes by host, _time\n| eval ram_gb=round(ram_bytes/1024/1024/1024,1)\n| where ram_gb>200\n| sort - _time",
-  "description": "Monitors Qlik Sense engine memory consumption, since Qlik holds apps in RAM and out-of-memory conditions crash sessions and reloads.",
-  "value": "Qlik is memory-bound; watching RAM headroom prevents the out-of-memory failures that take down user sessions and reloads.",
+  "description": "Alerts on UC-24.4.2 — Qlik, Engine, Memory, and, RAM — using `index=bi` sourcetype `qlik:engine`, grouped by `host`, `_time`. Outputs `ram_bytes` each `5m`; alert when `ram_gb` > 200. Primary focus: RAM Pressure. Purpose-built for 'Qlik Engine Memory and RAM Pressure' in Operations workflows.",
+  "value": "UC-24.4.2 operationalises 'Qlik Engine Memory and RAM Pressure' against `qlik:engine` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ingest engine metrics; schedule every 5 minutes; tune the threshold to node RAM; alert before exhaustion. Rebalance apps across nodes.",
   "visualization": "Timechart of engine RAM per node, alert on high usage.",
   "cimModels": [],
   "references": [
     {
       "title": "Qlik Sense — Monitoring logs",
-      "url": "https://help.qlik.com/en-US/sense-admin/Subsystems/DeployAdminister/Content/Sense_DeployAdminister/Monitoring/monitor-logs.htm"
+      "url": "https://help.qlik.com/en-US/sense-admin/Subsystems/DeployAdminister/Content/Sense_DeployAdminister/Monitoring/monitor-logs.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Qlik Cloud — Events",
-      "url": "https://qlik.dev/apis/rest/audits/"
+      "url": "https://qlik.dev/apis/rest/audits/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "We watch how much memory your Qlik servers use so they do not run out and crash people's sessions."
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.4.2)** — Planned work for 'Qlik Engine Memory and RAM Pressure' shifts `ram_bytes` over `span=5m` while `host`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `qlik:engine`** — Scheduled automation elevates `_time` without crossing `ram_gb` > 200 for UC-24.4.2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `_time`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `qlik:engine`** — First 48h baseline for UC-24.4.2 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Qlik Sense Enterprise logs (Scheduler/Engine/Proxy/Repository) via Universal Forwarder; Qlik Cloud events via the Qlik Cloud REST API through HEC scripted inputs. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=qlik:engine into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, host, ram_gb`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch how much memory your Qlik servers use so they do not run out and crash people's sessions.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

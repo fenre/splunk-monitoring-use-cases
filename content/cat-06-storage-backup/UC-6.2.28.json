@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "RGW access logs or ops metrics indexed as `ceph:log` / `ceph:pool` with `rgw` dimensions",
-  "app": "RGW ops log to file + forwarder, or `ceph daemon rgw.* perf dump` scripted input",
+  "exclusions": "Covers the detection logic documented for 'Ceph RADOS Gateway request latency and HTTP 5xx error rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ceph_rados_gateway_request_latency_and_http_5xx_` (UC-6.2.28), SOC dashboard panel \"Operations — Ceph RADOS Gateway request latency and HTTP 5xx error rate\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.2.28 positive (Ceph, RADOS, Gateway, request, latency): ingest synthetic events into `index=storage` sourcetype='ceph:log' where `sum` grouped by `_time`, `rgw_instance` satisfies `code` >= 500, `err_pct` > 1, or `p95_ms` > 500 for 'Ceph RADOS Gateway request latency and HTTP 5xx error rate'. Validate filter `rgw OR \"RADOSGW\" OR \":7480\" OR \":443\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.28 negative (error rate): ingest benign `storage` / `ceph:log` events where `_time`, `rgw_instance` stays below `code` >= 500, `err_pct` > 1, or `p95_ms` > 500, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Ceph RADOS Gateway request latency and HTTP 5xx error rate'."
+  },
+  "dataSources": "RGW access logs or ops metrics indexed as `ceph:log` / `ceph:pool` with `rgw` dimensions Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "RGW ops log to file + forwarder, or `ceph daemon rgw.* perf dump` scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage (sourcetype=\"ceph:log\" OR sourcetype=\"ceph:pool\")\n| search rgw OR \"RADOSGW\" OR \":7480\" OR \":443\"\n| eval code=coalesce(http_status, status_code)\n| eval lat_ms=coalesce(request_time_ms, latency_ms)\n| bin span=5m _time\n| stats count as reqs perc95(lat_ms) as p95_ms sum(eval(if(code>=500,1,0))) as err5 by _time, rgw_instance\n| eval err_pct=round(err5/reqs*100,2)\n| where err_pct > 1 OR p95_ms > 500",
-  "description": "S3/Swift workloads depend on predictable RGW latency. Rising p95 with elevated 5xx rates often tracks backend OSD saturation or Keystone integration failures.",
-  "value": "Protects application SLAs for cloud-native apps using Ceph object storage.",
+  "description": "Monitors UC-6.2.28 — Ceph, RADOS, Gateway, request, latency — using `index=storage` sourcetype `ceph:log`, grouped by `_time`, `rgw_instance`. Outputs `sum` each `5m`; alert when `code` >= 500, `err_pct` > 1, or `p95_ms` > 500. Filter chain includes filter `rgw OR \"RADOSGW\" OR \":7480\" OR \":443\"`. Purpose-built for 'Ceph RADOS Gateway request latency and HTTP 5xx error rate' in Operations workflows.",
+  "value": "Alerting on Ceph, RADOS, Gateway, request, latency through UC-6.2.28 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Prefer structured ops logs with `http_status` at index time. If only unstructured, use `rex` for Apache/nginx-style lines.",
   "visualization": "Timechart (p95 and error %), table (RGW instance).",
   "cimModels": [
@@ -22,14 +28,26 @@
   "references": [
     {
       "title": "Ceph Documentation — monitoring",
-      "url": "https://docs.ceph.com/en/latest/radosgw/"
+      "url": "https://docs.ceph.com/en/latest/radosgw/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Red Hat Ceph Storage — troubleshooting",
-      "url": "https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/"
+      "url": "https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.2.28)** — Planned work for 'Ceph RADOS Gateway request latency and HTTP 5xx error rate' shifts `sum` over `span=5m` while `_time`, `rgw_instance` remains in-scope. Applies filter `rgw OR \"RADOSGW\" OR \":7480\" OR \":443\"`. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `ceph:log`** — Scheduled automation elevates `rgw_instance` without crossing `code` >= 500 for UC-6.2.28. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `rgw_instance`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ceph:log`** — First 48h baseline for UC-6.2.28 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "ceph",
@@ -47,5 +65,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch when disks or arrays slow down for your important workloads, so you can act before people notice a frozen app or missed deadlines."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (RGW ops log to file + forwarder, or `ceph daemon rgw.* perf dump` scripted input — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ceph:log, ceph:pool into storage. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, code, err_pct, p95_ms`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch when disks or arrays slow down for your important workloads, so you can act before people notice a frozen app or missed deadlines.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

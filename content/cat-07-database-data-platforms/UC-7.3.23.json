@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Elasticsearch audit indices (`event.type:authentication`, `event.outcome:failure`) forwarded to Splunk",
-  "app": "Elastic Agent / Filebeat audit forwarding, or Elastic Stack HEC bridge",
+  "exclusions": "Covers the detection logic documented for 'Elasticsearch Security Audit Authentication Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_elasticsearch_security_audit_authentication_fail` (UC-7.3.23), SOC dashboard panel \"Operations — Elasticsearch Security Audit Authentication Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.3.23 positive (Elasticsearch, Security, Audit, Authentication, Failures): ingest synthetic events into `index=sec` sourcetype='elasticsearch:audit' where `users`, `sources` grouped by `cluster_uuid`, `_time` satisfies `failures` > 25 for 'Elasticsearch Security Audit Authentication Failures'. Validate filter `\"authentication_failed\" OR event.outcome=\"failure\" OR event.`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.3.23 negative (Authentication Failures): ingest benign `sec` / `elasticsearch:audit` events where `cluster_uuid`, `_time` stays below `failures` > 25, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Elasticsearch Security Audit Authentication Failures'."
+  },
+  "dataSources": "Elasticsearch audit indices (`event.type:authentication`, `event.outcome:failure`) forwarded to Splunk Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Elastic Agent / Filebeat audit forwarding, or Elastic Stack HEC bridge — Universal Forwarder (Splunkbase 617)",
   "spl": "index=sec sourcetype=\"elasticsearch:audit\"\n| search \"authentication_failed\" OR event.outcome=\"failure\" OR event.action=\"authentication_failed\"\n| bin _time span=1h\n| stats count as failures dc(user.name) as users dc(source.ip) as sources by cluster_uuid, _time\n| where failures > 25",
-  "description": "Elastic Stack audit logs record REST and transport authentication failures. Security teams ship these JSON events to Splunk for correlation with application and IdP logs.",
-  "value": "Extends SOC coverage to the search tier where service accounts and Kibana users can be brute forced.",
+  "description": "Monitors UC-7.3.23 for Elasticsearch, Security, Audit, Authentication, Failures over `index=sec` sourcetype `elasticsearch:audit` with thresholds `failures` > 25. Groups `users`, `sources` by `cluster_uuid`, `_time` each `1h`. Differentiated by filter `\"authentication_failed\" OR event.outcome=\"failure\" OR event.`. Supports repeatable operations triage for 'Elasticsearch Security Audit Authentication Failures'.",
+  "value": "For 'Elasticsearch Security Audit Authentication Failures', UC-7.3.23 converts `users`, `sources` on `elasticsearch:audit` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Normalize Elastic Common Schema fields at ingest (`user.name`, `source.ip`, `cluster.uuid`). Tune thresholds for service mesh identities. Retain per regulatory index routing.",
   "visualization": "Table (user, sources, count), Timeline (failures), Map (source.ip).",
   "cimModels": [
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "Elasticsearch audit logging",
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/"
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned access reviews, recertification, break-glass accounts, and vendor maintenance can emit privilege- or access-change events that match the rule but are already approved; require a change ticket for context.",
+  "knownFalsePositives": "1. **Maintenance window on `sec` (UC-7.3.23)** — Planned work for 'Elasticsearch Security Audit Authentication Failures' shifts `users`, `sources` over `span=1h` while `cluster_uuid`, `_time` remains in-scope. Applies filter `\"authentication_failed\" OR event.outcome=\"failure\" OR event.`. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `elasticsearch:audit`** — Scheduled automation elevates `_time` without crossing `failures` > 25 for UC-7.3.23. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cluster_uuid`, `_time`** — Health checks in `sec` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `elasticsearch:audit`** — First 48h baseline for UC-7.3.23 on `cluster_uuid` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cluster_uuid`, `exception_reason`, `valid_until`.",
   "equipment": [
     "elasticsearch"
   ],
@@ -38,5 +60,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch for repeated or suspicious sign-in activity on our databases so we can catch brute-force and misconfiguration before they become account takeovers."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Elastic Agent / Filebeat audit forwarding, or Elastic Stack HEC bridge — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=elasticsearch:audit into sec. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, cluster_uuid, failures`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch for repeated or suspicious sign-in activity on our databases so we can catch brute-force and misconfiguration before they become account takeovers.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

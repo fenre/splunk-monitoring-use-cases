@@ -8,30 +8,55 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "ADF pipeline/activity run diagnostics (`azure:datafactory`), integration-runtime metrics, and REST API run history.",
-  "app": "Azure Data Factory diagnostic logs to Splunk via the Azure Monitor Add-on / Event Hub; ADF REST API pipeline-run queries via HEC.",
+  "exclusions": "Covers the detection logic documented for 'ADF Data Flow Duration Regression' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_adf_data_flow_duration_regression` (UC-24.8.19), SOC dashboard panel \"Operations — ADF Data Flow Duration Regression\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.8.19 positive (ADF, Data, Flow, Duration, Regression): ingest synthetic events into `index=bi` sourcetype='azure:datafactory' where `avg_min` grouped by `pipeline_name`, `activity_name` satisfies `p95_min` > 30 for 'ADF Data Flow Duration Regression'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.8.19 negative (Duration Regression): ingest benign `bi` / `azure:datafactory` events where `pipeline_name`, `activity_name` stays below `p95_min` > 30, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'ADF Data Flow Duration Regression'."
+  },
+  "dataSources": "ADF pipeline/activity run diagnostics (`azure:datafactory`), integration-runtime metrics, and REST API run history. Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
+  "app": "Azure Data Factory diagnostic logs to Splunk via the Azure Monitor Add-on / Event Hub; ADF REST API pipeline-run queries via HEC. — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
   "spl": "index=bi sourcetype=azure:datafactory category=\"ActivityRuns\" activity_type=\"ExecuteDataFlow\" status=\"Succeeded\"\n| eval dur_min=round(duration_ms/60000,1)\n| stats avg(dur_min) as avg_min, p95(dur_min) as p95_min by pipeline_name, activity_name\n| where p95_min>30\n| sort - p95_min",
-  "description": "Tracks ADF mapping data-flow activity durations and flags flows whose 95th-percentile runtime is slow, indicating cluster-size or transformation-logic issues.",
-  "value": "Slow data flows extend pipeline windows and Spark-cluster billing; timing regression detection drives right-sizing and optimisation.",
+  "description": "Detects UC-24.8.19 — ADF, Data, Flow, Duration, Regression — using `index=bi` sourcetype `azure:datafactory`, grouped by `pipeline_name`, `activity_name`. Outputs `avg_min` each `the scheduled window`; alert when `p95_min` > 30. Primary focus: Duration Regression. Purpose-built for 'ADF Data Flow Duration Regression' in Operations workflows.",
+  "value": "Operators running UC-24.8.19 on `azure:datafactory` feeds shorten triage for Duration Regression tied to 'ADF Data Flow Duration Regression', lowering operational risk and delayed incident response.",
   "implementation": "Ingest ActivityRuns diagnostics; schedule daily over a trailing week and review the slowest data flows.",
   "visualization": "Table of data flow by p95 duration, trend line.",
   "cimModels": [],
   "references": [
     {
       "title": "Azure Data Factory — Monitor with Azure Monitor",
-      "url": "https://learn.microsoft.com/en-us/azure/data-factory/monitor-using-azure-monitor"
+      "url": "https://learn.microsoft.com/en-us/azure/data-factory/monitor-using-azure-monitor",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Microsoft Add-on for Splunk / Azure Monitor",
-      "url": "https://splunkbase.splunk.com/app/3757"
+      "url": "https://splunkbase.splunk.com/app/3757",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.8.19)** — Planned work for 'ADF Data Flow Duration Regression' shifts `avg_min` over `span=1h` while `pipeline_name`, `activity_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `azure:datafactory`** — Scheduled automation elevates `activity_name` without crossing `p95_min` > 30 for UC-24.8.19. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pipeline_name`, `activity_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `azure:datafactory`** — First 48h baseline for UC-24.8.19 on `pipeline_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pipeline_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "azure"
   ],
-  "grandmaExplanation": "We measure how long the heavy Azure data transformations take so slow ones get tuned before they run late or cost more."
+  "equipmentModels": [
+    "azure_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Azure Data Factory diagnostic logs to Splunk via the Azure Monitor Add-on / Event Hub; ADF REST API pipeline-run queries via HEC. — Splunk Add-on for Microsoft Azure (Splunkbase 3110)). Enable the modular input or HEC token that writes sourcetype=azure:datafactory into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`activity_name, p95_min, pipeline_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We measure how long the heavy Azure data transformations take so slow ones get tuned before they run late or cost more.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

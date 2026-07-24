@@ -9,6 +9,8 @@
     "Operations"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'ISE iPSK / MAB / 802.1X Mode Distribution by SSID and Mixed-Mode Anomaly Detection' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_ise_ipsk_mab_802_1x_mode_distribution_by_ssid_an` (UC-17.1.74), SOC dashboard panel \"Network — ISE iPSK / MAB / 802.1X Mode Distribution by SSID and Mixed-Mode Anomaly Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "pci-dss",
@@ -48,14 +50,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Add a MAB authorization rule to a corporate 802.1X SSID. UC-17.1.74 detects mixed mode.",
-    "negativeScenario": "All-802.1X SSID. No fire."
+    "positiveScenario": "UC-17.1.74 positive (ISE, iPSK, MAB, 802.1X, Mode): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `total` grouped by `ssid`, `AuthenticationMethod` satisfies `pct` < 100, or `pct` > 0 for 'ISE iPSK / MAB / 802.1X Mode Distribution by SSID and Mixed-Mode Anomaly Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.74 negative (Anomaly Detection): ingest benign `nac` / `cisco:ise:syslog` events where `ssid`, `AuthenticationMethod` stays below `pct` < 100, or `pct` > 0, or exclude the test entity via `network_exception_register.csv`. Variant 4 confirms zero alert rows for 'ISE iPSK / MAB / 802.1X Mode Distribution by SSID and Mixed-Mode Anomaly Detection'."
   },
-  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Authentication* — events with SSID and AuthenticationMethod. Field: `ssid`, `AuthenticationMethod` (PSK, iPSK, MAB, EAP-TLS, PEAP, EAP-FAST, EAP-TEAP), `authentication_protocol`.",
-  "app": "`Splunk Add-on for Cisco Identity Services`.",
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Authentication* — events with SSID and AuthenticationMethod. Field: `ssid`, `AuthenticationMethod` (PSK, iPSK, MAB, EAP-TLS, PEAP, EAP-FAST, EAP-TEAP), `authentication_protocol`. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode=5200\n| stats count by ssid, AuthenticationMethod\n| eventstats sum(count) as total by ssid\n| eval pct=round(count/total*100, 2)\n| where pct < 100 AND pct > 0",
-  "description": "Tracks the distribution of authentication modes per SSID. Detects unexpected mixed-mode usage — e.g., a corporate SSID accepting both 802.1X and MAB (MAB is weaker; should not coexist on a strong-auth SSID), or a guest SSID seeing certificate-based auth (suggests misconfigured supplicant).",
-  "value": "Mixed-mode SSID config is a common security regression — typically the result of operations staff adding MAB exceptions to handle problem devices. Tracking distribution exposes drift and lets the security team enforce policy.",
+  "description": "Monitors risk tied to ISE, iPSK, MAB, 802.1X, Mode through UC-17.1.74 on `index=nac` sourcetype `cisco:ise:syslog`. Summarises `total` grouped by `ssid`, `AuthenticationMethod` across `the scheduled window` before applying `pct` < 100, or `pct` > 0. Operators tune 'ISE iPSK / MAB / 802.1X Mode Distribution by SSID and Mixed-Mode Anomaly Detection' using UC-17.1.74 runbook steps.",
+  "value": "Tracking `total` via UC-17.1.74 on `cisco:ise:syslog` feeds improves response to 'ISE iPSK / MAB / 802.1X Mode Distribution by SSID and Mixed-Mode Anomaly Detection' and reduces unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Schedule the search every 1 hour over the last 4 hours; trigger on count > 0; throttle on `wlc_name`/`ssid` for 1 hour.",
   "visualization": "Per-SSID auth-mode pie; per-SSID mode trend over 30d.",
   "cimModels": [
@@ -65,10 +67,31 @@
   "references": [
     {
       "title": "Cisco ISE 3.4 — Wireless Authentication",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "PCI DSS Document Library",
+      "url": "https://www.pcisecuritystandards.org/document_library/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) Intentional dual-mode SSIDs (legacy device support) — exclude in `ise_dualmode_ssid_exceptions.csv`.\n(b) Test/lab SSIDs.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'ISE iPSK / MAB / 802.1X Mode Distribution by SSID and Mixed-Mode Anomaly Detection'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "N/A (wireless integration — measures WLC↔ISE RADIUS pipeline health, no adversary technique)"
   ],
@@ -86,7 +109,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Standard pattern.",
+  "detailedImplementation": "Standard pattern.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`AuthenticationMethod, pct, ssid`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Different wifi networks should use the right kind of login. Corporate wifi should require strong proof; guest wifi should be simpler. We watch for mixed setups that weaken security on important networks.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

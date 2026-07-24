@@ -8,35 +8,60 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Habit activity (`lifeos:habit`), streaks (`lifeos:streak`), Beeminder goals (`lifeos:beeminder`), OKRs (`lifeos:okr`), planning syncs (`lifeos:ops`).",
-  "app": "Personal life-OS telemetry — Habitica quest logs, Streaks app habit chains, Beeminder goal data, and personal OKR reviews — streamed to Splunk HEC via APIs, exports, and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'OKR Confidence Drift by Quarter' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_okr_confidence_drift_by_quarter` (UC-25.59.32), SOC dashboard panel \"Personal — OKR Confidence Drift by Quarter\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.59.32 positive (OKR, Confidence, Drift, Quarter): ingest synthetic events into `index=personal` sourcetype='lifeos:okr' where `metric` grouped by `_time`, `objective_name` satisfies detection threshold for 'OKR Confidence Drift by Quarter'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.59.32 negative (by Quarter): ingest benign `personal` / `lifeos:okr` events where `_time`, `objective_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 12 confirms zero alert rows for 'OKR Confidence Drift by Quarter'."
+  },
+  "dataSources": "Habit activity (`lifeos:habit`), streaks (`lifeos:streak`), Beeminder goals (`lifeos:beeminder`), OKRs (`lifeos:okr`), planning syncs (`lifeos:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Personal life-OS telemetry — Habitica quest logs, Streaks app habit chains, Beeminder goal data, and personal OKR reviews — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=lifeos:okr objective_name=* confidence_score=*\n| bin _time span=1mon\n| stats avg(confidence_score) as metric by _time objective_name\n| sort 0 _time objective_name",
-  "description": "Trends monthly confidence score by objective for OKR confidence.",
-  "value": "Monthly trend lines show whether OKR confidence are improving, stalling, or becoming unbalanced over time.",
+  "description": "Alerts on UC-25.59.32 — OKR, Confidence, Drift, Quarter — using `index=personal` sourcetype `lifeos:okr`, grouped by `_time`, `objective_name`. Outputs `metric` each `1m`; alert when configured threshold. Primary focus: by Quarter. Purpose-built for 'OKR Confidence Drift by Quarter' in Personal workflows.",
+  "value": "Tracking `metric` via UC-25.59.32 on `lifeos:okr` feeds improves response to 'OKR Confidence Drift by Quarter' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Normalize `objective_name` on `lifeos:okr` events and store the fields needed to calculate monthly confidence score.",
   "visualization": "Line chart of monthly confidence score by objective.",
   "cimModels": [],
   "references": [
     {
       "title": "Habitica",
-      "url": "https://habitica.com/"
+      "url": "https://habitica.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Streaks",
-      "url": "https://streaksapp.com/"
+      "url": "https://streaksapp.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Beeminder",
-      "url": "https://www.beeminder.com/"
+      "url": "https://www.beeminder.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Notion",
-      "url": "https://www.notion.so/"
+      "url": "https://www.notion.so/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It frames how confidence score changes month by month for each objective so you can see whether OKR confidence are heading the right way."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.59.32)** — Connector for 'OKR Confidence Drift by Quarter' stops polling `lifeos:okr`; stale `metric` on `_time`, `objective_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `metric` over `1m` is expected for UC-25.59.32, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lifeos:okr`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew goal threshold for 'OKR Confidence Drift by Quarter'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Personal Life-OS & Gamification — typical feeds: Life score (`lifeos:score`), quests / tasks (`quest:task`), habit streaks (`streak:status`), life achievements (`achievement:life`), household leaderboard (`household:leaderboard`), plus every other `.\n• **Sourcetypes in this search**: `lifeos:okr`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=lifeos:okr`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** The parody-the-enterprise meta layer — a Personal NOC (house-health wall), Personal SOC (entry / impossible-travel), Personal SRE (SLOs on your own habits), and a gamification layer (XP, achievements, streaks, household leaderboards) — all computed in Splunk over `index=personal`..\n\n**Author notes:** Normalize `objective_name` on `lifeos:okr` events and store the fields needed to calculate monthly confidence score.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"lifeos:okr\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=lifeos:okr earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **OKR Confidence Drift by Quarter** over `personal` data (primarily `sourcetype=lifeos:okr`) across the full search range. The `avg` aggregation groups by `_time`, `objective_name`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `_time`, `objective_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=lifeos:okr objective_name=* confidence_score=*\n| bin _time span=1mon\n| stats avg(confidence_score) as metric by _time objective_name\n| sort 0 _time objective_name\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=lifeos:okr earliest=-7d\n| head 50\n| table _time, objective_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=lifeos:okr earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.59.32: Personal evidence` with the following panel layout:\n\n**Panel 1 — Line Chart Of Monthly Confidence Score By Objective (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `lifeos:okr` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=lifeos:okr | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1m` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1m` buckets.",
+  "grandmaExplanation": "It frames how confidence score changes month by month for each objective so you can see whether OKR confidence are heading the right way.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

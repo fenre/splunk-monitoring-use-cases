@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=application` `sourcetype=tomcat:catalina`",
-  "app": "Splunk Add-on for Tomcat (Splunkbase app 2911)",
+  "exclusions": "Covers the detection logic documented for 'Tomcat AJP and Connector Protocol Errors' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_tomcat_ajp_and_connector_protocol_errors` (UC-8.2.29), SOC dashboard panel \"Operations — Tomcat AJP and Connector Protocol Errors\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.2.29 positive (Tomcat, AJP, and, Connector, Protocol): ingest synthetic events into `index=application` sourcetype='tomcat:catalina' where `count` grouped by `host`, `signature` satisfies detection threshold for 'Tomcat AJP and Connector Protocol Errors'. Validate filter `(\"AJP\" AND (\"IOException\" OR \"refused\" OR \"Unexpected\")) OR `. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.2.29 negative (Protocol Errors): ingest benign `application` / `tomcat:catalina` events where `host`, `signature` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Tomcat AJP and Connector Protocol Errors'."
+  },
+  "dataSources": "`index=application` `sourcetype=tomcat:catalina` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for Tomcat (Splunkbase app 2911) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=application sourcetype=\"tomcat:catalina\"\n| search (\"AJP\" AND (\"IOException\" OR \"refused\" OR \"Unexpected\")) OR \"Protocol handler pause\" OR \"Failed to complete processing of a request\"\n| stats count by host, signature\n| sort -count",
-  "description": "AJP misconfiguration between httpd and Tomcat, packet loss, or stuck workers surface as protocol errors in catalina.out before user-visible 502s.",
-  "value": "Speeds isolation of reverse-proxy integration failures.",
+  "description": "Alerts on when Protocol Errors criteria fire for 'Tomcat AJP and Connector Protocol Errors' (UC-8.2.29) in `index=application` sourcetype `tomcat:catalina`. Pipeline aggregates `count` by `host`, `signature` over `the scheduled window`. Alert logic enforces configured threshold. SPL signature: filter `(\"AJP\" AND (\"IOException\" OR \"refused\" OR \"Unexpected\")) OR `. Eliminates manual hunting for UC-8.2.29 conditions.",
+  "value": "UC-8.2.29 helps teams contain Tomcat, AJP, and, Connector, Protocol scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Ingest catalina logs with timestamps; create `signature` via `cluster` or truncate message. Exclude known maintenance windows.",
   "visualization": "Table (message signatures), timeline, link to mod_jk/worker configs.",
   "cimModels": [
@@ -22,14 +28,26 @@
   "references": [
     {
       "title": "Splunk Add-on for Tomcat (Splunkbase)",
-      "url": "https://splunkbase.splunk.com/app/2911"
+      "url": "https://splunkbase.splunk.com/app/2911",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Apache Tomcat Access Log Valve",
-      "url": "https://tomcat.apache.org/tomcat-10.0-doc/config/valve.html#Access_Log_Valve"
+      "url": "https://tomcat.apache.org/tomcat-10.0-doc/config/valve.html#Access_Log_Valve",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
+  "knownFalsePositives": "1. **Maintenance window on `application` (UC-8.2.29)** — Planned work for 'Tomcat AJP and Connector Protocol Errors' shifts `count` over `span=1h` while `host`, `signature` remains in-scope. Applies filter `(\"AJP\" AND (\"IOException\" OR \"refused\" OR \"Unexpected\")) OR `. Cross-check CMDB CHG.\n\n2. **Batch `count` on `tomcat:catalina`** — Scheduled automation elevates `signature` without crossing configured threshold for UC-8.2.29. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `signature`** — Health checks in `application` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `tomcat:catalina`** — First 48h baseline for UC-8.2.29 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "tomcat"
@@ -44,6 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Tomcat (Splunkbase app 2911).\n• Ensure the following data sources are available: `index=application` `sourcetype=tomcat:catalina`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAdjust keywords for your connector (AJP vs HTTP/2); test on historical incidents.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=application sourcetype=\"tomcat:catalina\"\n| search (\"AJP\" AND (\"IOException\" OR \"refused\" OR \"Unexpected\")) OR \"Protocol handler pause\" OR \"Failed to complete processing of a request\"\n| stats count by host, signature\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Tomcat AJP and Connector Protocol Errors** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=application` `sourcetype=tomcat:catalina`. **App/TA**: Splunk Add-on for Tomcat (Splunkbase app 2911). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nCompare with JBoss, WebLogic, or Tomcat admin consoles, or `catalina` / server logs on the host, for the same window. Confirm hostnames and fields match the vendor UI.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Table (message signatures), timeline, link to mod_jk/worker configs..",
-  "grandmaExplanation": "We use this to speed isolation of reverse-proxy integration failures."
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Tomcat (Splunkbase app 2911).\n• Ensure the following data sources are available: `index=application` `sourcetype=tomcat:catalina`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAdjust keywords for your connector (AJP vs HTTP/2); test on historical incidents.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=application sourcetype=\"tomcat:catalina\"\n| search (\"AJP\" AND (\"IOException\" OR \"refused\" OR \"Unexpected\")) OR \"Protocol handler pause\" OR \"Failed to complete processing of a request\"\n| stats count by host, signature\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Tomcat AJP and Connector Protocol Errors** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=application` `sourcetype=tomcat:catalina`. **App/TA**: Splunk Add-on for Tomcat (Splunkbase app 2911). Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nCompare with JBoss, WebLogic, or Tomcat admin consoles, or `catalina` / server logs on the host, for the same window. Confirm hostnames and fields match the vendor UI.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Table (message signatures), timeline, link to mod_jk/worker configs..\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Tomcat (Splunkbase app 2911) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=tomcat:catalina into application. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, signature`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to speed isolation of reverse-proxy integration failures.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,28 +8,42 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Agent-to-Agent Latency and Throughput' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_agent_to_agent_latency_and_throughput` (UC-5.9.4), SOC dashboard panel \"Operations — Agent-to-Agent Latency and Throughput\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.9.4 positive (Agent, Agent, Latency, and, Throughput): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `avg_latency_s`, `avg_loss`, `avg_jitter` grouped by `thousandeyes.source.agent.name`, `thousandeyes.target.agent.name`, `network.io.direction` satisfies detection threshold for 'Agent-to-Agent Latency and Throughput'. Validate macro `stream_index`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.9.4 negative (and Throughput): ingest benign `target_index` / `target_sourcetype` events where `thousandeyes.source.agent.name`, `thousandeyes.target.agent.name`, `network.io.direction` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Agent-to-Agent Latency and Throughput'."
+  },
   "dataSources": "`index=thousandeyes_metrics sourcetype=cisco:thousandeyes:metric` from the Tests Stream — Metrics input in `ta_cisco_thousandeyes` (Splunkbase 7719). Agent-to-Agent tests produce the same OTel v2 metrics as Agent-to-Server (`network.latency` in seconds, `network.loss` in percentage, `network.jitter` in milliseconds) but add the `network.io.direction` attribute (`transmit`, `receive`, or `round-trip`) and `thousandeyes.target.agent.name` / `thousandeyes.target.agent.id` / `thousandeyes.target.agent.location` resource attributes to identify the far-end agent. The `thousandeyes.test.type` attribute is `agent-to-agent`. Volume: ~3 KB per agent-pair per round (three direction measurements per round) × 1440 rounds/day at 1-minute interval ≈ 4.3 MB/agent-pair/day.",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported. Install on Search Heads AND Heavy Forwarder or single-instance receiving HEC data.",
   "spl": "`stream_index` thousandeyes.test.type=\"agent-to-agent\"\n| stats avg(network.latency) as avg_latency_s avg(network.loss) as avg_loss avg(network.jitter) as avg_jitter by thousandeyes.source.agent.name, thousandeyes.target.agent.name, network.io.direction\n| eval avg_latency_ms=round(avg_latency_s*1000,1)\n| sort thousandeyes.source.agent.name, network.io.direction",
-  "description": "Measures bidirectional network performance between two ThousandEyes Enterprise Agents deployed at different sites, breaking down latency, loss, and jitter by direction (transmit, receive, round-trip). The directional split is critical for WAN troubleshooting — asymmetric routing, congested return paths, and half-duplex faults all produce direction-specific degradation that round-trip measurements alone would mask.",
-  "value": "Site-to-site WAN links are the backbone of branch-office connectivity, and their quality directly governs SD-WAN overlay decisions, voice/video quality between offices, and inter-datacenter replication throughput. Agent-to-Agent tests measure the actual path between sites (not just to a cloud target), and the directional breakdown lets the NOC pinpoint whether the problem is on the outbound leg (TX — your ISP), the return leg (RX — the remote site's ISP), or symmetrical (the WAN circuit itself). This turns a 4-hour \"who owns the problem\" war room into a 10-minute triage with evidence.",
+  "description": "Identifies 'Agent-to-Agent Latency and Throughput' patterns (UC-5.9.4) sourced from `index=target_index` sourcetype `configured sourcetype`. Threshold bundle: configured threshold; aggregation grain: `thousandeyes.source.agent.name`, `thousandeyes.target.agent.name`, `network.io.direction`; metrics: `avg_latency_s`, `avg_loss`, `avg_jitter`. Enrichment path: macro `stream_index`.",
+  "value": "UC-5.9.4 gives Operations teams earlier visibility into and Throughput through macro `stream_index`, lowering operational risk and delayed incident response.",
   "implementation": "Create Agent-to-Agent tests in ThousandEyes between Enterprise Agents at different sites. Both agents must be Enterprise Agents (Cloud Agents cannot be targets in Agent-to-Agent tests). Enable the Tests Stream — Metrics input if not already enabled. The `network.io.direction` attribute splits results into transmit, receive, and round-trip views.",
   "visualization": "(1) Table: source agent, target agent, direction, latency (ms), loss %, jitter (ms) — with colour-coding by quality thresholds. (2) Comparison bar chart: forward (TX) vs reverse (RX) latency for each agent pair — asymmetry > 20% signals routing issues. (3) Timechart: `| timechart span=5m avg(network.latency) as lat by network.io.direction` for a selected agent pair showing directional trends. (4) Drilldown to ThousandEyes Path Visualization via `thousandeyes.permalink` for per-hop analysis of each direction.",
   "references": [
     {
       "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
-      "url": "https://splunkbase.splunk.com/app/7719"
+      "url": "https://splunkbase.splunk.com/app/7719",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes OTel v2 Data Model — Agent-to-Agent metrics and direction attribute",
-      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics/data-model-migration-v1-to-v2"
+      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics/data-model-migration-v1-to-v2",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes Agent-to-Agent Test Configuration",
-      "url": "https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/network-tests/"
+      "url": "https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/network-tests/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Asymmetric routing causing directional disparity.** On many WAN links — especially those with multiple ISP uplinks or SD-WAN overlays — the forward and return paths take different routes through different ISPs. This makes TX and RX latency/loss differ significantly even when both paths are healthy. Distinguish from a real problem by baselining each direction independently over 7 days. If the asymmetry is stable and both directions meet SLA, it's by design.\n\n**Enterprise Agent maintenance or reboot.** When one agent in the pair is rebooted (OS update, agent software upgrade), the test produces loss=100% and high latency for the duration. Distinguish by checking whether the agent's status in ThousandEyes → Agent Settings shows a restart event in the same time window. Suppress by requiring > 3 consecutive rounds of degradation before alerting.\n\n**SD-WAN path selection oscillation.** SD-WAN controllers (Cisco vManage, Arista, Fortinet) continuously optimize path selection based on real-time quality. When the controller switches the active WAN link, Agent-to-Agent latency can spike for 1–2 rounds as the new path warms up. This is normal SD-WAN behavior. Distinguish by correlating with SD-WAN tunnel change events from UC-5.5.x.\n\n**One-sided congestion at branch offices.** Branch offices often have asymmetric bandwidth (e.g., 100 Mbps down / 20 Mbps up). The TX direction from the branch shows higher loss during peak hours because the upload circuit saturates. This is a capacity issue, not a fault — correlate with circuit utilization data.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index` (UC-5.9.4)** — Planned work for 'Agent-to-Agent Latency and Throughput' shifts `avg_latency_s`, `avg_loss`, `avg_jitter` over `span=1h` while `thousandeyes.source.agent.name`, `thousandeyes.target.agent.name`, `network.io.direction` remains in-scope. Applies macro `stream_index`. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `thousandeyes.target.agent.name` without crossing configured threshold for UC-5.9.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `thousandeyes.source.agent.name`, `thousandeyes.target.agent.name`, `network.io.direction`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.9.4 on `thousandeyes.source.agent.name` is unstable; join `stream_index` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `thousandeyes.source.agent.name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

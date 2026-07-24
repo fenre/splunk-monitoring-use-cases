@@ -9,26 +9,55 @@
     "Anomaly"
   ],
   "splunkPillar": "Security",
-  "dataSources": "UniFi controller events (`unifi:event`), Pi-hole query log (`pihole:query`), AdGuard Home (`adguard:query`), speedtest-cli results (`speedtest:result`), router/firewall syslog.",
-  "app": "UniFi / router syslog, Pi-hole/AdGuard, and scheduled speedtests via HEC scripted inputs and the Universal Forwarder.",
+  "exclusions": "Covers personal hobby monitoring for 'Firewall Blocked-Connection Trends' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_firewall_blocked_connection_trends` (UC-25.9.7), SOC dashboard panel \"Personal — Firewall Blocked-Connection Trends\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.9.7 positive (Firewall, Blocked, Connection, Trends): ingest synthetic events into `index=personal` sourcetype='unifi:event' where `avg_blocked`, `sd_blocked` grouped by `entity` satisfies detection threshold for 'Firewall Blocked-Connection Trends'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.9.7 negative (Connection Trends): ingest benign `personal` / `unifi:event` events where `entity` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 15 confirms zero alert rows for 'Firewall Blocked-Connection Trends'."
+  },
+  "dataSources": "UniFi controller events (`unifi:event`), Pi-hole query log (`pihole:query`), AdGuard Home (`adguard:query`), speedtest-cli results (`speedtest:result`), router/firewall syslog. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "UniFi / router syslog, Pi-hole/AdGuard, and scheduled speedtests via HEC scripted inputs and the Universal Forwarder. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=unifi:event event_key=\"EVT_GW_Blocked\"\n| timechart span=1h count as blocked_connections\n| eventstats avg(blocked_connections) as avg_blocked, stdev(blocked_connections) as sd_blocked\n| eval spike=if(blocked_connections>avg_blocked+3*sd_blocked,1,0)",
-  "description": "Trends the connections your home firewall blocked and flags unusual spikes that can signal scanning or a compromised device reaching out.",
-  "value": "A blocked-connection spike is a lightweight intrusion signal; baselining it separates routine internet background noise from something worth a look.",
+  "description": "Surfaces UC-25.9.7 — Firewall, Blocked, Connection, Trends — using `index=personal` sourcetype `unifi:event`, grouped by `entity`. Outputs `avg_blocked`, `sd_blocked` each `1h`; alert when configured threshold. Primary focus: Connection Trends. Purpose-built for 'Firewall Blocked-Connection Trends' in Personal workflows.",
+  "value": "UC-25.9.7 operationalises 'Firewall Blocked-Connection Trends' against `unifi:event` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Forward firewall/gateway block events; schedule hourly and alert on statistically unusual spikes.",
   "visualization": "Timeline of blocked connections with anomaly markers.",
   "cimModels": [],
   "references": [
     {
       "title": "Ubiquiti — UniFi Network documentation",
-      "url": "https://help.ui.com/hc/en-us/categories/6583256751383"
+      "url": "https://help.ui.com/hc/en-us/categories/6583256751383",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.9.7)** — Connector for 'Firewall Blocked-Connection Trends' stops polling `unifi:event`; stale `avg_blocked`, `sd_blocked` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_blocked`, `sd_blocked` over `1h` is expected for UC-25.9.7, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `unifi:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1h` bins on UTC vs local schedule skew goal threshold for 'Firewall Blocked-Connection Trends'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "syslog"
   ],
-  "grandmaExplanation": "It watches what your home firewall is blocking and warns you about unusual spikes that could mean trouble."
+  "equipmentModels": [
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Home Network & Connectivity — typical feeds: UniFi controller events (`unifi:event`), Pi-hole query log (`pihole:query`), AdGuard Home (`adguard:query`), speedtest-cli results (`speedtest:result`), router/firewall syslog, ISP uptime probes..\n• **Sourcetypes in this search**: `unifi:event`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=unifi:event`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** UniFi / router syslog, Pi-hole/AdGuard, and scheduled speedtests via HEC scripted inputs and the Universal Forwarder..\n\n**Author notes:** Forward firewall/gateway block events; schedule hourly and alert on statistically unusual spikes.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"unifi:event\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=unifi:event earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Firewall Blocked-Connection Trends** over `personal` data (primarily `sourcetype=unifi:event`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `spike`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=unifi:event event_key=\"EVT_GW_Blocked\"\n| timechart span=1h count as blocked_connections\n| eventstats avg(blocked_connections) as avg_blocked, stdev(blocked_connections) as sd_blocked\n| eval spike=if(blocked_connections>avg_blocked+3*sd_blocked,1,0)\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=unifi:event earliest=-7d\n| head 50\n| table spike\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=unifi:event earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.9.7: Personal evidence` with the following panel layout:\n\n**Panel 1 — Timeline Of Blocked Connections With Anomaly Markers (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `unifi:event` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=unifi:event | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Bucket misalignment:** `span=1h` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1h` buckets.",
+  "grandmaExplanation": "It watches what your home firewall is blocking and warns you about unusual spikes that could mean trouble.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

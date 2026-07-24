@@ -9,6 +9,8 @@
     "Capacity"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Covers the detection logic documented for 'ISE on AWS / Azure / GCP — Cloud-Hosted PSN Health and Egress Cost' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_ise_on_aws_azure_gcp_cloud_hosted_psn_health_and` (UC-17.1.60), SOC dashboard panel \"Network — ISE on AWS / Azure / GCP — Cloud-Hosted PSN Health and Egress Cost\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "iso-27001",
@@ -36,14 +38,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Trigger high CPU on a lab cloud PSN. UC-17.1.60 fires.",
-    "negativeScenario": "CPU returns to normal. Alert clears."
+    "positiveScenario": "UC-17.1.60 positive (ISE, AWS, Azure, GCP, Cloud): ingest synthetic events into `index=cloud` sourcetype='target_sourcetype' where `avg`, `max` grouped by `metric_name`, `instance_id` satisfies `avg` > 70, or `max` > 1 for 'ISE on AWS / Azure / GCP — Cloud-Hosted PSN Health and Egress Cost'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.60 negative (Egress Cost): ingest benign `cloud` / `target_sourcetype` events where `metric_name`, `instance_id` stays below `avg` > 70, or `max` > 1, or exclude the test entity via `network_exception_register.csv`. Variant 0 confirms zero alert rows for 'ISE on AWS / Azure / GCP — Cloud-Hosted PSN Health and Egress Cost'."
   },
-  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog`. Cloud-host metrics via Splunk Add-on for AWS, Azure, GCP — `index=cloud sourcetype=aws:cloudwatch` (CPU, network egress) for the EC2 hosting the PSN, etc. ISE supports cloud-hosted PSN deployments since 3.0 (AWS) and 3.1 (Azure/GCP).",
-  "app": "`Splunk Add-on for Cisco Identity Services` + cloud TAs (`Splunk Add-on for AWS` / `Splunk Add-on for Microsoft Cloud Services` / `Splunk Add-on for GCP`).",
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog`. Cloud-host metrics via Splunk Add-on for AWS, Azure, GCP — `index=cloud sourcetype=aws:cloudwatch` (CPU, network egress) for the EC2 hosting the PSN, etc. ISE supports cloud-hosted PSN deployments since 3.0 (AWS) and 3.1 (Azure/GCP). Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk Add-on for Cisco Identity Services` + cloud TAs (`Splunk Add-on for AWS` / `Splunk Add-on for Microsoft Cloud Services` / `Splunk Add-on for GCP`). — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "(index=cloud sourcetype IN (\"aws:cloudwatch\", \"mscs:metrics\", \"google:gcp:metrics\") metric_name IN (\"CPUUtilization\", \"NetworkOut\") instance_tag=\"ise\")\n| stats avg(value) as avg max(value) as max by metric_name, instance_id\n| where (metric_name=\"CPUUtilization\" AND avg > 70) OR (metric_name=\"NetworkOut\" AND max > 1e9)",
-  "description": "Detects cloud-hosted ISE PSN resource saturation (CPU >70%) and unusual egress traffic (>1 GB/period) that may indicate misconfigured RADIUS proxying or data exfiltration.",
-  "value": "Cloud-hosted ISE PSNs introduce egress-cost risk. A misconfigured remote-site RADIUS pointing all auth traffic at a cloud PSN multiplies the cloud egress bill. Catching the egress anomaly early prevents bill surprise.",
+  "description": "Surfaces 'ISE on AWS / Azure / GCP — Cloud-Hosted PSN Health and Egress Cost' (UC-17.1.60) using `index=cloud` sourcetype `configured sourcetype` by aggregating `avg`, `max` grouped by `metric_name`, `instance_id` over `the scheduled window` and alerting when `avg` > 70, or `max` > 1. Keywords: ISE, AWS, Azure, GCP, Cloud. Focuses on Egress Cost behaviour so network teams can triage UC-17.1.60 without ad-hoc log review.",
+  "value": "UC-17.1.60 accelerates insight into Egress Cost ('ISE on AWS / Azure / GCP — Cloud-Hosted PSN Health and Egress Cost') by tracking `avg`, `max` on UC-17.1.60 search results, reducing unauthorized access, segmentation drift, and NAC policy failures before spreadsheet checks hide regressions.",
   "implementation": "Onboard cloud TAs. Tag ISE EC2/VM instances with `ise=true`. Schedule every 30 min.",
   "visualization": "(1) Per-instance CPU/Network timechart. (2) Egress trend over 7d. (3) Top-N by egress.",
   "cimModels": [
@@ -53,10 +55,31 @@
   "references": [
     {
       "title": "Cisco ISE on AWS — Deployment Guide",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "ISO/IEC 27001:2022",
+      "url": "https://www.iso.org/standard/27001",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1876",
+      "url": "https://splunkbase.splunk.com/app/1876",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Performance",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) **Initial deployment** — bootstrap traffic.\n(b) **CRL/OCSP refresh** — periodic increased egress.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'ISE on AWS / Azure / GCP — Cloud-Hosted PSN Health and Egress Cost'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=cloud` `configured sourcetype` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "N/A (cloud connectivity health — measures ISE-to-cloud session readiness, no attack mapping)"
   ],
@@ -77,7 +100,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Cloud TAs deployed.\n• Instance tagging convention.\n\nStep 1 — Configure cloud TA inputs.\nStep 2 — Search.\nStep 3 — Validate.\nStep 4 — Dashboard with cost projection.\nStep 5 — Troubleshooting: instance sizing; egress optimisation via VPC peering vs internet egress.",
+  "detailedImplementation": "Prerequisites\n• Cloud TAs deployed.\n• Instance tagging convention.\n\nStep 1 — Configure cloud TA inputs.\nStep 2 — Search.\nStep 3 — Validate.\nStep 4 — Dashboard with cost projection.\nStep 5 — Troubleshooting: instance sizing; egress optimisation via VPC peering vs internet egress.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services` + cloud TAs (`Splunk Add-on for AWS` / `Splunk Add-on for Microsoft Cloud Services` / `Splunk Add-on for GCP`). — Splunk Add-on for Amazon Web Services (Splunkbase 1876)). Enable the modular input or HEC token that writes sourcetype=aws:cloudwatch, mscs:metrics, google:gcp:metrics into cloud. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`avg, instance_id, max, metric_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "If ISE is running in the cloud — Amazon, Microsoft, Google — we watch the rented computer's busyness AND how much data it sends out. Sending too much data outbound means a big bill or a misconfigured setup.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

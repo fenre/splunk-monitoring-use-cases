@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`INFO memory` — `mem_fragmentation_ratio`, `used_memory_rss`",
-  "app": "redis-cli scripted input",
+  "exclusions": "Covers the detection logic documented for 'Redis Memory Fragmentation (Cache Tier)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_redis_memory_fragmentation_cache_tier` (UC-7.2.15), SOC dashboard panel \"Operations — Redis Memory Fragmentation (Cache Tier)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.2.15 positive (Redis, Memory, Fragmentation, (Cache, Tier)): ingest synthetic events into `index=database` sourcetype='redis:info' where `frag` grouped by `host` satisfies `mem_fragmentation_ratio` > 1.5 for 'Redis Memory Fragmentation (Cache Tier)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.2.15 negative ((Cache Tier)): ingest benign `database` / `redis:info` events where `host` stays below `mem_fragmentation_ratio` > 1.5, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Redis Memory Fragmentation (Cache Tier)'."
+  },
+  "dataSources": "`INFO memory` — `mem_fragmentation_ratio`, `used_memory_rss` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "redis-cli scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"redis:info\" role=master\n| where mem_fragmentation_ratio > 1.5\n| timechart span=15m avg(mem_fragmentation_ratio) as frag by host",
-  "description": "High `mem_fragmentation_ratio` on self-managed Redis (not only ElastiCache) wastes RAM and increases latency. Tracks non-cloud Redis clusters in the NoSQL section.",
-  "value": "High `mem_fragmentation_ratio` on self-managed Redis (not only ElastiCache) wastes RAM and increases latency. Tracks non-cloud Redis clusters in the NoSQL section.",
+  "description": "Surfaces when (Cache Tier) criteria fire for 'Redis Memory Fragmentation (Cache Tier)' (UC-7.2.15) in `index=database` sourcetype `redis:info`. Pipeline aggregates `frag` by `host` over `15m`. Alert logic enforces `mem_fragmentation_ratio` > 1.5. Title terms: Redis, Memory, Fragmentation, (Cache, Tier). Eliminates manual hunting for UC-7.2.15 conditions.",
+  "value": "UC-7.2.15 helps teams contain Redis, Memory, Fragmentation, (Cache, Tier) scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Poll every 15m. Alert when ratio >1.5 for 24h. Recommend active defrag or restart per policy.",
   "visualization": "Line chart (fragmentation ratio), Table (hosts over threshold), Gauge (current ratio).",
   "cimModels": [
@@ -21,13 +27,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "AOF rewrites, RDB saves, and replica full syncs can spike latency or CPU briefly on healthy hosts; check Redis persistence settings and the backup schedule.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.2.15)** — Planned work for 'Redis Memory Fragmentation (Cache Tier)' shifts `frag` over `span=15m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `redis:info`** — Scheduled automation elevates `src` without crossing `mem_fragmentation_ratio` > 1.5 for UC-7.2.15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `redis:info`** — First 48h baseline for UC-7.2.15 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "redis"
   ],
+  "equipmentModels": [
+    "redis_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• In operations we confirm in redis-cli, RedisInsight, or the managed cache console so live stats match Splunk.\n• Install and configure the required add-on or app: redis-cli scripted input.\n• Ensure the following data sources are available: `INFO memory` — `mem_fragmentation_ratio`, `used_memory_rss`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll every 15m. Alert when ratio >1.5 for 24h. Recommend active defrag or restart per policy.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=database sourcetype=\"redis:info\" role=master\n| where mem_fragmentation_ratio > 1.5\n| timechart span=15m avg(mem_fragmentation_ratio) as frag by host\n```\n\nUnderstanding this SPL\n\n**Redis Memory Fragmentation (Cache Tier)** — High `mem_fragmentation_ratio` on self-managed Redis (not only ElastiCache) wastes RAM and increases latency. Tracks non-cloud Redis clusters in the NoSQL section.\n\nDocumented **Data sources**: `INFO memory` — `mem_fragmentation_ratio`, `used_memory_rss`. **App/TA** (typical add-on context): redis-cli scripted input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: database; **sourcetype**: redis:info. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=database, sourcetype=\"redis:info\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where mem_fragmentation_ratio > 1.5` — typically the threshold or rule expression for this monitoring goal.\n• `timechart` plots the metric over time using **span=15m** buckets with a separate series **by host** — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nFor the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (fragmentation ratio), Table (hosts over threshold), Gauge (current ratio).",
-  "grandmaExplanation": "We follow memory, persistence, and replication on Redis so we can catch eviction and lag before a cache or queue tier becomes the bottleneck for applications."
+  "grandmaExplanation": "We follow memory, persistence, and replication on Redis so we can catch eviction and lag before a cache or queue tier becomes the bottleneck for applications.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

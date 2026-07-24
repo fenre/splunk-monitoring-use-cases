@@ -8,26 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Carbon estimates (`carbon:estimate`), recycling weight (`recycling:weight`), food waste (`foodwaste:log`), repairs (`repair:event`).",
-  "app": "Sustainability telemetry — carbon-footprint apps, home recycling scales, food-waste logs, and repair / reuse journals — streamed to Splunk HEC via APIs, MQTT, and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Single-Use Plastic Count' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_single_use_plastic_count` (UC-25.50.6), SOC dashboard panel \"Personal — Single-Use Plastic Count\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.50.6 positive (Single, Use, Plastic, Count): ingest synthetic events into `index=personal` sourcetype='foodwaste:log' where `plastics`, `base` grouped by `_time` satisfies detection threshold for 'Single-Use Plastic Count'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.50.6 negative (Plastic Count): ingest benign `personal` / `foodwaste:log` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 0 confirms zero alert rows for 'Single-Use Plastic Count'."
+  },
+  "dataSources": "Carbon estimates (`carbon:estimate`), recycling weight (`recycling:weight`), food waste (`foodwaste:log`), repairs (`repair:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Sustainability telemetry — carbon-footprint apps, home recycling scales, food-waste logs, and repair / reuse journals — streamed to Splunk HEC via APIs, MQTT, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=foodwaste:log event=packaging\n| bin _time span=1w\n| stats sum(single_use_items) as plastics by _time\n| eventstats avg(plastics) as base\n| eval improving=if(plastics<base,1,0)\n| sort - _time",
-  "description": "Counts the single-use plastic items entering your home each week, making an invisible habit visible.",
-  "value": "You cannot cut what you cannot see; a weekly plastic count is the first step to meaningful reduction.",
+  "description": "Detects 'Single-Use Plastic Count' (UC-25.50.6) using `index=personal` sourcetype `foodwaste:log` by aggregating `plastics`, `base` grouped by `_time` over `1w` and alerting when configured threshold. Keywords: Single, Use, Plastic, Count. Focuses on Plastic Count behaviour so personal teams can triage UC-25.50.6 without ad-hoc log review.",
+  "value": "UC-25.50.6 accelerates insight into Plastic Count ('Single-Use Plastic Count') by tracking `plastics`, `base` on `foodwaste:log` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Log single-use items into `index=personal`; trend the weekly count.",
   "visualization": "Column chart of weekly single-use plastic count.",
   "cimModels": [],
   "references": [
     {
       "title": "WRAP — Love Food Hate Waste",
-      "url": "https://www.lovefoodhatewaste.com/"
+      "url": "https://www.lovefoodhatewaste.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.50.6)** — Connector for 'Single-Use Plastic Count' stops polling `foodwaste:log`; stale `plastics`, `base` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `plastics`, `base` over `1w` is expected for UC-25.50.6, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `foodwaste:log`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Single-Use Plastic Count'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It counts the single-use plastics coming into your home each week, so you can cut them down."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Sustainability & Zero-Waste — typical feeds: Carbon estimates (`carbon:estimate`), recycling weight (`recycling:weight`), food waste (`foodwaste:log`), repairs (`repair:event`)..\n• **Sourcetypes in this search**: `foodwaste:log`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=foodwaste:log`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Sustainability telemetry — carbon-footprint apps, home recycling scales, food-waste logs, and repair / reuse journals — streamed to Splunk HEC via APIs, MQTT, and scripted inputs..\n\n**Author notes:** Log single-use items into `index=personal`; trend the weekly count.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"foodwaste:log\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=foodwaste:log earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Single-Use Plastic Count** over `personal` data (primarily `sourcetype=foodwaste:log`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `_time`, `improving`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=foodwaste:log event=packaging\n| bin _time span=1w\n| stats sum(single_use_items) as plastics by _time\n| eventstats avg(plastics) as base\n| eval improving=if(plastics<base,1,0)\n| sort - _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=foodwaste:log earliest=-7d\n| head 50\n| table _time, improving\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=foodwaste:log earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.50.6: Personal evidence` with the following panel layout:\n\n**Panel 1 — Column Chart Of Weekly Single-Use Plastic Count (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `foodwaste:log` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=foodwaste:log | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Bucket misalignment:** `span=1w` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1w` buckets.",
+  "grandmaExplanation": "It counts the single-use plastics coming into your home each week, so you can cut them down.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

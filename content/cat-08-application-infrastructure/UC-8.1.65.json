@@ -9,11 +9,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`stats` `curr_connections` vs configured `maxconns` (emit as field) on `memcached:stats`",
-  "app": "Custom scripted input that appends `maxconns` from `memcached -h` / config to each stats event",
+  "exclusions": "Covers the detection logic documented for 'Memcached Connection Count Approaching Limit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_memcached_connection_count_approaching_limit` (UC-8.1.65), SOC dashboard panel \"Operations — Memcached Connection Count Approaching Limit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.1.65 positive (Memcached, Connection, Count, Approaching, Limit): ingest synthetic events into `index=infrastructure` sourcetype='memcached:stats' where `count` grouped by `entity` satisfies `maxc` > 0, `pct` > 85, or `cur` > 10000 for 'Memcached Connection Count Approaching Limit'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.65 negative (Approaching Limit): ingest benign `infrastructure` / `memcached:stats` events where `entity` stays below `maxc` > 0, `pct` > 85, or `cur` > 10000, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Memcached Connection Count Approaching Limit'."
+  },
+  "dataSources": "`stats` `curr_connections` vs configured `maxconns` (emit as field) on `memcached:stats` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input that appends `maxconns` from `memcached -h` / config to each stats event — Universal Forwarder (Splunkbase 617)",
   "spl": "index=infrastructure sourcetype=\"memcached:stats\"\n| eval cur=tonumber(curr_connections)\n| eval maxc=tonumber(maxconns)\n| eval pct=if(maxc>0, round(100*cur/maxc,1), null())\n| where pct > 85 OR cur > 10000",
-  "description": "Memcached refuses new connections when the limit is hit, which looks like random application failures. Tracking `curr_connections` against `maxconns` gives time to recycle pools or scale out.",
-  "value": "Avoids incident bridges caused by connection storms during deploys or mis-sized pools.",
+  "description": "Surfaces UC-8.1.65 — Memcached, Connection, Count, Approaching, Limit — using `index=infrastructure` sourcetype `memcached:stats`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `maxc` > 0, `pct` > 85, or `cur` > 10000. Primary focus: Approaching Limit. Purpose-built for 'Memcached Connection Count Approaching Limit' in Operations workflows.",
+  "value": "UC-8.1.65 accelerates insight into Approaching Limit ('Memcached Connection Count Approaching Limit') by tracking `activity` on `memcached:stats` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Add `maxconns` from instance config to each poll in your collector. Default memcached limit varies by build—never assume 1024. Alert at 85% sustained 10 minutes. Pair with app-side pool metrics.",
   "visualization": "Gauge (pct of max), Line chart (curr_connections).",
   "cimModels": [
@@ -23,12 +29,31 @@
   "references": [
     {
       "title": "Memcached — Connection limits",
-      "url": "https://github.com/memcached/memcached/wiki/ConfiguringServer"
+      "url": "https://github.com/memcached/memcached/wiki/ConfiguringServer",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Cache misses spike after cache flush, deploys with new cache keys, or during warm-up after restart. Compare with those events before treating as a fault.",
+  "knownFalsePositives": "1. **Maintenance window on `infrastructure` (UC-8.1.65)** — Planned work for 'Memcached Connection Count Approaching Limit' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `memcached:stats`** — Scheduled automation elevates `cur` without crossing `maxc` > 0 for UC-8.1.65. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `infrastructure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `memcached:stats`** — First 48h baseline for UC-8.1.65 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "memcached"
+  ],
+  "equipmentModels": [
+    "memcached_generic"
   ],
   "status": "draft",
   "lastReviewed": "2025-06-01",
@@ -37,6 +62,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We watch for signs that avoids incident bridges caused by connection storms during deploys or mis-sized pools."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom scripted input that appends `maxconns` from `memcached -h` / config to each stats event — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=memcached:stats into infrastructure. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cur, maxc, pct`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch for signs that avoids incident bridges caused by connection storms during deploys or mis-sized pools.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

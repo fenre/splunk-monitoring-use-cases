@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=ot` `sourcetype=\"hivemq:log\"` cluster/quorum log lines; optional `sourcetype=\"hivemq:metrics\"`",
-  "app": "HiveMQ Splunk Extension (SVA), HiveMQ Enterprise logging",
+  "exclusions": "Covers the detection logic documented for 'HiveMQ Cluster Node Health and Split-Brain Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_hivemq_cluster_node_health_and_split_brain_detec` (UC-14.5.16), SOC dashboard panel \"Operations — HiveMQ Cluster Node Health and Split-Brain Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.5.16 positive (HiveMQ, Cluster, Node, Health, and): ingest synthetic events into `index=ot` sourcetype='hivemq:log' where `count` grouped by `host`, `node_id`, `cluster_event` satisfies detection threshold for 'HiveMQ Cluster Node Health and Split-Brain Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.5.16 negative (Brain Detection): ingest benign `ot` / `hivemq:log` events where `host`, `node_id`, `cluster_event` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'HiveMQ Cluster Node Health and Split-Brain Detection'."
+  },
+  "dataSources": "`index=ot` `sourcetype=\"hivemq:log\"` cluster/quorum log lines; optional `sourcetype=\"hivemq:metrics\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "HiveMQ Splunk Extension (SVA), HiveMQ Enterprise logging — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ot sourcetype=\"hivemq:log\"\n| rex field=_raw \"(?i)(?<cluster_event>split.?brain|quorum|not enough members|cluster view|partition|lost majority)\"\n| where isnotnull(cluster_event)\n| rex field=_raw \"(?i)node[=\\s]+(?<node_id>[^\\s,;]+)\"\n| stats count by host, node_id, cluster_event\n| sort - count",
-  "description": "MQTT broker cluster faults and split-brain conditions fragment subscriptions and retained state; early detection avoids cross-site messaging black holes.",
-  "value": "MQTT broker cluster faults and split-brain conditions fragment subscriptions and retained state; early detection avoids cross-site messaging black holes.",
+  "description": "Identifies 'HiveMQ Cluster Node Health and Split-Brain Detection' patterns (UC-14.5.16) sourced from `index=ot` sourcetype `hivemq:log`. Threshold bundle: configured threshold; aggregation grain: `host`, `node_id`, `cluster_event`; metrics: `count`. Watch terms: HiveMQ, Cluster, Node, Health, and.",
+  "value": "UC-14.5.16 gives Operations teams earlier visibility into Brain Detection through `hivemq:log` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Forward HiveMQ broker logs with cluster logger categories enabled to Splunk. Normalize host to broker hostname. Alert on any match of split-brain/quorum strings or sudden role flaps.",
   "visualization": "Timeline (cluster events), Table (event counts by broker), Single value (split-brain indicators in last 24h).",
   "cimModels": [
@@ -22,13 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Cluster and quorum warnings during rolling upgrades, network partitions, or capacity adds.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-14.5.16)** — Planned work for 'HiveMQ Cluster Node Health and Split-Brain Detection' shifts `count` over `span=1h` while `host`, `node_id`, `cluster_event` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `hivemq:log`** — Scheduled automation elevates `node_id` without crossing configured threshold for UC-14.5.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `node_id`, `cluster_event`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `hivemq:log`** — First 48h baseline for UC-14.5.16 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "mqtt"
   ],
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: HiveMQ Splunk Extension (SVA), HiveMQ Enterprise logging.\n• Ensure the following data sources are available: `index=ot` `sourcetype=\"hivemq:log\"` cluster/quorum log lines; optional `sourcetype=\"hivemq:metrics\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward HiveMQ broker logs with cluster logger categories enabled to Splunk. Normalize host to broker hostname. Alert on any match of split-brain/quorum strings or sudden role flaps.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"hivemq:log\"\n| rex field=_raw \"(?i)(?<cluster_event>split.?brain|quorum|not enough members|cluster view|partition|lost majority)\"\n| where isnotnull(cluster_event)\n| rex field=_raw \"(?i)node[=\\s]+(?<node_id>[^\\s,;]+)\"\n| stats count by host, node_id, cluster_event\n| sort - count\n```\n\nUnderstanding this SPL\n\n**HiveMQ Cluster Node Health and Split-Brain Detection** — MQTT broker cluster faults and split-brain conditions fragment subscriptions and retained state; early detection avoids cross-site messaging black holes.\n\nDocumented **Data sources**: `index=ot` `sourcetype=\"hivemq:log\"` cluster/quorum log lines; optional `sourcetype=\"hivemq:metrics\"`. **App/TA** (typical add-on context): HiveMQ Splunk Extension (SVA), HiveMQ Enterprise logging. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: hivemq:log. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"hivemq:log\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts fields with `rex` (regular expression).\n• Filters the current rows with `where isnotnull(cluster_event)` — typically the threshold or rule expression for this monitoring goal.\n• Extracts fields with `rex` (regular expression).\n• `stats` rolls up events into metrics; results are split **by host, node_id, cluster_event** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nRun the search for a known busy window, then compare counts and clients with the HiveMQ control center or broker metrics. Reconcile top clients and topics with what the broker shows.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (cluster events), Table (event counts by broker), Single value (split-brain indicators in last 24h).",
-  "grandmaExplanation": "We watch cluster health on the managed broker so split brain or a sick node does not cost us availability."
+  "grandmaExplanation": "We watch cluster health on the managed broker so split brain or a sick node does not cost us availability.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

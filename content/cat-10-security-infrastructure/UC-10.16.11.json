@@ -9,11 +9,17 @@
     "Operations"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Microsoft 365 Defender incidents via `sourcetype=ms365:defender:incident`",
+  "exclusions": "Covers the detection logic documented for 'Microsoft 365 Defender Open Incident Backlog and Severity Mix' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_microsoft_365_defender_open_incident_backlog_and` (UC-10.16.11), SOC dashboard panel \"Security Infra — Microsoft 365 Defender Open Incident Backlog and Severity Mix\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.16.11 positive (Microsoft, 365, Defender, Open, Incident): ingest synthetic events into `index=target_index` sourcetype='ms365:defender:incident' where `open_incidents` grouped by `sev` satisfies -7d for 'Microsoft 365 Defender Open Incident Backlog and Severity Mix'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.16.11 negative (Severity Mix): ingest benign `target_index` / `ms365:defender:incident` events where `sev` stays below -7d, or exclude the test entity via `soc_exception_register.csv`. Variant 2 confirms zero alert rows for 'Microsoft 365 Defender Open Incident Backlog and Severity Mix'."
+  },
+  "dataSources": "Microsoft 365 Defender incidents via `sourcetype=ms365:defender:incident` Sourcetypes: ms365:defender:incident. Key fields: sev. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Splunk Add-on for Microsoft Security (Splunkbase 6207)",
   "spl": "index=* sourcetype=\"ms365:defender:incident\" earliest=-7d\n| eval st=lower(coalesce(status, Status, \"\"))\n| where st IN (\"active\",\"new\",\"in_progress\",\"investigating\") OR (st!=\"resolved\" AND st!=\"closed\")\n| eval sev=lower(coalesce(severity, Severity, \"unknown\"))\n| stats dc(incidentId) as open_incidents by sev\n| sort -open_incidents",
-  "description": "Counts non-resolved Microsoft 365 Defender incidents by severity so leadership can see backlog growth, analyst capacity risk, and whether critical incidents are stuck open beyond SLA.",
-  "value": "Gives a single-pane backlog metric tied to native Defender incident workflow, complementing alert-level searches and helping prioritize triage hiring or playbook automation.",
+  "description": "Surfaces UC-10.16.11 for Microsoft, 365, Defender, Open, Incident over `index=target_index` sourcetype `ms365:defender:incident` with thresholds -7d. Groups `open_incidents` by `sev` each `the scheduled window`. Centered on Severity Mix indicators. Supports repeatable security infra triage for 'Microsoft 365 Defender Open Incident Backlog and Severity Mix'.",
+  "value": "For 'Microsoft 365 Defender Open Incident Backlog and Severity Mix', UC-10.16.11 converts `open_incidents` on `ms365:defender:incident` feeds into actionable rows and reduces missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Enable incident collection in the Splunk Add-on for Microsoft Security. Normalize `status` vocabulary (`active` vs `inProgress`) with eval if your tenant returns mixed casing. Exclude archived or historical replays if your input duplicates incident updates. Alert when high-severity open incidents exceed a threshold or when total open incidents grows sharply day over day.",
   "visualization": "Column chart (open incidents by severity), single value (total open), timechart of open incident count.",
   "cimModels": [
@@ -23,14 +29,32 @@
   "references": [
     {
       "title": "Splunk Add-on for Microsoft Security",
-      "url": "https://splunkbase.splunk.com/app/6207"
+      "url": "https://splunkbase.splunk.com/app/6207",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Source types — Splunk Add-on for Microsoft Security",
-      "url": "https://splunk.github.io/splunk-add-on-for-microsoft-365-defender/Sourcetypes/"
+      "url": "https://splunk.github.io/splunk-add-on-for-microsoft-365-defender/Sourcetypes/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Open incident backlog and severity mix can grow during vendor outages, analyst PTO, or a known campaign — the backlog is as much a staffing signal as a threat signal.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index` (UC-10.16.11)** — Planned work for 'Microsoft 365 Defender Open Incident Backlog and Severity Mix' shifts `open_incidents` over `span=1h` while `sev` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `ms365:defender:incident`** — Scheduled automation elevates `st` without crossing configured threshold for UC-10.16.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sev`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ms365:defender:incident`** — First 48h baseline for UC-10.16.11 on `sev` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `sev`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
   "splunkVersions": [
@@ -38,6 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We look at how many Microsoft incidents stay open and how severe they are so backlog and triage health are not a mystery in one portal."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Microsoft Security (Splunkbase 6207)). Enable the modular input or HEC token that writes sourcetype=ms365:defender:incident into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`sev`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We look at how many Microsoft incidents stay open and how severe they are so backlog and triage health are not a mystery in one portal.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

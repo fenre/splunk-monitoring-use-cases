@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=edge-hub-logs` sourcetype=splunk_edge_hub_log bluetooth_beacon_event, `index=edge-hub-data` metric_name=rssi_strength",
-  "app": "Splunk Edge Hub (Bluetooth connectivity), custom container",
+  "exclusions": "Covers the detection logic documented for 'BLE Beacon Asset Tracking & Presence Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ble_beacon_asset_tracking_presence_detection` (UC-14.3.27), SOC dashboard panel \"Operations — BLE Beacon Asset Tracking & Presence Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.3.27 positive (BLE, Beacon, Asset, Tracking, Presence): ingest synthetic events into `index=edge-hub-logs` sourcetype='splunk_edge_hub_log' where `avg_rssi` grouped by `beacon_id`, `host`, `location` satisfies detection threshold for 'BLE Beacon Asset Tracking & Presence Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.3.27 negative (Presence Detection): ingest benign `edge-hub-logs` / `splunk_edge_hub_log` events where `beacon_id`, `host`, `location` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'BLE Beacon Asset Tracking & Presence Detection'."
+  },
+  "dataSources": "`index=edge-hub-logs` sourcetype=splunk_edge_hub_log bluetooth_beacon_event, `index=edge-hub-data` metric_name=rssi_strength Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Edge Hub (Bluetooth connectivity), custom container — Universal Forwarder (Splunkbase 617)",
   "spl": "index=edge-hub-logs sourcetype=splunk_edge_hub_log bluetooth_beacon_event beacon_uuid=* beacon_major=* beacon_minor=*\n| stats latest(_time) as last_seen, avg(rssi_strength) as avg_rssi by beacon_id, host\n| eval presence_status=if((now() - last_seen) < 300, \"PRESENT\", \"ABSENT\")\n| stats count(eval(presence_status=\"PRESENT\")) as present_assets by host, location",
-  "description": "Tracks valuable equipment or personnel location within facility using low-cost BLE tags without requiring dedicated asset management infrastructure.",
-  "value": "Tracks valuable equipment or personnel location within facility using low-cost BLE tags without requiring dedicated asset management infrastructure.",
+  "description": "Surfaces UC-14.3.27 — BLE, Beacon, Asset, Tracking, Presence — using `index=edge-hub-logs` sourcetype `splunk_edge_hub_log`, grouped by `beacon_id`, `host`, `location`. Outputs `avg_rssi` each `the scheduled window`; alert when configured threshold. Primary focus: Presence Detection. Purpose-built for 'BLE Beacon Asset Tracking & Presence Detection' in Operations workflows.",
+  "value": "UC-14.3.27 gives Operations teams earlier visibility into Presence Detection through `splunk_edge_hub_log` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Enable Bluetooth scanning on Edge Hub. Build custom ARM64 container that listens for iBeacon or AltBeacon advertisements, parses UUID/major/minor identifiers, and logs beacon_id + RSSI (signal strength). Use RSSI to estimate distance (typically 1-10m range for Edge Hub antenna). Store beacon events locally via 100K event backlog. Implement trilateration logic in container or Splunk downstream to estimate asset location across 3+ Edge Hubs. MQTT publish beacon sightings to central location service.",
   "visualization": "Asset presence map, RSSI range heatmap, movement timeline.",
   "cimModels": [
@@ -22,18 +28,45 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Sensors offline during scheduled site visits, calibration, or replacement campaigns.",
+  "knownFalsePositives": "1. **Maintenance window on `edge-hub-logs` (UC-14.3.27)** — Planned work for 'BLE Beacon Asset Tracking & Presence Detection' shifts `avg_rssi` over `span=1h` while `beacon_id`, `host`, `location` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `splunk_edge_hub_log`** — Scheduled automation elevates `host` without crossing configured threshold for UC-14.3.27. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `beacon_id`, `host`, `location`** — Health checks in `edge-hub-logs` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `splunk_edge_hub_log`** — First 48h baseline for UC-14.3.27 on `beacon_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `beacon_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "edge_hub",
     "m365",
     "mqtt"
   ],
+  "equipmentModels": [
+    "edge_hub_generic",
+    "m365_generic",
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "premiumApps": [
     "Splunk Edge Hub"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (Bluetooth connectivity), custom container.\n• Ensure the following data sources are available: `index=edge-hub-logs` sourcetype=splunk_edge_hub_log bluetooth_beacon_event, `index=edge-hub-data` metric_name=rssi_strength.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable Bluetooth scanning on Edge Hub. Build custom ARM64 container that listens for iBeacon or AltBeacon advertisements, parses UUID/major/minor identifiers, and logs beacon_id + RSSI (signal strength). Use RSSI to estimate distance (typically 1-10m range for Edge Hub antenna). Store beacon events locally via 100K event backlog. Implement trilateration logic in container or Splunk downstream to estimate asset location across 3+ Edge Hubs. MQTT publish beacon sightings to central location servic…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edge-hub-logs sourcetype=splunk_edge_hub_log bluetooth_beacon_event beacon_uuid=* beacon_major=* beacon_minor=*\n| stats latest(_time) as last_seen, avg(rssi_strength) as avg_rssi by beacon_id, host\n| eval presence_status=if((now() - last_seen) < 300, \"PRESENT\", \"ABSENT\")\n| stats count(eval(presence_status=\"PRESENT\")) as present_assets by host, location\n```\n\nUnderstanding this SPL\n\n**BLE Beacon Asset Tracking & Presence Detection** — Tracks valuable equipment or personnel location within facility using low-cost BLE tags without requiring dedicated asset management infrastructure.\n\nDocumented **Data sources**: `index=edge-hub-logs` sourcetype=splunk_edge_hub_log bluetooth_beacon_event, `index=edge-hub-data` metric_name=rssi_strength. **App/TA** (typical add-on context): Splunk Edge Hub (Bluetooth connectivity), custom container. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-logs; **sourcetype**: splunk_edge_hub_log. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edge-hub-logs, sourcetype=splunk_edge_hub_log. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by beacon_id, host** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **presence_status** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by host, location** so each row reflects one combination of those dimensions.\n\n\nStep 3 — Validate\nConfirm metric or event volume in the time range, then compare trends and device status to the Splunk Edge Hub admin UI or the mobile app for the same devices. Verify metric names, hosts, and time skew.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Asset presence map, RSSI range heatmap, movement timeline.",
-  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with this area: ble beacon asset tracking & presence before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with this area: ble beacon asset tracking & presence before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

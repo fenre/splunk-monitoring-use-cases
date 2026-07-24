@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Forcepoint ONE SSE logs via Splunkbase app",
+  "exclusions": "Covers the detection logic documented for 'Forcepoint ONE SSE Web Security Events (Forcepoint)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_forcepoint_one_sse_web_security_events_forcepoin` (UC-17.3.59), SOC dashboard panel \"Network — Forcepoint ONE SSE Web Security Events (Forcepoint)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.59 positive (Forcepoint, ONE, SSE, Web, Security): ingest synthetic events into `index=proxy` sourcetype='forcepoint:one' where `count` grouped by `policy_name`, `category`, `user`, `action` satisfies -7d for 'Forcepoint ONE SSE Web Security Events (Forcepoint)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.59 negative (Events (Forcepoint)): ingest benign `proxy` / `forcepoint:one` events where `policy_name`, `category`, `user`, `action` stays below -7d, or exclude the test entity via `network_exception_register.csv`. Variant 12 confirms zero alert rows for 'Forcepoint ONE SSE Web Security Events (Forcepoint)'."
+  },
+  "dataSources": "Forcepoint ONE SSE logs via Splunkbase app Indexes: proxy. Sourcetypes: forcepoint:one. Key fields: action, category, policy_name, user. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Forcepoint Insights SIEM App (Splunkbase 8053)",
   "spl": "index=proxy sourcetype=\"forcepoint:one\" earliest=-7d\n| where action IN (\"block\", \"deny\")\n| stats count by policy_name, category, user, action\n| sort -count",
-  "description": "Forcepoint ONE SSE delivers cloud-native SWG, CASB, and ZTNA from a unified platform. Web security events reveal policy violations, threat blocks, and shadow IT usage across all users.",
-  "value": "Data protection teams unify Forcepoint ONE SSE DLP events across all channels (web, cloud, email, endpoint) into a single view, detecting cross-channel exfiltration where the same user triggers DLP violations through multiple exit paths.",
+  "description": "Identifies UC-17.3.59 — Forcepoint, ONE, SSE, Web, Security — using `index=proxy` sourcetype `forcepoint:one`, grouped by `policy_name`, `category`, `user`, `action`. Outputs `count` each `the scheduled window`; alert when -7d. Primary focus: Events (Forcepoint). Purpose-built for 'Forcepoint ONE SSE Web Security Events (Forcepoint)' in Network workflows.",
+  "value": "Tracking `activity` via UC-17.3.59 on `forcepoint:one` feeds improves response to 'Forcepoint ONE SSE Web Security Events (Forcepoint)' and reduces unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Install the Forcepoint Insights SIEM App and configure log ingestion. Map categories to your acceptable-use policy. Alert on high-risk category blocks. Report on enforcement effectiveness.",
   "visualization": "Bar chart (blocks by category), Table (top users blocked), Line chart (block trend), Pie chart (policy distribution).",
   "cimModels": [],
@@ -22,21 +28,42 @@
   "references": [
     {
       "title": "Forcepoint Insights SIEM App",
-      "url": "https://splunkbase.splunk.com/app/8053"
+      "url": "https://splunkbase.splunk.com/app/8053",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes from new SaaS rollouts, automated workflows, sanctioned bulk uploads, or M&A integration.",
+  "knownFalsePositives": "1. **Vulnerability scanner signature matches** — Qualys/Tenable traffic triggers IPS/threat signatures for 'Forcepoint ONE SSE Web Security Events (Forcepoint)'. Compare `src` against `scanner_ips` lookup.\n\n2. **Policy push during change window** — New deny rule generates expected blocks. Match firewall commit timestamp in change calendar.\n\n3. **Encrypted traffic inspection gap** — TLS-heavy apps bypass deep inspection; volume drop is operational, not a sensor failure.\n\n4. **Red-team C2 simulation** — Approved exercise from `pen_test_hosts.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `src`, `signature_id`, `valid_until`.",
   "mitreAttack": [
     "T1071.001"
   ],
   "equipment": [
     "forcepoint"
   ],
-  "detailedImplementation": "Prerequisites\n• Forcepoint ONE SSE DLP events in `index=forcepoint` with `sourcetype=forcepoint:one:sse` or `sourcetype=forcepoint:dlp:incidents`. Key fields: `action` (block/monitor/quarantine/encrypt), `policy_name`, `channel` (Web/Cloud/Email/Endpoint), `user`, `severity`, `data_pattern`, `file_name`, `destination`, `match_count`.\n• Forcepoint ONE SSE unifies DLP across channels: web (SWG), cloud apps (CASB), email, and endpoint. This UC provides a single view across all DLP channels — unlike UC-17.5.x which covered individual Forcepoint products.\n\nStep 1 — Configure data collection\nVerify unified DLP events:\n```spl\nindex=forcepoint earliest=-7d\n| where isnotnull(data_pattern) AND isnotnull(channel)\n| stats count by channel, action, severity\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Cross-channel DLP:\n```spl\nindex=forcepoint earliest=-7d\n| where isnotnull(data_pattern)\n| stats count sum(match_count) as total_matches dc(user) as users by data_pattern, channel, action\n| sort - total_matches\n```\n\nUnderstanding this SPL: Groups DLP violations by data pattern (PII, PCI, HIPAA) and channel. When the same data pattern appears across multiple channels — the same person sending PCI data via web upload and email — it indicates a systematic data handling issue, not an accident.\n\nCross-channel exfiltration detection:\n```spl\nindex=forcepoint earliest=-7d\n| where isnotnull(data_pattern) AND action IN (\"block\",\"quarantine\")\n| stats dc(channel) as channels values(channel) as channel_list count by user, data_pattern\n| where channels > 1\n| sort - channels\n```\n\nStep 3 — Validate\n(a) Trigger a DLP policy via web upload and email. Verify both appear.\n(b) In Forcepoint ONE: Analytics > DLP Incidents.\n\nStep 4 — Operationalize\nDashboard: Row 1 — DLP by channel. Row 2 — Cross-channel users. Row 3 — Severity trend.\nAlert: When user triggers DLP in 2+ channels within 24h.\n\nRunbook:\n1. **Cross-channel DLP** — Investigate user for intentional exfiltration.\n2. **Block on PCI** — Verify data was actually blocked. Check destination.\n3. **Monitor-only on sensitive data** — Upgrade to block.\n\nStep 5 — Troubleshooting\n• **Only one channel showing** — Other channels may not forward to Splunk.\n• **`data_pattern` generic** — Custom patterns may not have descriptive names.",
+  "equipmentModels": [
+    "forcepoint_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Forcepoint ONE SSE DLP events in `index=forcepoint` with `sourcetype=forcepoint:one:sse` or `sourcetype=forcepoint:dlp:incidents`. Key fields: `action` (block/monitor/quarantine/encrypt), `policy_name`, `channel` (Web/Cloud/Email/Endpoint), `user`, `severity`, `data_pattern`, `file_name`, `destination`, `match_count`.\n• Forcepoint ONE SSE unifies DLP across channels: web (SWG), cloud apps (CASB), email, and endpoint. This UC provides a single view across all DLP channels — unlike UC-17.5.x which covered individual Forcepoint products.\n\nStep 1 — Configure data collection\nVerify unified DLP events:\n```spl\nindex=forcepoint earliest=-7d\n| where isnotnull(data_pattern) AND isnotnull(channel)\n| stats count by channel, action, severity\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Cross-channel DLP:\n```spl\nindex=forcepoint earliest=-7d\n| where isnotnull(data_pattern)\n| stats count sum(match_count) as total_matches dc(user) as users by data_pattern, channel, action\n| sort - total_matches\n```\n\nUnderstanding this SPL: Groups DLP violations by data pattern (PII, PCI, HIPAA) and channel. When the same data pattern appears across multiple channels — the same person sending PCI data via web upload and email — it indicates a systematic data handling issue, not an accident.\n\nCross-channel exfiltration detection:\n```spl\nindex=forcepoint earliest=-7d\n| where isnotnull(data_pattern) AND action IN (\"block\",\"quarantine\")\n| stats dc(channel) as channels values(channel) as channel_list count by user, data_pattern\n| where channels > 1\n| sort - channels\n```\n\nStep 3 — Validate\n(a) Trigger a DLP policy via web upload and email. Verify both appear.\n(b) In Forcepoint ONE: Analytics > DLP Incidents.\n\nStep 4 — Operationalize\nDashboard: Row 1 — DLP by channel. Row 2 — Cross-channel users. Row 3 — Severity trend.\nAlert: When user triggers DLP in 2+ channels within 24h.\n\nRunbook:\n1. **Cross-channel DLP** — Investigate user for intentional exfiltration.\n2. **Block on PCI** — Verify data was actually blocked. Check destination.\n3. **Monitor-only on sensitive data** — Upgrade to block.\n\nStep 5 — Troubleshooting\n• **Only one channel showing** — Other channels may not forward to Splunk.\n• **`data_pattern` generic** — Custom patterns may not have descriptive names.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Forcepoint Insights SIEM App (Splunkbase 8053)). Enable the modular input or HEC token that writes sourcetype=forcepoint:one into proxy. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`action, category, policy_name, user`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Forcepoint ONE watches for sensitive data leaving through every exit — web, email, cloud apps. When the same person triggers a data warning across multiple exits, that is not accidental — they are looking for a way out with that data, and we need to stop them.",
-  "hardware": "Forcepoint ONE (cloud), Forcepoint ONE Smart Edge Agent (endpoint)"
+  "hardware": "Forcepoint ONE (cloud), Forcepoint ONE Smart Edge Agent (endpoint)",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

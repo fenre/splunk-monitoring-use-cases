@@ -9,24 +9,43 @@
     "Risk"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), Raspberry Pi host metrics, UPS status via NUT (`nut:ups`).",
-  "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC.",
-  "spl": "index=personal sourcetype=netdata:alarm chart_id=*disk* alarm_value>90\ntable chart_id alarm_value",
-  "description": "Lists Netdata disk alarms approaching full capacity.",
-  "value": "Surfacing netdata disk fill forecast crossing ninety percent helps you act before small issues become habits.",
+  "exclusions": "Covers personal hobby monitoring for 'Netdata Disk Fill Forecast Crossing Ninety Percent' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_netdata_disk_fill_forecast_crossing_ninety_perce` (UC-25.8.40), SOC dashboard panel \"Personal — Netdata Disk Fill Forecast Crossing Ninety Percent\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.8.40 positive (Netdata, Disk, Fill, Forecast, Crossing): ingest synthetic events into `index=personal` sourcetype='netdata:alarm' where `count` grouped by `entity` satisfies `alarm_value` > 90 for 'Netdata Disk Fill Forecast Crossing Ninety Percent'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.8.40 negative (Ninety Percent): ingest benign `personal` / `netdata:alarm` events where `entity` stays below `alarm_value` > 90, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 9 confirms zero alert rows for 'Netdata Disk Fill Forecast Crossing Ninety Percent'."
+  },
+  "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), Raspberry Pi host metrics, UPS status via NUT (`nut:ups`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=netdata:alarm chart_id=*disk* alarm_value>90\n| table chart_id alarm_value",
+  "description": "Detects UC-25.8.40 — Netdata, Disk, Fill, Forecast, Crossing — using `index=personal` sourcetype `netdata:alarm`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `alarm_value` > 90. Primary focus: Ninety Percent. Purpose-built for 'Netdata Disk Fill Forecast Crossing Ninety Percent' in Personal workflows.",
+  "value": "Operators running UC-25.8.40 on `netdata:alarm` feeds shorten triage for Ninety Percent tied to 'Netdata Disk Fill Forecast Crossing Ninety Percent', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest the relevant home lab & self-hosting export into `index=personal` and schedule this search weekly.",
   "visualization": "Table or chart of key fields.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk ES Content Management",
+      "url": "https://docs.splunk.com/Documentation/ES/latest/Admin/ContentManagement",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.8.40)** — Connector for 'Netdata Disk Fill Forecast Crossing Ninety Percent' stops polling `netdata:alarm`; stale `count` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.8.40, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `netdata:alarm`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `alarm_value` > 90 for 'Netdata Disk Fill Forecast Crossing Ninety Percent'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "docker",
     "proxmox",
@@ -36,5 +55,12 @@
   "equipmentModels": [
     "snmp_ups"
   ],
-  "grandmaExplanation": "It treats when netdata disk fill forecast crossing ninety percent matters for your routine."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Home Lab & Self-Hosting — typical feeds: Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), Raspberry Pi host metrics, UPS status via NUT (`nut:ups`)..\n• **Sourcetypes in this search**: `netdata:alarm`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=netdata:alarm`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC..\n\n**Author notes:** Ingest the relevant home lab & self-hosting export into `index=personal` and schedule this search weekly.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"netdata:alarm\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=netdata:alarm earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Netdata Disk Fill Forecast Crossing Ninety Percent** over `personal` data (primarily `sourcetype=netdata:alarm`) across the full search range. It applies numeric thresholds on `alarm_value` (> 90) after aggregation — tune these constants to your household baseline.\n\n**Fields this search depends on:** `alarm_value`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=netdata:alarm chart_id=*disk* alarm_value>90\n| table chart_id alarm_value\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=netdata:alarm earliest=-7d\n| head 50\n| table alarm_value\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=netdata:alarm earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `alarm_value` before alerting:\n\n```spl\nindex=personal sourcetype=netdata:alarm earliest=-30d\n| stats perc50(alarm_value) AS p50 perc90(alarm_value) AS p90 perc99(alarm_value) AS p99 max(alarm_value) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.8.40: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Or Chart Of Key Fields (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `netdata:alarm` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=netdata:alarm | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It treats when netdata disk fill forecast crossing ninety percent matters for your routine.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

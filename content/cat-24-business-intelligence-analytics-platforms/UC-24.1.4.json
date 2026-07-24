@@ -8,28 +8,43 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Tableau VizQL View Render Latency' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_tableau_vizql_view_render_latency` (UC-24.1.4), SOC dashboard panel \"Operations — Tableau VizQL View Render Latency\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.1.4 positive (Tableau, VizQL, View, Render, Latency): ingest synthetic events into `index=bi` sourcetype='tableau:httpd' where `avg_ms` grouped by `workbook`, `view` satisfies `p95_s` > 10 for 'Tableau VizQL View Render Latency'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.1.4 negative (Render Latency): ingest benign `bi` / `tableau:httpd` events where `workbook`, `view` stays below `p95_s` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Tableau VizQL View Render Latency'."
+  },
   "dataSources": "Tableau Server logs (`tableau:backgrounder`, `tableau:vizqlserver`, `tableau:httpd`), `workgroup` repository tables (`background_jobs`, `http_requests`, `_views_stats`, `licensing`) via DB Connect, Tableau Cloud Admin Insights / Activity Log exports.",
   "app": "Splunk DB Connect (Splunkbase 2686) against the Tableau Server `workgroup` PostgreSQL repository; Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC scripted inputs.",
   "spl": "index=bi sourcetype=tableau:httpd\n| rex field=uri_path \"/views/(?<workbook>[^/]+)/(?<view>[^/?]+)\"\n| where isnotnull(view)\n| stats count as loads, avg(time_taken) as avg_ms, p95(time_taken) as p95_ms by workbook, view\n| eval p95_s=round(p95_ms/1000,2)\n| where p95_s>10\n| sort - p95_s",
-  "description": "Parses the Tableau gateway access log to compute per-view render latency and flags dashboards whose 95th-percentile load time exceeds 10 seconds.",
-  "value": "Slow dashboards drive users away from self-service analytics; per-view latency shows exactly which content frustrates users so it can be optimised or re-architected.",
+  "description": "Detects UC-24.1.4 — Tableau, VizQL, View, Render, Latency — using `index=bi` sourcetype `tableau:httpd`, grouped by `workbook`, `view`. Outputs `avg_ms` each `the scheduled window`; alert when `p95_s` > 10. Primary focus: Render Latency. Purpose-built for 'Tableau VizQL View Render Latency' in Operations workflows.",
+  "value": "For 'Tableau VizQL View Render Latency', UC-24.1.4 converts `avg_ms` on `tableau:httpd` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Ingest `tableau:httpd`; extract workbook/view from the request path. Schedule daily and review the slowest views with content owners; correlate with VizQL session counts.",
   "visualization": "Table of workbook/view with p95 latency, heat map of slow views, trend line.",
   "cimModels": [],
   "references": [
     {
       "title": "Tableau Server — View server logs",
-      "url": "https://help.tableau.com/current/server/en-us/logs_server_view.htm"
+      "url": "https://help.tableau.com/current/server/en-us/logs_server_view.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Tableau REST API reference",
-      "url": "https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api.htm"
+      "url": "https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk DB Connect",
-      "url": "https://splunkbase.splunk.com/app/2686"
+      "url": "https://splunkbase.splunk.com/app/2686",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.1.4)** — Planned work for 'Tableau VizQL View Render Latency' shifts `avg_ms` over `span=1h` while `workbook`, `view` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `tableau:httpd`** — Scheduled automation elevates `view` without crossing `p95_s` > 10 for UC-24.1.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `workbook`, `view`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `tableau:httpd`** — First 48h baseline for UC-24.1.4 on `workbook` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `workbook`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "db_connect",
@@ -39,5 +54,12 @@
     "apache_httpd",
     "postgresql_pg"
   ],
-  "grandmaExplanation": "We time how long each Tableau dashboard takes to open for people so the sluggish ones can be fixed before users give up on them."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk DB Connect (Splunkbase 2686) against the Tableau Server `workgroup` PostgreSQL repository; Tableau Server logs via Universal Forwarder; Tableau Server REST API and TSM metrics via HEC scripted inputs.). Enable the modular input or HEC token that writes sourcetype=tableau:httpd into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`p95_s, view, workbook`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We time how long each Tableau dashboard takes to open for people so the sluggish ones can be fixed before users give up on them.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

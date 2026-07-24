@@ -75,31 +75,31 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 - **UC-17.1.28** — Cisco ISE<sup class="ref">[<a href="#ref-2">2</a>]</sup> Deployment Replication Health and PSN Sync Lag
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.28.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.28.json)
 <a id='uc-17-1-42'></a>
 - **UC-17.1.42** — Adaptive Network Control (ANC) Action Auditing and Excessive Quarantine Detection
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.42.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.42.json)
 <a id='uc-17-1-44'></a>
 - **UC-17.1.44** — Cisco ISE External Identity Store Health (AD/LDAP/RADIUS/SAML/OAuth)
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.44.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.44.json)
 <a id='uc-17-1-47'></a>
 - **UC-17.1.47** — Cisco ISE Backup Job Success and Operational-Data Backup Validation
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.47.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.47.json)
 <a id='uc-17-1-82'></a>
 - **UC-17.1.82** — Splunk SOAR<sup class="ref">[<a href="#ref-8">8</a>]</sup> + ISE Closed-Loop Playbook Audit and Mean-Time-to-Containment KPI
   - Control family: `—`
   - Owner: `—`
-  - Evidence fields declared in sidecar: 0
+  - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.82.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.82.json)
 <a id='uc-22-11-101'></a>
 - **UC-22.11.101** — PCI-DSS 10.6 — Log review: daily-review evidence for CDE data sources
@@ -564,9 +564,9 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 8.20.0
+catalogue_version: 8.24.0
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     d010119379cfbb44fc0feadaf5ee44b9873461a6d4bc9e2c30e797bebfe9eced
+inputs_sha256:     05f941e7cba30a6ed15be3f33541ee7425e92ce578db21f18d57d3d67e5fb1db
 ```
 
 To re-generate:

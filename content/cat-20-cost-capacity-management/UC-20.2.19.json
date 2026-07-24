@@ -8,11 +8,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`snmp:interface`, `netflow:site`",
-  "app": "SNMP, NetFlow summary",
+  "exclusions": "Covers the detection logic documented for 'Network Bandwidth Utilization Trending (Site Interconnect)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_network_bandwidth_utilization_trending_site_inte` (UC-20.2.19), SOC dashboard panel \"Operations — Network Bandwidth Utilization Trending (Site Interconnect)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-20.2.19 positive (Network, Bandwidth, Utilization, Trending, (Site): ingest synthetic events into `index=network` sourcetype='netflow:site' where `count` grouped by `link_name` satisfies `p95_util` > 75 for 'Network Bandwidth Utilization Trending (Site Interconnect)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-20.2.19 negative ((Site Interconnect)): ingest benign `network` / `netflow:site` events where `link_name` stays below `p95_util` > 75, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Network Bandwidth Utilization Trending (Site Interconnect)'."
+  },
+  "dataSources": "`snmp:interface`, `netflow:site` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "SNMP, NetFlow summary — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"netflow:site\" earliest=-30d\n| timechart span=1d perc95(utilization_pct) as p95_util by link_name\n| where p95_util > 75\n| table link_name, p95_util",
-  "description": "Site-to-site and DCI link utilization trend with 95th percentile — complements interface forecast (UC-20.2.3).",
-  "value": "Site-to-site and DCI link utilization trend with 95th percentile — complements interface forecast (UC-20.2.3).",
+  "description": "Identifies UC-20.2.19 — Network, Bandwidth, Utilization, Trending, (Site — using `index=network` sourcetype `netflow:site`, grouped by `link_name`. Outputs `count` each `1d`; alert when `p95_util` > 75. Primary focus: (Site Interconnect). Purpose-built for 'Network Bandwidth Utilization Trending (Site Interconnect)' in Operations workflows.",
+  "value": "UC-20.2.19 accelerates insight into (Site Interconnect) ('Network Bandwidth Utilization Trending (Site Interconnect)') by tracking `activity` on `netflow:site` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Aggregate flows per DCI link daily. Alert on sustained high p95. Plan circuit upgrades.",
   "visualization": "Line chart (p95 util by link), Table (saturated links), Heatmap.",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes from autoscaling events, new workload deployments, batch jobs, or DR drill resources.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-20.2.19)** — Planned work for 'Network Bandwidth Utilization Trending (Site Interconnect)' shifts `count` over `span=1d` while `link_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `netflow:site`** — Scheduled automation elevates `src` without crossing `p95_util` > 75 for UC-20.2.19. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `link_name`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netflow:site`** — First 48h baseline for UC-20.2.19 on `link_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `link_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "netflow",
     "snmp"
@@ -34,6 +56,12 @@
     "netflow_netflow",
     "snmp_generic"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SNMP, NetFlow summary.\n• Ensure the following data sources are available: `snmp:interface`, `netflow:site`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAggregate flows per DCI link daily. Alert on sustained high p95. Plan circuit upgrades.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network sourcetype=\"netflow:site\" earliest=-30d\n| timechart span=1d perc95(utilization_pct) as p95_util by link_name\n| where p95_util > 75\n| table link_name, p95_util\n```\n\nUnderstanding this SPL\n\n**Network Bandwidth Utilization Trending (Site Interconnect)** — Site-to-site and DCI link utilization trend with 95th percentile — complements interface forecast (UC-20.2.3).\n\nDocumented **Data sources**: `snmp:interface`, `netflow:site`. **App/TA** (typical add-on context): SNMP, NetFlow summary. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network; **sourcetype**: netflow:site. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network, sourcetype=\"netflow:site\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by link_name** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where p95_util > 75` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Network Bandwidth Utilization Trending (Site Interconnect)**): table link_name, p95_util\n\n\nStep 3 — Validate\ncompare with the cloud billing console for the same scope, accounts, and time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (p95 util by link), Table (saturated links), Heatmap.",
-  "grandmaExplanation": "Cost and capacity tools watch how much we spend on cloud and the data center, and where we have spare or strained capacity."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: SNMP, NetFlow summary.\n• Ensure the following data sources are available: `snmp:interface`, `netflow:site`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAggregate flows per DCI link daily. Alert on sustained high p95. Plan circuit upgrades.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=network sourcetype=\"netflow:site\" earliest=-30d\n| timechart span=1d perc95(utilization_pct) as p95_util by link_name\n| where p95_util > 75\n| table link_name, p95_util\n```\n\nUnderstanding this SPL\n\n**Network Bandwidth Utilization Trending (Site Interconnect)** — Site-to-site and DCI link utilization trend with 95th percentile — complements interface forecast (UC-20.2.3).\n\nDocumented **Data sources**: `snmp:interface`, `netflow:site`. **App/TA** (typical add-on context): SNMP, NetFlow summary. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: network; **sourcetype**: netflow:site. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=network, sourcetype=\"netflow:site\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by link_name** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where p95_util > 75` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Network Bandwidth Utilization Trending (Site Interconnect)**): table link_name, p95_util\n\n\nStep 3 — Validate\ncompare with the cloud billing console for the same scope, accounts, and time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (p95 util by link), Table (saturated links), Heatmap.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (SNMP, NetFlow summary — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=netflow:site into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`link_name, p95_util`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "Cost and capacity tools watch how much we spend on cloud and the data center, and where we have spare or strained capacity.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

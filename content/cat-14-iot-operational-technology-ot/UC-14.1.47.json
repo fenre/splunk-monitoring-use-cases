@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=bms:parking`",
-  "app": "Parking guidance system API (SKIDATA, SWARCO, ParkAssist), gate controller, IoT occupancy sensors",
+  "exclusions": "Covers the detection logic documented for 'Parking Occupancy Trending and Capacity Planning' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_parking_occupancy_trending_and_capacity_planning` (UC-14.1.47), SOC dashboard panel \"Operations — Parking Occupancy Trending and Capacity Planning\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.1.47 positive (Parking, Occupancy, Trending, and, Capacity): ingest synthetic events into `index=building` sourcetype='bms:parking' where `count` grouped by `parking_facility`, `level`, `_time` satisfies `occupancy_pct` >= 95, `occupancy_pct` >= 80, `occupancy_pct` >= 50, or `occupancy_pct` < 50 for 'Parking Occupancy Trending and Capacity Planning'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.1.47 negative (Capacity Planning): ingest benign `building` / `bms:parking` events where `parking_facility`, `level`, `_time` stays below `occupancy_pct` >= 95, `occupancy_pct` >= 80, `occupancy_pct` >= 50, or `occupancy_pct` < 50, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Parking Occupancy Trending and Capacity Planning'."
+  },
+  "dataSources": "`sourcetype=bms:parking` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Parking guidance system API (SKIDATA, SWARCO, ParkAssist), gate controller, IoT occupancy sensors — Universal Forwarder (Splunkbase 617)",
   "spl": "index=building sourcetype=\"bms:parking\"\n| bin _time span=30m\n| stats latest(occupied_spaces) as occupied, latest(total_spaces) as total by parking_facility, level, _time\n| eval available=total-occupied, occupancy_pct=round(occupied*100/total, 1)\n| eval status=case(occupancy_pct>=95, \"Full\", occupancy_pct>=80, \"Busy\", occupancy_pct>=50, \"Moderate\", occupancy_pct<50, \"Available\")\n| table _time, parking_facility, level, occupied, available, total, occupancy_pct, status",
-  "description": "Real-time parking occupancy data optimizes space utilization, reduces circling time, and informs expansion or reduction decisions. Trending occupancy by day-of-week and time helps set pricing tiers and plan EV charging capacity.",
-  "value": "Real-time parking occupancy data optimizes space utilization, reduces circling time, and informs expansion or reduction decisions. Trending occupancy by day-of-week and time helps set pricing tiers and plan EV charging capacity.",
+  "description": "Monitors UC-14.1.47 — Parking, Occupancy, Trending, and, Capacity — using `index=building` sourcetype `bms:parking`, grouped by `parking_facility`, `level`, `_time`. Outputs `count` each `30m`; alert when `occupancy_pct` >= 95, `occupancy_pct` >= 80, `occupancy_pct` >= 50, or `occupancy_pct` < 50. Primary focus: Capacity Planning. Purpose-built for 'Parking Occupancy Trending and Capacity Planning' in Operations workflows.",
+  "value": "UC-14.1.47 operationalises 'Parking Occupancy Trending and Capacity Planning' against `bms:parking` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Integrate with parking guidance system API or gate entry/exit counters. Track occupancy per level. Trend by time of day and day of week. Alert when approaching capacity.",
   "visualization": "Occupancy gauge per level; daily pattern heatmap; available spaces single value; trend chart.",
   "cimModels": [
@@ -22,10 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Unusual patterns during holidays, after-hours events, or campus-wide meetings that change normal foot traffic.",
+  "knownFalsePositives": "1. **Maintenance window on `building` (UC-14.1.47)** — Planned work for 'Parking Occupancy Trending and Capacity Planning' shifts `count` over `span=30m` while `parking_facility`, `level`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `bms:parking`** — Scheduled automation elevates `level` without crossing `occupancy_pct` >= 95 for UC-14.1.47. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `parking_facility`, `level`, `_time`** — Health checks in `building` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `bms:parking`** — First 48h baseline for UC-14.1.47 on `parking_facility` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `parking_facility`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Parking guidance system API (SKIDATA, SWARCO, ParkAssist), gate controller, IoT occupancy sensors.\n• Ensure the following data sources are available: `sourcetype=bms:parking`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIntegrate with parking guidance system API or gate entry/exit counters. Track occupancy per level. Trend by time of day and day of week. Alert when approaching capacity.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=building sourcetype=\"bms:parking\"\n| bin _time span=30m\n| stats latest(occupied_spaces) as occupied, latest(total_spaces) as total by parking_facility, level, _time\n| eval available=total-occupied, occupancy_pct=round(occupied*100/total, 1)\n| eval status=case(occupancy_pct>=95, \"Full\", occupancy_pct>=80, \"Busy\", occupancy_pct>=50, \"Moderate\", occupancy_pct<50, \"Available\")\n| table _time, parking_facility, level, occupied, available, total, occupancy_pct, status\n```\n\nUnderstanding this SPL\n\n**Parking Occupancy Trending and Capacity Planning** — Real-time parking occupancy data optimizes space utilization, reduces circling time, and informs expansion or reduction decisions. Trending occupancy by day-of-week and time helps set pricing tiers and plan EV charging capacity.\n\nDocumented **Data sources**: `sourcetype=bms:parking`. **App/TA** (typical add-on context): Parking guidance system API (SKIDATA, SWARCO, ParkAssist), gate controller, IoT occupancy sensors. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: building; **sourcetype**: bms:parking. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=building, sourcetype=\"bms:parking\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by parking_facility, level, _time** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **available** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **status** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Parking Occupancy Trending and Capacity Planning**): table _time, parking_facility, level, occupied, available, total, occupancy_pct, status\n\n\nStep 3 — Validate\nRun the search in a known window. Spot-check a few events against the BMS console (for example Niagara, Tridium, or Honeywell) and confirm zones, values, and alarms line up. Verify field names and that the right roles can search the index.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Occupancy gauge per level; daily pattern heatmap; available spaces single value; trend chart.",
-  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with how full the garage is and how people move through it before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with how full the garage is and how people move through it before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

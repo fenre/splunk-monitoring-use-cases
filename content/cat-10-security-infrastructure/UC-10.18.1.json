@@ -9,11 +9,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Broadcom Symantec SEP Virus Definition and Content Update Compliance' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_broadcom_symantec_sep_virus_definition_and_conte` (UC-10.18.1), SOC dashboard panel \"Security Infra — Broadcom Symantec SEP Virus Definition and Content Update Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.18.1 positive (Broadcom, Symantec, SEP, Virus, Definition): ingest synthetic events into `index=endpoint` sourcetype='symantec:ep:agent:file' where `values` grouped by `host` satisfies `def_age_days` > 2 for 'Broadcom Symantec SEP Virus Definition and Content Update Compliance'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.18.1 negative (Update Compliance): ingest benign `endpoint` / `symantec:ep:agent:file` events where `host` stays below `def_age_days` > 2, or exclude the test entity via `soc_exception_register.csv`. Variant 1 confirms zero alert rows for 'Broadcom Symantec SEP Virus Definition and Content Update Compliance'."
+  },
   "dataSources": "`sourcetype=symantec:ep:agent:file` SEPM client inventory / agent status events with definition or content revision timestamps",
   "app": "Splunk Add-on for Symantec Endpoint Protection (Splunkbase 2772)",
   "spl": "index=endpoint sourcetype=\"symantec:ep:agent:file\" earliest=-24h\n| eval host=coalesce(Computer_Name, computer_name, host)\n| eval def_age_days=round((now()-coalesce(strptime(Definition_Date, \"%Y-%m-%d %H:%M:%S\"), strptime(Definitions_Date, \"%m/%d/%Y %H:%M:%S\"), _time))/86400, 1)\n| where def_age_days>2 OR match(lower(_raw), \"(?i)out of date|update failed|definitions overdue\")\n| stats latest(def_age_days) as definition_age_d values(Definition_Version) as def_version by host\n| sort -definition_age_d",
-  "description": "Endpoints with stale antivirus definitions or failed content updates lose parity with the latest threats and often violate internal patch or AV SLAs. Tracking definition age from SEP agent status events exposes offline laptops, broken SEPM communication, and policy gaps before outbreaks occur.",
-  "value": "Reduces exposure window to zero-days and supports audit evidence that endpoint protection content is current fleet-wide, prioritizing remediation for the worst laggards.",
+  "description": "Identifies Update Compliance activity in UC-10.18.1 ('Broadcom Symantec SEP Virus Definition and Content Update Compliance') from `index=endpoint` sourcetype `symantec:ep:agent:file`. Rolls up `values` by `host` across `the scheduled window` and pages when `def_age_days` > 2. Covers Broadcom, Symantec, SEP, Virus, Definition. Security Infra operators treat UC-10.18.1 as the canonical signal.",
+  "value": "Operators running UC-10.18.1 on `symantec:ep:agent:file` feeds shorten triage for Update Compliance tied to 'Broadcom Symantec SEP Virus Definition and Content Update Compliance', lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "(1) Ingest SEPM agent status or client inventory dumps via the Symantec EP TA into `index=endpoint`. (2) Confirm field extractions for definition date and version; adjust `strptime` formats to match your locale. (3) Set SLA thresholds (for example definitions older than 48 hours). (4) Join `host` to CMDB for owner and site. (5) Alert SecOps and desktop support on sustained non-compliance.",
   "visualization": "Table (host, definition age, version), single-value (percent compliant), bar chart (count of stale hosts by OU).",
   "cimModels": [
@@ -22,16 +28,32 @@
   "references": [
     {
       "title": "Splunk Add-on for Symantec Endpoint Protection",
-      "url": "https://splunkbase.splunk.com/app/2772"
+      "url": "https://splunkbase.splunk.com/app/2772",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Symantec Endpoint Protection — managing virus and spyware definitions",
-      "url": "https://knowledge.broadcom.com/external/article/178870/manage-virus-and-spyware-definitions-on.html"
+      "url": "https://knowledge.broadcom.com/external/article/178870/manage-virus-and-spyware-definitions-on.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `endpoint` (UC-10.18.1)** — Planned work for 'Broadcom Symantec SEP Virus Definition and Content Update Compliance' shifts `values` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `symantec:ep:agent:file`** — Scheduled automation elevates `host` without crossing `def_age_days` > 2 for UC-10.18.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `endpoint` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `symantec:ep:agent:file`** — First 48h baseline for UC-10.18.1 on `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "securityDomain": "endpoint",
   "equipment": [
     "broadcom_symantec"
+  ],
+  "equipmentModels": [
+    "broadcom_symantec_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -40,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We check whether company laptops and servers have up-to-date virus signatures from Broadcom Symantec so malware cannot slip in through outdated protection."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Symantec Endpoint Protection (Splunkbase 2772)). Enable the modular input or HEC token that writes sourcetype=symantec:ep:agent:file into endpoint. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`Definition_Date, Definitions_Date, def_age_days, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We check whether company laptops and servers have up-to-date virus signatures from Broadcom Symantec so malware cannot slip in through outdated protection.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

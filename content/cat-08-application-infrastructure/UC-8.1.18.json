@@ -8,11 +8,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=WinEventLog:System` (Source=WAS, EventCode 5002, 5010, 5011, 5012, 5013)",
-  "app": "`Splunk_TA_windows`, Splunk Add-on for Microsoft IIS",
+  "exclusions": "Covers the detection logic documented for 'IIS Application Pool Crashes & Recycling' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_iis_application_pool_crashes_recycling` (UC-8.1.18), SOC dashboard panel \"Operations — IIS Application Pool Crashes & Recycling\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.1.18 positive (IIS, Application, Pool, Crashes, Recycling): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:System' EventCode=5002 where `count` grouped by `entity` satisfies detection threshold for 'IIS Application Pool Crashes & Recycling'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.18 negative (& Recycling): ingest benign `wineventlog` / `WinEventLog:System` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'IIS Application Pool Crashes & Recycling'."
+  },
+  "dataSources": "`sourcetype=WinEventLog:System` (Source=WAS, EventCode 5002, 5010, 5011, 5012, 5013) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_windows`, Splunk Add-on for Microsoft IIS — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:System\" Source=\"WAS\"\n  EventCode IN (5002, 5010, 5011, 5012, 5013)\n| eval event=case(EventCode=5002,\"AppPool crashed\",EventCode=5010,\"Process termination timeout\",EventCode=5011,\"AppPool auto-disabled\",EventCode=5012,\"AppPool rapid failures\",EventCode=5013,\"AppPool timeout\")\n| table _time, host, event, AppPoolName\n| sort -_time",
-  "description": "Application pool crashes cause HTTP 503 errors and service outages. Frequent recycling indicates memory leaks or configuration issues in web applications.",
-  "value": "Application pool crashes cause HTTP 503 errors and service outages. Frequent recycling indicates memory leaks or configuration issues in web applications.",
+  "description": "Identifies UC-8.1.18 — IIS, Application, Pool, Crashes, Recycling — using `index=wineventlog` sourcetype `WinEventLog:System`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: & Recycling. Purpose-built for 'IIS Application Pool Crashes & Recycling' in Operations workflows.",
+  "value": "UC-8.1.18 operationalises 'IIS Application Pool Crashes & Recycling' against `WinEventLog:System` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "WAS (Windows Activation Service) events log automatically on IIS servers. EventCode 5002=worker process crashed, 5011=pool auto-disabled due to rapid failures (5 in 5 minutes default), 5012=rapid failure protection triggered. Alert on any 5011 event (pool disabled = site down). Track recycling frequency per pool. Correlate with WER EventCode 1000 for crash details including the faulting module.",
   "visualization": "Table (app pool events), Timechart (recycling frequency), Status grid (pool × health), Single value (disabled pools — target: 0).",
   "cimModels": [
@@ -22,18 +28,40 @@
   "references": [
     {
       "title": "Splunk_TA_windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
+  "knownFalsePositives": "1. **Maintenance window on `wineventlog` (UC-8.1.18)** — Planned work for 'IIS Application Pool Crashes & Recycling' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `WinEventLog:System` (EventCode=5002)** — Scheduled automation elevates `event` without crossing configured threshold for UC-8.1.18. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `wineventlog` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:System`** — First 48h baseline for UC-8.1.18 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "iis",
     "windows"
   ],
+  "equipmentModels": [
+    "iis_generic",
+    "windows_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`, Splunk Add-on for Microsoft IIS.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:System` (Source=WAS, EventCode 5002, 5010, 5011, 5012, 5013).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nWAS (Windows Activation Service) events log automatically on IIS servers. EventCode 5002=worker process crashed, 5011=pool auto-disabled due to rapid failures (5 in 5 minutes default), 5012=rapid failure protection triggered. Alert on any 5011 event (pool disabled = site down). Track recycling frequency per pool. Correlate with WER EventCode 1000 for crash details including the faulting module.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:System\" Source=\"WAS\"\n  EventCode IN (5002, 5010, 5011, 5012, 5013)\n| eval event=case(EventCode=5002,\"AppPool crashed\",EventCode=5010,\"Process termination timeout\",EventCode=5011,\"AppPool auto-disabled\",EventCode=5012,\"AppPool rapid failures\",EventCode=5013,\"AppPool timeout\")\n| table _time, host, event, AppPoolName\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**IIS Application Pool Crashes & Recycling** — Application pool crashes cause HTTP 503 errors and service outages. Frequent recycling indicates memory leaks or configuration issues in web applications.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:System` (Source=WAS, EventCode 5002, 5010, 5011, 5012, 5013). **App/TA** (typical add-on context): `Splunk_TA_windows`, Splunk Add-on for Microsoft IIS. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:System. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:System\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **event** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **IIS Application Pool Crashes & Recycling**): table _time, host, event, AppPoolName\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare with web server access logs on disk (Apache, NGINX, or W3C) for the same time range, or tail the same sourcetype in Search, to confirm status codes, URIs, and counts.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (app pool events), Timechart (recycling frequency), Status grid (pool × health), Single value (disabled pools — target: 0).",
-  "grandmaExplanation": "We watch for signs that application pool crashes cause HTTP 503 errors and service outages."
+  "grandmaExplanation": "We watch for signs that application pool crashes cause HTTP 503 errors and service outages.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

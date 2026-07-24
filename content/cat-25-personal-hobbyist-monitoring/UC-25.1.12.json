@@ -9,23 +9,55 @@
     "Performance"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`).",
-  "app": "Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as file inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Zwift Virtual Ride FTP Progress' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_zwift_virtual_ride_ftp_progress` (UC-25.1.12), SOC dashboard panel \"Personal — Zwift Virtual Ride FTP Progress\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.1.12 positive (Zwift, Virtual, Ride, FTP, Progress): ingest synthetic events into `index=personal` sourcetype='zwift:activity' where `ftp`, `avg_ftp` grouped by `entity` satisfies detection threshold for 'Zwift Virtual Ride FTP Progress'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.1.12 negative (FTP Progress): ingest benign `personal` / `zwift:activity` events where `entity` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 10 confirms zero alert rows for 'Zwift Virtual Ride FTP Progress'."
+  },
+  "dataSources": "Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as file inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=zwift:activity\n| timechart span=1mon max(estimated_ftp_w) as ftp\n| eventstats avg(ftp) as avg_ftp",
-  "description": "Trends the highest estimated functional threshold power from your Zwift rides each month so you can watch your cycling fitness ceiling rise.",
-  "value": "Functional threshold power is the single most useful cycling fitness number; tracking its monthly best shows long-term progress that day-to-day rides hide.",
+  "description": "Alerts on UC-25.1.12 — Zwift, Virtual, Ride, FTP, Progress — using `index=personal` sourcetype `zwift:activity`, grouped by `entity`. Outputs `ftp`, `avg_ftp` each `1m`; alert when configured threshold. Primary focus: FTP Progress. Purpose-built for 'Zwift Virtual Ride FTP Progress' in Personal workflows.",
+  "value": "For 'Zwift Virtual Ride FTP Progress', UC-25.1.12 converts `ftp`, `avg_ftp` on `zwift:activity` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest Zwift ride summaries; schedule monthly and review the power trend before setting new training targets.",
   "visualization": "Line chart of monthly best estimated power.",
   "cimModels": [],
   "references": [
     {
       "title": "Zwift — Support",
-      "url": "https://support.zwift.com/"
+      "url": "https://support.zwift.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It follows how your cycling power is improving month by month on your indoor trainer."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.1.12)** — Connector for 'Zwift Virtual Ride FTP Progress' stops polling `zwift:activity`; stale `ftp`, `avg_ftp` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `ftp`, `avg_ftp` over `1m` is expected for UC-25.1.12, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `zwift:activity`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew goal threshold for 'Zwift Virtual Ride FTP Progress'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Fitness & Activity Tracking — typical feeds: Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`), Zwift/TrainingPeaks exports..\n• **Sourcetypes in this search**: `zwift:activity`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=zwift:activity`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as files..\n\n**Author notes:** Ingest Zwift ride summaries; schedule monthly and review the power trend before setting new training targets.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"zwift:activity\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=zwift:activity earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Zwift Virtual Ride FTP Progress** over `personal` data (primarily `sourcetype=zwift:activity`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n```spl\nindex=personal sourcetype=zwift:activity\n| timechart span=1mon max(estimated_ftp_w) as ftp\n| eventstats avg(ftp) as avg_ftp\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=zwift:activity earliest=-7d\n| head 50\n| table _time, sourcetype, host\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=zwift:activity earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.1.12: Personal evidence` with the following panel layout:\n\n**Panel 1 — Line Chart Of Monthly Best Estimated Power (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `zwift:activity` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=zwift:activity | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Bucket misalignment:** `span=1m` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1m` buckets.",
+  "grandmaExplanation": "It follows how your cycling power is improving month by month on your indoor trainer.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

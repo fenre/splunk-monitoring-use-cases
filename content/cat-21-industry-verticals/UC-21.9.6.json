@@ -9,17 +9,17 @@
   ],
   "splunkPillar": "Observability",
   "industry": "Water and Wastewater",
-  "exclusions": "Exclude planned maintenance windows, DR exercises, vendor pack updates, and seasonal demand patterns via asset/schedule lookup.",
-  "evidence": "Saved search `21_9_6_evidence` archived to restricted audit index.",
+  "exclusions": "Covers the detection logic documented for 'SCADA RTU Communication Health Across Remote Sites' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_scada_rtu_communication_health_across_remote_sit` (UC-21.9.6), SOC dashboard panel \"Operations — SCADA RTU Communication Health Across Remote Sites\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Replay sample `scada:rtu` events into `index=water`. Confirm UC-21.9.6 search returns >=1 row.",
-    "negativeScenario": "Replay benign `scada:rtu` traffic without alert markers. Confirm the search returns zero rows."
+    "positiveScenario": "UC-21.9.6 positive (SCADA, RTU, Communication, Health, Across): ingest synthetic events into `index=water` sourcetype='scada:rtu' where `count` grouped by `rtu_id`, `site_id` satisfies `age_sec` > 900, or `last_ms` > 5000 for 'SCADA RTU Communication Health Across Remote Sites'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-21.9.6 negative (Remote Sites): ingest benign `water` / `scada:rtu` events where `rtu_id`, `site_id` stays below `age_sec` > 900, or `last_ms` > 5000, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'SCADA RTU Communication Health Across Remote Sites'."
   },
-  "dataSources": "`index=water` `sourcetype=\"scada:rtu\"` (rtu_id, site_id, poll_ok, response_ms)",
-  "app": "Splunk Edge Hub, SCADA front-end logs",
-  "spl": "index=water sourcetype=\"scada:rtu\"\n| stats count as event_count dc(host) as distinct_assets by host\n| where event_count > 0\n| table _time host source severity message",
-  "description": "Silent RTU loss leaves operators blind at lift stations and remote wells; age since last good poll drives prioritized truck rolls before overflows.",
-  "value": "Service and risk leaders use signals from SCADA RTU Communication Health Across Remote Sites to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
+  "dataSources": "`index=water` `sourcetype=\"scada:rtu\"` (rtu_id, site_id, poll_ok, response_ms) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Edge Hub, SCADA front-end logs — Universal Forwarder (Splunkbase 617)",
+  "spl": "index=water sourcetype=\"scada:rtu\"\n| stats latest(_time) as last_ok, latest(response_ms) as last_ms, latest(poll_ok) as last_poll by rtu_id, site_id\n| eval age_sec=now()-last_ok\n| where last_poll=0 OR age_sec > 900 OR last_ms > 5000\n| table site_id, rtu_id, last_poll, last_ms, age_sec",
+  "description": "Monitors risk tied to SCADA, RTU, Communication, Health, Across through UC-21.9.6 on `index=water` sourcetype `scada:rtu`. Summarises `count` grouped by `rtu_id`, `site_id` across `the scheduled window` before applying `age_sec` > 900, or `last_ms` > 5000. Operators tune 'SCADA RTU Communication Health Across Remote Sites' using UC-21.9.6 runbook steps.",
+  "value": "Operations and risk leaders in Water and Wastewater use signals from SCADA RTU Communication Health Across Remote Sites to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Map protocol timeouts to `poll_ok=0`. Set `age_sec` threshold to 3× expected scan period. Exclude maintenance windows via site lookup. **Domain context:** Water RTUs often use poll/response over radio or cellular—staleness is a common failure mode before SCADA shows “last good” values. **Splunk:** `stats latest(_time)` without time window uses all data—scope with `| where _time>relative_time(now(),\"-24h\")` or use `last` in a time-bounded subsearch for dashboards.",
   "visualization": "Status grid (RTU × site), Table (oldest staleness), Line chart (response time trend).",
   "cimModels": [
@@ -29,18 +29,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
     },
     {
-      "title": "Splunk Lantern — Industry use cases",
-      "url": "https://lantern.splunk.com/"
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Telemetry gaps on battery swaps, radio path alignment, or tower climbs that the SCADA maintenance ticket lists with expected offline minutes.",
+  "knownFalsePositives": "1. **Maintenance window on `water` (UC-21.9.6)** — Planned work for 'SCADA RTU Communication Health Across Remote Sites' shifts `count` over `span=1h` while `rtu_id`, `site_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `scada:rtu`** — Scheduled automation elevates `site_id` without crossing `age_sec` > 900 for UC-21.9.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `rtu_id`, `site_id`** — Health checks in `water` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `scada:rtu`** — First 48h baseline for UC-21.9.6 on `rtu_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `rtu_id`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T0809"
   ],
@@ -48,12 +56,17 @@
     "edge_hub"
   ],
   "equipmentModels": [
-    "edge_hub_rtu"
+    "edge_hub_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     "Splunk Edge Hub"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub, SCADA front-end logs.\n• Ensure the following data sources are available: `index=water` `sourcetype=\"scada:rtu\"` (rtu_id, site_id, poll_ok, response_ms).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap protocol timeouts to `poll_ok=0`. Set `age_sec` threshold to 3× expected scan period. Exclude maintenance windows via site lookup. **Domain context:** Water RTUs often use poll/response over radio or cellular—staleness is a common failure mode before SCADA shows “last good” values. **Splunk:** `stats latest(_time)` without time window uses all data—scope with `| where _time>relative_time(now(),\"-24h\")` or use `last` in a time-bounded subsearch for dashboards.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=water sourcetype=\"scada:rtu\"\n| stats latest(_time) as last_ok, latest(response_ms) as last_ms, latest(poll_ok) as last_poll by rtu_id, site_id\n| eval age_sec=now()-last_ok\n| where last_poll=0 OR age_sec > 900 OR last_ms > 5000\n| table site_id, rtu_id, last_poll, last_ms, age_sec\n```\n\nUnderstanding this SPL\n\n**SCADA RTU Communication Health Across Remote Sites** — Silent RTU loss leaves operators blind at lift stations and remote wells; age since last good poll drives prioritized truck rolls before overflows.\n\nDocumented **Data sources**: `index=water` `sourcetype=\"scada:rtu\"` (rtu_id, site_id, poll_ok, response_ms). **App/TA** (typical add-on context): Splunk Edge Hub, SCADA front-end logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: water; **sourcetype**: scada:rtu. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=water, sourcetype=\"scada:rtu\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by rtu_id, site_id** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **age_sec** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where last_poll=0 OR age_sec > 900 OR last_ms > 5000` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **SCADA RTU Communication Health Across Remote Sites**): table site_id, rtu_id, last_poll, last_ms, age_sec\n\n\nStep 3 — Validate\nCompare poll health, timestamps, and quality bits with the SCADA front-end and field tech tickets for the same RTU or site. Confirm `_time` matches the protocol scan time you expect, not just log receipt time.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (RTU × site), Table (oldest staleness), Line chart (response time trend).",
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub, SCADA front-end logs.\n• Ensure the following data sources are available: `index=water` `sourcetype=\"scada:rtu\"` (rtu_id, site_id, poll_ok, response_ms).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap protocol timeouts to `poll_ok=0`. Set `age_sec` threshold to 3× expected scan period. Exclude maintenance windows via site lookup. **Domain context:** Water RTUs often use poll/response over radio or cellular—staleness is a common failure mode before SCADA shows “last good” values. **Splunk:** `stats latest(_time)` without time window uses all data—scope with `| where _time>relative_time(now(),\"-24h\")` or use `last` in a time-bounded subsearch for dashboards.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=water sourcetype=\"scada:rtu\"\n| stats latest(_time) as last_ok, latest(response_ms) as last_ms, latest(poll_ok) as last_poll by rtu_id, site_id\n| eval age_sec=now()-last_ok\n| where last_poll=0 OR age_sec > 900 OR last_ms > 5000\n| table site_id, rtu_id, last_poll, last_ms, age_sec\n```\n\nUnderstanding this SPL\n\n**SCADA RTU Communication Health Across Remote Sites** — Silent RTU loss leaves operators blind at lift stations and remote wells; age since last good poll drives prioritized truck rolls before overflows.\n\nDocumented **Data sources**: `index=water` `sourcetype=\"scada:rtu\"` (rtu_id, site_id, poll_ok, response_ms). **App/TA** (typical add-on context): Splunk Edge Hub, SCADA front-end logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: water; **sourcetype**: scada:rtu. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=water, sourcetype=\"scada:rtu\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by rtu_id, site_id** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **age_sec** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where last_poll=0 OR age_sec > 900 OR last_ms > 5000` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **SCADA RTU Communication Health Across Remote Sites**): table site_id, rtu_id, last_poll, last_ms, age_sec\n\n\nStep 3 — Validate\nCompare poll health, timestamps, and quality bits with the SCADA front-end and field tech tickets for the same RTU or site. Confirm `_time` matches the protocol scan time you expect, not just log receipt time.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (RTU × site), Table (oldest staleness), Line chart (response time trend).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Edge Hub, SCADA front-end logs — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=scada:rtu into water. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`age_sec, last_ms, rtu_id, site_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We watch remote RTU polls across sites. We help you catch stale or failed sites before SCADA is blind in the field.",
-  "wave": "walk"
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,6 +9,8 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'ISE IoT/OT Device Onboarding — Profile Match and SGT Assignment Validation' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_ise_iot_ot_device_onboarding_profile_match_and_s` (UC-17.1.68), SOC dashboard panel \"Network — ISE IoT/OT Device Onboarding — Profile Match and SGT Assignment Validation\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "nist-800-53",
@@ -49,14 +51,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Connect a new IoT device that profiles into an unmapped category. UC-17.1.68 captures the gap.",
-    "negativeScenario": "Connect a known IoT type with a defined SGT. No fire."
+    "positiveScenario": "UC-17.1.68 positive (ISE, IoT, Device, Onboarding, Profile): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `count` grouped by `endpoint_type`, `assigned_sgt` satisfies detection threshold for 'ISE IoT/OT Device Onboarding — Profile Match and SGT Assignment Validation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.68 negative (Assignment Validation): ingest benign `nac` / `cisco:ise:syslog` events where `endpoint_type`, `assigned_sgt` stays below detection threshold, or exclude the test entity via `network_exception_register.csv`. Variant 15 confirms zero alert rows for 'ISE IoT/OT Device Onboarding — Profile Match and SGT Assignment Validation'."
   },
-  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Profiler* + *Authorization* — combination tracking: a new endpoint MAC seen for the first time, profiled into a category, then assigned an SGT. Cross-reference against `iot_device_inventory.csv` lookup for known IoT/OT classes.",
-  "app": "`Splunk Add-on for Cisco Identity Services`.",
+  "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Profiler* + *Authorization* — combination tracking: a new endpoint MAC seen for the first time, profiled into a category, then assigned an SGT. Cross-reference against `iot_device_inventory.csv` lookup for known IoT/OT classes. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (80001, 5400)\n| transaction endpoint_mac maxspan=10m\n| stats count by endpoint_type, assigned_sgt\n| where isnull(assigned_sgt) OR assigned_sgt==\"unknown\"",
-  "description": "Tracks IoT/OT endpoints whose profile is detected but no SGT is assigned (policy gap) or whose profile-to-SGT mapping appears wrong.",
-  "value": "IoT/OT environments expand rapidly. Endpoints that profile but don't receive an SGT fall through to default policy — usually wider access than intended. Catching the gap allows policy tuning.",
+  "description": "Detects UC-17.1.68 — ISE, IoT, Device, Onboarding, Profile — using `index=nac` sourcetype `cisco:ise:syslog`, grouped by `endpoint_type`, `assigned_sgt`. Outputs `count` each `10m`; alert when configured threshold. Primary focus: Assignment Validation. Purpose-built for 'ISE IoT/OT Device Onboarding — Profile Match and SGT Assignment Validation' in Network workflows.",
+  "value": "UC-17.1.68 operationalises 'ISE IoT/OT Device Onboarding — Profile Match and SGT Assignment Validation' against `cisco:ise:syslog` feeds so operators reduce unauthorized access, segmentation drift, and NAC policy failures without manual correlation.",
   "implementation": "Schedule the search every 1 hour over the last 24 hours; alert when an unauthorised IoT endpoint is observed; throttle by MAC for 24 hours.",
   "visualization": "(1) Profile-to-SGT matrix; cells without SGT highlighted. (2) Trend of unassigned-SGT endpoints.",
   "cimModels": [],
@@ -64,10 +66,26 @@
   "references": [
     {
       "title": "Cisco ISE 3.4 — IoT Profiling",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "NIST Cybersecurity Framework",
+      "url": "https://www.nist.gov/cyberframework",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) Newly added device class — policy lag before SGT defined.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'ISE IoT/OT Device Onboarding — Profile Match and SGT Assignment Validation'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "N/A (behavioural analytics health — measures ISE AI Endpoint Behavioural model freshness, no attack mapping)"
   ],
@@ -85,7 +103,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Standard pattern.",
+  "detailedImplementation": "Standard pattern.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`assigned_sgt, endpoint_type`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "When an IoT device — a sensor, a camera — joins the network, ISE should put it into the right group. We watch for devices that don't get a group assigned, because they end up with wider access than intended.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

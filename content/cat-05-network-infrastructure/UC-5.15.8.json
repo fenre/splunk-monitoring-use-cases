@@ -9,11 +9,17 @@
     "Anomaly"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Infoblox DNS Query Volume Anomalies per Client (DGA and Tunneling Indicators) (Infoblox)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_infoblox_dns_query_volume_anomalies_per_client_d` (UC-5.15.8), SOC dashboard panel \"Operations — Infoblox DNS Query Volume Anomalies per Client (DGA and Tunneling Indicators) (Infoblox)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.15.8 positive (Infoblox, DNS, Query, Volume, Anomalies): ingest synthetic events into `index=dns` sourcetype='infoblox:dns' where `uniq_names`, `avg_label_len`, `sd_label` grouped by `src_ip`, `host` satisfies `count` > 0, `count` >= 500, `ratio` >= 0.85, or `avg_label_len` >= 18 for 'Infoblox DNS Query Volume Anomalies per Client (DGA and Tunneling Indicators) (Infoblox)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.15.8 negative (Indicators) (Infoblox)): ingest benign `dns` / `infoblox:dns` events where `src_ip`, `host` stays below `count` > 0, `count` >= 500, `ratio` >= 0.85, or `avg_label_len` >= 18, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Infoblox DNS Query Volume Anomalies per Client (DGA and Tunneling Indicators) (Infoblox)'."
+  },
   "dataSources": "`index=dns` `sourcetype=infoblox:dns` recursive query logs with extracted `src_ip`, `qname`, optional `query_type`; TA field aliases align to vendor CEF keys—confirm `rcode` or response status fields exist for filtering noise.",
   "app": "Splunk Add-on for Infoblox (Splunk_TA_infoblox, Splunkbase 2934)",
   "spl": "index=dns sourcetype=\"infoblox:dns\" earliest=-24h\n| where match(lower(coalesce(query_type,qtype_name,\"\")),\"a|aaaa|any\")\n| eval qlen=len(qname)\n| stats count dc(qname) as uniq_names avg(qlen) as avg_label_len stdev(qlen) as sd_label by src_ip host\n| eval ratio=if(count>0, round(uniq_names/count,3), 0)\n| eventstats median(count) as med_cnt p95(count) as p95_cnt\n| eval volume_score=if(count > p95_cnt, count/med_cnt, 0)\n| where count>=500 AND ratio>=0.85 AND avg_label_len>=18 AND volume_score>=3\n| sort - volume_score\n| head 100",
-  "description": "Statistical profiling flags internal DNS clients issuing unusually high query counts with high ratios of unique labels and longer average hostname lengths—patterns commonly associated with DGAs or tunnel-like chatter needing analyst review.",
-  "value": "Security operations gain an early hunting signal grounded in resolver telemetry already collected for operations, prioritizing hosts before DNS tunneling saturates resolver CPU or exfiltration succeeds.",
+  "description": "Identifies Indicators) (Infoblox) activity in UC-5.15.8 ('Infoblox DNS Query Volume Anomalies per Client (DGA and Tunneling Indicators) (Infoblox)') from `index=dns` sourcetype `infoblox:dns`. Rolls up `uniq_names`, `avg_label_len`, `sd_label` by `src_ip`, `host` across `the scheduled window` and pages when `count` > 0, `count` >= 500, `ratio` >= 0.85, or `avg_label_len` >= 18. Covers Infoblox, DNS, Query, Volume, Anomalies. Operations operators treat UC-5.15.8 as the canonical signal.",
+  "value": "Operators running UC-5.15.8 on `infoblox:dns` feeds shorten triage for Indicators) (Infoblox) tied to 'Infoblox DNS Query Volume Anomalies per Client (DGA and Tunneling Indicators) (Infoblox)', lowering operational risk and delayed incident response.",
   "implementation": "Require consistent client IP visibility (avoid blind forwarding chains); tune floors (`count`, `ratio`) per campus; feed results into ES notable or SOAR playbook for host isolation decisions.",
   "visualization": "Scatter plot uniq_names vs count, table with avg_label_len and ratio, drilldown to raw queries filtered by src_ip.",
   "cimModels": [
@@ -24,14 +30,26 @@
   "references": [
     {
       "title": "Splunk Documentation — Sourcetypes for the Splunk Add-on for Infoblox",
-      "url": "https://docs.splunk.com/Documentation/AddOns/released/Infoblox/Sourcetypes"
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/Infoblox/Sourcetypes",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "MITRE ATT&CK — Application Layer Protocol (DNS)",
-      "url": "https://attack.mitre.org/"
+      "url": "https://attack.mitre.org/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Security scanners:** Vulnerability tools generate massive unique fqdns legitimately.**Misconfigured IoT:** buggy firmware can mimic random labels.**NAT pooling:** Shared egress hides true offenders until DHCP correlation applied.",
+  "knownFalsePositives": "1. **Maintenance window on `dns` (UC-5.15.8)** — Planned work for 'Infoblox DNS Query Volume Anomalies per Client (DGA and Tunneling Indicators) (Infoblox)' shifts `uniq_names`, `avg_label_len`, `sd_label` over `span=1h` while `src_ip`, `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `infoblox:dns`** — Scheduled automation elevates `host` without crossing `count` > 0 for UC-5.15.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src_ip`, `host`** — Health checks in `dns` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `infoblox:dns`** — First 48h baseline for UC-5.15.8 on `src_ip` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src_ip`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1071.004"
   ],
@@ -40,6 +58,7 @@
     "infoblox"
   ],
   "equipmentModels": [
+    "infoblox_dns",
     "infoblox_nios"
   ],
   "status": "verified",
@@ -49,7 +68,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Recursive query logging enabled at manageable sampling if necessary.\n• Known resolver IPs excluded via `infoblox_known_resolvers.csv` lookup.\n• Legal/privacy review for monitoring internal client DNS metadata.\n\nStep 1 — Configure data collection\nValidate extracted fields (`src_ip`, `qname`). If only upstream resolver IP appears, enrich via DHCP correlation or postpone use case.\n\nStep 2 — Create the search and alert\nUse primary SPL nightly; clone with `bucket span=5m` for faster detection in SOC tier. Combine with `infoblox:threatprotect` hits when available.\n\nStep 3 — Validate\nReplay PCAP-derived DNS from test malware samples in lab—ensure SPL surfaces seeded victim IP without flooding benign AV updaters (whitelist vendors).\n\nStep 4 — Operationalize\nRisk scoring widget, analyst worksheet linking to sandbox DNS visualization, feedback loop lowering threshold for crown-jewel subnets.\n\nStep 5 — Troubleshooting\n**CDN browsers:** Some patch engines mimic high uniqueness—maintain vendor domain allowlists.**IPv6 privacy:** rotating addresses dilute `src_ip` correlation.**Performance:** narrow earliest window or adopt summary indexing.",
-  "grandmaExplanation": "We notice when one computer asks for an unusually huge mix of weird website names in a short time, because that pattern sometimes means trouble hiding inside normal internet lookups.",
+  "detailedImplementation": "Prerequisites\n• Recursive query logging enabled at manageable sampling if necessary.\n• Known resolver IPs excluded via `infoblox_known_resolvers.csv` lookup.\n• Legal/privacy review for monitoring internal client DNS metadata.\n\nStep 1 — Configure data collection\nValidate extracted fields (`src_ip`, `qname`). If only upstream resolver IP appears, enrich via DHCP correlation or postpone use case.\n\nStep 2 — Create the search and alert\nUse primary SPL nightly; clone with `bucket span=5m` for faster detection in SOC tier. Combine with `infoblox:threatprotect` hits when available.\n\nStep 3 — Validate\nReplay PCAP-derived DNS from test malware samples in lab—ensure SPL surfaces seeded victim IP without flooding benign AV updaters (whitelist vendors).\n\nStep 4 — Operationalize\nRisk scoring widget, analyst worksheet linking to sandbox DNS visualization, feedback loop lowering threshold for crown-jewel subnets.\n\nStep 5 — Troubleshooting\n**CDN browsers:** Some patch engines mimic high uniqueness—maintain vendor domain allowlists.**IPv6 privacy:** rotating addresses dilute `src_ip` correlation.**Performance:** narrow earliest window or adopt summary indexing.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Infoblox (Splunk_TA_infoblox, Splunkbase 2934)). Enable the modular input or HEC token that writes sourcetype=infoblox:dns into dns. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`avg_label_len, host, ratio, src_ip`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We notice when one computer asks for an unusually huge mix of weird website names in a short time, because that pattern sometimes means trouble hiding inside normal internet reference lists.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

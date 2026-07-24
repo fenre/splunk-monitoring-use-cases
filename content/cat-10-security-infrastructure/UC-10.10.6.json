@@ -8,11 +8,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Summary metrics keyed by rule_name",
-  "app": "Splunk Enterprise Security / custom",
+  "exclusions": "Covers the detection logic documented for 'Custom detection vs ESCU baseline comparison' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_custom_detection_vs_escu_baseline_comparison` (UC-10.10.6), SOC dashboard panel \"Security Infra — Custom detection vs ESCU baseline comparison\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.10.6 positive (Custom, detection, ESCU, baseline, comparison): ingest synthetic events into `index=summary` sourcetype='detection_metrics' where `sum` grouped by `family` satisfies detection threshold for 'Custom detection vs ESCU baseline comparison'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.10.6 negative (baseline comparison): ingest benign `summary` / `detection_metrics` events where `family` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv`. Variant 9 confirms zero alert rows for 'Custom detection vs ESCU baseline comparison'."
+  },
+  "dataSources": "Summary metrics keyed by rule_name Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise Security / custom — Universal Forwarder (Splunkbase 617)",
   "spl": "index=summary sourcetype=detection_metrics\n| eval family=if(match(rule_name, \"(?i)escu\"), \"ESCU\", \"Custom\")\n| timechart span=1d sum(hit_count) by family",
-  "description": "Side-by-side hit volume and severity for custom rules vs ESCU-packaged searches.",
-  "value": "Side-by-side hit volume and severity for custom rules vs ESCU-packaged searches.",
+  "description": "Identifies UC-10.10.6 — Custom, detection, ESCU, baseline, comparison — using `index=summary` sourcetype `detection_metrics`, grouped by `family`. Outputs `sum` each `1d`; alert when configured threshold. Primary focus: baseline comparison. Purpose-built for 'Custom detection vs ESCU baseline comparison' in Security Infra workflows.",
+  "value": "Operators running UC-10.10.6 on `detection_metrics` feeds shorten triage for baseline comparison tied to 'Custom detection vs ESCU baseline comparison', lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Normalize field names to your Splunk ES version and index names. Use summary indexing or ES introspection where `detection_metrics` is not present. For YARA, deploy a scripted input or HEC to ingest scanner JSON.",
   "visualization": "Table, Single value, Time chart",
   "cimModels": [
@@ -22,18 +28,43 @@
   "references": [
     {
       "title": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263"
+      "url": "https://splunkbase.splunk.com/app/263",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk ES Content Management",
+      "url": "https://docs.splunk.com/Documentation/ES/latest/Admin/ContentManagement",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Side-by-side mismatches from different schedules, dev-only copies, or renamed rules can look worse than the real health of custom versus baseline content when time ranges or scopes do not line up.",
+  "knownFalsePositives": "1. **Maintenance window on `summary` (UC-10.10.6)** — Planned work for 'Custom detection vs ESCU baseline comparison' shifts `sum` over `span=1d` while `family` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `detection_metrics`** — Scheduled automation elevates `family` without crossing configured threshold for UC-10.10.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `family`** — Health checks in `summary` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `detection_metrics`** — First 48h baseline for UC-10.10.6 on `family` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `family`, `exception_reason`, `valid_until`.",
   "detectionType": "Operational metrics",
   "securityDomain": "soc_operations",
   "equipment": [
     "security_essentials"
   ],
+  "equipmentModels": [
+    "security_essentials_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Enterprise Security / custom.\n• Ensure the following data sources are available: Summary metrics keyed by rule_name.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNormalize field names to your Splunk ES version and index names. Use summary indexing or ES introspection where `detection_metrics` is not present. For YARA, deploy a scripted input or HEC to ingest scanner JSON.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=summary sourcetype=detection_metrics\n| eval family=if(match(rule_name, \"(?i)escu\"), \"ESCU\", \"Custom\")\n| timechart span=1d sum(hit_count) by family\n```\n\nUnderstanding this SPL\n\n**Custom detection vs ESCU baseline comparison** — Side-by-side hit volume and severity for custom rules vs ESCU-packaged searches.\n\nDocumented **Data sources**: Summary metrics keyed by rule_name. **App/TA** (typical add-on context): Splunk Enterprise Security / custom. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: summary; **sourcetype**: detection_metrics. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Detection type** for this use case: Operational metrics — interpret thresholds and fields in that context.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=summary, sourcetype=detection_metrics. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **family** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by family** — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nPick one rule that exists in both custom and shipped form and **diff schedules, data scope, and naming** in Content Management so the comparison is really apples to apples.\n\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Single value, Time chart\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md\n",
-  "grandmaExplanation": "We compare our home-built rules to the shipped baseline so we do not double-pay effort or miss what the community already fixed."
+  "grandmaExplanation": "We compare our home-built rules to the shipped baseline so we do not double-pay effort or miss what the community already fixed.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

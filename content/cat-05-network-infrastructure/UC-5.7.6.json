@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`stream:netflow` / `stream:ipfix` or `splunk_stream` with `dest_port` and flow tuples",
-  "app": "Splunk Add-on for NetFlow",
+  "exclusions": "Covers the detection logic documented for 'Port Scan Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_port_scan_detection` (UC-5.7.6), SOC dashboard panel \"Operations — Port Scan Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.7.6 positive (Port, Scan, Detection): ingest synthetic events into `index=netflow` sourcetype='target_sourcetype' where `unique_ports` grouped by `src`, `dest` satisfies `unique_ports` > 50 for 'Port Scan Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.7.6 negative (Scan Detection): ingest benign `netflow` / `target_sourcetype` events where `src`, `dest` stays below `unique_ports` > 50, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Port Scan Detection'."
+  },
+  "dataSources": "`stream:netflow` / `stream:ipfix` or `splunk_stream` with `dest_port` and flow tuples Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for NetFlow — Universal Forwarder (Splunkbase 617)",
   "spl": "index=netflow\n| stats dc(dest_port) as unique_ports by src, dest\n| where unique_ports > 50\n| sort -unique_ports",
-  "description": "Hosts scanning many ports on targets indicate reconnaissance, worm propagation, or vulnerability scanning.",
-  "value": "Security operations teams detect network reconnaissance in real time by identifying horizontal sweeps, vertical port enumeration, and comprehensive scans while suppressing known legitimate scanning activity.",
+  "description": "Alerts on risk tied to Port, Scan, Detection through UC-5.7.6 on `index=netflow` sourcetype `configured sourcetype`. Summarises `unique_ports` grouped by `src`, `dest` across `the scheduled window` before applying `unique_ports` > 50. Operators tune 'Port Scan Detection' using UC-5.7.6 runbook steps.",
+  "value": "Tracking `unique_ports` via UC-5.7.6 on UC-5.7.6 search results improves response to 'Port Scan Detection' and reduces operational risk and delayed incident response.",
   "implementation": "Detect hosts connecting to >50 unique ports on a single target in 5 minutes. Alert with source and target details.",
   "visualization": "Table, Scatter plot, Timeline.",
   "cimModels": [
@@ -23,16 +29,38 @@
   "references": [
     {
       "title": "CIM: Network_Traffic",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Load balancers, health checks, and some SaaS clients hit many ports on one target legitimately. Traffic spikes during backup jobs, large file transfers, or video streaming can also add port variety on noisy hosts; baseline scanners and NMS ranges.",
+  "knownFalsePositives": "1. **Maintenance window on `netflow` (UC-5.7.6)** — Planned work for 'Port Scan Detection' shifts `unique_ports` over `span=1h` while `src`, `dest` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `configured_sourcetype`** — Scheduled automation elevates `dest` without crossing `unique_ports` > 50 for UC-5.7.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`, `dest`** — Health checks in `netflow` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.7.6 on `src` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "equipment": [
     "netflow"
   ],
   "equipmentModels": [
     "netflow_netflow"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• NetFlow/IPFIX data in `index=netflow` with `src`, `dest`, `dest_port`, `protocol`, `bytes`, `packets`, and `tcp_flags` (if available). Port scans generate many flows with unique `dest_port` values from a single source, which is the primary detection signal.\n• Understanding scan types: (a) Horizontal scan — one source targets one port across many destinations (e.g., scanning for open SSH port 22 on the entire /24 subnet); (b) Vertical scan — one source targets many ports on a single destination (enumeration of services on one host); (c) Stealth scan — slow scanning (fewer than 10 ports/min) designed to evade detection.\n• TCP flag analysis (if available in flow records): SYN-only flags indicate TCP SYN scan (nmap -sS). SYN+ACK responses indicate open ports. RST responses indicate closed ports. A high ratio of RST to SYN+ACK suggests scanning. Some NetFlow implementations aggregate flags per flow, which limits this analysis.\n• Build a `scan_exclusions.csv` lookup for legitimate scanning sources: vulnerability scanners (Qualys, Nessus, Rapid7), network discovery tools (Cisco DNA Center, SolarWinds), monitoring systems (Nagios, PRTG). These should not trigger alerts.\n\nStep 1 — Configure data collection\nVerify port and destination diversity in flow data:\n```spl\nindex=netflow earliest=-15m\n| stats dc(dest_port) as unique_ports dc(dest) as unique_dests by src\n| where unique_ports > 100 OR unique_dests > 50\n| sort -unique_ports\n| head 20\n```\nThis quick scan shows sources with high port or destination diversity — potential scanners. If your results are empty but you know scanning occurs, check if flow records include port information.\n\nStep 2 — Create the search and alert\n\n**Primary search — Horizontal scan detection (one port, many destinations):**\n```spl\nindex=netflow earliest=-15m\n| stats dc(dest) as unique_dests sum(bytes) as total_bytes sum(packets) as total_pkts by src, dest_port\n| where unique_dests > 20\n| eval avg_bytes_per_flow=round(total_bytes/total_pkts, 0)\n| lookup scan_exclusions.csv src OUTPUT is_scanner\n| where isnull(is_scanner)\n| eval scan_type=\"Horizontal\"\n| eval severity=case(unique_dests > 200, \"CRITICAL\", unique_dests > 50, \"HIGH\", 1==1, \"MEDIUM\")\n| sort -unique_dests\n| head 20\n```\n\nUnderstanding this SPL: Horizontal scans (network sweeps) target a single port across many IPs. A source touching 20+ unique destinations on the same port in 15 minutes is almost certainly scanning. Legitimate services rarely contact more than a handful of peers on the same port. The `avg_bytes_per_flow` helps classify: scan probes are tiny (40-64 bytes per packet for SYN scan), while legitimate traffic has larger packets. Excluding known scanners prevents alert fatigue.\n\n**Vertical scan detection (many ports, one destination):**\n```spl\nindex=netflow earliest=-15m\n| stats dc(dest_port) as unique_ports sum(bytes) as total_bytes sum(packets) as total_pkts by src, dest\n| where unique_ports > 50\n| eval avg_bytes_per_flow=round(total_bytes/total_pkts, 0)\n| lookup scan_exclusions.csv src OUTPUT is_scanner\n| where isnull(is_scanner)\n| eval scan_type=\"Vertical\"\n| eval severity=case(unique_ports > 1000, \"CRITICAL\", unique_ports > 200, \"HIGH\", 1==1, \"MEDIUM\")\n| sort -unique_ports\n| head 20\n```\n\nUnderstanding this SPL: Vertical scans enumerate services on a single target. An attacker or pentester probing 50+ ports on one host is doing service enumeration (nmap -sV). This is often a precursor to exploitation — once they find open ports, they attack the vulnerable service.\n\n**Combined scan dashboard search with rate analysis:**\n```spl\nindex=netflow earliest=-1h\n| stats dc(dest) as unique_dests dc(dest_port) as unique_ports sum(packets) as total_pkts by src\n| where unique_dests > 20 OR unique_ports > 50\n| lookup scan_exclusions.csv src OUTPUT is_scanner\n| where isnull(is_scanner)\n| eval scan_type=case(unique_dests > 20 AND unique_ports < 5, \"Horizontal Scan\", unique_ports > 50 AND unique_dests < 5, \"Vertical Scan\", unique_dests > 20 AND unique_ports > 50, \"Comprehensive Scan\", 1==1, \"Suspicious\")\n| eval scan_rate=round(total_pkts/3600, 1)\n| lookup asset_inventory.csv ip as src OUTPUT hostname department role\n| eval src_label=if(isnotnull(hostname), hostname, src)\n| sort -unique_dests, -unique_ports\n```\n\nStep 3 — Validate\n(a) Run a controlled nmap scan from a test machine: `nmap -sS -p 22,80,443 10.0.0.0/24`. Verify the scan source appears in horizontal scan results with ~254 unique destinations.\n(b) Run a vertical scan: `nmap -sV -p 1-1000 <target>`. Verify the source appears in vertical scan results with ~1000 unique ports.\n(c) Verify that scanners in `scan_exclusions.csv` do NOT appear in results.\n(d) Check for false positives from legitimate services (DNS servers querying many destinations, LDAP lookups to many DCs, monitoring systems).\n\nStep 4 — Operationalize\nDashboard (\"Security — Port Scan Detection\"):\n• Row 1 — Single-value tiles: \"Active scans detected (1h)\", \"Horizontal scans\", \"Vertical scans\", \"CRITICAL severity scans\".\n• Row 2 — Table: src_label, scan_type, severity, unique_dests, unique_ports, scan_rate (probes/sec).\n• Row 3 — Timechart: scan activity over 24h by severity.\n• Row 4 — Drilldown: selected scanner's target list (destinations and ports).\n\nAlerting:\n• Critical (> 200 unique destinations in 15 min, or > 1000 ports on single host): real-time alert to SOC — active reconnaissance in progress.\n• High (> 50 unique destinations or > 200 ports): alert for investigation within 30 minutes.\n• Correlation: if same source is detected scanning AND later appears in firewall deny logs or IDS alerts, escalate automatically.\n\nRunbook (owner: Security Operations):\n1. **Internal host scanning**: Determine if it's an authorized security scan (check with the vulnerability management team). If not, isolate the host — it may be compromised and performing reconnaissance for lateral movement.\n2. **External IP scanning internal hosts**: This should be blocked by the firewall. If flows reach internal hosts, investigate firewall rules. The scan source is likely a threat actor probing for exposed services.\n3. **Slow scan detected**: Sophisticated attackers scan slowly to evade detection. Lower time window thresholds if you suspect evasion.\n\nStep 5 — Troubleshooting\n\n• **Too many false positives from DNS servers** — DNS servers legitimately connect to many external IPs (upstream DNS). Exclude known DNS server IPs in the search or add them to `scan_exclusions.csv`.\n\n• **Load balancer health checks appear as scans** — Load balancers probe multiple backend servers on specific ports (health checks). Add load balancer IPs to exclusions.\n\n• **Cannot detect slow scans** — The 15-minute window misses scans at 1 probe/minute or slower. Create a second search with a 24-hour window and lower thresholds (e.g., > 100 unique destinations over 24 hours).\n\n• **TCP flag information unavailable** — Not all NetFlow implementations export TCP flags. Without flags, you cannot distinguish SYN scans from full connections. Use the destination diversity (dc) approach instead, which works regardless of flag availability.",
-  "grandmaExplanation": "We help you spot when one machine tries a huge list of door numbers on another, which is often someone probing the network for a way in—before they find one that works."
+  "grandmaExplanation": "We help you spot when one machine tries a huge list of door numbers on another, which is often someone probing the network for a way in—before they find one that works.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

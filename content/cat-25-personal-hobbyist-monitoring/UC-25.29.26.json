@@ -9,38 +9,60 @@
     "Risk"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Steam activity and achievements (`steam:activity`), Chess.com games (`chesscom:game`), online-go matches (`ogs:game`), and poker home-game hands or settlements (`pokerhome:session`).",
-  "app": "Gaming and play telemetry from Steam, Chess.com, Online-Go servers, and poker home-game logs sent to Splunk HEC via APIs and export files.",
+  "exclusions": "Covers personal hobby monitoring for 'Poker Home Game Rebuy Pressure Nights' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_poker_home_game_rebuy_pressure_nights` (UC-25.29.26), SOC dashboard panel \"Personal — Poker Home Game Rebuy Pressure Nights\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.29.26 positive (Poker, Home, Game, Rebuy, Pressure): ingest synthetic events into `index=personal` sourcetype='pokerhome:session' where `rebuys`, `avg_net_result` grouped by `_time`, `venue_name` satisfies detection threshold for 'Poker Home Game Rebuy Pressure Nights'. Validate filter `rebuy_count=*`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.29.26 negative (Pressure Nights): ingest benign `personal` / `pokerhome:session` events where `_time`, `venue_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 1 confirms zero alert rows for 'Poker Home Game Rebuy Pressure Nights'."
+  },
+  "dataSources": "Steam activity and achievements (`steam:activity`), Chess.com games (`chesscom:game`), online-go matches (`ogs:game`), and poker home-game hands or settlements (`pokerhome:session`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Gaming and play telemetry from Steam, Chess.com, Online-Go servers, and poker home-game logs sent to Splunk HEC via APIs and export files. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=pokerhome:session\n| search rebuy_count=*\n| bin _time span=1w\n| stats sum(rebuy_count) as rebuys avg(net_result) as avg_net_result by _time venue_name\n| sort - _time",
-  "description": "Tracks rebuy-heavy poker nights over time and breaks it out by venue.",
-  "value": "Rebuy pressure helps distinguish a wild loose night from a more controlled social game.",
+  "description": "Surfaces Pressure Nights activity in UC-25.29.26 ('Poker Home Game Rebuy Pressure Nights') from `index=personal` sourcetype `pokerhome:session`. Rolls up `rebuys`, `avg_net_result` by `_time`, `venue_name` across `1w` and pages when configured threshold. Uses filter `rebuy_count=*`. Personal operators treat UC-25.29.26 as the canonical signal.",
+  "value": "Operators running UC-25.29.26 on `pokerhome:session` feeds shorten triage for Pressure Nights tied to 'Poker Home Game Rebuy Pressure Nights', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Send rebuy-heavy poker nights events to `index=personal` with the fields used in the breakdown and review the resulting trend at 1w granularity.",
   "visualization": "Stacked time chart of rebuy-heavy poker nights by venue.",
   "cimModels": [],
   "references": [
     {
       "title": "Steam Web API",
-      "url": "https://developer.valvesoftware.com/wiki/Steam_Web_API"
+      "url": "https://developer.valvesoftware.com/wiki/Steam_Web_API",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Chess.com Published Data API",
-      "url": "https://www.chess.com/news/view/published-data-api"
+      "url": "https://www.chess.com/news/view/published-data-api",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Online-Go Server",
-      "url": "https://online-go.com/"
+      "url": "https://online-go.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "PokerNow",
-      "url": "https://www.pokernow.club/"
+      "url": "https://www.pokernow.club/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.29.26)** — Connector for 'Poker Home Game Rebuy Pressure Nights' stops polling `pokerhome:session`; stale `rebuys`, `avg_net_result` on `_time`, `venue_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `rebuys`, `avg_net_result` over `1w` is expected for UC-25.29.26, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `pokerhome:session`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Poker Home Game Rebuy Pressure Nights'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],
-  "grandmaExplanation": "It reveals how rebuy-heavy poker nights changes over time so the busy spells and quiet spells stand out."
+  "equipmentModels": [
+    "asterisk_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Games & Tabletop — typical feeds: Video-game sessions (`game:session`), achievement unlocks (`achievement:unlock`), board-game plays (`boardgame:play`), chess games (`chess:game`), dice rolls (`dice:roll`)..\n• **Sourcetypes in this search**: `pokerhome:session`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=pokerhome:session`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Gaming and tabletop telemetry — Steam / PSN / Xbox playtime and achievement APIs, BoardGameGeek plays export, Lichess / Chess.com game archives, and tabletop dice-roller logs — streamed to Splunk HEC via scripted inputs..\n\n**Author notes:** Send rebuy-heavy poker nights events to `index=personal` with the fields used in the breakdown and review the resulting trend at 1w granularity.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"pokerhome:session\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=pokerhome:session earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Poker Home Game Rebuy Pressure Nights** over `personal` data (primarily `sourcetype=pokerhome:session`) across the full search range. The `sum, avg` aggregation groups by `_time`, `venue_name`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `_time`, `venue_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=pokerhome:session\n| search rebuy_count=*\n| bin _time span=1w\n| stats sum(rebuy_count) as rebuys avg(net_result) as avg_net_result by _time venue_name\n| sort - _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=pokerhome:session earliest=-7d\n| head 50\n| table _time, venue_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=pokerhome:session earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.29.26: Personal evidence` with the following panel layout:\n\n**Panel 1 — Stacked Time Chart Of Rebuy-Heavy Poker Nights By Venue (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `pokerhome:session` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=pokerhome:session | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1w` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1w` buckets.",
+  "grandmaExplanation": "It reveals how rebuy-heavy poker nights changes over time so the busy spells and quiet spells stand out.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

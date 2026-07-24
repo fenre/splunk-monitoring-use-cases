@@ -9,11 +9,17 @@
     "DevSecOps"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "CI logs from Ansible Galaxy installs during pipeline (`gitlab:pipeline` job logs) or controller `ansible:log`",
-  "app": "GitLab CI / GitHub Actions exporting build logs to Splunk",
+  "exclusions": "Covers the detection logic documented for 'Ansible Role Dependency Galaxy Install Failures in CI' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ansible_role_dependency_galaxy_install_failures_` (UC-12.3.20), SOC dashboard panel \"Operations — Ansible Role Dependency Galaxy Install Failures in CI\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.3.20 positive (Ansible, Role, Dependency, Galaxy, Install): ingest synthetic events into `index=iac` sourcetype='gitlab:pipeline' where `count` grouped by `project_path`, `playbook` satisfies detection threshold for 'Ansible Role Dependency Galaxy Install Failures in CI'. Validate filter `\"galaxy\" AND (\"install\" OR \"requirements\") AND (\"HTTP\" OR \"e`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.3.20 negative (in CI): ingest benign `iac` / `gitlab:pipeline` events where `project_path`, `playbook` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Ansible Role Dependency Galaxy Install Failures in CI'."
+  },
+  "dataSources": "CI logs from Ansible Galaxy installs during pipeline (`gitlab:pipeline` job logs) or controller `ansible:log` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "GitLab CI / GitHub Actions exporting build logs to Splunk — Universal Forwarder (Splunkbase 617)",
   "spl": "index=iac sourcetype=\"gitlab:pipeline\" OR sourcetype=\"ansible:log\"\n| search \"galaxy\" AND (\"install\" OR \"requirements\") AND (\"HTTP\" OR \"error\" OR \"failed\")\n| stats count by project_path, playbook\n| sort -count",
-  "description": "Failed role downloads break immutable build artifacts and supply chain pinning.",
-  "value": "Surfaces Galaxy or private automation hub outages affecting pipelines.",
+  "description": "Surfaces UC-12.3.20 — Ansible, Role, Dependency, Galaxy, Install — using `index=iac` sourcetype `gitlab:pipeline`, grouped by `project_path`, `playbook`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `\"galaxy\" AND (\"install\" OR \"requirements\") AND (\"HTTP\" OR \"e`. Purpose-built for 'Ansible Role Dependency Galaxy Install Failures in CI' in Operations workflows.",
+  "value": "UC-12.3.20 operationalises 'Ansible Role Dependency Galaxy Install Failures in CI' against `gitlab:pipeline` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Hash `requirements.yml` in events; alert when the same hash fails repeatedly.",
   "visualization": "Bar chart (failures by project), Timeline.",
   "cimModels": [
@@ -23,18 +29,35 @@
   "references": [
     {
       "title": "AWX logging integration (job events, activity stream)",
-      "url": "https://github.com/ansible/awx/blob/devel/docs/logging_integration.md"
+      "url": "https://github.com/ansible/awx/blob/devel/docs/logging_integration.md",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HEC — HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Alerts from scheduled scans, pilot repositories, or vendor API throttling during bulk operations.",
+  "knownFalsePositives": "1. **Maintenance window on `iac` (UC-12.3.20)** — Planned work for 'Ansible Role Dependency Galaxy Install Failures in CI' shifts `count` over `span=1h` while `project_path`, `playbook` remains in-scope. Applies filter `\"galaxy\" AND (\"install\" OR \"requirements\") AND (\"HTTP\" OR \"e`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `gitlab:pipeline`** — Scheduled automation elevates `playbook` without crossing configured threshold for UC-12.3.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `project_path`, `playbook`** — Health checks in `iac` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `gitlab:pipeline`** — First 48h baseline for UC-12.3.20 on `project_path` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `project_path`, `exception_reason`, `valid_until`.",
   "equipment": [
     "ansible",
     "github",
     "gitlab"
+  ],
+  "equipmentModels": [
+    "ansible_generic",
+    "github_generic",
+    "gitlab_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -43,5 +66,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch infrastructure-as-code runs and policy so changes to systems stay visible and governed."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (GitLab CI / GitHub Actions exporting build logs to Splunk — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=gitlab:pipeline, ansible:log into iac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`playbook, project_path`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch infrastructure-as-code runs and policy so changes to systems stay visible and governed.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

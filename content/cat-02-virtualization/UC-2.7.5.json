@@ -9,11 +9,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=pve` `sourcetype=\"proxmox:replication\"` — `guest`, `source`, `target`, `last_sync_epoch`, `fail_count`, `error`, `duration_sec`",
-  "app": "Scripted input or UF watching `pvesr` status JSON / `zfs` replication logs on source nodes",
+  "exclusions": "Covers the detection logic documented for 'Proxmox VE ZFS Replication Lag and Error Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_proxmox_ve_zfs_replication_lag_and_error_trendin` (UC-2.7.5), SOC dashboard panel \"Linux — Proxmox VE ZFS Replication Lag and Error Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.7.5 positive (Proxmox, ZFS, Replication, Lag, and): ingest synthetic events into `index=pve` sourcetype='proxmox:replication' where `err_peak` grouped by `guest`, `target` satisfies `lag_sec` > 3600, or `errs` > 0 for 'Proxmox VE ZFS Replication Lag and Error Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.7.5 negative (Error Trending): ingest benign `pve` / `proxmox:replication` events where `guest`, `target` stays below `lag_sec` > 3600, or `errs` > 0, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 7 confirms zero alert rows for 'Proxmox VE ZFS Replication Lag and Error Trending'."
+  },
+  "dataSources": "`index=pve` `sourcetype=\"proxmox:replication\"` — `guest`, `source`, `target`, `last_sync_epoch`, `fail_count`, `error`, `duration_sec` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Scripted input or UF watching `pvesr` status JSON / `zfs` replication logs on source nodes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=pve sourcetype=\"proxmox:replication\" earliest=-24h\n| eval lag_sec=now()-tonumber(coalesce(last_sync_epoch, last_sync, last_run_epoch))\n| eval errs=tonumber(coalesce(fail_count, errors, error_count))\n| where lag_sec>3600 OR errs>0 OR match(lower(coalesce(error, _raw)), \"(?i)error|fail\")\n| stats latest(lag_sec) as repl_lag_sec, max(errs) as err_peak, values(error) as err_msgs by guest, target\n| sort - repl_lag_sec",
-  "description": "ZFS replication provides asynchronous DR copies for many Proxmox estates. Growing lag or intermittent errors predict broken snapshots, network saturation, or target pool exhaustion before the standby site is useless.",
-  "value": "Holds RPO targets and speeds root-cause analysis between replication endpoints.",
+  "description": "Surfaces UC-2.7.5 — Proxmox, ZFS, Replication, Lag, and — using `index=pve` sourcetype `proxmox:replication`, grouped by `guest`, `target`. Outputs `err_peak` each `the scheduled window`; alert when `lag_sec` > 3600, or `errs` > 0. Primary focus: Error Trending. Purpose-built for 'Proxmox VE ZFS Replication Lag and Error Trending' in Linux workflows.",
+  "value": "UC-2.7.5 operationalises 'Proxmox VE ZFS Replication Lag and Error Trending' against `proxmox:replication` feeds so operators reduce capacity incidents, patch regressions, and service outages without manual correlation.",
   "implementation": "Normalize last-sync timestamps to epoch seconds. Alert when lag exceeds policy minutes or `fail_count` increments. Enrich with pool free-space from `proxmox:storage` on the target.",
   "visualization": "Area chart replication lag; single value worst pair; table of error strings.",
   "cimModels": [
@@ -22,12 +28,31 @@
   "references": [
     {
       "title": "Proxmox Storage Replication",
-      "url": "https://pve.proxmox.com/wiki/Storage_Replication"
+      "url": "https://pve.proxmox.com/wiki/Storage_Replication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Nutanix Prism alerts and jobs can line up with disk rebuilds, rolling upgrades, or RF changes; wait for the cluster task list to show completion before over-reacting to transient counters.",
+  "knownFalsePositives": "1. **Patch Tuesday on `pve`** — Package managers spike `guest` metrics for 'Proxmox VE ZFS Replication Lag and Error Trending'. Correlate with apt/yum logs in the same `proxmox:replication` window.\n\n2. **Nightly backup I/O on `guest`** — Predictable `max` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `proxmox:replication`** — Nagios/Zabbix polls `guest` and mimics sustained load without crossing `lag_sec` > 3600.\n\n4. **New host onboarding** — `guest` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `guest`, `valid_until`.",
   "equipment": [
     "proxmox"
+  ],
+  "equipmentModels": [
+    "proxmox_generic"
   ],
   "status": "verified",
   "lastReviewed": "2025-06-01",
@@ -36,5 +61,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We check how far behind the safety copy is compared to the live system, and whether the copy process is throwing errors."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Scripted input or UF watching `pvesr` status JSON / `zfs` replication logs on source nodes — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=proxmox:replication into pve. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`errs, guest, lag_sec, target`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We check how far behind the safety copy is compared to the live system, and whether the copy process is throwing errors.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

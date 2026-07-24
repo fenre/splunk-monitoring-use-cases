@@ -8,23 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "HRV (`hrv:reading`), blood oxygen (`spo2:reading`), lab panels (`bloodpanel:result`), supplements (`supplement:intake`), continuous glucose (`cgm:glucose`), sleep-apnea events (`apnea:event`), body composition (`bodycomp:measure`).",
-  "app": "Biohacking and advanced-health data — HRV chest straps, pulse oximeters, blood-pressure cuffs, continuous glucose monitors, body-composition scales, lab-result exports, and supplement logs — ingested to Splunk HEC via APIs and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Caffeine-Timing vs Sleep-Quality Correlation' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_caffeine_timing_vs_sleep_quality_correlation` (UC-25.25.10), SOC dashboard panel \"Personal — Caffeine-Timing vs Sleep-Quality Correlation\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.25.10 positive (Caffeine, Timing, Sleep, Quality, Correlation): ingest synthetic events into `index=personal` sourcetype='espresso:shot' where `sleep`, `avg_sleep` grouped by `_time`, `high_late` satisfies `late_caffeine` > 100 for 'Caffeine-Timing vs Sleep-Quality Correlation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.25.10 negative (Quality Correlation): ingest benign `personal` / `espresso:shot` events where `_time`, `high_late` stays below `late_caffeine` > 100, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 0 confirms zero alert rows for 'Caffeine-Timing vs Sleep-Quality Correlation'."
+  },
+  "dataSources": "HRV (`hrv:reading`), blood oxygen (`spo2:reading`), lab panels (`bloodpanel:result`), supplements (`supplement:intake`), continuous glucose (`cgm:glucose`), sleep-apnea events (`apnea:event`), body composition (`bodycomp:measure`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Biohacking and advanced-health data — HRV chest straps, pulse oximeters, blood-pressure cuffs, continuous glucose monitors, body-composition scales, lab-result exports, and supplement logs — ingested to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal (sourcetype=espresso:shot OR sourcetype=oura:daily)\n| bin _time span=1d\n| stats sum(eval(if(strftime(_time,\"%H\")>=14,caffeine_mg,0))) as late_caffeine, avg(sleep_score) as sleep by _time\n| eval high_late=if(late_caffeine>100,1,0)\n| stats avg(sleep) as avg_sleep by high_late",
-  "description": "Compares your sleep quality on days with and without late-afternoon caffeine, testing the advice on your own body.",
-  "value": "Generic caffeine advice may not fit you; comparing your own late-caffeine days to the rest gives a personal, convincing answer.",
+  "description": "Detects 'Caffeine-Timing vs Sleep-Quality Correlation' (UC-25.25.10) using `index=personal` sourcetype `espresso:shot` by aggregating `sleep`, `avg_sleep` grouped by `_time`, `high_late` over `1d` and alerting when `late_caffeine` > 100. Keywords: Caffeine, Timing, Sleep, Quality, Correlation. Focuses on Quality Correlation behaviour so personal teams can triage UC-25.25.10 without ad-hoc log review.",
+  "value": "UC-25.25.10 accelerates insight into Quality Correlation ('Caffeine-Timing vs Sleep-Quality Correlation') by tracking `sleep`, `avg_sleep` on `espresso:shot` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Ingest caffeine timing and sleep scores into `index=personal`; compare average sleep by whether you had late caffeine.",
   "visualization": "Bar chart of average sleep score with versus without late caffeine.",
   "cimModels": [],
   "references": [
     {
       "title": "Quantified Self — self-tracking community",
-      "url": "https://quantifiedself.com/"
+      "url": "https://quantifiedself.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It compares how well you sleep on days you had afternoon coffee versus days you did not, testing the advice on you."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.25.10)** — Connector for 'Caffeine-Timing vs Sleep-Quality Correlation' stops polling `espresso:shot`; stale `sleep`, `avg_sleep` on `_time`, `high_late` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sleep`, `avg_sleep` over `1d` is expected for UC-25.25.10, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `espresso:shot`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `late_caffeine` > 100 for 'Caffeine-Timing vs Sleep-Quality Correlation'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Oura Ring — Oura Cloud API v2 → HEC scripted input.\n• **Subcategory context**: Advanced Health & Biohacking — typical feeds: HRV (`hrv:reading`), blood oxygen (`spo2:reading`), lab panels (`bloodpanel:result`), supplements (`supplement:intake`), continuous glucose (`cgm:glucose`), sleep-apnea events (`apnea:event`), body co.\n• **Sourcetypes in this search**: `espresso:shot`, `oura:daily`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Oura Ring** events into `index=personal` with `sourcetype=espresso:shot`.\n\n**Collection method:** Oura Cloud API v2 → HEC scripted input.\n\n**Reference endpoint / path:** `GET /v2/usercollection/daily_sleep`.\n\n**Suggested poll interval:** 86400s (daily sync).\n\n**Key fields to extract:** `score, contributors, heart_rate, hrv`.\n\n**Typical connector stack:** Biohacking data — HRV straps, pulse oximeters, blood-pressure cuffs, continuous glucose monitors, body-composition scales, lab-result exports, and supplement logs — ingested to Splunk HEC via APIs and scripted inputs..\n\n**Author notes:** Ingest caffeine timing and sleep scores into `index=personal`; compare average sleep by whether you had late caffeine.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"espresso:shot\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=espresso:shot earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Caffeine-Timing vs Sleep-Quality Correlation** over `personal` data (primarily `sourcetype=espresso:shot`) across the full search range. It applies numeric thresholds on `late_caffeine` (> 100) after sum, avg — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `high_late`, `late_caffeine`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal (sourcetype=espresso:shot OR sourcetype=oura:daily)\n| bin _time span=1d\n| stats sum(eval(if(strftime(_time,\"%H\")>=14,caffeine_mg,0))) as late_caffeine, avg(sleep_score) as sleep by _time\n| eval high_late=if(late_caffeine>100,1,0)\n| stats avg(sleep) as avg_sleep by high_late\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Oura app → Readiness / Sleep tabs. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=espresso:shot earliest=-7d\n| head 50\n| table _time, high_late, late_caffeine\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=espresso:shot earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `late_caffeine` before alerting:\n\n```spl\nindex=personal sourcetype=espresso:shot earliest=-30d\n| stats perc50(late_caffeine) AS p50 perc90(late_caffeine) AS p90 perc99(late_caffeine) AS p99 max(late_caffeine) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.25.10: Personal evidence` with the following panel layout:\n\n**Panel 1 — Bar Chart Of Average Sleep Score With Versus Without Late Caffeine (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Oura Ring — no Oura Ring events / missing fields:** If `espresso:shot` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Oura Ring connector script is still running (`systemctl status` or cron log).\n\n**Oura Ring — NULL values in extracted fields:** The Oura Ring JSON export shape drifted — compare a raw event (`index=personal sourcetype=espresso:shot | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Oura Ring — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Oura Ring — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Oura Ring APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It compares how well you sleep on days you had afternoon coffee versus days you did not, testing the advice on you.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

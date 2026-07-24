@@ -8,27 +8,55 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Prefect flow runs (`prefect:api`), worker logs (`prefect:worker`).",
-  "app": "Prefect worker/agent logs via UF; Prefect REST API via HEC.",
+  "exclusions": "Covers the detection logic documented for 'Prefect Flow Flow Run Duration p95' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_prefect_flow_flow_run_duration_p95` (UC-24.7.39), SOC dashboard panel \"Operations — Prefect Flow Flow Run Duration p95\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.7.39 positive (Prefect, Flow, Flow, Run, Duration): ingest synthetic events into `index=bi` sourcetype='prefect:api' where `avg_s` grouped by `flow_name` satisfies `p95_s` > 600 for 'Prefect Flow Flow Run Duration p95'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.39 negative (Duration p95): ingest benign `bi` / `prefect:api` events where `flow_name` stays below `p95_s` > 600, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Prefect Flow Flow Run Duration p95'."
+  },
+  "dataSources": "Prefect flow runs (`prefect:api`), worker logs (`prefect:worker`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Prefect worker/agent logs via UF; Prefect REST API via HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=prefect:api state_type=\"COMPLETED\"\n| eval dur_s=round(total_run_time/1,2)\n| stats avg(dur_s) as avg_s, p95(dur_s) as p95_s, count as runs by flow_name\n| where p95_s>600\n| sort - p95_s",
-  "description": "Computes the 95th-percentile flow run duration for each flow in Prefect and flags the slowest, pointing owners at the specific content or jobs that need optimisation.",
-  "value": "Tail latency, not the average, is what users feel; ranking Prefect flows by p95 focuses tuning effort where it removes the most pain.",
+  "description": "Alerts on Duration p95 anomalies for UC-24.7.39 with window `the scheduled window` on `index=bi` sourcetype `prefect:api`. Combines `avg_s` by `flow_name` and compares against `p95_s` > 600. Mapped to keywords Prefect, Flow, Flow, Run, Duration for dashboard routing.",
+  "value": "Alerting on Prefect, Flow, Flow, Run, Duration through UC-24.7.39 reduces operational risk and delayed incident response by surfacing `avg_s` early.",
   "implementation": "Ingest Prefect timing data; schedule daily over a trailing week and review the slowest flows with their owners.",
   "visualization": "Table of flow by p95 flow run duration, trend line.",
   "cimModels": [],
   "references": [
     {
       "title": "Prefect — REST API",
-      "url": "https://docs.prefect.io/v3/api-ref/rest-api"
+      "url": "https://docs.prefect.io/v3/api-ref/rest-api",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Prefect — Automations",
-      "url": "https://docs.prefect.io/v3/automate/events/automations-triggers"
+      "url": "https://docs.prefect.io/v3/automate/events/automations-triggers",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "We measure how slow the worst cases are in Prefect so the sluggish ones get fixed before people give up on them."
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.7.39)** — Planned work for 'Prefect Flow Flow Run Duration p95' shifts `avg_s` over `span=1h` while `flow_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `prefect:api`** — Scheduled automation elevates `dur_s` without crossing `p95_s` > 600 for UC-24.7.39. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `flow_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `prefect:api`** — First 48h baseline for UC-24.7.39 on `flow_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `flow_name`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Prefect worker/agent logs via UF; Prefect REST API via HEC. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=prefect:api into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`flow_name, p95_s`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We measure how slow the worst cases are in Prefect so the sluggish ones get fixed before people give up on them.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

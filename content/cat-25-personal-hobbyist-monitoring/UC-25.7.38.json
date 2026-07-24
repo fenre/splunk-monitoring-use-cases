@@ -9,23 +9,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Tautulli/Plex playback (`tautulli:play`), Jellyfin activity (`jellyfin:activity`), Spotify recently-played (`spotify:play`), Steam player/achievements (`steam:player`), Sonarr/Radarr events (`sonarr:event`).",
-  "app": "Plex / Jellyfin (Tautulli), Sonos, Spotify, Steam, Xbox/PSN, and *arr stack (Sonarr/Radarr) APIs and webhooks via HEC.",
-  "spl": "index=personal sourcetype=plexamp:play\nstats count(eval(bitrate_kbps>=900)) as lossless, count as total\neval lossless_pct=100*lossless/total",
-  "description": "Calculates share of Plexamp sessions streamed at lossless bitrates.",
-  "value": "Surfacing plexamp lossless playback share helps you act before small issues become habits.",
+  "exclusions": "Covers personal hobby monitoring for 'Plexamp Lossless Playback Share' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_plexamp_lossless_playback_share` (UC-25.7.38), SOC dashboard panel \"Personal — Plexamp Lossless Playback Share\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.7.38 positive (Plexamp, Lossless, Playback, Share): ingest synthetic events into `index=personal` sourcetype='plexamp:play' where `count` grouped by `entity` satisfies `bitrate_kbps` >= 900 for 'Plexamp Lossless Playback Share'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.7.38 negative (Playback Share): ingest benign `personal` / `plexamp:play` events where `entity` stays below `bitrate_kbps` >= 900, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 1 confirms zero alert rows for 'Plexamp Lossless Playback Share'."
+  },
+  "dataSources": "Tautulli/Plex playback (`tautulli:play`), Jellyfin activity (`jellyfin:activity`), Spotify recently-played (`spotify:play`), Steam player/achievements (`steam:player`), Sonarr/Radarr events (`sonarr:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Plex / Jellyfin (Tautulli), Sonos, Spotify, Steam, Xbox/PSN, and *arr stack (Sonarr/Radarr) APIs and webhooks via HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=plexamp:play\n| stats count(eval(bitrate_kbps>=900)) as lossless, count as total\n| eval lossless_pct=100*lossless/total",
+  "description": "Alerts on Playback Share activity in UC-25.7.38 ('Plexamp Lossless Playback Share') from `index=personal` sourcetype `plexamp:play`. Rolls up `count` by `entity` across `the scheduled window` and pages when `bitrate_kbps` >= 900. Covers Plexamp, Lossless, Playback, Share. Personal operators treat UC-25.7.38 as the canonical signal.",
+  "value": "Operators running UC-25.7.38 on `plexamp:play` feeds shorten triage for Playback Share tied to 'Plexamp Lossless Playback Share', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest the relevant media, gaming & entertainment export into `index=personal` and schedule this search weekly.",
   "visualization": "Table or chart of key fields.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk ES Content Management",
+      "url": "https://docs.splunk.com/Documentation/ES/latest/Admin/ContentManagement",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It lays out when plexamp lossless playback share matters for your routine."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.7.38)** — Connector for 'Plexamp Lossless Playback Share' stops polling `plexamp:play`; stale `count` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.7.38, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `plexamp:play`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `bitrate_kbps` >= 900 for 'Plexamp Lossless Playback Share'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Media, Gaming & Entertainment — typical feeds: Tautulli/Plex playback (`tautulli:play`), Jellyfin activity (`jellyfin:activity`), Spotify recently-played (`spotify:play`), Steam player/achievements (`steam:player`), Sonarr/Radarr events (`sonarr:e.\n• **Sourcetypes in this search**: `plexamp:play`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=plexamp:play`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Plex / Jellyfin (Tautulli), Sonos, Spotify, Steam, Xbox/PSN, and *arr stack (Sonarr/Radarr) APIs and webhooks via HEC..\n\n**Author notes:** Ingest the relevant media, gaming & entertainment export into `index=personal` and schedule this search weekly.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"plexamp:play\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=plexamp:play earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Plexamp Lossless Playback Share** over `personal` data (primarily `sourcetype=plexamp:play`) across the full search range. It applies numeric thresholds on `bitrate_kbps` (>= 900) after count — tune these constants to your household baseline.\n\n**Fields this search depends on:** `bitrate_kbps`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=plexamp:play\n| stats count(eval(bitrate_kbps>=900)) as lossless, count as total\n| eval lossless_pct=100*lossless/total\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=plexamp:play earliest=-7d\n| head 50\n| table bitrate_kbps\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=plexamp:play earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `bitrate_kbps` before alerting:\n\n```spl\nindex=personal sourcetype=plexamp:play earliest=-30d\n| stats perc50(bitrate_kbps) AS p50 perc90(bitrate_kbps) AS p90 perc99(bitrate_kbps) AS p99 max(bitrate_kbps) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.7.38: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Or Chart Of Key Fields (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `plexamp:play` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=plexamp:play | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It lays out when plexamp lossless playback share matters for your routine.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

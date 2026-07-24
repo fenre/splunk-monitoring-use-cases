@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Security",
-  "dataSources": "SOAR execution logs, playbook run results",
-  "app": "Splunk SOAR",
+  "exclusions": "Covers the detection logic documented for 'Playbook Execution Monitoring' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_playbook_execution_monitoring` (UC-10.7.4), SOC dashboard panel \"Security Infra — Playbook Execution Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.7.4 positive (Playbook, Execution, Monitoring): ingest synthetic events into `index=soar` sourcetype='phantom:playbook_run' where `count` grouped by `playbook_name` satisfies `success_rate` < 95 for 'Playbook Execution Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.7.4 negative (Execution Monitoring): ingest benign `soar` / `phantom:playbook_run` events where `playbook_name` stays below `success_rate` < 95, or exclude the test entity via `soc_exception_register.csv`. Variant 4 confirms zero alert rows for 'Playbook Execution Monitoring'."
+  },
+  "dataSources": "SOAR execution logs, playbook run results Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk SOAR — Universal Forwarder (Splunkbase 617)",
   "spl": "index=soar sourcetype=\"phantom:playbook_run\"\n| stats count(eval(status=\"success\")) as success, count(eval(status=\"failed\")) as failed by playbook_name\n| eval success_rate=round(success/(success+failed)*100,1)\n| where success_rate < 95",
-  "description": "SOAR playbook failures leave incidents unhandled. Monitoring ensures automation reliability and identifies integration issues.",
-  "value": "SOAR playbook failures leave incidents unhandled. Monitoring ensures automation reliability and identifies integration issues.",
+  "description": "Detects risk tied to Playbook, Execution, Monitoring through UC-10.7.4 on `index=soar` sourcetype `phantom:playbook_run`. Summarises `count` grouped by `playbook_name` across `the scheduled window` before applying `success_rate` < 95. Operators tune 'Playbook Execution Monitoring' using UC-10.7.4 runbook steps.",
+  "value": "Tracking `activity` via UC-10.7.4 on `phantom:playbook_run` feeds improves response to 'Playbook Execution Monitoring' and reduces missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Ingest SOAR execution logs into Splunk. Track playbook success/failure rates. Alert on failures for critical playbooks. Identify failing action steps for debugging. Report on automation coverage and time savings.",
   "visualization": "Table (playbook success rates), Bar chart (failure rate by playbook), Line chart (execution trend), Single value (overall success %).",
   "cimModels": [
@@ -22,13 +28,41 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Test runs, table-top drills, and maintenance playbooks can change success and failure rates; map runs to change and exercise calendars.",
+  "knownFalsePositives": "1. **Maintenance window on `soar` (UC-10.7.4)** — Planned work for 'Playbook Execution Monitoring' shifts `count` over `span=1h` while `playbook_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `phantom:playbook_run`** — Scheduled automation elevates `success_rate` without crossing `success_rate` < 95 for UC-10.7.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `playbook_name`** — Health checks in `soar` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `phantom:playbook_run`** — First 48h baseline for UC-10.7.4 on `playbook_name` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `playbook_name`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "premiumApps": [
     "Splunk SOAR"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk SOAR.\n• Ensure the following data sources are available: SOAR execution logs, playbook run results.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest SOAR execution logs into Splunk. Track playbook success/failure rates. Alert on failures for critical playbooks. Identify failing action steps for debugging. Report on automation coverage and time savings.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=soar sourcetype=\"phantom:playbook_run\"\n| stats count(eval(status=\"success\")) as success, count(eval(status=\"failed\")) as failed by playbook_name\n| eval success_rate=round(success/(success+failed)*100,1)\n| where success_rate < 95\n```\n\nUnderstanding this SPL\n\n**Playbook Execution Monitoring** — SOAR playbook failures leave incidents unhandled. Monitoring ensures automation reliability and identifies integration issues.\n\nDocumented **Data sources**: SOAR execution logs, playbook run results. **App/TA** (typical add-on context): Splunk SOAR. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: soar; **sourcetype**: phantom:playbook_run. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=soar, sourcetype=\"phantom:playbook_run\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by playbook_name** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **success_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where success_rate < 95` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nCompare with the source-of-truth console (cloud CSP, EDR, or IdP) when the data allows it. Check the Splunk Security Essentials catalog for the same detection name, and review the ES Incident Review queue for related notables. Verify key fields, time windows, and index access for your search role.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (playbook success rates), Bar chart (failure rate by playbook), Line chart (execution trend), Single value (overall success %).",
-  "grandmaExplanation": "We use this 'Playbook Execution Monitoring' search to catch the exact behavior in the data we already collect, so the team can confirm or clear it in the right management console or identity store."
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk SOAR.\n• Ensure the following data sources are available: SOAR execution logs, playbook run results.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest SOAR execution logs into Splunk. Track playbook success/failure rates. Alert on failures for critical playbooks. Identify failing action steps for debugging. Report on automation coverage and time savings.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=soar sourcetype=\"phantom:playbook_run\"\n| stats count(eval(status=\"success\")) as success, count(eval(status=\"failed\")) as failed by playbook_name\n| eval success_rate=round(success/(success+failed)*100,1)\n| where success_rate < 95\n```\n\nUnderstanding this SPL\n\n**Playbook Execution Monitoring** — SOAR playbook failures leave incidents unhandled. Monitoring ensures automation reliability and identifies integration issues.\n\nDocumented **Data sources**: SOAR execution logs, playbook run results. **App/TA** (typical add-on context): Splunk SOAR. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: soar; **sourcetype**: phantom:playbook_run. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=soar, sourcetype=\"phantom:playbook_run\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by playbook_name** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **success_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where success_rate < 95` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nCompare with the source-of-truth console (cloud CSP, EDR, or IdP) when the data allows it. Check the Splunk Security Essentials catalog for the same detection name, and review the ES Incident Review queue for related notables. Verify key fields, time windows, and index access for your search role.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (playbook success rates), Bar chart (failure rate by playbook), Line chart (execution trend), Single value (overall success %).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk SOAR — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=phantom:playbook_run into soar. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`playbook_name, success_rate`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this 'Playbook Execution Monitoring' search to catch the exact behavior in the data we already collect, so the team can confirm or clear it in the right management console or identity store.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

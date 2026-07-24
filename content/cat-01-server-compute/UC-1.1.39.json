@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=syslog, dmesg`",
-  "app": "`Splunk_TA_nix, custom scripted input`",
+  "exclusions": "Covers the detection logic documented for 'Ext4 Filesystem Errors and Recovery' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_ext4_filesystem_errors_and_recovery` (UC-1.1.39), SOC dashboard panel \"Linux — Ext4 Filesystem Errors and Recovery\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.39 positive (Ext4, Filesystem, Errors, and, Recovery): ingest synthetic events into `index=os` sourcetype='syslog' where `count` grouped by `host`, `mount_point` satisfies detection threshold for 'Ext4 Filesystem Errors and Recovery'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.39 negative (and Recovery): ingest benign `os` / `syslog` events where `host`, `mount_point` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 15 confirms zero alert rows for 'Ext4 Filesystem Errors and Recovery'."
+  },
+  "dataSources": "`sourcetype=syslog, dmesg` Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix, custom scripted input` — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=os sourcetype=syslog host=* (\"ext4\" AND (\"error\" OR \"abort\" OR \"FS-error\"))\n| stats count by host, mount_point\n| eval severity=\"high\"",
-  "description": "Ext4 errors may indicate filesystem corruption or hardware issues requiring immediate diagnostic action.",
-  "value": "Ext4 errors may indicate filesystem corruption or hardware issues requiring immediate diagnostic action.",
+  "description": "Alerts on UC-1.1.39 — Ext4, Filesystem, Errors, and, Recovery — using `index=os` sourcetype `syslog`, grouped by `host`, `mount_point`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: and Recovery. Purpose-built for 'Ext4 Filesystem Errors and Recovery' in Linux workflows.",
+  "value": "UC-1.1.39 operationalises 'Ext4 Filesystem Errors and Recovery' against `syslog` feeds so operators reduce capacity incidents, patch regressions, and service outages without manual correlation.",
   "implementation": "Monitor for ext4-specific error messages in kernel logs. Create a baseline of expected errors and alert on increases. Correlate with disk smart data and I/O error rates to identify hardware vs. filesystem issues.",
   "visualization": "Table, Timechart",
   "cimModels": [
@@ -21,14 +27,40 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 833",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "ext4 can log during self-repair; boot-time checks add noise. Distinguish repeated data-loss indicators from a one-time recovery run.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Ext4 Filesystem Errors and Recovery'. Correlate with apt/yum logs in the same `syslog` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `syslog`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux",
     "syslog"
   ],
+  "equipmentModels": [
+    "linux_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=syslog, dmesg`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor for ext4-specific error messages in kernel logs. Create a baseline of expected errors and alert on increases. Correlate with disk smart data and I/O error rates to identify hardware vs. filesystem issues.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=syslog host=* (\"ext4\" AND (\"error\" OR \"abort\" OR \"FS-error\"))\n| stats count by host, mount_point\n| eval severity=\"high\"\n```\n\nUnderstanding this SPL\n\n**Ext4 Filesystem Errors and Recovery** — Ext4 errors may indicate filesystem corruption or hardware issues requiring immediate diagnostic action.\n\nDocumented **Data sources**: `sourcetype=syslog, dmesg`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: syslog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, mount_point** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **severity** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\nOn the host, compare with `top`, `htop`, `vmstat`, `iostat`, or `sar` as appropriate to this use case. For log-only detections, compare with the relevant file under `/var/log` (or `journalctl`) on a test host. Confirm that indexed event counts and field values line up with what you see on the system and that your role can search the right indexes and fields.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Timechart",
-  "grandmaExplanation": "Ext4 errors may indicate filesystem corruption or hardware issues requiring immediate diagnostic action — so you find out before users do when something is slowing down or breaking."
+  "grandmaExplanation": "Ext4 errors may indicate filesystem corruption or hardware issues requiring immediate diagnostic action — so you find out before users do when something is slowing down or breaking.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

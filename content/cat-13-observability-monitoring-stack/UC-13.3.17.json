@@ -9,11 +9,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "OTel Collector config hash (custom metric or log), `sourcetype=kube:events` (ConfigMap updates)",
-  "app": "Splunk Distribution of OpenTelemetry Collector, Kubernetes ConfigMap tracking",
+  "exclusions": "Covers the detection logic documented for 'OpenTelemetry Collector Configuration Drift Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_opentelemetry_collector_configuration_drift_dete` (UC-13.3.17), SOC dashboard panel \"Operations — OpenTelemetry Collector Configuration Drift Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-13.3.17 positive (OpenTelemetry, Collector, Configuration, Drift, Detection): ingest synthetic events into `index=otel_metrics` sourcetype='otel:collector:info' where `unique_configs` grouped by `service_instance_id`, `host`, `k8s_namespace` satisfies `stale_hours` > 1 for 'OpenTelemetry Collector Configuration Drift Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-13.3.17 negative (Drift Detection): ingest benign `otel_metrics` / `otel:collector:info` events where `service_instance_id`, `host`, `k8s_namespace` stays below `stale_hours` > 1, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'OpenTelemetry Collector Configuration Drift Detection'."
+  },
+  "dataSources": "OTel Collector config hash (custom metric or log), `sourcetype=kube:events` (ConfigMap updates) Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Distribution of OpenTelemetry Collector, Kubernetes ConfigMap tracking — Splunk Connect for Kubernetes (Splunkbase 5167)",
   "spl": "index=otel_metrics sourcetype=\"otel:collector:info\"\n| stats latest(config_hash) as config_hash, latest(collector_version) as version, latest(_time) as last_seen by service_instance_id, host, k8s_namespace\n| eventstats dc(config_hash) as unique_configs, mode(config_hash) as expected_hash\n| eval drifted=if(config_hash!=expected_hash, \"Yes\", \"No\")\n| eval stale_hours=round((now()-last_seen)/3600, 1)\n| where drifted=\"Yes\" OR stale_hours > 1\n| table service_instance_id, host, k8s_namespace, config_hash, expected_hash, drifted, version, stale_hours\n| sort drifted, -stale_hours",
-  "description": "In a fleet of dozens or hundreds of OTel Collector instances (DaemonSets, gateway deployments, agent sidecars), configuration inconsistency causes silent observability failures. One collector running a stale config may be missing a processor, dropping a signal type, or exporting to a decommissioned endpoint — while appearing healthy. Configuration drift detection ensures every collector runs the intended config after rollouts, preventing partial observability gaps.",
-  "value": "In a fleet of dozens or hundreds of OTel Collector instances (DaemonSets, gateway deployments, agent sidecars), configuration inconsistency causes silent observability failures. One collector running a stale config may be missing a processor, dropping a signal type, or exporting to a decommissioned endpoint — while appearing healthy. Configuration drift detection ensures every collector runs the intended config after rollouts, preventing partial observability gaps.",
+  "description": "Alerts on UC-13.3.17 — OpenTelemetry, Collector, Configuration, Drift, Detection — using `index=otel_metrics` sourcetype `otel:collector:info`, grouped by `service_instance_id`, `host`, `k8s_namespace`. Outputs `unique_configs` each `the scheduled window`; alert when `stale_hours` > 1. Primary focus: Drift Detection. Purpose-built for 'OpenTelemetry Collector Configuration Drift Detection' in Operations workflows.",
+  "value": "UC-13.3.17 helps teams contain OpenTelemetry, Collector, Configuration, Drift, Detection scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Add a custom processor or extension to each collector that computes a SHA-256 hash of the active configuration and emits it as a metric attribute or log event on startup and at regular intervals (every 5 minutes). Alternatively, use the `zpages` extension to expose config and scrape it. Store the expected config hash in a KV store lookup, updated when deployments roll out. Compare each collector's reported hash against the expected value. Alert when any collector reports a different hash after a rollout window (30 minutes). Also detect stale collectors that haven't reported recently — these may have crashed without restarting. For Kubernetes deployments, correlate with ConfigMap update events to verify that DaemonSet pods restarted after config changes.",
   "visualization": "Single value (collectors with drift), Table (drifted instances with config hash comparison), Pie chart (config version distribution), Timeline (config rollout events).",
   "cimModels": [
@@ -23,10 +29,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 5167",
+      "url": "https://splunkbase.splunk.com/app/5167",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Collector errors during config changes, target restarts, or transport and credential issues. We read collector logs and compare with the OTel pipeline view.",
+  "knownFalsePositives": "1. **Maintenance window on `otel_metrics` (UC-13.3.17)** — Planned work for 'OpenTelemetry Collector Configuration Drift Detection' shifts `unique_configs` over `span=1h` while `service_instance_id`, `host`, `k8s_namespace` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `otel:collector:info`** — Scheduled automation elevates `host` without crossing `stale_hours` > 1 for UC-13.3.17. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `service_instance_id`, `host`, `k8s_namespace`** — Health checks in `otel_metrics` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `otel:collector:info`** — First 48h baseline for UC-13.3.17 on `service_instance_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `service_instance_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kubernetes",
     "opentelemetry"
@@ -34,6 +56,12 @@
   "equipmentModels": [
     "kubernetes_k8s"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Distribution of OpenTelemetry Collector, Kubernetes ConfigMap tracking.\n• Ensure the following data sources are available: OTel Collector config hash (custom metric or log), `sourcetype=kube:events` (ConfigMap updates).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAdd a custom processor or extension to each collector that computes a SHA-256 hash of the active configuration and emits it as a metric attribute or log event on startup and at regular intervals (every 5 minutes). Alternatively, use the `zpages` extension to expose config and scrape it. Store the expected config hash in a KV store lookup, updated when deployments roll out. Compare each collector's reported hash against the expected value. Alert when any collector reports a different hash after a…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=otel_metrics sourcetype=\"otel:collector:info\"\n| stats latest(config_hash) as config_hash, latest(collector_version) as version, latest(_time) as last_seen by service_instance_id, host, k8s_namespace\n| eventstats dc(config_hash) as unique_configs, mode(config_hash) as expected_hash\n| eval drifted=if(config_hash!=expected_hash, \"Yes\", \"No\")\n| eval stale_hours=round((now()-last_seen)/3600, 1)\n| where drifted=\"Yes\" OR stale_hours > 1\n| table service_instance_id, host, k8s_namespace, config_hash, expected_hash, drifted, version, stale_hours\n| sort drifted, -stale_hours\n```\n\nUnderstanding this SPL\n\n**OpenTelemetry Collector Configuration Drift Detection** — In a fleet of dozens or hundreds of OTel Collector instances (DaemonSets, gateway deployments, agent sidecars), configuration inconsistency causes silent observability failures. One collector running a stale config may be missing a processor, dropping a signal type, or exporting to a decommissioned endpoint — while appearing healthy. Configuration drift detection ensures every collector runs the intended config after rollouts, preventing partial observability gaps.\n\nDocumented **Data sources**: OTel Collector config hash (custom metric or log), `sourcetype=kube:events` (ConfigMap updates). **App/TA** (typical add-on context): Splunk Distribution of OpenTelemetry Collector, Kubernetes ConfigMap tracking. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: otel_metrics; **sourcetype**: otel:collector:info. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=otel_metrics, sourcetype=\"otel:collector:info\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by service_instance_id, host, k8s_namespace** so each row reflects one combination of those dimensions.\n• `eventstats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• `eval` defines or adjusts **drifted** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **stale_hours** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where drifted=\"Yes\" OR stale_hours > 1` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **OpenTelemetry Collector Configuration Drift Detection**): table service_instance_id, host, k8s_namespace, config_hash, expected_hash, drifted, version, stale_hours\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\n\nStep 3 — Validate\nReplay with a small load change. Compare with the OTel collector logs, pipeline dashboards, and health panels for the same labels.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (collectors with drift), Table (drifted instances with config hash comparison), Pie chart (config version distribution), Timeline (config rollout events).",
-  "grandmaExplanation": "We watch how many app copies are running as traffic and policy change so a surprise scale event does not go unnoticed."
+  "grandmaExplanation": "We watch how many app copies are running as traffic and policy change so a surprise scale event does not go unnoticed.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

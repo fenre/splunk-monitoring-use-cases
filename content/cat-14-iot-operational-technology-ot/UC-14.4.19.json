@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=\"zigbee:gateway\"` OR `sourcetype=\"ble:gateway\"`",
-  "app": "Zigbee2MQTT, Home Assistant, vendor hub",
+  "exclusions": "Covers the detection logic documented for 'BLE/Zigbee Gateway Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ble_zigbee_gateway_health` (UC-14.4.19), SOC dashboard panel \"Operations — BLE/Zigbee Gateway Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.4.19 positive (BLE, Zigbee, Gateway, Health): ingest synthetic events into `index=iot` sourcetype='target_sourcetype' where `count` grouped by `entity` satisfies `offline_devices` > 5 for 'BLE/Zigbee Gateway Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.4.19 negative (Gateway Health): ingest benign `iot` / `target_sourcetype` events where `entity` stays below `offline_devices` > 5, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'BLE/Zigbee Gateway Health'."
+  },
+  "dataSources": "`sourcetype=\"zigbee:gateway\"` OR `sourcetype=\"ble:gateway\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Zigbee2MQTT, Home Assistant, vendor hub — Universal Forwarder (Splunkbase 617)",
   "spl": "index=iot sourcetype IN (\"zigbee:gateway\",\"ble:gateway\")\n| where coordinator_status!=\"OK\" OR offline_devices > 5 OR mqtt_connected=0\n| table _time, gateway_id, coordinator_status, offline_devices, mqtt_connected",
-  "description": "Mesh coordinators and gateways aggregate low-power sensors; their health affects entire buildings.",
-  "value": "Mesh coordinators and gateways aggregate low-power sensors; their health affects entire buildings.",
+  "description": "Identifies UC-14.4.19 — BLE, Zigbee, Gateway, Health — using `index=iot` sourcetype `configured sourcetype`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `offline_devices` > 5. Primary focus: Gateway Health. Purpose-built for 'BLE/Zigbee Gateway Health' in Operations workflows.",
+  "value": "UC-14.4.19 accelerates insight into Gateway Health ('BLE/Zigbee Gateway Health') by tracking `activity` on UC-14.4.19 search results, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Poll hub API for mesh depth, neighbor loss, and MQTT uplink. Alert on coordinator down or offline child count spike.",
   "visualization": "Status grid (gateway × health), Line chart (offline device count), Table (gateways degraded).",
   "cimModels": [
@@ -22,13 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Topic stalls from broker maintenance, client disconnects, or upstream sensor power cycles.",
+  "knownFalsePositives": "1. **Maintenance window on `iot` (UC-14.4.19)** — Planned work for 'BLE/Zigbee Gateway Health' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `src` without crossing `offline_devices` > 5 for UC-14.4.19. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `iot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-14.4.19 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "mqtt"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Zigbee2MQTT, Home Assistant, vendor hub.\n• Ensure the following data sources are available: `sourcetype=\"zigbee:gateway\"` OR `sourcetype=\"ble:gateway\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll hub API for mesh depth, neighbor loss, and MQTT uplink. Alert on coordinator down or offline child count spike.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=iot sourcetype IN (\"zigbee:gateway\",\"ble:gateway\")\n| where coordinator_status!=\"OK\" OR offline_devices > 5 OR mqtt_connected=0\n| table _time, gateway_id, coordinator_status, offline_devices, mqtt_connected\n```\n\nUnderstanding this SPL\n\n**BLE/Zigbee Gateway Health** — Mesh coordinators and gateways aggregate low-power sensors; their health affects entire buildings.\n\nDocumented **Data sources**: `sourcetype=\"zigbee:gateway\"` OR `sourcetype=\"ble:gateway\"`. **App/TA** (typical add-on context): Zigbee2MQTT, Home Assistant, vendor hub. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: iot.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=iot. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where coordinator_status!=\"OK\" OR offline_devices > 5 OR mqtt_connected=0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **BLE/Zigbee Gateway Health**): table _time, gateway_id, coordinator_status, offline_devices, mqtt_connected\n\n\nStep 3 — Validate\nCompare device counts, last-seen times, and health fields to the IoT platform console (for example AWS IoT, Azure IoT Hub, or Google Cloud IoT) for the same period. Verify API polling intervals and that offline rules match your operational definition.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (gateway × health), Line chart (offline device count), Table (gateways degraded).",
-  "grandmaExplanation": "We watch your connected devices and the messages they send. We help you know if something is off with this area: ble and zigbee gateway before harm, damage, or wasted effort piles up."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Zigbee2MQTT, Home Assistant, vendor hub.\n• Ensure the following data sources are available: `sourcetype=\"zigbee:gateway\"` OR `sourcetype=\"ble:gateway\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll hub API for mesh depth, neighbor loss, and MQTT uplink. Alert on coordinator down or offline child count spike.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=iot sourcetype IN (\"zigbee:gateway\",\"ble:gateway\")\n| where coordinator_status!=\"OK\" OR offline_devices > 5 OR mqtt_connected=0\n| table _time, gateway_id, coordinator_status, offline_devices, mqtt_connected\n```\n\nUnderstanding this SPL\n\n**BLE/Zigbee Gateway Health** — Mesh coordinators and gateways aggregate low-power sensors; their health affects entire buildings.\n\nDocumented **Data sources**: `sourcetype=\"zigbee:gateway\"` OR `sourcetype=\"ble:gateway\"`. **App/TA** (typical add-on context): Zigbee2MQTT, Home Assistant, vendor hub. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: iot.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=iot. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where coordinator_status!=\"OK\" OR offline_devices > 5 OR mqtt_connected=0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **BLE/Zigbee Gateway Health**): table _time, gateway_id, coordinator_status, offline_devices, mqtt_connected\n\n\nStep 3 — Validate\nCompare device counts, last-seen times, and health fields to the IoT platform console (for example AWS IoT, Azure IoT Hub, or Google Cloud IoT) for the same period. Verify API polling intervals and that offline rules match your operational definition.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (gateway × health), Line chart (offline device count), Table (gateways degraded).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Zigbee2MQTT, Home Assistant, vendor hub — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=zigbee:gateway, ble:gateway into iot. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`offline_devices`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch your connected devices and the messages they send. We help you know if something is off with this area: ble and zigbee gateway before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

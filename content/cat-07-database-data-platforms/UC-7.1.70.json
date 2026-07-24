@@ -9,11 +9,17 @@
     "Change"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`cassandra:system` logs for gossip, endpoint state, and failure detector",
-  "app": "UF on Cassandra nodes; optional audit of `nodetool status` as `cassandra:nodetool_status` for corroboration",
+  "exclusions": "Covers the detection logic documented for 'Cassandra Gossip and Ring Membership State Changes' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_cassandra_gossip_and_ring_membership_state_chang` (UC-7.1.70), SOC dashboard panel \"Operations — Cassandra Gossip and Ring Membership State Changes\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.1.70 positive (Cassandra, Gossip, and, Ring, Membership): ingest synthetic events into `index=database` sourcetype='cassandra:system' where `peers_affected` grouped by `host`, `_time` satisfies `state_events` > 20 for 'Cassandra Gossip and Ring Membership State Changes'. Validate filter `(\"GossipStage\" OR \"InetAddress\" OR \"Node.*state\" OR \"Failure`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.70 negative (State Changes): ingest benign `database` / `cassandra:system` events where `host`, `_time` stays below `state_events` > 20, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Cassandra Gossip and Ring Membership State Changes'."
+  },
+  "dataSources": "`cassandra:system` logs for gossip, endpoint state, and failure detector Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "UF on Cassandra nodes; optional audit of `nodetool status` as `cassandra:nodetool_status` for corroboration — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"cassandra:system\"\n| search (\"GossipStage\" OR \"InetAddress\" OR \"Node.*state\" OR \"FailureDetector\") AND (\"removed\" OR \"down\" OR \"UP\" OR \"LEFT\" OR \"shutdown\")\n| rex field=_raw \"(?<peer_ip>\\d+\\.\\d+\\.\\d+\\.\\d+)\"\n| bin _time span=1m\n| stats count as state_events dc(peer_ip) as peers_affected by host, _time\n| where state_events > 20",
-  "description": "Frequent gossip transitions often foreshadow split-brain risk, misrouted replicas, or rolling restarts gone wrong. Correlating bursts with deployment windows separates healthy operations from instability.",
-  "value": "Protects data consistency and query availability by catching ring instability before client drivers see repeated timeouts.",
+  "description": "Identifies UC-7.1.70 — Cassandra, Gossip, and, Ring, Membership — using `index=database` sourcetype `cassandra:system`, grouped by `host`, `_time`. Outputs `peers_affected` each `1m`; alert when `state_events` > 20. Filter chain includes filter `(\"GossipStage\" OR \"InetAddress\" OR \"Node.*state\" OR \"Failure`. Purpose-built for 'Cassandra Gossip and Ring Membership State Changes' in Operations workflows.",
+  "value": "UC-7.1.70 operationalises 'Cassandra Gossip and Ring Membership State Changes' against `cassandra:system` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ingest `system.log` with correct timezone; tag `cluster_name` via `inputs.conf` `_meta`. Create allowlist for expected rolling restart patterns. Join with CMDB for rack awareness. Escalate when events spike outside change windows.",
   "visualization": "Timeline (state_events), Table (host, peers_affected), Node diagram optional with enrichment.",
   "cimModels": [
@@ -22,12 +28,31 @@
   "references": [
     {
       "title": "Apache Cassandra — Gossip",
-      "url": "https://cassandra.apache.org/doc/latest/cassandra/architecture/"
+      "url": "https://cassandra.apache.org/doc/latest/cassandra/architecture/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned failovers, network maintenance, or heavy bulk replication can extend lag for a time without an outage; align the alert with the DR runbook and change window.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.1.70)** — Planned work for 'Cassandra Gossip and Ring Membership State Changes' shifts `peers_affected` over `span=1m` while `host`, `_time` remains in-scope. Applies filter `(\"GossipStage\" OR \"InetAddress\" OR \"Node.*state\" OR \"Failure`. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `cassandra:system`** — Scheduled automation elevates `_time` without crossing `state_events` > 20 for UC-7.1.70. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `_time`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cassandra:system`** — First 48h baseline for UC-7.1.70 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cassandra"
+  ],
+  "equipmentModels": [
+    "cassandra_generic"
   ],
   "status": "draft",
   "lastReviewed": "2025-06-01",
@@ -36,5 +61,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch Cassandra Gossip and Ring Membership State Changes so we can keep this part of the data platform within the capacity and quality targets our teams expect."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (UF on Cassandra nodes; optional audit of `nodetool status` as `cassandra:nodetool_status` for corroboration — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=cassandra:system into database. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, host, state_events`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch Cassandra Gossip and Ring Membership State Changes so we can keep this part of the data platform within the capacity and quality targets our teams expect.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

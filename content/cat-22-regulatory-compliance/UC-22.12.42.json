@@ -26,14 +26,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Issue 'no aaa new-model' on a financially-significant switch. Evidence captured.",
-    "negativeScenario": "No privileged commands. Empty result."
+    "positiveScenario": "UC-22.12.42 positive (SOX, ITGC, TACACS+, Privileged, Command): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `count` grouped by `entity` satisfies -1d for 'SOX / ITGC — TACACS+ Privileged-Command Audit on Network Devices'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.12.42 negative (Network Devices): ingest benign `nac` / `cisco:ise:syslog` events where `entity` stays below -1d, or exclude the test entity via `compliance_exception_register.csv`. Variant 15 confirms zero alert rows for 'SOX / ITGC — TACACS+ Privileged-Command Audit on Network Devices'."
   },
-  "dataSources": "`index=nac sourcetype=cisco:ise:syslog` *Tacacs* — codes 11042/11043. Cross-reference UC-17.1.43.",
-  "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915).",
+  "dataSources": "`index=nac sourcetype=cisco:ise:syslog` *Tacacs* — codes 11042/11043. Cross-reference UC-17.1.43. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915). (Splunkbase) — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (11042, 11043) earliest=-1d\n| where match(command, \"(?i)(write erase|no aaa|no logging|enable secret|config replace)\")\n| eval sox_clause=\"AS5.B27-B29\", control=\"Privileged_Command_Audit\"\n| table _time, user, device_ip, command, command_authz_result, sox_clause\n| collect index=audit_evidence",
-  "description": "We continuously evidence SOX ITGC over privileged commands on financially-significant network devices.",
-  "value": "Network device privileged commands (config erase, AAA weakening) directly impact the integrity of segregation supporting financial systems. SOX auditors need continuous attribution.",
+  "description": "Alerts on UC-22.12.42 — SOX, ITGC, TACACS+, Privileged, Command — using `index=nac` sourcetype `cisco:ise:syslog`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when -1d. Primary focus: Network Devices. Purpose-built for 'SOX / ITGC — TACACS+ Privileged-Command Audit on Network Devices' in Compliance workflows.",
+  "value": "UC-22.12.42 operationalises 'SOX / ITGC — TACACS+ Privileged-Command Audit on Network Devices' against `cisco:ise:syslog` feeds so operators reduce audit findings, regulatory gaps, and attestation delays without manual correlation.",
   "implementation": "Schedule the saved search daily at 06:00 local time; archive results to the `audit_evidence` summary index for SOX/ITGC PCAOB AS 2201 evidence.",
   "visualization": "SOX ITGC dashboard: privileged command timeline; user-to-device matrix.",
   "cimModels": [
@@ -42,14 +42,26 @@
   "references": [
     {
       "title": "PCAOB AS 5",
-      "url": "https://pcaobus.org/oversight/standards/auditing-standards/details/"
+      "url": "https://pcaobus.org/oversight/standards/auditing-standards/details/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "UC-17.1.43 — Cisco ISE TACACS+ Privileged Command Audit",
-      "url": "../cat-17-network-security-zero-trust/UC-17.1.43.json"
+      "url": "../cat-17-network-security-zero-trust/UC-17.1.43.json",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "NIST Cybersecurity Framework",
+      "url": "https://www.nist.gov/cyberframework",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "ISO/IEC 27001 Information Security",
+      "url": "https://www.iso.org/standard/27001",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. Approved planned changes via change-management ticket — annotate the alert with ticket reference.",
+  "knownFalsePositives": "1. **Authorised SOX ITGC control testing** — Internal audit exercises 'SOX / ITGC — TACACS+ Privileged-Command Audit on Network Devices' (UC-22.12.42) on `entity` during scheduled clause ITGC.AccessMgmt.Provisioning sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=nac` `cisco:ise:syslog` without crossing evidence threshold. Cross-check engagement letter in `sox_itgc_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `nac` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `sox_itgc_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "requiredFields": [
     "_time",
     "user",
@@ -72,6 +84,8 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.43 operational.\n- TACACS+ enabled on financially-significant network devices.\n- `audit_evidence` with 7y retention.\n\n## Step 1-5\n\n```ini\n[UC-22.12.42: SOX ITGC — TACACS+ Privileged Command Audit]\ncron_schedule = 0 6 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.12.42,reg=SOX,clause=AS5.B27-B29\n```\n\nQuarterly review with SOX auditor.",
-  "grandmaExplanation": "We continuously evidence SOX ITGC over privileged commands on financially-significant network devices. That is important for the audit, where proof needs to line up with what the rules expect."
+  "detailedImplementation": "## Prerequisites\n\n- UC-17.1.43 operational.\n- TACACS+ enabled on financially-significant network devices.\n- `audit_evidence` with 7y retention.\n\n## Step 1-5\n\n```ini\n[UC-22.12.42: SOX ITGC — TACACS+ Privileged Command Audit]\ncron_schedule = 0 6 * * *\nactions = summary_index\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.12.42,reg=SOX,clause=AS5.B27-B29\n```\n\nQuarterly review with SOX auditor.\n\n**Ecosystem integration:** Forward compliance detections to Splunk SOAR for automated incident triage and escalation playbooks. Enrich events with asset context from ServiceNow CMDB. Cross-reference with CrowdStrike Falcon or Microsoft Defender for Endpoint for host forensics and threat detection context. Integrate Okta or Azure AD identity context to determine if the acting user had appropriate authorisation. Feed validated findings into the GRC platform (e.g., RSA Archer, ServiceNow GRC, or AuditBoard) for regulatory compliance tracking and audit evidence management.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (263) + Splunk Add-on for Cisco Identity Services (1915). (Splunkbase) — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac, audit_evidence. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user, action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We continuously evidence SOX ITGC over privileged commands on financially-significant network devices. That is important for the audit, where proof needs to line up with what the rules expect.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

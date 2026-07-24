@@ -10,16 +10,16 @@
   ],
   "splunkPillar": "Observability",
   "industry": "Telecommunications",
-  "exclusions": "Exclude planned maintenance windows, DR exercises, vendor pack updates, and seasonal demand patterns via asset/schedule lookup.",
-  "evidence": "Saved search `21_8_17_evidence` archived to restricted audit index.",
+  "exclusions": "Covers the detection logic documented for 'CDR-Based Revenue Estimation and Billing Reconciliation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_cdr_based_revenue_estimation_and_billing_reconci` (UC-21.8.17), SOC dashboard panel \"Operations — CDR-Based Revenue Estimation and Billing Reconciliation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Replay sample `scada:alarm` events into `index=cdr`. Confirm UC-21.8.17 search returns >=1 row.",
-    "negativeScenario": "Replay benign `scada:alarm` traffic without alert markers. Confirm the search returns zero rows."
+    "positiveScenario": "UC-21.8.17 positive (CDR, Based, Revenue, Estimation, and): ingest synthetic events into `index=cdr` sourcetype='cdr:rated' where `cdr_revenue`, `billed_revenue` grouped by `billing_cycle`, `account_id`, `]` satisfies detection threshold for 'CDR-Based Revenue Estimation and Billing Reconciliation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-21.8.17 negative (Billing Reconciliation): ingest benign `cdr` / `cdr:rated` events where `billing_cycle`, `account_id`, `]` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'CDR-Based Revenue Estimation and Billing Reconciliation'."
   },
   "dataSources": "`index=cdr` `sourcetype=scada:alarm`",
-  "app": "Use **Splunk DB Connect 3.x** for JDBC extracts from BSS/mediation (Amdocs, CSG, Ericsson BSCS, Oracle BRM, Zuora) with Identities + Connections + Inputs defined on a heavy forwarder; schedule SQL after known ETL completion windows. Alternatively, land rated files on a mount and ingest with **batch/monitor** stanzas such as `[monitor:///opt/cdr/rated/*.csv]` with custom `props.conf` `FIELDALIAS`/`EXTRACT` for vendor-specific column order. For invoice pulls that only exist as ERP CSV exports, use the same monitor pattern against `billing` with a dedicated `TIME_FORMAT`. If mediation exposes **Kafka**/SFTP hops, prefer a HF with persistent queues. Do not funnel full rated CSV through syslog; use file or DB paths to preserve line boundaries and throughput.",
-  "spl": "index=cdr sourcetype=\"scada:alarm\" sourcetype=cdr:rated\n| stats count as event_count dc(host) as distinct_assets by substation_id\n| where event_count > 0\n| table _time substation_id alarm_id priority shelved",
-  "description": "Matches aggregated rated call-detail monetary totals and record volumes per billing cycle and account against what the billing system actually invoiced, so gaps from unrated events, duplicated rows, or drops in mediation show up before month-end close.",
+  "app": "Use **Splunk DB Connect 3.x** for JDBC extracts from BSS/mediation (Amdocs, CSG, Ericsson BSCS, Oracle BRM, Zuora) with Identities + Connections + Inputs defined on a heavy forwarder; schedule SQL after known ETL completion windows. Alternatively, land rated files on a mount and ingest with **batch/monitor** stanzas such as `[monitor:///opt/cdr/rated/*.csv]` with custom `props.conf` `FIELDALIAS`/`EXTRACT` for vendor-specific column order. For invoice pulls that only exist as ERP CSV exports, use the same monitor pattern against `billing` with a dedicated `TIME_FORMAT`. If mediation exposes **Kafka**/SFTP hops, prefer a HF with persistent queues. Do not funnel full rated CSV through syslog; use file or DB paths to preserve line boundaries and throughput. — Splunk Add-on for Unix and Linux (Splunkbase 833)",
+  "spl": "index=cdr sourcetype=cdr:rated\n| stats sum(rated_amount) as cdr_revenue, count as cdr_records by billing_cycle, account_id\n| join type=left billing_cycle, account_id [\n    search index=billing sourcetype=billing:invoice\n    | stats sum(invoice_amount) as billed_revenue by billing_cycle, account_id\n  ]\n| eval variance_pct=round(((cdr_revenue-billed_revenue)/cdr_revenue)*100, 2)\n| where abs(variance_pct) > 2\n| sort -abs(variance_pct)",
+  "description": "Alerts on UC-21.8.17 — CDR, Based, Revenue, Estimation, and — using `index=cdr` sourcetype `cdr:rated`, grouped by `billing_cycle`, `account_id`, `]`. Outputs `cdr_revenue`, `billed_revenue` each `the scheduled window`; alert when configured threshold. Primary focus: Billing Reconciliation. Purpose-built for 'CDR-Based Revenue Estimation and Billing Reconciliation' in Operations workflows.",
   "value": "Operations and risk leaders in Telecommunications use signals from CDR-Based Revenue Estimation and Billing Reconciliation to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Align `billing_cycle` and `account_id` keys exactly between mediation output and invoicing extracts; normalize currency and tax lines; whitelist known timing skew (invoice lag); tune the variance threshold after two clean cycles.",
   "visualization": "**Row 1 — KPI tiles (single value / aggregate)**: total absolute revenue at risk (`sum(abs(cdr_revenue-billed_revenue))`), count of accounts over variance threshold, worst single `variance_pct`, and median variance for quick health. **Row 2 — Trend**: timechart (`span=1d`) of mean and p95 `abs(variance_pct)` by `billing_cycle` to spot systemic mediation drift. **Row 3 — Detail table with drilldown**: columns `account_id`, `billing_cycle`, `cdr_revenue`, `billed_revenue`, `variance_pct`, `cdr_records`; row drilldown opens `index=cdr account_id=$row$` in new search. **Row 4 — Supplementary**: stacked bar of `call_type` contribution to variance for top-N accounts (detect mis-mapped service codes) plus optional geomap if `account_id` maps to region via lookup.",
@@ -30,26 +30,36 @@
   "references": [
     {
       "title": "Splunk Lantern — Use Case Explorer: Communications",
-      "url": "https://lantern.splunk.com/Splunk_Platform/UCE/Communications_and_Media"
+      "url": "https://lantern.splunk.com/Splunk_Platform/UCE/Communications_and_Media",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TMForum — Revenue Assurance Maturity Model (RA-MM)",
-      "url": "https://www.tmforum.org/resources/standard/revenue-assurance-maturity-model/"
+      "url": "https://www.tmforum.org/resources/standard/revenue-assurance-maturity-model/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "3GPP TS 32.297 — CDR File Format and Transfer",
-      "url": "https://www.3gpp.org/DynaReport/32297.htm"
+      "url": "https://www.3gpp.org/DynaReport/32297.htm",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "GSMA TAP3 Standard — Transferred Account Procedure",
-      "url": "https://www.gsma.com/aboutus/"
+      "url": "https://www.gsma.com/aboutus/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ITU-T E.425 — IP Network Performance Objectives",
-      "url": "https://www.itu.int/rec/T-REC-E.425"
+      "url": "https://www.itu.int/rec/T-REC-E.425",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 833",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**(1) Mid-cycle tariff or rate-plan changes** — rated files may reflect new price keys while invoices still use old plan codes until proration runs; mitigation: maintain a `rate_change_calendar` lookup and suppress or widen thresholds for affected `account_id` windows. **(2) Test MSISDNs and lab trunks in production feeds** — synthetic traffic creates phantom revenue; mitigation: `inputlookup` exclusion list and regex filters on `account_id`/`originating_number` ranges. **(3) CDR re-rating after disputes or regulator orders** — mediation reposts corrected rows so daily variance swings without billing movement until credit notes post; mitigation: join on rated-file version metadata if available, or alert only after **T+3** stability window. **(4) Multicurrency and tax lines** — invoices may separate tax while rated files are tax-inclusive (or vice versa); mitigation: normalise through `currency_normalization` lookup and strip tax columns before comparing. **(5) Enterprise summarised billing vs detail-rated grain** — parent account invoices aggregate child MSISDNs; naive joins look like massive gaps; mitigation: roll up CDRs to `contract_id` or use intermediary **account hierarchy** lookup. **(6) Legitimate timing skew** — invoices post T+1 after rated file cutoff; mitigation: shift search time window or compare **closed** cycles only. **(7) Duplicate batch drops** — double SFTP delivery duplicates `cdr_records` and inflates `cdr_revenue`; mediation sequence checks in Splunk (`dedup` on natural keys) or file manifest lookups reduce noise.",
+  "knownFalsePositives": "1. **Maintenance window on `cdr` (UC-21.8.17)** — Planned work for 'CDR-Based Revenue Estimation and Billing Reconciliation' shifts `cdr_revenue`, `billed_revenue` over `span=1h` while `billing_cycle`, `account_id`, `]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `cdr:rated`** — Scheduled automation elevates `account_id` without crossing configured threshold for UC-21.8.17. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `billing_cycle`, `account_id`, `]`** — Health checks in `cdr` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cdr:rated`** — First 48h baseline for UC-21.8.17 on `billing_cycle` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `billing_cycle`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1078"
   ],

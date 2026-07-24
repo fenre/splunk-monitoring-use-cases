@@ -8,6 +8,8 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Password Policy Violation Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_password_policy_violation_detection` (UC-1.1.108), SOC dashboard panel \"Linux — Password Policy Violation Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "compliance": [
     {
       "regulation": "uk-cyber-essentials",
@@ -54,11 +56,15 @@
       "evidenceArtifact": "Saved search 'UC-1.1.108' running on sourcetype=linux_audit, /etc/shadow audit, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
     }
   ],
-  "dataSources": "`sourcetype=linux_audit, /etc/shadow audit`",
-  "app": "`Splunk_TA_nix, custom scripted input`",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.108 positive (Password, Policy, Violation, Detection): ingest synthetic events into `index=os` sourcetype='linux_audit' where `count` grouped by `host`, `user` satisfies detection threshold for 'Password Policy Violation Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.108 negative (Violation Detection): ingest benign `os` / `linux_audit` events where `host`, `user` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 11 confirms zero alert rows for 'Password Policy Violation Detection'."
+  },
+  "dataSources": "`sourcetype=linux_audit, /etc/shadow audit` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix, custom scripted input` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=linux_audit path=\"/etc/shadow\"\n| stats count by host, user\n| eval policy_violation=\"yes\"",
-  "description": "Password policy violations indicate accounts with weak credentials vulnerable to compromise.",
-  "value": "Password policy violations indicate accounts with weak credentials vulnerable to compromise.",
+  "description": "Identifies UC-1.1.108 — Password, Policy, Violation, Detection — using `index=os` sourcetype `linux_audit`, grouped by `host`, `user`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Violation Detection. Purpose-built for 'Password Policy Violation Detection' in Linux workflows.",
+  "value": "UC-1.1.108 helps teams contain Password, Policy, Violation, Detection scenarios and reduce capacity incidents, patch regressions, and service outages before incidents compound.",
   "implementation": "Periodically scan /etc/shadow for passwords that violate policy (too simple, too old, etc.) via custom scripts. Create alerts for violations. Include remediation instructions.",
   "visualization": "Table, Alert",
   "cimModels": [
@@ -67,14 +73,39 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "The sample SPL flags audit events on `/etc/shadow`, not the cryptographic strength of passwords—puppet, PAM, or `vipw` edits create noise. High-volume automation accounts can touch shadow during rotation windows; correlate `auid` and change tickets before treating as a policy breach.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Password Policy Violation Detection'. Correlate with apt/yum logs in the same `linux_audit` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `linux_audit`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
+  "equipmentModels": [
+    "linux_generic"
+  ],
   "status": "verified",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=linux_audit, /etc/shadow audit`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPeriodically scan /etc/shadow for passwords that violate policy (too simple, too old, etc.) via custom scripts. Create alerts for violations. Include remediation instructions.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=linux_audit path=\"/etc/shadow\"\n| stats count by host, user\n| eval policy_violation=\"yes\"\n```\n\nUnderstanding this SPL\n\n**Password Policy Violation Detection** — Password policy violations indicate accounts with weak credentials vulnerable to compromise.\n\nDocumented **Data sources**: `sourcetype=linux_audit, /etc/shadow audit`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: linux_audit. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=linux_audit. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, user** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **policy_violation** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Alert",
-  "grandmaExplanation": "We use audit records around password files to spot unexpected changes that should go through your normal account-management process."
+  "grandmaExplanation": "We use audit records around password files to spot unexpected changes that should go through your normal account-management process.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

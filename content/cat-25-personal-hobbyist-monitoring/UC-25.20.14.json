@@ -8,30 +8,55 @@
     "Risk"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Seismograph events (`seismograph:event`), seismic noise (`seismograph:noise`), air quality (`airquality:reading`), radiation counts (`radiation:count`), lightning strikes (`lightning:strike`), phenology observations (`phenology:observation`), and weather-station rainfall (`weatherstation:reading`).",
-  "app": "Citizen-science telemetry from seismographs, weather stations, air-quality monitors, Geiger counters, lightning feeds, and phenology journals streamed to Splunk HEC via MQTT, APIs, and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'PM2.5 Episode Frequency by Wind Direction' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_pm2_5_episode_frequency_by_wind_direction` (UC-25.20.14), SOC dashboard panel \"Personal — PM2.5 Episode Frequency by Wind Direction\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.20.14 positive (PM2.5, Episode, Frequency, Wind, Direction): ingest synthetic events into `index=personal` sourcetype='airquality:reading' where `count` grouped by `wind_sector` satisfies `pm25_ugm3` >= 35, `wind_deg` < 45, `wind_deg` >= 315, or `wind_deg` < 135 for 'PM2.5 Episode Frequency by Wind Direction'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.20.14 negative (Wind Direction): ingest benign `personal` / `airquality:reading` events where `wind_sector` stays below `pm25_ugm3` >= 35, `wind_deg` < 45, `wind_deg` >= 315, or `wind_deg` < 135, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 2 confirms zero alert rows for 'PM2.5 Episode Frequency by Wind Direction'."
+  },
+  "dataSources": "Seismograph events (`seismograph:event`), seismic noise (`seismograph:noise`), air quality (`airquality:reading`), radiation counts (`radiation:count`), lightning strikes (`lightning:strike`), phenology observations (`phenology:observation`), and weather-station rainfall (`weatherstation:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Citizen-science telemetry from seismographs, weather stations, air-quality monitors, Geiger counters, lightning feeds, and phenology journals streamed to Splunk HEC via MQTT, APIs, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=airquality:reading\n| where pm25_ugm3>=35\n| eval wind_sector=case(wind_deg<45 OR wind_deg>=315,\"N\",wind_deg<135,\"E\",wind_deg<225,\"S\",true(),\"W\")\n| stats count as episodes by wind_sector\n| sort - episodes",
-  "description": "Counts unhealthy particulate episodes by wind sector to show which directions bring the dirtiest air to your site.",
-  "value": "Air-quality spikes are more actionable when you know the direction they come from, whether that means traffic, wildfire, or a nearby burner.",
+  "description": "Monitors UC-25.20.14 for PM2.5, Episode, Frequency, Wind, Direction over `index=personal` sourcetype `airquality:reading` with thresholds `pm25_ugm3` >= 35, `wind_deg` < 45, `wind_deg` >= 315, or `wind_deg` < 135. Groups `count` by `wind_sector` each `the scheduled window`. Centered on Wind Direction indicators. Supports repeatable personal triage for 'PM2.5 Episode Frequency by Wind Direction'.",
+  "value": "For 'PM2.5 Episode Frequency by Wind Direction', UC-25.20.14 converts `activity` on `airquality:reading` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Stream PM2.5 and wind direction from your particulate monitor or weather station and bucket them by sector.",
   "visualization": "Bar chart of high-PM2.5 episodes by wind sector.",
   "cimModels": [],
   "references": [
     {
       "title": "Raspberry Shake - citizen seismograph",
-      "url": "https://raspberryshake.org/"
+      "url": "https://raspberryshake.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Safecast - open radiation data",
-      "url": "https://api.safecast.org/"
+      "url": "https://api.safecast.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.20.14)** — Connector for 'PM2.5 Episode Frequency by Wind Direction' stops polling `airquality:reading`; stale `count` on `wind_sector` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.20.14, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `airquality:reading`. Dedup with `stats latest(*) by wind_sector`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `pm25_ugm3` >= 35 for 'PM2.5 Episode Frequency by Wind Direction'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It logs which wind direction usually brings the dirtiest air to your home or yard."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Citizen Science & Backyard Sensing — typical feeds: Seismograph (`seismo:reading`), Geiger counter (`geiger:cpm`), lightning strikes (`lightning:strike`), radon (`radon:reading`), all-sky meteor camera (`allsky:capture`), river-level gauge (`riverlevel.\n• **Sourcetypes in this search**: `airquality:reading`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=airquality:reading`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** DIY citizen-science sensors — Raspberry Shake seismograph, Geiger counter, AS3935/Blitzortung lightning detector, radon monitor, all-sky meteor camera, river-level gauge, and magnetometer — via MQTT and scripted inputs to Splunk HEC..\n\n**Author notes:** Stream PM2.5 and wind direction from your particulate monitor or weather station and bucket them by sector.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"airquality:reading\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=airquality:reading earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **PM2.5 Episode Frequency by Wind Direction** over `personal` data (primarily `sourcetype=airquality:reading`) across the full search range. It applies numeric thresholds on `pm25_ugm3` (>= 35) after aggregation — tune these constants to your household baseline.\n\n**Fields this search depends on:** `pm25_ugm3`, `wind_deg`, `wind_sector`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=airquality:reading\n| where pm25_ugm3>=35\n| eval wind_sector=case(wind_deg<45 OR wind_deg>=315,\"N\",wind_deg<135,\"E\",wind_deg<225,\"S\",true(),\"W\")\n| stats count as episodes by wind_sector\n| sort - episodes\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=airquality:reading earliest=-7d\n| head 50\n| table pm25_ugm3, wind_deg, wind_sector\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=airquality:reading earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `pm25_ugm3` before alerting:\n\n```spl\nindex=personal sourcetype=airquality:reading earliest=-30d\n| stats perc50(pm25_ugm3) AS p50 perc90(pm25_ugm3) AS p90 perc99(pm25_ugm3) AS p99 max(pm25_ugm3) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.20.14: Personal evidence` with the following panel layout:\n\n**Panel 1 — Bar Chart Of High-Pm2.5 Episodes By Wind Sector (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `airquality:reading` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=airquality:reading | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It logs which wind direction usually brings the dirtiest air to your home or yard.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

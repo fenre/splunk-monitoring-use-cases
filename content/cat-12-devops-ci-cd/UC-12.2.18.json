@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Active executor count, node CPU utilization, overlapping job IDs",
-  "app": "Jenkins metrics, Kubernetes node metrics",
+  "exclusions": "Covers the detection logic documented for 'Parallel Build Resource Contention' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_parallel_build_resource_contention` (UC-12.2.18), SOC dashboard panel \"Operations — Parallel Build Resource Contention\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.2.18 positive (Parallel, Build, Resource, Contention): ingest synthetic events into `index=cicd` sourcetype='jenkins:metrics' where `node_cpu` grouped by `_time]` satisfies `utilization_pct` > 90, or `node_cpu` > 85 for 'Parallel Build Resource Contention'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.2.18 negative (Resource Contention): ingest benign `cicd` / `jenkins:metrics` events where `_time]` stays below `utilization_pct` > 90, or `node_cpu` > 85, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Parallel Build Resource Contention'."
+  },
+  "dataSources": "Active executor count, node CPU utilization, overlapping job IDs Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll into the index named in the SPL.",
+  "app": "Jenkins metrics, Kubernetes node metrics — Splunk Connect for Kubernetes (Splunkbase 5167)",
   "spl": "index=cicd sourcetype=\"jenkins:metrics\"\n| eval utilization_pct=round(busy_executors/total_executors*100,1)\n| join type=left max=1 _time [search index=infra sourcetype=\"kube:node\" | stats avg(cpu_usage) as node_cpu by _time]\n| where utilization_pct>90 AND node_cpu>85\n| table _time, computer, utilization_pct, node_cpu",
-  "description": "Runner saturation lengthens CI pipelines and causes flaky tests that block releases. Correlating saturation metrics with P95 job duration justifies autoscaling investment and prevents false 'code regression' blame when infrastructure is the root cause.",
-  "value": "Runner saturation lengthens CI pipelines and causes flaky tests that block releases. Correlating saturation metrics with P95 job duration justifies autoscaling investment and prevents false 'code regression' blame when infrastructure is the root cause.",
+  "description": "Monitors 'Parallel Build Resource Contention' (UC-12.2.18) using `index=cicd` sourcetype `jenkins:metrics` by aggregating `node_cpu` grouped by `_time]` over `the scheduled window` and alerting when `utilization_pct` > 90, or `node_cpu` > 85. Keywords: Parallel, Build, Resource, Contention. Focuses on Resource Contention behaviour so operations teams can triage UC-12.2.18 without ad-hoc log review.",
+  "value": "UC-12.2.18 accelerates insight into Resource Contention ('Parallel Build Resource Contention') by tracking `node_cpu` on `jenkins:metrics` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Align timestamps between CI and Kubernetes. Alert when high utilization coincides with p95 build time spike. Scale runner pool.",
   "visualization": "Line chart (utilization vs build time), Table (contention windows), Bar chart (by node pool).",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 5167",
+      "url": "https://splunkbase.splunk.com/app/5167",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Pipeline noise during blue/green cutovers, dependency cache cold-starts, or scheduled maintenance windows.",
+  "knownFalsePositives": "1. **Maintenance window on `cicd` (UC-12.2.18)** — Planned work for 'Parallel Build Resource Contention' shifts `node_cpu` over `span=1h` while `_time]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `jenkins:metrics`** — Scheduled automation elevates `utilization_pct` without crossing `utilization_pct` > 90 for UC-12.2.18. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time]`** — Health checks in `cicd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `jenkins:metrics`** — First 48h baseline for UC-12.2.18 on `_time]` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time]`, `exception_reason`, `valid_until`.",
   "equipment": [
     "jenkins",
     "kubernetes"
@@ -33,6 +55,12 @@
   "equipmentModels": [
     "kubernetes_k8s"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Jenkins metrics, Kubernetes node metrics.\n• Ensure the following data sources are available: Active executor count, node CPU utilization, overlapping job IDs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAlign timestamps between CI and Kubernetes. Alert when high utilization coincides with p95 build time spike. Scale runner pool.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cicd sourcetype=\"jenkins:metrics\"\n| eval utilization_pct=round(busy_executors/total_executors*100,1)\n| join type=left max=1 _time [search index=infra sourcetype=\"kube:node\" | stats avg(cpu_usage) as node_cpu by _time]\n| where utilization_pct>90 AND node_cpu>85\n| table _time, computer, utilization_pct, node_cpu\n```\n\nUnderstanding this SPL\n\n**Parallel Build Resource Contention** — Runner saturation lengthens CI pipelines and causes flaky tests that block releases. Correlating saturation metrics with P95 job duration justifies autoscaling investment and prevents false 'code regression' blame when infrastructure is the root cause.\n\nDocumented **Data sources**: Active executor count, node CPU utilization, overlapping job IDs. **App/TA** (typical add-on context): Jenkins metrics, Kubernetes node metrics. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cicd; **sourcetype**: jenkins:metrics. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cicd, sourcetype=\"jenkins:metrics\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **utilization_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where utilization_pct>90 AND node_cpu>85` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Parallel Build Resource Contention**): table _time, computer, utilization_pct, node_cpu\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with Jenkins build history. Verify field extractions and index permissions.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (utilization vs build time), Table (contention windows), Bar chart (by node pool).",
-  "grandmaExplanation": "We watch this part of your delivery chain for risks and reliability so issues show up before they hit customers."
+  "grandmaExplanation": "We watch this part of your delivery chain for risks and reliability so issues show up before they hit customers.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -40,9 +40,9 @@ Applies to responsible entities for the assets defined in the SOCI Act as critic
 ## 3. Catalogue coverage at a glance
 
 - **Clauses tracked**: 28
-- **Clauses covered by at least one UC**: 21 / 28 (75.0%)
-- **Priority-weighted coverage**: 77.7%
-- **Contributing UCs**: 22
+- **Clauses covered by at least one UC**: 28 / 28 (100.0%)
+- **Priority-weighted coverage**: 100.0%
+- **Contributing UCs**: 29
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -72,14 +72,14 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | [`SOCI-CIRMP-r8.1`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r8.1) | CIRMP Rules — Supply-chain hazards: vendor risk register | 1.0 | `full` | [UC-22.52.18](#uc-22-52-18) |
 | [`SOCI-CIRMP-r8.2`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r8.2) | CIRMP Rules — Supply-chain hazards: continuous supplier monitoring | 0.7 | `full` | [UC-22.52.19](#uc-22-52-19) |
 | [`SOCI-CIRMP-r9.1`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r9.1) | CIRMP Rules — Physical and natural hazards: site security | 0.7 | `full` | [UC-22.52.20](#uc-22-52-20) |
-| [`SOCI-CIRMP-r9.2`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r9.2) | CIRMP Rules — Natural hazards and business continuity exercises | 0.7 | `—` | _not yet covered_ |
+| [`SOCI-CIRMP-r9.2`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r9.2) | CIRMP Rules — Natural hazards and business continuity exercises | 0.7 | `full` | [UC-22.52.29](#uc-22-52-29) |
 | [`SOCI-CIRMP-r10`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-CIRMP-r10) | CIRMP Rules — Annual report to the Department | 1.0 | `full` | [UC-22.52.22](#uc-22-52-22), [UC-22.52.23](#uc-22-52-23) |
-| [`SOCI-ECSO-vulnerability`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-ECSO-vulnerability) | Enhanced Cyber Security Obligations — vulnerability disclosure and remediation tracking | 0.7 | `—` | _not yet covered_ |
-| [`SOCI-cross-segmentation`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-cross-segmentation) | OT zone-and-conduit segmentation (Defence, Energy, Water, Critical Manufacturing) | 1.0 | `—` | _not yet covered_ |
-| [`SOCI-cross-asset-inventory`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-cross-asset-inventory) | OT asset inventory with criticality classification (CISC expectation) | 1.0 | `—` | _not yet covered_ |
-| [`SOCI-cross-data-residency`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-cross-data-residency) | Australian data residency and operational-data sovereignty | 0.7 | `—` | _not yet covered_ |
-| [`SOCI-cross-encryption`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-cross-encryption) | Encryption of operational data in transit between zones | 0.7 | `—` | _not yet covered_ |
-| [`SOCI-cross-audit-evidence`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-cross-audit-evidence) | Audit-evidence retention for CIRMP and incident reporting | 0.7 | `—` | _not yet covered_ |
+| [`SOCI-ECSO-vulnerability`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-ECSO-vulnerability) | Enhanced Cyber Security Obligations — vulnerability disclosure and remediation tracking | 0.7 | `full` | [UC-22.52.30](#uc-22-52-30) |
+| [`SOCI-cross-segmentation`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-cross-segmentation) | OT zone-and-conduit segmentation (Defence, Energy, Water, Critical Manufacturing) | 1.0 | `full` | [UC-22.52.31](#uc-22-52-31) |
+| [`SOCI-cross-asset-inventory`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-cross-asset-inventory) | OT asset inventory with criticality classification (CISC expectation) | 1.0 | `full` | [UC-22.52.32](#uc-22-52-32) |
+| [`SOCI-cross-data-residency`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-cross-data-residency) | Australian data residency and operational-data sovereignty | 0.7 | `full` | [UC-22.52.33](#uc-22-52-33) |
+| [`SOCI-cross-encryption`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-cross-encryption) | Encryption of operational data in transit between zones | 0.7 | `full` | [UC-22.52.34](#uc-22-52-34) |
+| [`SOCI-cross-audit-evidence`](https://www.legislation.gov.au/C2018A00029/latest/text#SOCI-cross-audit-evidence) | Audit-evidence retention for CIRMP and incident reporting | 0.7 | `full` | [UC-22.52.35](#uc-22-52-35) |
 
 ### 4.1 Contributing UC detail
 
@@ -173,12 +173,54 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `CISO`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.52.23.json`](../../content/cat-22-regulatory-compliance/UC-22.52.23.json)
+<a id='uc-22-52-29'></a>
+- **UC-22.52.29** — SOCI CIRMP natural hazards and business continuity exercise currency
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.29.json`](../../content/cat-22-regulatory-compliance/UC-22.52.29.json)
 <a id='uc-22-52-3'></a>
 - **UC-22.52.3** — SOCI s 30AH CIRMP annual review currency — evidence each program has been reviewed in the last 365 days
   - Control family: `regulation-specific`
   - Owner: `CISO`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.52.3.json`](../../content/cat-22-regulatory-compliance/UC-22.52.3.json)
+<a id='uc-22-52-30'></a>
+- **UC-22.52.30** — SOCI Enhanced Cyber Security Obligations — vulnerability disclosure and remediation tracking
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.30.json`](../../content/cat-22-regulatory-compliance/UC-22.52.30.json)
+<a id='uc-22-52-31'></a>
+- **UC-22.52.31** — SOCI OT zone-and-conduit segmentation — unauthorised cross-zone flow detection
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.31.json`](../../content/cat-22-regulatory-compliance/UC-22.52.31.json)
+<a id='uc-22-52-32'></a>
+- **UC-22.52.32** — SOCI OT asset inventory with criticality classification — completeness and freshness
+  - Control family: `regulation-specific`
+  - Owner: `Board / Audit Committee`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.32.json`](../../content/cat-22-regulatory-compliance/UC-22.52.32.json)
+<a id='uc-22-52-33'></a>
+- **UC-22.52.33** — SOCI Australian operational data residency and sovereignty attestation monitoring
+  - Control family: `regulation-specific`
+  - Owner: `Board / Audit Committee`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.33.json`](../../content/cat-22-regulatory-compliance/UC-22.52.33.json)
+<a id='uc-22-52-34'></a>
+- **UC-22.52.34** — SOCI encryption of operational data in transit between OT zones
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.34.json`](../../content/cat-22-regulatory-compliance/UC-22.52.34.json)
+<a id='uc-22-52-35'></a>
+- **UC-22.52.35** — SOCI audit-evidence retention for CIRMP and cyber-incident reporting
+  - Control family: `regulation-specific`
+  - Owner: `CISO`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.52.35.json`](../../content/cat-22-regulatory-compliance/UC-22.52.35.json)
 <a id='uc-22-52-4'></a>
 - **UC-22.52.4** — SOCI s 30AG board approval evidence — every CIRMP and annual report has a signed board minute
   - Control family: `regulation-specific`
@@ -325,17 +367,7 @@ SOCI offences carry significant civil penalties: failure to comply with key obli
 
 ## 11. Pack gaps and remediation backlog
 
-Clauses tracked in `data/regulations.json` that are **not yet covered** by any UC in this catalogue are listed below. These are the backlog items for the next release. Priority order follows priorityWeight.
-
-| Clause | Topic | Priority |
-|---|---|---|
-| `SOCI-cross-asset-inventory` | OT asset inventory with criticality classification (CISC expectation) | 1.0 |
-| `SOCI-cross-segmentation` | OT zone-and-conduit segmentation (Defence, Energy, Water, Critical Manufacturing) | 1.0 |
-| `SOCI-CIRMP-r9.2` | CIRMP Rules — Natural hazards and business continuity exercises | 0.7 |
-| `SOCI-ECSO-vulnerability` | Enhanced Cyber Security Obligations — vulnerability disclosure and remediation tracking | 0.7 |
-| `SOCI-cross-audit-evidence` | Audit-evidence retention for CIRMP and incident reporting | 0.7 |
-| `SOCI-cross-data-residency` | Australian data residency and operational-data sovereignty | 0.7 |
-| `SOCI-cross-encryption` | Encryption of operational data in transit between zones | 0.7 |
+All clauses tracked in `data/regulations.json` for this regulation version are covered by at least one UC. **100 % common-clause coverage**. Remaining work is assurance-upgrade (for example, moving `contributing` entries to `partial` or `full` via explicit control tests) rather than new clause authoring.
 
 ## 12. Questions an auditor should ask
 
@@ -388,9 +420,9 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 8.20.0
+catalogue_version: 8.24.0
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     d010119379cfbb44fc0feadaf5ee44b9873461a6d4bc9e2c30e797bebfe9eced
+inputs_sha256:     05f941e7cba30a6ed15be3f33541ee7425e92ce578db21f18d57d3d67e5fb1db
 ```
 
 To re-generate:

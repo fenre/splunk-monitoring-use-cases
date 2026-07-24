@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=openPorts` (Splunk_TA_nix listener inventory)",
-  "app": "`Splunk_TA_nix`",
+  "exclusions": "Covers the detection logic documented for 'Open Port Changes' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_open_port_changes` (UC-1.1.78), SOC dashboard panel \"Linux — Open Port Changes\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.78 positive (Open, Port, Changes): ingest synthetic events into `index=os` sourcetype='openPorts' where `count` grouped by `host` satisfies detection threshold for 'Open Port Changes'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.78 negative (Port Changes): ingest benign `os` / `openPorts` events where `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 11 confirms zero alert rows for 'Open Port Changes'."
+  },
+  "dataSources": "`sourcetype=openPorts` (Splunk_TA_nix listener inventory) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=openPorts host=*\n| streamstats window=2 global=f last(port_list) as prev_ports by host\n| where isnotnull(prev_ports) AND port_list!=prev_ports",
-  "description": "Compares the latest **port_list** string from each `openPorts` sample to the immediately previous sample for the same **host**, surfacing new listening-port shapes when the list changes (requires two polls per host).",
-  "value": "A port that was not in yesterday’s `openPorts` window is a fast second opinion before you reach for a live **packet** capture—especially for unexpected **LISTEN** on high-numbered or database ports.",
+  "description": "Surfaces UC-1.1.78 — Open, Port, Changes — using `index=os` sourcetype `openPorts`, grouped by `host`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Port Changes. Purpose-built for 'Open Port Changes' in Linux workflows.",
+  "value": "UC-1.1.78 helps teams contain Open, Port, Changes scenarios and reduce capacity incidents, patch regressions, and service outages before incidents compound.",
   "implementation": "If your TA uses multi-value **port** fields instead of a single `port_list` string, replace the `!=` with `mvdiff` / `setdiff` logic on **mv** fields. Seed a **lookup** of `approved_ports` for noise control.",
   "visualization": "Alert, Table",
   "cimModels": [
@@ -21,17 +27,38 @@
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Apps that only bind on schedule; `openPorts` interval longer than the short-lived service; **Docker** or **K8s** that churn ports often—separate UCs for those estates.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Open Port Changes'. Correlate with apt/yum logs in the same `openPorts` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `openPorts`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
-  "detailedImplementation": "Prerequisites\n• `openPorts` script enabled on a cadence that is faster than the longest service restart you care about; otherwise you will miss a five-second listener.\n\n**SPL** — The **streamstats** form replaces the old template that referenced **previous_ports** without defining it. If you prefer state in a **KV** store, you can re-write with **lookup**+**outputlookup** per host instead.\n\n\nStep 3 — Validate\n`ss -lntup` on the same host after the alert; for proof of **PID**, use `lsof -i` or your EDR, not the raw **openPorts** line alone in regulated cases.\n\nStep 4 — Operationalize\nAny **openPorts**+**docker-proxy** on unexpected ports should be paired with the container ID from your orchestration log.\n\n",
-  "grandmaExplanation": "We help you know when the list of “who is listening on the network” on a box changes, which can show a new service or a new hole an attacker could use."
+  "equipmentModels": [
+    "linux_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• `openPorts` script enabled on a cadence that is faster than the longest service restart you care about; otherwise you will miss a five-second listener.\n\n**SPL** — The **streamstats** form replaces the old template that referenced **previous_ports** without defining it. If you prefer state in a **KV** store, you can re-write with **lookup**+**outputlookup** per host instead.\n\n\nStep 3 — Validate\n`ss -lntup` on the same host after the alert; for proof of **PID**, use `lsof -i` or your EDR, not the raw **openPorts** line alone in regulated cases.\n\nStep 4 — Operationalize\nAny **openPorts**+**docker-proxy** on unexpected ports should be paired with the container ID from your orchestration log.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=openPorts into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you know when the list of “who is listening on the network” on a box changes, which can show a new service or a new hole an attacker could use.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Forcepoint ONE ZTNA access/connector logs",
+  "exclusions": "Covers the detection logic documented for 'Forcepoint ONE ZTNA Private Access Health (Forcepoint)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_forcepoint_one_ztna_private_access_health_forcep` (UC-17.3.60), SOC dashboard panel \"Network — Forcepoint ONE ZTNA Private Access Health (Forcepoint)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.60 positive (Forcepoint, ONE, ZTNA, Private, Access): ingest synthetic events into `index=zt` sourcetype='forcepoint:one' where `successes` grouped by `connector_name`, `app_name` satisfies `error_pct` > 5 for 'Forcepoint ONE ZTNA Private Access Health (Forcepoint)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.60 negative (Health (Forcepoint)): ingest benign `zt` / `forcepoint:one` events where `connector_name`, `app_name` stays below `error_pct` > 5, or exclude the test entity via `network_exception_register.csv`. Variant 6 confirms zero alert rows for 'Forcepoint ONE ZTNA Private Access Health (Forcepoint)'."
+  },
+  "dataSources": "Forcepoint ONE ZTNA access/connector logs Indexes: zt. Sourcetypes: forcepoint:one. Key fields: app_name, connector_name, error_pct, ok. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Forcepoint Insights SIEM App (Splunkbase 8053)",
   "spl": "index=zt sourcetype=\"forcepoint:one\" earliest=-24h\n| where match(lower(event_type),\"(?i)ztna|private|connector\")\n| eval ok=if(match(lower(status),\"(?i)success|allow|connected\"),1,0)\n| stats count sum(ok) as successes by connector_name, app_name\n| eval error_pct=round(100*(count-successes)/count,1)\n| where error_pct > 5\n| sort -error_pct",
-  "description": "Forcepoint ONE ZTNA provides agentless and agent-based private application access. Connector health and access decision monitoring ensures application reachability.",
-  "value": "Insider threat teams leverage Forcepoint ONE SSE behavioral analytics to monitor cumulative user risk scores, detecting users escalating through risk levels based on accumulated policy violations, unusual access patterns, and data exfiltration attempts.",
+  "description": "Detects Health (Forcepoint) anomalies for UC-17.3.60 with window `the scheduled window` on `index=zt` sourcetype `forcepoint:one`. Combines `successes` by `connector_name`, `app_name` and compares against `error_pct` > 5. Mapped to keywords Forcepoint, ONE, ZTNA, Private, Access for dashboard routing.",
+  "value": "Alerting on Forcepoint, ONE, ZTNA, Private, Access through UC-17.3.60 reduces unauthorized access, segmentation drift, and NAC policy failures by surfacing `successes` early.",
   "implementation": "Map connector names to datacenter/region. Alert when connectors show >10% error rate. Report on ZTNA adoption metrics.",
   "visualization": "Table (unhealthy connectors), Single value (connectors in error), Line chart (error rate trend), Bar chart (access by app).",
   "cimModels": [],
@@ -22,21 +28,42 @@
   "references": [
     {
       "title": "Forcepoint Insights SIEM App",
-      "url": "https://splunkbase.splunk.com/app/8053"
+      "url": "https://splunkbase.splunk.com/app/8053",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Network_Traffic",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes from new SaaS rollouts, automated workflows, sanctioned bulk uploads, or M&A integration.",
+  "knownFalsePositives": "1. **Remote workforce login storm** — Morning VPN/ZTNA session spike for 'Forcepoint ONE ZTNA Private Access Health (Forcepoint)'. Compare with historical same-hour baseline.\n\n2. **IdP or SAML metadata refresh** — Brief auth failures during federation cert rotation.\n\n3. **Split-tunnel policy change** — New route advertisements shift traffic patterns.\n\n4. **Synthetic ZTNA health checks** — Monitoring probes from known appliance IPs.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `user`, `src`, `valid_until`.",
   "mitreAttack": [
     "T1133"
   ],
   "equipment": [
     "forcepoint"
   ],
-  "detailedImplementation": "Prerequisites\n• Forcepoint ONE SSE behavioral analytics events in `index=forcepoint` with `sourcetype=forcepoint:one:sse`. Key fields: `risk_score`, `risk_level` (Low/Medium/High/Critical), `user`, `risk_indicators` (multivalue: policy_violation, unusual_access, data_exfiltration_attempt, off_hours_activity), `behavioral_anomaly`.\n• Forcepoint's Behavioral Analytics Engine calculates user risk scores based on accumulated activity: DLP violations, unusual access patterns, off-hours activity, and policy violations. Risk scores change over time.\n\nStep 1 — Configure data collection\nVerify risk score data:\n```spl\nindex=forcepoint earliest=-7d\n| where isnotnull(risk_score)\n| stats avg(risk_score) as avg_risk max(risk_score) as max_risk dc(user) as users by risk_level\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — User risk overview:\n```spl\nindex=forcepoint earliest=-7d\n| where isnotnull(risk_score)\n| dedup user sortby -_time\n| stats count by risk_level\n| eval order=case(risk_level=\"Critical\", 1, risk_level=\"High\", 2, risk_level=\"Medium\", 3, risk_level=\"Low\", 4, 1==1, 5)\n| sort order\n```\n\nUnderstanding this SPL: Shows the distribution of user risk levels. Focus on Critical and High risk users first. Risk scores are cumulative — a Critical user has accumulated multiple risk indicators over time, making them a higher priority than someone with one incident.\n\nRisk score trend for specific user:\n```spl\nindex=forcepoint risk_score=* user=\"[USER]\" earliest=-30d\n| timechart span=1d avg(risk_score) as avg_risk\n```\n\nStep 3 — Validate\n(a) In Forcepoint ONE: Users > Risk tab. Compare scores.\n(b) Trigger multiple policy violations as a test user. Verify score increase.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Risk level distribution. Row 2 — Critical users. Row 3 — Risk trend.\nAlert: When any user reaches Critical risk level.\n\nRunbook:\n1. **Critical risk** — Immediate manager notification. Restrict access.\n2. **Rising risk score** — Review contributing indicators. Proactive conversation.\n3. **Risk score spike** — Check for account compromise (may not be the user).\n\nStep 5 — Troubleshooting\n• **All users Low risk** — Behavioral analytics engine may need more data (30-day baseline).\n• **`risk_indicators` empty** — Detailed indicators may require premium analytics license.",
+  "equipmentModels": [
+    "forcepoint_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Forcepoint ONE SSE behavioral analytics events in `index=forcepoint` with `sourcetype=forcepoint:one:sse`. Key fields: `risk_score`, `risk_level` (Low/Medium/High/Critical), `user`, `risk_indicators` (multivalue: policy_violation, unusual_access, data_exfiltration_attempt, off_hours_activity), `behavioral_anomaly`.\n• Forcepoint's Behavioral Analytics Engine calculates user risk scores based on accumulated activity: DLP violations, unusual access patterns, off-hours activity, and policy violations. Risk scores change over time.\n\nStep 1 — Configure data collection\nVerify risk score data:\n```spl\nindex=forcepoint earliest=-7d\n| where isnotnull(risk_score)\n| stats avg(risk_score) as avg_risk max(risk_score) as max_risk dc(user) as users by risk_level\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — User risk overview:\n```spl\nindex=forcepoint earliest=-7d\n| where isnotnull(risk_score)\n| dedup user sortby -_time\n| stats count by risk_level\n| eval order=case(risk_level=\"Critical\", 1, risk_level=\"High\", 2, risk_level=\"Medium\", 3, risk_level=\"Low\", 4, 1==1, 5)\n| sort order\n```\n\nUnderstanding this SPL: Shows the distribution of user risk levels. Focus on Critical and High risk users first. Risk scores are cumulative — a Critical user has accumulated multiple risk indicators over time, making them a higher priority than someone with one incident.\n\nRisk score trend for specific user:\n```spl\nindex=forcepoint risk_score=* user=\"[USER]\" earliest=-30d\n| timechart span=1d avg(risk_score) as avg_risk\n```\n\nStep 3 — Validate\n(a) In Forcepoint ONE: Users > Risk tab. Compare scores.\n(b) Trigger multiple policy violations as a test user. Verify score increase.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Risk level distribution. Row 2 — Critical users. Row 3 — Risk trend.\nAlert: When any user reaches Critical risk level.\n\nRunbook:\n1. **Critical risk** — Immediate manager notification. Restrict access.\n2. **Rising risk score** — Review contributing indicators. Proactive conversation.\n3. **Risk score spike** — Check for account compromise (may not be the user).\n\nStep 5 — Troubleshooting\n• **All users Low risk** — Behavioral analytics engine may need more data (30-day baseline).\n• **`risk_indicators` empty** — Detailed indicators may require premium analytics license.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Forcepoint Insights SIEM App (Splunkbase 8053)). Enable the modular input or HEC token that writes sourcetype=forcepoint:one into zt. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`app_name, connector_name, error_pct, ok`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Forcepoint gives each employee a risk score that goes up when they do risky things — like trying to send sensitive files or accessing systems at unusual hours. When someone's score keeps climbing, we investigate before something bad happens.",
-  "hardware": "Forcepoint ONE (cloud), Forcepoint ONE Connector (on-prem), Smart Edge Agent"
+  "hardware": "Forcepoint ONE (cloud), Forcepoint ONE Connector (on-prem), Smart Edge Agent",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

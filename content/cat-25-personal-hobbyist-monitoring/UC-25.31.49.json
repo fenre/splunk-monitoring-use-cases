@@ -9,23 +9,55 @@
     "Performance"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Mood entries (`mood:entry`), meditation sessions (`meditation:session`), journal entries (`journal:entry`), gratitude logs (`gratitude:log`).",
-  "app": "Mood, mindfulness and journaling apps — Daylio / How We Feel mood exports, Headspace / Insight Timer meditation logs, journaling and gratitude entries — sent to Splunk HEC via scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Journal Metric2 Rolling 7-Day Value Average' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_journal_metric2_rolling_7_day_value_average` (UC-25.31.49), SOC dashboard panel \"Personal — Journal Metric2 Rolling 7-Day Value Average\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.31.49 positive (Journal, Metric2, Rolling, Day, Value): ingest synthetic events into `index=personal` sourcetype='journal:metric2' where `daily_avg`, `rolling_7d` grouped by `_time` satisfies detection threshold for 'Journal Metric2 Rolling 7-Day Value Average'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.31.49 negative (Value Average): ingest benign `personal` / `journal:metric2` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 3 confirms zero alert rows for 'Journal Metric2 Rolling 7-Day Value Average'."
+  },
+  "dataSources": "Mood entries (`mood:entry`), meditation sessions (`meditation:session`), journal entries (`journal:entry`), gratitude logs (`gratitude:log`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Mood, mindfulness and journaling apps — Daylio / How We Feel mood exports, Headspace / Insight Timer meditation logs, journaling and gratitude entries — sent to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=journal:metric2 value=*\n| bin _time span=1d\n| stats avg(value) as daily_avg by _time\n| streamstats window=7 avg(daily_avg) as rolling_7d\n| sort _time",
-  "description": "Tracks a seven-day rolling average of daily value for journal metric2 (2) data.",
-  "value": "Rolling averages highlight gradual drift without overreacting to one-off days.",
+  "description": "Surfaces when Value Average criteria fire for 'Journal Metric2 Rolling 7-Day Value Average' (UC-25.31.49) in `index=personal` sourcetype `journal:metric2`. Pipeline aggregates `daily_avg`, `rolling_7d` by `_time` over `1d`. Alert logic enforces configured threshold. Title terms: Journal, Metric2, Rolling, Day, Value. Eliminates manual hunting for UC-25.31.49 conditions.",
+  "value": "UC-25.31.49 helps teams contain Journal, Metric2, Rolling, Day, Value scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Compute daily average `value` then a seven-day rolling mean for journal metric2 (2) events.",
   "visualization": "Line chart of daily and rolling average value.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk ES Content Management",
+      "url": "https://docs.splunk.com/Documentation/ES/latest/Admin/ContentManagement",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It summarises the smoothed week-long trend in your value from journal metric2 (2)."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.31.49)** — Connector for 'Journal Metric2 Rolling 7-Day Value Average' stops polling `journal:metric2`; stale `daily_avg`, `rolling_7d` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `daily_avg`, `rolling_7d` over `1d` is expected for UC-25.31.49, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `journal:metric2`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold for 'Journal Metric2 Rolling 7-Day Value Average'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Mind, Mood & Journaling — typical feeds: Mood entries (`mood:entry`), meditation sessions (`meditation:session`), journal entries (`journal:entry`), gratitude logs (`gratitude:log`)..\n• **Sourcetypes in this search**: `journal:metric2`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=journal:metric2`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Mood, mindfulness and journaling apps — Daylio / How We Feel mood exports, Headspace / Insight Timer meditation logs, journaling and gratitude entries — sent to Splunk HEC via scripted inputs..\n\n**Author notes:** Compute daily average `value` then a seven-day rolling mean for journal metric2 (2) events.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"journal:metric2\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=journal:metric2 earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Journal Metric2 Rolling 7-Day Value Average** over `personal` data (primarily `sourcetype=journal:metric2`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `_time`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=journal:metric2 value=*\n| bin _time span=1d\n| stats avg(value) as daily_avg by _time\n| streamstats window=7 avg(daily_avg) as rolling_7d\n| sort _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=journal:metric2 earliest=-7d\n| head 50\n| table _time\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=journal:metric2 earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.31.49: Personal evidence` with the following panel layout:\n\n**Panel 1 — Line Chart Of Daily And Rolling Average Value (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `journal:metric2` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=journal:metric2 | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It summarises the smoothed week-long trend in your value from journal metric2 (2).",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

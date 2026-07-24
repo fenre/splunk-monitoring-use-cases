@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=linux_secure` (`/var/log/auth.log` or `/var/log/secure`)",
-  "app": "`Splunk_TA_nix`, Syslog",
+  "exclusions": "Covers the detection logic documented for 'SSH Brute-Force Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_ssh_brute_force_detection` (UC-1.1.8), SOC dashboard panel \"Linux — SSH Brute-Force Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.8 positive (SSH, Brute, Force, Detection): ingest synthetic events into `index=os` sourcetype='linux_secure' where `users_targeted` grouped by `src`, `host` satisfies `attempts` > 10 for 'SSH Brute-Force Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.8 negative (Force Detection): ingest benign `os` / `linux_secure` events where `src`, `host` stays below `attempts` > 10, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 1 confirms zero alert rows for 'SSH Brute-Force Detection'."
+  },
+  "dataSources": "`sourcetype=linux_secure` (`/var/log/auth.log` or `/var/log/secure`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix`, Syslog — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=linux_secure \"Failed password\"\n| rex \"from (?<src>\\d+\\.\\d+\\.\\d+\\.\\d+)\"\n| stats count as attempts, dc(user) as users_targeted, values(user) as usernames by src, host\n| where attempts > 10\n| sort -attempts\n| iplocation src",
-  "description": "Detects active password-guessing attacks against SSH services. Can be early indicator of compromised credentials or targeted intrusion attempts.",
-  "value": "Detects active password-guessing attacks against SSH services. Can be early indicator of compromised credentials or targeted intrusion attempts.",
+  "description": "Surfaces Force Detection activity in UC-1.1.8 ('SSH Brute-Force Detection') from `index=os` sourcetype `linux_secure`. Rolls up `users_targeted` by `src`, `host` across `the scheduled window` and pages when `attempts` > 10. Covers SSH, Brute, Force, Detection. Linux operators treat UC-1.1.8 as the canonical signal.",
+  "value": "Operators running UC-1.1.8 on `linux_secure` feeds shorten triage for Force Detection tied to 'SSH Brute-Force Detection', lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Forward `/var/log/auth.log` (Debian/Ubuntu) or `/var/log/secure` (RHEL/CentOS). Create alert for >10 failed attempts from a single IP in 5 minutes. Consider integrating with a GeoIP lookup for geographic context.",
   "visualization": "Table of source IPs with attempt counts, Choropleth map (GeoIP), Timechart of brute-force events.",
   "cimModels": [
@@ -23,18 +29,40 @@
   "references": [
     {
       "title": "Splunk_TA_nix",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Repeated failures from security scans, mis-typed passwords, automation with stale keys, or shared jump hosts can look like attacks. Pair with asset purpose, pen-test windows, and source reputation before paging out of hours.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `src` metrics for 'SSH Brute-Force Detection'. Correlate with apt/yum logs in the same `linux_secure` window.\n\n2. **Nightly backup I/O on `src`** — Predictable `dc` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `linux_secure`** — Nagios/Zabbix polls `src` and mimics sustained load without crossing `attempts` > 10.\n\n4. **New host onboarding** — `src` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `src`, `valid_until`.",
   "equipment": [
     "linux",
     "syslog"
   ],
+  "equipmentModels": [
+    "linux_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix`, Syslog.\n• Ensure the following data sources are available: `sourcetype=linux_secure` (`/var/log/auth.log` or `/var/log/secure`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward `/var/log/auth.log` (Debian/Ubuntu) or `/var/log/secure` (RHEL/CentOS). Create alert for >10 failed attempts from a single IP in 5 minutes. Consider integrating with a GeoIP lookup for geographic context.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=linux_secure \"Failed password\"\n| rex \"from (?<src>\\d+\\.\\d+\\.\\d+\\.\\d+)\"\n| stats count as attempts, dc(user) as users_targeted, values(user) as usernames by src, host\n| where attempts > 10\n| sort -attempts\n| iplocation src\n```\n\nUnderstanding this SPL\n\n**SSH Brute-Force Detection** — Detects active password-guessing attacks against SSH services. Can be early indicator of compromised credentials or targeted intrusion attempts.\n\nDocumented **Data sources**: `sourcetype=linux_secure` (`/var/log/auth.log` or `/var/log/secure`). **App/TA** (typical add-on context): `Splunk_TA_nix`, Syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: linux_secure. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=linux_secure. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts fields with `rex` (regular expression).\n• `stats` rolls up events into metrics; results are split **by src, host** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where attempts > 10` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **SSH Brute-Force Detection**): iplocation src\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count as attempts\n  from datamodel=Authentication\n  where nodename=Authentication Authentication.action=failure\n  by Authentication.src Authentication.dest span=5m\n| where attempts > 10\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**SSH Brute-Force Detection** — Detects active password-guessing attacks against SSH services. Can be early indicator of compromised credentials or targeted intrusion attempts.\n\nDocumented **Data sources**: `sourcetype=linux_secure` (`/var/log/auth.log` or `/var/log/secure`). **App/TA** (typical add-on context): `Splunk_TA_nix`, Syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication` — enable acceleration for that model.\n• Filters the current rows with `where attempts > 10` after aggregating failed authentication events by source and destination in each 5m bucket.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nOn the host, compare with `top`, `htop`, `vmstat`, `iostat`, or `sar` as appropriate to this use case. For log-only detections, compare with the relevant file under `/var/log` (or `journalctl`) on a test host. Confirm that indexed event counts and field values line up with what you see on the system and that your role can search the right indexes and fields.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of source IPs with attempt counts, Choropleth map (GeoIP), Timechart of brute-force events.",
-  "grandmaExplanation": "We watch for many failed remote login attempts so you can spot someone trying to guess their way in before a weak or stolen password gives them a foothold."
+  "grandmaExplanation": "We watch for many failed remote login attempts so you can spot someone trying to guess their way in before a weak or stolen password gives them a foothold.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

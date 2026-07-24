@@ -8,6 +8,8 @@
     "Operations"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Covers the detection logic documented for 'Cisco ISE Logs through Splunk Edge Processor — Pipeline Health and Routing' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_cisco_ise_logs_through_splunk_edge_processor_pip` (UC-17.1.59), SOC dashboard panel \"Network — Cisco ISE Logs through Splunk Edge Processor — Pipeline Health and Routing\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "nis2",
@@ -48,14 +50,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Misconfigure an Edge Processor pipeline regex causing 5% parse errors. UC-17.1.59 fires for that pipeline.",
-    "negativeScenario": "Fix the regex. Drops return to 0. Alert clears."
+    "positiveScenario": "UC-17.1.59 positive (Cisco, ISE, Logs, through, Splunk): ingest synthetic events into `index=_internal` sourcetype='ep:metrics' where `in`, `out`, `drops` grouped by `pipeline_id` satisfies `drop_pct` > 1, or `parse_errors` > 0 for 'Cisco ISE Logs through Splunk Edge Processor — Pipeline Health and Routing'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.59 negative (and Routing): ingest benign `_internal` / `ep:metrics` events where `pipeline_id` stays below `drop_pct` > 1, or `parse_errors` > 0, or exclude the test entity via `network_exception_register.csv`. Variant 9 confirms zero alert rows for 'Cisco ISE Logs through Splunk Edge Processor — Pipeline Health and Routing'."
   },
-  "dataSources": "Splunk Edge Processor / Ingest Processor metrics from `index=_internal sourcetype=ep:metrics` (Splunk Edge Processor's self-telemetry). Pipeline-health fields: `pipeline_id`, `events_in`, `events_out`, `dropped_events`, `parse_errors`, `routing_decisions`. ISE-side context from `index=nac sourcetype=cisco:ise:syslog` to confirm receipt.",
-  "app": "`Splunk Edge Processor` (Splunk Cloud / Splunk Enterprise 9.x+).",
+  "dataSources": "Splunk Edge Processor / Ingest Processor metrics from `index=_internal sourcetype=ep:metrics` (Splunk Edge Processor's self-telemetry). Pipeline-health fields: `pipeline_id`, `events_in`, `events_out`, `dropped_events`, `parse_errors`, `routing_decisions`. ISE-side context from `index=nac sourcetype=cisco:ise:syslog` to confirm receipt. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk Edge Processor` (Splunk Cloud / Splunk Enterprise 9.x+). — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=_internal sourcetype=\"ep:metrics\" earliest=-30m\n| stats sum(events_in) as in, sum(events_out) as out, sum(dropped_events) as drops, sum(parse_errors) as parse_errors by pipeline_id\n| eval drop_pct = round((drops/in)*100, 2)\n| where drop_pct > 1 OR parse_errors > 0",
-  "description": "Detects Splunk Edge Processor / Ingest Processor pipeline issues that affect ISE log ingestion — drops, parse errors, routing failures.",
-  "value": "When Edge Processor is in the path between ISE and Splunk indexers, pipeline health is the missing link in observability. A 5% drop rate is invisible from the Splunk indexer side but obvious from EP metrics.",
+  "description": "Identifies UC-17.1.59 — Cisco, ISE, Logs, through, Splunk — using `index=_internal` sourcetype `ep:metrics`, grouped by `pipeline_id`. Outputs `in`, `out`, `drops` each `the scheduled window`; alert when `drop_pct` > 1, or `parse_errors` > 0. Primary focus: and Routing. Purpose-built for 'Cisco ISE Logs through Splunk Edge Processor — Pipeline Health and Routing' in Network workflows.",
+  "value": "Operators running UC-17.1.59 on `ep:metrics` feeds shorten triage for and Routing tied to 'Cisco ISE Logs through Splunk Edge Processor — Pipeline Health and Routing', lowering unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Confirm Edge Processor is sending self-telemetry to Splunk. Schedule every 15 min, search window `-30m@m to @m`.",
   "visualization": "(1) Per-pipeline drop-rate timechart. (2) Top-N parse errors. (3) Routing-decision distribution.",
   "cimModels": [],
@@ -63,10 +65,26 @@
   "references": [
     {
       "title": "Splunk Edge Processor Documentation",
-      "url": "https://docs.splunk.com/Documentation/SplunkCloud/"
+      "url": "https://docs.splunk.com/Documentation/SplunkCloud/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "NIS2 Directive — EUR-Lex",
+      "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32022L2555",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) **Initial pipeline deployment** — High parse errors during initial pipeline configuration; expected for first hour.",
+  "knownFalsePositives": "1. **Maintenance window on `_internal` (UC-17.1.59)** — Planned work for 'Cisco ISE Logs through Splunk Edge Processor — Pipeline Health and Routing' shifts `in`, `out`, `drops` over `span=1h` while `pipeline_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `ep:metrics`** — Scheduled automation elevates `drop_pct` without crossing `drop_pct` > 1 for UC-17.1.59. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pipeline_id`** — Health checks in `_internal` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ep:metrics`** — First 48h baseline for UC-17.1.59 on `pipeline_id` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `pipeline_id`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "N/A (ingest pipeline health — measures Splunk Edge Processor for ISE, no adversary technique)"
   ],
@@ -84,7 +102,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Edge Processor or Ingest Processor deployed in path.\n• Self-telemetry enabled.\n\nStep 1 — Verify telemetry feed.\nStep 2 — Search.\nStep 3 — Provoke as above.\nStep 4 — Dashboard with drop-rate per pipeline.\nStep 5 — Troubleshooting: tune pipeline regex; verify EP capacity.",
+  "detailedImplementation": "Prerequisites\n• Edge Processor or Ingest Processor deployed in path.\n• Self-telemetry enabled.\n\nStep 1 — Verify telemetry feed.\nStep 2 — Search.\nStep 3 — Provoke as above.\nStep 4 — Dashboard with drop-rate per pipeline.\nStep 5 — Troubleshooting: tune pipeline regex; verify EP capacity.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Edge Processor` (Splunk Cloud / Splunk Enterprise 9.x+). — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=ep:metrics into _internal. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`drop_pct, parse_errors, pipeline_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "ISE sends information to Splunk through a middleman. We watch the middleman to make sure it isn't dropping or breaking messages on the way through.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

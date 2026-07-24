@@ -8,11 +8,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`vmware:inv:vm`",
-  "app": "vCenter inventory",
+  "exclusions": "Covers the detection logic documented for 'VM Sprawl Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_vm_sprawl_detection` (UC-20.2.23), SOC dashboard panel \"Operations — VM Sprawl Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-20.2.23 positive (Sprawl, Detection): ingest synthetic events into `index=virtualization` sourcetype='vmware:inv:vm' where `fleet_avg` grouped by `folder`, `owner` satisfies `vm_count` > 50 for 'VM Sprawl Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-20.2.23 negative (Sprawl Detection): ingest benign `virtualization` / `vmware:inv:vm` events where `folder`, `owner` stays below `vm_count` > 50, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'VM Sprawl Detection'."
+  },
+  "dataSources": "`vmware:inv:vm` Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
+  "app": "vCenter inventory — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
   "spl": "index=virtualization sourcetype=\"vmware:inv:vm\" earliest=-1d\n| where power_state=\"poweredOn\"\n| stats count as vm_count by folder, owner\n| eventstats avg(vm_count) as fleet_avg\n| where vm_count > fleet_avg*3 AND vm_count>50\n| sort -vm_count",
-  "description": "Count of powered-on VMs per app owner vs license and growth rate — finds unchecked provisioning.",
-  "value": "Count of powered-on VMs per app owner vs license and growth rate — finds unchecked provisioning.",
+  "description": "Alerts on UC-20.2.23 for Sprawl, Detection over `index=virtualization` sourcetype `vmware:inv:vm` with thresholds `vm_count` > 50. Groups `fleet_avg` by `folder`, `owner` each `the scheduled window`. Centered on Sprawl Detection indicators. Supports repeatable operations triage for 'VM Sprawl Detection'.",
+  "value": "For 'VM Sprawl Detection', UC-20.2.23 converts `fleet_avg` on `vmware:inv:vm` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Map `owner` from folder or tags. Review quarterly for consolidation. Correlate with cost (UC-20.1).",
   "visualization": "Bar chart (VM count by owner), Table (sprawl candidates), Line chart (VM growth).",
   "cimModels": [
@@ -22,16 +28,39 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 3684",
+      "url": "https://splunkbase.splunk.com/app/3684",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes from autoscaling events, new workload deployments, batch jobs, or DR drill resources.",
+  "knownFalsePositives": "1. **Maintenance window on `virtualization` (UC-20.2.23)** — Planned work for 'VM Sprawl Detection' shifts `fleet_avg` over `span=1h` while `folder`, `owner` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `vmware:inv:vm`** — Scheduled automation elevates `owner` without crossing `vm_count` > 50 for UC-20.2.23. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `folder`, `owner`** — Health checks in `virtualization` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `vmware:inv:vm`** — First 48h baseline for UC-20.2.23 on `folder` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `folder`, `exception_reason`, `valid_until`.",
   "equipment": [
     "vmware"
   ],
   "equipmentModels": [
+    "vmware_esxi",
     "vmware_vcenter"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: vCenter inventory.\n• Ensure the following data sources are available: `vmware:inv:vm`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap `owner` from folder or tags. Review quarterly for consolidation. Correlate with cost (UC-20.1).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=virtualization sourcetype=\"vmware:inv:vm\" earliest=-1d\n| where power_state=\"poweredOn\"\n| stats count as vm_count by folder, owner\n| eventstats avg(vm_count) as fleet_avg\n| where vm_count > fleet_avg*3 AND vm_count>50\n| sort -vm_count\n```\n\nUnderstanding this SPL\n\n**VM Sprawl Detection** — Count of powered-on VMs per app owner vs license and growth rate — finds unchecked provisioning.\n\nDocumented **Data sources**: `vmware:inv:vm`. **App/TA** (typical add-on context): vCenter inventory. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: virtualization; **sourcetype**: vmware:inv:vm. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=virtualization, sourcetype=\"vmware:inv:vm\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where power_state=\"poweredOn\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by folder, owner** so each row reflects one combination of those dimensions.\n• `eventstats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• Filters the current rows with `where vm_count > fleet_avg*3 AND vm_count>50` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\ncompare with vROps capacity dashboard; compare with the cloud billing console for the same scope, accounts, and time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (VM count by owner), Table (sprawl candidates), Line chart (VM growth).",
-  "grandmaExplanation": "Cost and capacity tools watch how much we spend on cloud and the data center, and where we have spare or strained capacity."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: vCenter inventory.\n• Ensure the following data sources are available: `vmware:inv:vm`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap `owner` from folder or tags. Review quarterly for consolidation. Correlate with cost (UC-20.1).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=virtualization sourcetype=\"vmware:inv:vm\" earliest=-1d\n| where power_state=\"poweredOn\"\n| stats count as vm_count by folder, owner\n| eventstats avg(vm_count) as fleet_avg\n| where vm_count > fleet_avg*3 AND vm_count>50\n| sort -vm_count\n```\n\nUnderstanding this SPL\n\n**VM Sprawl Detection** — Count of powered-on VMs per app owner vs license and growth rate — finds unchecked provisioning.\n\nDocumented **Data sources**: `vmware:inv:vm`. **App/TA** (typical add-on context): vCenter inventory. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: virtualization; **sourcetype**: vmware:inv:vm. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=virtualization, sourcetype=\"vmware:inv:vm\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where power_state=\"poweredOn\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by folder, owner** so each row reflects one combination of those dimensions.\n• `eventstats` aggregates the pipeline (counts, distinct values, sums, percentiles, etc.) into fewer rows.\n• Filters the current rows with `where vm_count > fleet_avg*3 AND vm_count>50` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\ncompare with vROps capacity dashboard; compare with the cloud billing console for the same scope, accounts, and time range.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (VM count by owner), Table (sprawl candidates), Line chart (VM growth).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (vCenter inventory — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)). Enable the modular input or HEC token that writes sourcetype=vmware:inv:vm into virtualization. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`folder, owner, vm_count`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "Cost and capacity tools watch how much we spend on cloud and the data center, and where we have spare or strained capacity.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

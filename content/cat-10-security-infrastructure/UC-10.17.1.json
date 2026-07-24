@@ -9,11 +9,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'SonicWall Firewall Unused Access Rule Detection via Hit Counts (SonicWall)' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_sonicwall_firewall_unused_access_rule_detection_` (UC-10.17.1), SOC dashboard panel \"Security Infra — SonicWall Firewall Unused Access Rule Detection via Hit Counts (SonicWall)\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.17.1 positive (SonicWall, Firewall, Unused, Access, Rule): ingest synthetic events into `index=netfw` sourcetype='dell:sonicwall:firewall' where `daily_hits`, `total_hits` grouped by `rule`, `rule_name` satisfies `total_hits` < 5 for 'SonicWall Firewall Unused Access Rule Detection via Hit Counts (SonicWall)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.17.1 negative (Counts (SonicWall)): ingest benign `netfw` / `dell:sonicwall:firewall` events where `rule`, `rule_name` stays below `total_hits` < 5, or exclude the test entity via `soc_exception_register.csv`. Variant 13 confirms zero alert rows for 'SonicWall Firewall Unused Access Rule Detection via Hit Counts (SonicWall)'."
+  },
   "dataSources": "`sourcetype=dell:sonicwall:firewall` with `rule`, `hits` or message-derived hit counters per access rule",
   "app": "Dell SonicWall Add-on for Splunk (Splunkbase 6203)",
   "spl": "index=netfw sourcetype=\"dell:sonicwall:firewall\" earliest=-30d@d\n| where isnotnull(rule) AND match(lower(fw_action),\"(?i)allow|accept|permit\")\n| bin _time span=1d\n| stats sum(hits) as daily_hits by rule, rule_name\n| eventstats sum(daily_hits) as total_hits by rule\n| where total_hits=0 OR total_hits<5\n| dedup rule\n| table rule, rule_name, total_hits",
-  "description": "Many SonicWall policies accrue over years; zero-hit rules may be candidates for removal or indicate logging gaps. Tracking hits proves which controls are actually exercised.",
-  "value": "Reduces attack surface and simplifies audits by retiring stale rules while validating that critical rules see traffic.",
+  "description": "Detects UC-10.17.1 — SonicWall, Firewall, Unused, Access, Rule — using `index=netfw` sourcetype `dell:sonicwall:firewall`, grouped by `rule`, `rule_name`. Outputs `daily_hits`, `total_hits` each `1d`; alert when `total_hits` < 5. Primary focus: Counts (SonicWall). Purpose-built for 'SonicWall Firewall Unused Access Rule Detection via Hit Counts (SonicWall)' in Security Infra workflows.",
+  "value": "UC-10.17.1 gives Security Infra teams earlier visibility into Counts (SonicWall) through `dell:sonicwall:firewall` feeds, lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Enable enhanced firewall logging. If hit counts are not in structured fields, schedule periodic CLI/API exports into a lookup `sonicwall_rule_hits.csv` and join on rule number.",
   "visualization": "Bar chart (hits per rule), table (rule id, name, hits, last seen), scatter (rule age vs hits).",
   "cimModels": [
@@ -22,16 +28,32 @@
   "references": [
     {
       "title": "Splunkbase — Dell SonicWall Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/6203"
+      "url": "https://splunkbase.splunk.com/app/6203",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Connect for Syslog — Dell SonicWall reference",
-      "url": "https://docs.splunk.com/Documentation/SC4S/"
+      "url": "https://docs.splunk.com/Documentation/SC4S/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `netfw` (UC-10.17.1)** — Planned work for 'SonicWall Firewall Unused Access Rule Detection via Hit Counts (SonicWall)' shifts `daily_hits`, `total_hits` over `span=1d` while `rule`, `rule_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `dell:sonicwall:firewall`** — Scheduled automation elevates `rule_name` without crossing `total_hits` < 5 for UC-10.17.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `rule`, `rule_name`** — Health checks in `netfw` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dell:sonicwall:firewall`** — First 48h baseline for UC-10.17.1 on `rule` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `rule`, `exception_reason`, `valid_until`.",
   "securityDomain": "network",
   "equipment": [
     "sonicwall"
+  ],
+  "equipmentModels": [
+    "sonicwall_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -40,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "Many SonicWall policies accrue over years; zero-hit rules may be candidates for removal or indicate logging gaps — we monitor SonicWall logs so teams can act before users feel pain."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Dell SonicWall Add-on for Splunk (Splunkbase 6203)). Enable the modular input or HEC token that writes sourcetype=dell:sonicwall:firewall into netfw. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`rule, rule_name, total_hits`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "Many SonicWall policies accrue over years; zero-hit rules may be candidates for removal or indicate logging gaps — we monitor SonicWall logs so teams can act before users feel pain.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

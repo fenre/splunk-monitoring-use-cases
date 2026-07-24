@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=netskope:alert` (DLP alerts)",
+  "exclusions": "Covers the detection logic documented for 'Netskope DLP Policy Violations' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_netskope_dlp_policy_violations` (UC-17.3.33), SOC dashboard panel \"Network — Netskope DLP Policy Violations\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.33 positive (Netskope, DLP, Policy, Violations): ingest synthetic events into `index=casb` sourcetype='netskope:alert' where `count` grouped by `dlp_profile`, `dlp_rule`, `user`, `app_name` satisfies -7d for 'Netskope DLP Policy Violations'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.33 negative (Policy Violations): ingest benign `casb` / `netskope:alert` events where `dlp_profile`, `dlp_rule`, `user`, `app_name` stays below -7d, or exclude the test entity via `network_exception_register.csv`. Variant 10 confirms zero alert rows for 'Netskope DLP Policy Violations'."
+  },
+  "dataSources": "`sourcetype=netskope:alert` (DLP alerts) Indexes: casb. Sourcetypes: netskope:alert. Key fields: action, app_name, dlp_profile, dlp_rule, user. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Netskope Add-on for Splunk (Splunkbase 3808)",
   "spl": "index=casb sourcetype=\"netskope:alert\" alert_type=\"DLP\" earliest=-7d\n| stats count by dlp_profile, dlp_rule, user, app_name, action\n| sort -count",
-  "description": "Netskope inline DLP inspects uploads, downloads, and cloud-to-cloud sharing for sensitive data (PII, PCI, PHI, IP). Tracking violations by policy, user, and destination app identifies repeat offenders, miscategorized data, and policy gaps before a breach.",
-  "value": "Data protection teams track Netskope DLP violations by profile, severity, and activity type, identifying repeat offenders, sensitive data uploads that are only alerted but not blocked, and data exfiltration attempts via cloud application sharing and uploads.",
+  "description": "Identifies UC-17.3.33 — Netskope, DLP, Policy, Violations — using `index=casb` sourcetype `netskope:alert`, grouped by `dlp_profile`, `dlp_rule`, `user`, `app_name`. Outputs `count` each `the scheduled window`; alert when -7d. Primary focus: Policy Violations. Purpose-built for 'Netskope DLP Policy Violations' in Network workflows.",
+  "value": "For 'Netskope DLP Policy Violations', UC-17.3.33 converts `activity` on `netskope:alert` feeds into actionable rows and reduces unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Configure the Netskope Add-on iterator input for alerts. Map `dlp_profile` names to data classification. Alert on block actions against critical data categories. Feed repeat offender reports to HR/compliance. Correlate with file hash for forensics.",
   "visualization": "Bar chart (violations by DLP profile), Table (top users × apps), Stacked bar (actions: block/alert/allow), Line chart (violations/day trend).",
   "cimModels": [],
@@ -21,14 +27,26 @@
   "references": [
     {
       "title": "Netskope Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3808"
+      "url": "https://splunkbase.splunk.com/app/3808",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: DLP",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/DLP"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/DLP",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "DLP hits from authorized data exports, finance reports, contracts with PII content sent to vendors.",
+  "knownFalsePositives": "1. **Maintenance window on `casb` (UC-17.3.33)** — Planned work for 'Netskope DLP Policy Violations' shifts `count` over `span=1h` while `dlp_profile`, `dlp_rule`, `user`, `app_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `netskope:alert`** — Scheduled automation elevates `dlp_rule` without crossing configured threshold for UC-17.3.33. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dlp_profile`, `dlp_rule`, `user`, `app_name`** — Health checks in `casb` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netskope:alert`** — First 48h baseline for UC-17.3.33 on `dlp_profile` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `dlp_profile`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1048",
     "T1048.001"
@@ -36,7 +54,16 @@
   "equipment": [
     "netskope"
   ],
-  "detailedImplementation": "Prerequisites\n• Netskope DLP events in `index=netskope` with `sourcetype=netskope:alerts` or `sourcetype=netskope:events`. Key fields: `dlp_profile`, `dlp_rule`, `dlp_incident_id`, `dlp_file`, `dlp_is_unique_count`, `file_type`, `app`, `activity` (Upload/Download/Share/Post), `user`, `severity` (Low/Medium/High/Critical), `action` (alert/block/quarantine/encrypt).\n• Netskope DLP inspects data inline (real-time API, reverse proxy, forward proxy) for sensitive content: PII, PCI, PHI, intellectual property, source code, credentials. It uses exact data match (EDM), fingerprinting, ML classifiers, and regex.\n\nStep 1 — Configure data collection\nVerify DLP events:\n```spl\nindex=netskope sourcetype=\"netskope:alerts\" earliest=-7d\n| where isnotnull(dlp_profile)\n| stats count by dlp_profile, severity, action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — DLP violation dashboard:\n```spl\nindex=netskope sourcetype=\"netskope:alerts\" earliest=-7d\n| where isnotnull(dlp_profile)\n| stats count dc(user) as users dc(app) as apps by dlp_profile, dlp_rule, severity, action, activity\n| sort severity, - count\n```\n\nUnderstanding this SPL: Shows which DLP profiles and rules are triggering, at what severity, and what action was taken. 'Upload' + 'Block' on PCI data = working as designed. 'Upload' + 'Alert' on PII = logged but not prevented — should be reviewed for upgrade to block. 'Share' activity on sensitive data means a user shared a file with sensitive content via a cloud app.\n\nRepeat offenders:\n```spl\nindex=netskope sourcetype=\"netskope:alerts\" earliest=-30d\n| where isnotnull(dlp_profile) AND severity IN (\"High\",\"Critical\")\n| stats count dc(app) as apps dc(dlp_rule) as rules by user\n| where count > 5\n| sort - count\n```\n\nStep 3 — Validate\n(a) Upload a test file with dummy PCI data to a monitored cloud app. Verify DLP detection.\n(b) In Netskope: Incidents > DLP. Compare with Splunk.\n\nStep 4 — Operationalize\nDashboard: Row 1 — DLP violations by severity. Row 2 — Violations by activity type. Row 3 — Repeat offenders.\nAlert: Immediate on Critical DLP violation (block action).\n\nRunbook:\n1. **Critical block** — Data exfiltration prevented. Investigate intent.\n2. **Repeat offender** — User awareness training or access restriction.\n3. **Alert-only on sensitive data** — Review DLP policy to upgrade to block.\n\nStep 5 — Troubleshooting\n• **No DLP alerts** — DLP profiles may not be applied to the relevant policy. Check Netskope Real-time Protection.\n• **`dlp_file` empty** — File name may not be available for all activities (e.g., form submissions).",
+  "equipmentModels": [
+    "netskope_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Netskope DLP events in `index=netskope` with `sourcetype=netskope:alerts` or `sourcetype=netskope:events`. Key fields: `dlp_profile`, `dlp_rule`, `dlp_incident_id`, `dlp_file`, `dlp_is_unique_count`, `file_type`, `app`, `activity` (Upload/Download/Share/Post), `user`, `severity` (Low/Medium/High/Critical), `action` (alert/block/quarantine/encrypt).\n• Netskope DLP inspects data inline (real-time API, reverse proxy, forward proxy) for sensitive content: PII, PCI, PHI, intellectual property, source code, credentials. It uses exact data match (EDM), fingerprinting, ML classifiers, and regex.\n\nStep 1 — Configure data collection\nVerify DLP events:\n```spl\nindex=netskope sourcetype=\"netskope:alerts\" earliest=-7d\n| where isnotnull(dlp_profile)\n| stats count by dlp_profile, severity, action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — DLP violation dashboard:\n```spl\nindex=netskope sourcetype=\"netskope:alerts\" earliest=-7d\n| where isnotnull(dlp_profile)\n| stats count dc(user) as users dc(app) as apps by dlp_profile, dlp_rule, severity, action, activity\n| sort severity, - count\n```\n\nUnderstanding this SPL: Shows which DLP profiles and rules are triggering, at what severity, and what action was taken. 'Upload' + 'Block' on PCI data = working as designed. 'Upload' + 'Alert' on PII = logged but not prevented — should be reviewed for upgrade to block. 'Share' activity on sensitive data means a user shared a file with sensitive content via a cloud app.\n\nRepeat offenders:\n```spl\nindex=netskope sourcetype=\"netskope:alerts\" earliest=-30d\n| where isnotnull(dlp_profile) AND severity IN (\"High\",\"Critical\")\n| stats count dc(app) as apps dc(dlp_rule) as rules by user\n| where count > 5\n| sort - count\n```\n\nStep 3 — Validate\n(a) Upload a test file with dummy PCI data to a monitored cloud app. Verify DLP detection.\n(b) In Netskope: Incidents > DLP. Compare with Splunk.\n\nStep 4 — Operationalize\nDashboard: Row 1 — DLP violations by severity. Row 2 — Violations by activity type. Row 3 — Repeat offenders.\nAlert: Immediate on Critical DLP violation (block action).\n\nRunbook:\n1. **Critical block** — Data exfiltration prevented. Investigate intent.\n2. **Repeat offender** — User awareness training or access restriction.\n3. **Alert-only on sensitive data** — Review DLP policy to upgrade to block.\n\nStep 5 — Troubleshooting\n• **No DLP alerts** — DLP profiles may not be applied to the relevant policy. Check Netskope Real-time Protection.\n• **`dlp_file` empty** — File name may not be available for all activities (e.g., form submissions).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Netskope Add-on for Splunk (Splunkbase 3808)). Enable the modular input or HEC token that writes sourcetype=netskope:alert into casb. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`action, app_name, dlp_profile, dlp_rule`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Our cloud security system scans everything people upload for sensitive information like credit card numbers, social security numbers, and company secrets. We track every violation and pay special attention to people who repeatedly try to move sensitive data to unauthorized places.",
-  "hardware": "Netskope Security Cloud, Netskope Client"
+  "hardware": "Netskope Security Cloud, Netskope Client",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,24 +8,42 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Network Device NTP Peer Reachability and Stratum Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_network_device_ntp_peer_reachability_and_stratum` (UC-5.21.1), SOC dashboard panel \"Operations — Network Device NTP Peer Reachability and Stratum Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.21.1 positive (Network, Device, NTP, Peer, Reachability): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `values` grouped by `host` satisfies `events` > 3 for 'Network Device NTP Peer Reachability and Stratum Tracking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.21.1 negative (Stratum Tracking): ingest benign `network` / `cisco:ios` events where `host` stays below `events` > 3, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Network Device NTP Peer Reachability and Stratum Tracking'."
+  },
   "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=juniper:junos:structured` — NTP syslog events including `%NTP-4-PEER_NOT_REACHABLE`, `%NTP-6-PEER_REACHABLE`, `%NTP-4-CLOCK_NOT_SYNC`, Juniper `ntpd` events. Also SNMP polling of NTP MIB (ntpAssocPeerAddr, ntpAssocStratum, ntpAssocStatReach) via SC4SNMP. Network devices are often stratum-2/3 servers for the entire enterprise — if they lose NTP sync, every downstream system's clock drifts.",
   "app": "Cisco Networks Add-on for Splunk (`TA-cisco_ios`, Splunkbase 1352), Splunk Add-on for Juniper (`Splunk_TA_juniper`, Splunkbase 2847)",
   "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\" OR sourcetype=\"juniper:junos:structured\") earliest=-24h\n  (\"NTP\" AND (\"reachable\" OR \"not reachable\" OR \"sync\" OR \"unsync\" OR \"stratum\" OR \"peer\"))\n| eval ntp_event=case(\n    match(_raw, \"(?i)not.?reachable|unreachable|peer.*lost\"), \"PEER_UNREACHABLE\",\n    match(_raw, \"(?i)clock.*not.*sync|unsynchronized|no.*valid\"), \"CLOCK_UNSYNC\",\n    match(_raw, \"(?i)reachable|peer.*up\"), \"PEER_REACHABLE\",\n    match(_raw, \"(?i)stratum.*change|stratum\"), \"STRATUM_CHANGE\",\n    1=1, \"NTP_EVENT\")\n| rex field=_raw \"(?:peer|server)\\s*(?<ntp_peer>[\\d\\.]+|[0-9a-fA-F:]+)\"\n| rex field=_raw \"stratum\\s*(?<stratum>\\d+)\"\n| stats count as events latest(ntp_event) as last_event values(ntp_peer) as peers values(stratum) as stratum by host\n| eval severity=case(\n    last_event=\"CLOCK_UNSYNC\", \"CRITICAL — \" . host . \" clock unsynchronized\",\n    last_event=\"PEER_UNREACHABLE\" AND events > 3, \"HIGH — NTP peer unreachable on \" . host,\n    last_event=\"STRATUM_CHANGE\", \"MEDIUM — stratum changed on \" . host,\n    1=1, null())\n| where isnotnull(severity)\n| sort -events",
-  "description": "Monitors NTP peer reachability and stratum on network devices. Network routers and switches typically serve as stratum-2 or stratum-3 NTP servers for downstream infrastructure. If these devices lose NTP synchronization, clock drift propagates to every system that references them, breaking log correlation, certificate validation, DNSSEC, Kerberos authentication, and forensic timelines.",
-  "value": "Accurate time synchronization is foundational for security (Kerberos has a 5-minute tolerance, DNSSEC signatures have validity windows, log correlation requires sub-second accuracy). When a core router loses NTP sync, hundreds of downstream devices inherit the drift. This UC catches NTP failures at the network device level — the root of the time hierarchy — before the impact cascades to applications and security systems.",
+  "description": "Detects UC-5.21.1 for Network, Device, NTP, Peer, Reachability over `index=network` sourcetype `cisco:ios` with thresholds `events` > 3. Groups `values` by `host` each `the scheduled window`. Centered on Stratum Tracking indicators. Supports repeatable operations triage for 'Network Device NTP Peer Reachability and Stratum Tracking'.",
+  "value": "For 'Network Device NTP Peer Reachability and Stratum Tracking', UC-5.21.1 converts `activity` on `cisco:ios` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Monitor NTP syslog events from network devices. Track peer reachability, synchronization status, and stratum changes. Alert on clock unsynchronized or peer unreachable events.",
   "visualization": "(1) Single-value: unsynchronized devices. (2) Table: NTP peer status per device. (3) Timechart: NTP events. (4) Gauge: fleet NTP health %.",
   "references": [
     {
       "title": "Cisco — NTP Configuration Guide",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 5905 — Network Time Protocol Version 4",
-      "url": "https://www.rfc-editor.org/rfc/rfc5905"
+      "url": "https://www.rfc-editor.org/rfc/rfc5905",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Brief NTP peer flaps.** NTP peers may briefly show unreachable during network convergence events. Require sustained unreachability (>15 minutes) before alerting.\n\n**Stratum changes during planned maintenance.** When primary NTP servers are taken offline for maintenance, devices naturally fall back to secondary peers at higher stratum. Correlate with maintenance windows.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.21.1)** — Planned work for 'Network Device NTP Peer Reachability and Stratum Tracking' shifts `values` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `cisco:ios`** — Scheduled automation elevates `ntp_event` without crossing `events` > 3 for UC-5.21.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.21.1 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "juniper",

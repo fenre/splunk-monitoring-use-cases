@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Cisco ASA syslog",
-  "app": "Splunk Security Essentials, Splunk Add-on for Cisco ASA",
+  "exclusions": "Covers the detection logic documented for 'Cisco ASA Reconnaissance Command Activity' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_cisco_asa_reconnaissance_command_activity` (UC-10.1.6), SOC dashboard panel \"Security Infra — Cisco ASA Reconnaissance Command Activity\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.1.6 positive (Cisco, ASA, Reconnaissance, Command, Activity): ingest synthetic events into `index=network` sourcetype='cisco:asa' where `count` grouped by `src_user`, `command`, `src`, `_time` satisfies detection threshold for 'Cisco ASA Reconnaissance Command Activity'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.1.6 negative (Command Activity): ingest benign `network` / `cisco:asa` events where `src_user`, `command`, `src`, `_time` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv`. Variant 2 confirms zero alert rows for 'Cisco ASA Reconnaissance Command Activity'."
+  },
+  "dataSources": "Cisco ASA syslog Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Security Essentials, Splunk Add-on for Cisco ASA — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network sourcetype=cisco:asa (command=\"show run\" OR command=\"write net\" OR command=\"dir\" OR command=\"more system:running-config\")\n| stats count by src_user, command, src, _time",
-  "description": "Detects reconnaissance and discovery commands on Cisco ASA devices that may indicate an attacker or insider mapping the network or preparing for further exploitation.",
-  "value": "Detects reconnaissance and discovery commands on Cisco ASA devices that may indicate an attacker or insider mapping the network or preparing for further exploitation.",
+  "description": "Identifies UC-10.1.6 for Cisco, ASA, Reconnaissance, Command, Activity over `index=network` sourcetype `cisco:asa` with thresholds configured threshold. Groups `count` by `src_user`, `command`, `src`, `_time` each `the scheduled window`. Centered on Command Activity indicators. Supports repeatable security infra triage for 'Cisco ASA Reconnaissance Command Activity'.",
+  "value": "For 'Cisco ASA Reconnaissance Command Activity', UC-10.1.6 converts `activity` on `cisco:asa` feeds into actionable rows and reduces missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Forward Cisco ASA syslog to Splunk and deploy the ESCU detection from security_content. Correlate with admin session and change management.",
   "visualization": "Table (user, command, source IP), Timeline.",
   "cimModels": [
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263"
+      "url": "https://splunkbase.splunk.com/app/263",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Legitimate admin discovery or change procedures; verify with change management.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-10.1.6)** — Planned work for 'Cisco ASA Reconnaissance Command Activity' shifts `count` over `span=1h` while `src_user`, `command`, `src`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:asa`** — Scheduled automation elevates `command` without crossing configured threshold for UC-10.1.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src_user`, `command`, `src`, `_time`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:asa`** — First 48h baseline for UC-10.1.6 on `src_user` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `src_user`, `exception_reason`, `valid_until`.",
   "detectionType": "TTP",
   "securityDomain": "network",
   "equipment": [
@@ -35,9 +57,15 @@
   "equipmentModels": [
     "cisco_asa"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "Enterprise Security Detection Rule\n\n\"Cisco ASA Reconnaissance Command Activity\" is a TTP (Tactics, Techniques, and Procedures) detection that identifies known adversary behaviors with high fidelity, sourced from the Splunk Enterprise Security Content Update (ESCU). When triggered, it creates a Notable Event in the Incident Review dashboard for analyst triage.\n\nPrerequisites\n\n• Splunk Enterprise Security 7.x or later with the ES Content Update (ESCU) app installed and up to date.\n• Data sources: Cisco ASA syslog. Must be ingested into Splunk and normalized to the Common Information Model (CIM) via the appropriate Technology Add-on.\n• Security domain (network): Ensure network traffic, DNS, and proxy logs are flowing and the Network Traffic and Network Resolution data models are populated.\n\nDeployment\n\n1. In Enterprise Security, navigate to Configure → Content → Content Management.\n2. Search for \"Cisco ASA Reconnaissance Command Activity\" or filter by Analytic Story.\n3. Review the detection configuration — verify the scheduling interval and throttling settings match your operational tempo.\n4. Enable the detection as a Correlation Search. It will create Notable Events directly when triggered.\n5. Set the Notable Event severity and urgency appropriate to your environment’s risk posture.\n6. Configure Adaptive Response Actions: email notifications, ServiceNow ticket creation, SOAR playbook triggers, or other response workflows.\n\nTuning and False Positive Management\n\nKnown false positives for this detection: Legitimate admin discovery or change procedures; verify with change management.\n\n• Review the detection’s filter criteria and adjust for known-good activity in your environment.\n• Configure throttling in Content Management to prevent duplicate Notable Events for the same entity within a configurable window (typically 1–24 hours depending on detection frequency).\n• Use Notable Event Suppression for entities or patterns that are consistently benign after investigation.\n\nAnalyst Response Workflow\n\nWhen this detection generates a Notable Event:\n\n1. Open the Notable Event in Incident Review. Review the triggering event details, affected entities, and assigned severity.\n2. Investigate the involved entities using the Asset Investigator and Identity Investigator dashboards for historical context and behavioral patterns.\n3. Correlate with related Notable Events and threat intelligence to assess whether this is an isolated event or part of a broader campaign.\n4. Take appropriate response actions: contain, remediate, and recover. Leverage SOAR playbooks where available for consistent and rapid response.\n5. Update the Notable Event status and document investigation findings for post-incident review and compliance.\n\nValidation\n\nCompare with Cisco ASDM, the firewall CLI, or syslog capture for the same window; then confirm field extractions and index permissions in Splunk.\n",
-  "grandmaExplanation": "We catch reconnaissance and discovery commands on Cisco ASA devices that may indicate an attacker or insider mapping the network or preparing for further exploitation — so we know when protection is off, out of date, or bypassed."
+  "detailedImplementation": "Enterprise Security Detection Rule\n\n\"Cisco ASA Reconnaissance Command Activity\" is a TTP (Tactics, Techniques, and Procedures) detection that identifies known adversary behaviors with high fidelity, sourced from the Splunk Enterprise Security Content Update (ESCU). When triggered, it creates a Notable Event in the Incident Review dashboard for analyst triage.\n\nPrerequisites\n\n• Splunk Enterprise Security 7.x or later with the ES Content Update (ESCU) app installed and up to date.\n• Data sources: Cisco ASA syslog. Must be ingested into Splunk and normalized to the Common Information Model (CIM) via the appropriate Technology Add-on.\n• Security domain (network): Ensure network traffic, DNS, and proxy logs are flowing and the Network Traffic and Network Resolution data models are populated.\n\nDeployment\n\n1. In Enterprise Security, navigate to Configure → Content → Content Management.\n2. Search for \"Cisco ASA Reconnaissance Command Activity\" or filter by Analytic Story.\n3. Review the detection configuration — verify the scheduling interval and throttling settings match your operational tempo.\n4. Enable the detection as a Correlation Search. It will create Notable Events directly when triggered.\n5. Set the Notable Event severity and urgency appropriate to your environment’s risk posture.\n6. Configure Adaptive Response Actions: email notifications, ServiceNow ticket creation, SOAR playbook triggers, or other response workflows.\n\nTuning and False Positive Management\n\nKnown false positives for this detection: Legitimate admin discovery or change procedures; verify with change management.\n\n• Review the detection’s filter criteria and adjust for known-good activity in your environment.\n• Configure throttling in Content Management to prevent duplicate Notable Events for the same entity within a configurable window (typically 1–24 hours depending on detection frequency).\n• Use Notable Event Suppression for entities or patterns that are consistently benign after investigation.\n\nAnalyst Response Workflow\n\nWhen this detection generates a Notable Event:\n\n1. Open the Notable Event in Incident Review. Review the triggering event details, affected entities, and assigned severity.\n2. Investigate the involved entities using the Asset Investigator and Identity Investigator dashboards for historical context and behavioral patterns.\n3. Correlate with related Notable Events and threat intelligence to assess whether this is an isolated event or part of a broader campaign.\n4. Take appropriate response actions: contain, remediate, and recover. Leverage SOAR playbooks where available for consistent and rapid response.\n5. Update the Notable Event status and document investigation findings for post-incident review and compliance.\n\nValidation\n\nCompare with Cisco ASDM, the firewall CLI, or syslog capture for the same window; then confirm field extractions and index permissions in Splunk.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Security Essentials, Splunk Add-on for Cisco ASA — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:asa into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, command, src, src_user`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We catch reconnaissance and discovery commands on Cisco ASA devices that may indicate an attacker or insider mapping the network or preparing for further exploitation — so we know when protection is off, out of date, or bypassed.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,11 +9,17 @@
     "Governance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=ovirt` `sourcetype=\"ovirt:audit\"` — `user`, `action` (add_permission|remove), `principal`, `role`, `object`",
-  "app": "Engine `audit_log` stream",
+  "exclusions": "Covers the detection logic documented for 'oVirt User Permission and Role Assignment Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_ovirt_user_permission_and_role_assignment_audit` (UC-2.8.14), SOC dashboard panel \"Linux — oVirt User Permission and Role Assignment Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.8.14 positive (oVirt, User, Permission, and, Role): ingest synthetic events into `index=ovirt` sourcetype='ovirt:audit' where `count` grouped by `entity` satisfies -30d for 'oVirt User Permission and Role Assignment Audit'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.8.14 negative (Assignment Audit): ingest benign `ovirt` / `ovirt:audit` events where `entity` stays below -30d, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 5 confirms zero alert rows for 'oVirt User Permission and Role Assignment Audit'."
+  },
+  "dataSources": "`index=ovirt` `sourcetype=\"ovirt:audit\"` — `user`, `action` (add_permission|remove), `principal`, `role`, `object` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Engine `audit_log` stream — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ovirt sourcetype=\"ovirt:audit\" earliest=-30d\n| eval act=lower(action)\n| where match(act, \"(?i)permission|role|admin|add.*user|acl\")\n| table _time, user, principal, role, object, act",
-  "description": "Privilege escalations in virtualization are high impact. A searchable history of role grants supports access reviews and insider-threat programs.",
-  "value": "Strengthens least-privilege posture for the virtualization control plane.",
+  "description": "Identifies 'oVirt User Permission and Role Assignment Audit' patterns (UC-2.8.14) sourced from `index=ovirt` sourcetype `ovirt:audit`. Threshold bundle: -30d; aggregation grain: `entity`; metrics: `count`. Watch terms: oVirt, User, Permission, and, Role.",
+  "value": "UC-2.8.14 gives Linux teams earlier visibility into Assignment Audit through `ovirt:audit` feeds, lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Forward immutable audit logs. Join `principal` to HR identity. Alert on new SuperUser assignments.",
   "visualization": "Table sorted by time; pivot by role; MLTK rare action optional.",
   "cimModels": [
@@ -22,12 +28,31 @@
   "references": [
     {
       "title": "oVirt Users and Roles",
-      "url": "https://www.ovirt.org/documentation/administration_guide/#chap-Users_and_Roles"
+      "url": "https://www.ovirt.org/documentation/administration_guide/#chap-Users_and_Roles",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "AOS storage metrics can look worse during background heal, curator, or disk removal work; match alerts to Nutanix task progress and maintenance windows.",
+  "knownFalsePositives": "1. **Patch Tuesday on `ovirt`** — Package managers spike `host` metrics for 'oVirt User Permission and Role Assignment Audit'. Correlate with apt/yum logs in the same `ovirt:audit` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `ovirt:audit`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "ovirt"
+  ],
+  "equipmentModels": [
+    "ovirt_generic"
   ],
   "status": "verified",
   "lastReviewed": "2025-06-01",
@@ -36,5 +61,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We keep an eye on the control panel that runs your virtual datacenter—who changed what, whether storage and hosts are healthy, and when something is about to strand running machines."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Engine `audit_log` stream — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ovirt:audit into ovirt. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user, action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We keep an eye on the control panel that runs your virtual datacenter—who changed what, whether storage and hosts are healthy, and when something is about to strand running machines.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

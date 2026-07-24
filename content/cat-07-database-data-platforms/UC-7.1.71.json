@@ -9,11 +9,17 @@
     "Resilience"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "JMX `org.apache.cassandra.metrics:type=HintsService` or `nodetool hints` output ingested as `cassandra:system` metrics events",
-  "app": "Splunk Add-on for JMX polling hints metrics, or scripted `nodetool hints list` / `nodetool gethints` counters",
+  "exclusions": "Covers the detection logic documented for 'Cassandra Hinted Handoff Queue Growth' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_cassandra_hinted_handoff_queue_growth` (UC-7.1.71), SOC dashboard panel \"Operations — Cassandra Hinted Handoff Queue Growth\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.1.71 positive (Cassandra, Hinted, Handoff, Queue, Growth): ingest synthetic events into `index=database` sourcetype='cassandra:system' where `hints` grouped by `host` satisfies `hints_pending` > 10000, or `hints_delta` > 5000 for 'Cassandra Hinted Handoff Queue Growth'. Validate filter `\"HintsService\" OR \"hints in progress\" OR \"HintsDescriptor\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.71 negative (Queue Growth): ingest benign `database` / `cassandra:system` events where `host` stays below `hints_pending` > 10000, or `hints_delta` > 5000, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Cassandra Hinted Handoff Queue Growth'."
+  },
+  "dataSources": "JMX `org.apache.cassandra.metrics:type=HintsService` or `nodetool hints` output ingested as `cassandra:system` metrics events Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for JMX polling hints metrics, or scripted `nodetool hints list` / `nodetool gethints` counters — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"cassandra:system\"\n| search \"HintsService\" OR \"hints in progress\" OR \"HintsDescriptor\"\n| eval hints_pending=coalesce(tonumber(total_hints), tonumber(hints_in_progress))\n| where hints_pending > 10000\n| timechart span=15m max(hints_pending) as hints by host\n| streamstats window=3 global=f last(hints) as _prev_hints_delta\n| eval hints_delta = hints - _prev_hints_delta| where hints_delta > 5000",
-  "description": "Growing hinted handoff backlogs mean writes could not be delivered while peers were down; if hints cannot drain, you risk data loss after TTL on hints expires. Trending queue growth highlights nodes that cannot catch up after outages.",
-  "value": "Supports RPO/RTO commitments after partial failures by forcing repair and capacity actions before hints expire.",
+  "description": "Identifies UC-7.1.71 — Cassandra, Hinted, Handoff, Queue, Growth — using `index=database` sourcetype `cassandra:system`, grouped by `host`. Outputs `hints` each `15m`; alert when `hints_pending` > 10000, or `hints_delta` > 5000. Filter chain includes filter `\"HintsService\" OR \"hints in progress\" OR \"HintsDescriptor\"`. Purpose-built for 'Cassandra Hinted Handoff Queue Growth' in Operations workflows.",
+  "value": "Alerting on Cassandra, Hinted, Handoff, Queue, Growth through UC-7.1.71 reduces operational risk and delayed incident response by surfacing `hints` early.",
   "implementation": "Prefer JMX `TotalHintsInProgress` or `HintsService` MBean counters every 60s via `jmx.conf`. If log-only, parse periodic diagnostic jobs that emit numeric hints. Baseline per cluster; alert on sustained upward slope for 45+ minutes. Pair with `cassandra:nodetool_status` DOWN nodes.",
   "visualization": "Area chart (hints by host), Single value (cluster total hints).",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Apache Cassandra — Hinted handoff",
-      "url": "https://cassandra.apache.org/doc/latest/cassandra/architecture/storage-engine.html#hints"
+      "url": "https://cassandra.apache.org/doc/latest/cassandra/architecture/storage-engine.html#hints",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Repairs, bootstraps, and heavy write bursts increase compaction and hinted-handoff backlog as part of normal Cassandra self-healing — alert on stuck or growing queues outside known batch jobs.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.1.71)** — Planned work for 'Cassandra Hinted Handoff Queue Growth' shifts `hints` over `span=15m` while `host` remains in-scope. Applies filter `\"HintsService\" OR \"hints in progress\" OR \"HintsDescriptor\"`. Cross-check CMDB CHG.\n\n2. **Batch `max` on `cassandra:system`** — Scheduled automation elevates `hints_pending` without crossing `hints_pending` > 10000 for UC-7.1.71. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cassandra:system`** — First 48h baseline for UC-7.1.71 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "cassandra"
@@ -40,5 +62,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch Cassandra Hinted Handoff Queue Growth so we can keep this part of the data platform within the capacity and quality targets our teams expect."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for JMX polling hints metrics, or scripted `nodetool hints list` / `nodetool gethints` counters — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=cassandra:system into database. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`hints_delta, hints_pending, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch Cassandra Hinted Handoff Queue Growth so we can keep this part of the data platform within the capacity and quality targets our teams expect.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

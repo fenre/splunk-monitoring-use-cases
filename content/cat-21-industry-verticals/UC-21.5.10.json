@@ -9,17 +9,17 @@
   ],
   "splunkPillar": "Observability",
   "industry": "Oil, Gas, and Mining",
-  "exclusions": "Exclude planned maintenance windows, DR exercises, vendor pack updates, and seasonal demand patterns via asset/schedule lookup.",
-  "evidence": "Saved search `21_5_10_evidence` archived to restricted audit index.",
+  "exclusions": "Covers the detection logic documented for 'Tank Farm Level Monitoring and Overflow Prevention' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `ops_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_tank_farm_level_monitoring_and_overflow_preventi` (UC-21.5.10), SOC dashboard panel \"Operations — Tank Farm Level Monitoring and Overflow Prevention\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Replay sample `tankfarm:level` events into `index=ot`. Confirm UC-21.5.10 search returns >=1 row.",
-    "negativeScenario": "Replay benign `tankfarm:level` traffic without alert markers. Confirm the search returns zero rows."
+    "positiveScenario": "UC-21.5.10 positive (Tank, Farm, Level, Monitoring, and): ingest synthetic events into `index=ot` sourcetype='tankfarm:level' where `count` grouped by `tank_id` satisfies `level_pct` > 85, or `fill_rate_m3_h` > 0 for 'Tank Farm Level Monitoring and Overflow Prevention'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-21.5.10 negative (Overflow Prevention): ingest benign `ot` / `tankfarm:level` events where `tank_id` stays below `level_pct` > 85, or `fill_rate_m3_h` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Tank Farm Level Monitoring and Overflow Prevention'."
   },
-  "dataSources": "`index=ot` `sourcetype=\"tankfarm:level\"` fields `tank_id`, `level_pct`, `high_alarm_pct`, `fill_rate_m3_h`",
-  "app": "Tank gauging / DCS via HEC",
-  "spl": "index=ot sourcetype=\"tankfarm:level\"\n| stats count as event_count dc(host) as distinct_assets by host\n| where event_count > 0\n| table _time host source severity message",
-  "description": "Tank overfills cause environmental incidents and safety hazards. Monitoring levels and fill rates enables proactive response and inventory reconciliation.",
-  "value": "Service and risk leaders use signals from Tank Farm Level Monitoring and Overflow Prevention to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
+  "dataSources": "`index=ot` `sourcetype=\"tankfarm:level\"` fields `tank_id`, `level_pct`, `high_alarm_pct`, `fill_rate_m3_h` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Tank gauging / DCS via HEC — Universal Forwarder (Splunkbase 617)",
+  "spl": "index=ot sourcetype=\"tankfarm:level\"\n| eval risk=if(level_pct >= high_alarm_pct OR (level_pct > 85 AND fill_rate_m3_h > 0), 1, 0)\n| where risk=1\n| stats latest(level_pct) as current_level, latest(fill_rate_m3_h) as fill_rate by tank_id\n| sort - current_level\n| table tank_id, current_level, fill_rate",
+  "description": "Monitors 'Tank Farm Level Monitoring and Overflow Prevention' (UC-21.5.10) using `index=ot` sourcetype `tankfarm:level` by aggregating `count` grouped by `tank_id` over `the scheduled window` and alerting when `level_pct` > 85, or `fill_rate_m3_h` > 0. Keywords: Tank, Farm, Level, Monitoring, and. Focuses on Overflow Prevention behaviour so operations teams can triage UC-21.5.10 without ad-hoc log review.",
+  "value": "Operations and risk leaders in Oil, Gas, and Mining use signals from Tank Farm Level Monitoring and Overflow Prevention to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Keep primary alarms in BPCS/SIS. Splunk provides visibility and trending. Add roof and temperature for floating-roof tanks if available. **Domain context:** API 2350 / EEMUA 159 inform tank overfill prevention; high-high alarms and independent layers remain on the SIS—Splunk is supplementary visibility. **Splunk:** `eval risk` thresholds should match alarm setpoints from the tank table, not arbitrary constants, for consistency.",
   "visualization": "Tank-style gauge, Time chart (level), Trend (fill rate).",
   "cimModels": [
@@ -29,28 +29,41 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
     },
     {
-      "title": "Splunk Lantern — Industry use cases",
-      "url": "https://lantern.splunk.com/"
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Level noise from temperature stratification, agitation after transfer, or radar calibration the tank farm supervisor validated against the manual gauge.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-21.5.10)** — Planned work for 'Tank Farm Level Monitoring and Overflow Prevention' shifts `count` over `span=1h` while `tank_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `tankfarm:level`** — Scheduled automation elevates `risk` without crossing `level_pct` > 85 for UC-21.5.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `tank_id`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `tankfarm:level`** — First 48h baseline for UC-21.5.10 on `tank_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `tank_id`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1078"
   ],
   "equipment": [
-    "industry"
+    "splunk"
   ],
   "equipmentModels": [
-    "industry_level"
+    "splunk_platform"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Tank gauging / DCS via HEC.\n• Ensure the following data sources are available: `index=ot` `sourcetype=\"tankfarm:level\"` fields `tank_id`, `level_pct`, `high_alarm_pct`, `fill_rate_m3_h`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nKeep primary alarms in BPCS/SIS. Splunk provides visibility and trending. Add roof and temperature for floating-roof tanks if available. **Domain context:** API 2350 / EEMUA 159 inform tank overfill prevention; high-high alarms and independent layers remain on the SIS—Splunk is supplementary visibility. **Splunk:** `eval risk` thresholds should match alarm setpoints from the tank table, not arbitrary constants, for consistency.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"tankfarm:level\"\n| eval risk=if(level_pct >= high_alarm_pct OR (level_pct > 85 AND fill_rate_m3_h > 0), 1, 0)\n| where risk=1\n| stats latest(level_pct) as current_level, latest(fill_rate_m3_h) as fill_rate by tank_id\n| sort - current_level\n| table tank_id, current_level, fill_rate\n```\n\nUnderstanding this SPL\n\n**Tank Farm Level Monitoring and Overflow Prevention** — Tank overfills cause environmental incidents and safety hazards. Monitoring levels and fill rates enables proactive response and inventory reconciliation.\n\nDocumented **Data sources**: `index=ot` `sourcetype=\"tankfarm:level\"` fields `tank_id`, `level_pct`, `high_alarm_pct`, `fill_rate_m3_h`. **App/TA** (typical add-on context): Tank gauging / DCS via HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: tankfarm:level. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"tankfarm:level\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **risk** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where risk=1` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by tank_id** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Tank Farm Level Monitoring and Overflow Prevention**): table tank_id, current_level, fill_rate\n\n\nStep 3 — Validate\nCompare trendlines with the PI or site historian and field operations tickets for the same asset and window. Align maintenance and flaring events with what site leadership logged.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Tank-style gauge, Time chart (level), Trend (fill rate).",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Tank gauging / DCS via HEC.\n• Ensure the following data sources are available: `index=ot` `sourcetype=\"tankfarm:level\"` fields `tank_id`, `level_pct`, `high_alarm_pct`, `fill_rate_m3_h`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nKeep primary alarms in BPCS/SIS. Splunk provides visibility and trending. Add roof and temperature for floating-roof tanks if available. **Domain context:** API 2350 / EEMUA 159 inform tank overfill prevention; high-high alarms and independent layers remain on the SIS—Splunk is supplementary visibility. **Splunk:** `eval risk` thresholds should match alarm setpoints from the tank table, not arbitrary constants, for consistency.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=ot sourcetype=\"tankfarm:level\"\n| eval risk=if(level_pct >= high_alarm_pct OR (level_pct > 85 AND fill_rate_m3_h > 0), 1, 0)\n| where risk=1\n| stats latest(level_pct) as current_level, latest(fill_rate_m3_h) as fill_rate by tank_id\n| sort - current_level\n| table tank_id, current_level, fill_rate\n```\n\nUnderstanding this SPL\n\n**Tank Farm Level Monitoring and Overflow Prevention** — Tank overfills cause environmental incidents and safety hazards. Monitoring levels and fill rates enables proactive response and inventory reconciliation.\n\nDocumented **Data sources**: `index=ot` `sourcetype=\"tankfarm:level\"` fields `tank_id`, `level_pct`, `high_alarm_pct`, `fill_rate_m3_h`. **App/TA** (typical add-on context): Tank gauging / DCS via HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: ot; **sourcetype**: tankfarm:level. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=ot, sourcetype=\"tankfarm:level\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **risk** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where risk=1` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by tank_id** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Tank Farm Level Monitoring and Overflow Prevention**): table tank_id, current_level, fill_rate\n\n\nStep 3 — Validate\nCompare trendlines with the PI or site historian and field operations tickets for the same asset and window. Align maintenance and flaring events with what site leadership logged.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Tank-style gauge, Time chart (level), Trend (fill rate).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Tank gauging / DCS via HEC — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=tankfarm:level into ot. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`fill_rate_m3_h, level_pct, risk, tank_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We watch tank levels against safe bands. We help you catch overfill or empty risks before a loss of containment.",
-  "wave": "walk"
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

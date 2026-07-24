@@ -9,6 +9,8 @@
     "Performance"
   ],
   "splunkPillar": "IT Operations",
+  "exclusions": "Covers the detection logic documented for 'ISE Multi-Site Topology — Cross-Site Replication Lag and WAN Loss Impact' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_ise_multi_site_topology_cross_site_replication_l` (UC-17.1.61), SOC dashboard panel \"Network — ISE Multi-Site Topology — Cross-Site Replication Lag and WAN Loss Impact\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "dora",
@@ -49,14 +51,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Drop WAN to a lab remote site. ISE replication lag spikes; UC-17.1.61 fires showing the region with WAN flaps + lag.",
-    "negativeScenario": "WAN restored. Both metrics return to baseline."
+    "positiveScenario": "UC-17.1.61 positive (ISE, Multi, Site, Topology, Cross): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `max_lag_s` grouped by `region` satisfies `max_lag_s` > 600, or `wan_flaps` > 2 for 'ISE Multi-Site Topology — Cross-Site Replication Lag and WAN Loss Impact'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.61 negative (Loss Impact): ingest benign `nac` / `cisco:ise:syslog` events where `region` stays below `max_lag_s` > 600, or `wan_flaps` > 2, or exclude the test entity via `network_exception_register.csv`. Variant 4 confirms zero alert rows for 'ISE Multi-Site Topology — Cross-Site Replication Lag and WAN Loss Impact'."
   },
-  "dataSources": "Combines UC-17.1.28's replication-lag feed with WAN-link metrics from `index=network sourcetype=cisco:ios:netflow` or BGP-session events. Per-site / per-region groupings are driven by `ise_deployment.csv` (`node`, `site`, `region`, `wan_circuit`).",
-  "app": "`Splunk Add-on for Cisco Identity Services` + Cisco network TA + IPSLA / NetFlow.",
+  "dataSources": "Combines UC-17.1.28's replication-lag feed with WAN-link metrics from `index=network sourcetype=cisco:ios:netflow` or BGP-session events. Per-site / per-region groupings are driven by `ise_deployment.csv` (`node`, `site`, `region`, `wan_circuit`). Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk Add-on for Cisco Identity Services` + Cisco network TA + IPSLA / NetFlow. — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" \"ReplicationStatus\")\n  OR (index=network sourcetype=\"cisco:ios\" \"%LINEPROTO-5\")\n| eval region = coalesce(region, \"unknown\")\n| stats max(LastSyncDelta) as max_lag_s, count(eval(like(_raw, \"%LINEPROTO-5-UPDOWN%\"))) as wan_flaps by region\n| where max_lag_s > 600 OR wan_flaps > 2",
-  "description": "Correlates ISE cross-site replication lag with WAN-link instability — distinguishes ISE-internal issues from WAN-induced lag.",
-  "value": "Multi-site ISE deployments are sensitive to WAN quality. When lag spikes, knowing whether it's ISE-internal or WAN-driven changes the recovery path. This UC provides that distinction.",
+  "description": "Surfaces risk tied to ISE, Multi, Site, Topology, Cross through UC-17.1.61 on `index=nac` sourcetype `cisco:ise:syslog`. Summarises `max_lag_s` grouped by `region` across `the scheduled window` before applying `max_lag_s` > 600, or `wan_flaps` > 2. Operators tune 'ISE Multi-Site Topology — Cross-Site Replication Lag and WAN Loss Impact' using UC-17.1.61 runbook steps.",
+  "value": "Tracking `max_lag_s` via UC-17.1.61 on `cisco:ise:syslog` feeds improves response to 'ISE Multi-Site Topology — Cross-Site Replication Lag and WAN Loss Impact' and reduces unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Schedule every 15 min, search window `-1h@h to @h`.",
   "visualization": "(1) Per-region lag timechart. (2) Per-region WAN-flap timeline. (3) Correlation panel: lag vs flaps.",
   "cimModels": [],
@@ -64,10 +66,26 @@
   "references": [
     {
       "title": "Cisco ISE 3.4 Admin Guide — Distributed Deployment",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "DORA — EUR-Lex",
+      "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32022L2554",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) **Scheduled WAN maintenance** — cross-reference change calendar.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'ISE Multi-Site Topology — Cross-Site Replication Lag and WAN Loss Impact'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "N/A (topology observability — measures network device authentication coverage, no adversary technique)"
   ],
@@ -88,7 +106,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Multi-site ISE deployment.\n• Network TA collecting WAN events.\n\nStep 1 — Configure data collection.\nStep 2 — Search.\nStep 3 — Validate.\nStep 4 — Dashboard combining lag and WAN.\nStep 5 — Troubleshooting: prioritise WAN over ISE if both correlate.",
+  "detailedImplementation": "Prerequisites\n• Multi-site ISE deployment.\n• Network TA collecting WAN events.\n\nStep 1 — Configure data collection.\nStep 2 — Search.\nStep 3 — Validate.\nStep 4 — Dashboard combining lag and WAN.\nStep 5 — Troubleshooting: prioritise WAN over ISE if both correlate.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services` + Cisco network TA + IPSLA / NetFlow. — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog, cisco:ios into nac, network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`max_lag_s, region, wan_flaps`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "ISE has copies in different cities. When the connection between cities is bad, the copies can't keep up with each other. We watch both the ISE-side and the network-side, so we can tell which side is at fault.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

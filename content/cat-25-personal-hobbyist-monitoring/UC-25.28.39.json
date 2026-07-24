@@ -9,26 +9,56 @@
     "Risk"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Bar-velocity reps (`vbt:rep`), running gait (`gait:metric`), hangboard sessions (`hangboard:session`), golf-swing metrics (`golfswing:metric`), power-meter intervals (`powermeter:interval`), basketball shot arcs (`shotarc:make`).",
-  "app": "Sports and skill sensors — velocity-based-training bar trackers, running-form IMUs, climbing hangboard load cells, golf launch monitors, cycling power meters, and computer-vision shot trackers — logged to Splunk HEC via APIs and scripted inputs.",
-  "spl": "index=personal sourcetype=hudl:clip\nstreamstats window=5 avg(technique_score) as baseline\nwhere technique_score<baseline*0.9",
-  "description": "Detects Hudl technique score drops after returning from injury.",
-  "value": "Surfacing hudl technique score regression post-injury helps you act before small issues become habits.",
+  "exclusions": "Covers personal hobby monitoring for 'Hudl Technique Score Regression Post-Injury' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_hudl_technique_score_regression_post_injury` (UC-25.28.39), SOC dashboard panel \"Personal — Hudl Technique Score Regression Post-Injury\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.28.39 positive (Hudl, Technique, Score, Regression, Post): ingest synthetic events into `index=personal` sourcetype='hudl:clip' where `baseline` grouped by `entity` satisfies detection threshold for 'Hudl Technique Score Regression Post-Injury'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.28.39 negative (Post Injury): ingest benign `personal` / `hudl:clip` events where `entity` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 1 confirms zero alert rows for 'Hudl Technique Score Regression Post-Injury'."
+  },
+  "dataSources": "Bar-velocity reps (`vbt:rep`), running gait (`gait:metric`), hangboard sessions (`hangboard:session`), golf-swing metrics (`golfswing:metric`), power-meter intervals (`powermeter:interval`), basketball shot arcs (`shotarc:make`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Sports and skill sensors — velocity-based-training bar trackers, running-form IMUs, climbing hangboard load cells, golf launch monitors, cycling power meters, and computer-vision shot trackers — logged to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=hudl:clip\n| streamstats window=5 avg(technique_score) as baseline\n| where technique_score<baseline*0.9",
+  "description": "Detects Post Injury activity in UC-25.28.39 ('Hudl Technique Score Regression Post-Injury') from `index=personal` sourcetype `hudl:clip`. Rolls up `baseline` by `entity` across `the scheduled window` and pages when configured threshold. Covers Hudl, Technique, Score, Regression, Post. Personal operators treat UC-25.28.39 as the canonical signal.",
+  "value": "Operators running UC-25.28.39 on `hudl:clip` feeds shorten triage for Post Injury tied to 'Hudl Technique Score Regression Post-Injury', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest the relevant sports, skills & training telemetry export into `index=personal` and schedule this search weekly.",
   "visualization": "Table or chart of key fields.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk ES Content Management",
+      "url": "https://docs.splunk.com/Documentation/ES/latest/Admin/ContentManagement",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.28.39)** — Connector for 'Hudl Technique Score Regression Post-Injury' stops polling `hudl:clip`; stale `baseline` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `baseline` over `1w` is expected for UC-25.28.39, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `hudl:clip`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Hudl Technique Score Regression Post-Injury'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
-    "oci"
+    "oci",
+    "splunk"
   ],
-  "grandmaExplanation": "It shows when hudl technique score regression post-injury matters for your routine."
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Sports, Skills & Training Telemetry — typical feeds: Bar-velocity reps (`vbt:rep`), running gait (`gait:metric`), hangboard sessions (`hangboard:session`), golf-swing metrics (`golfswing:metric`), power-meter intervals (`powermeter:interval`), basketbal.\n• **Sourcetypes in this search**: `hudl:clip`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=hudl:clip`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Sports and skill sensors — velocity-based-training bar trackers, running-form IMUs, climbing hangboard load cells, golf launch monitors, cycling power meters, and computer-vision shot trackers — logged to Splunk HEC via APIs and scripted inputs..\n\n**Author notes:** Ingest the relevant sports, skills & training telemetry export into `index=personal` and schedule this search weekly.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"hudl:clip\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=hudl:clip earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Hudl Technique Score Regression Post-Injury** over `personal` data (primarily `sourcetype=hudl:clip`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n```spl\nindex=personal sourcetype=hudl:clip\n| streamstats window=5 avg(technique_score) as baseline\n| where technique_score<baseline*0.9\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=hudl:clip earliest=-7d\n| head 50\n| table _time, sourcetype, host\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=hudl:clip earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.28.39: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Or Chart Of Key Fields (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `hudl:clip` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=hudl:clip | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It shows when hudl technique score regression post-injury matters for your routine.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

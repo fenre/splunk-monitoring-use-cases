@@ -9,11 +9,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=openstack` `sourcetype=\"openstack:glance\"` — `image_id`, `bytes_transferred`, `duration_sec`, `operation` (upload|download), `store`",
-  "app": "Glance API logs with transfer metrics",
+  "exclusions": "Covers the detection logic documented for 'OpenStack Glance Image Upload and Download Throughput' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_openstack_glance_image_upload_and_download_throu` (UC-2.9.5), SOC dashboard panel \"Linux — OpenStack Glance Image Upload and Download Throughput\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.9.5 positive (OpenStack, Glance, Image, Upload, and): ingest synthetic events into `index=openstack` sourcetype='openstack:glance' where `avg_mbps` grouped by `store`, `image_id` satisfies `mbps` < 10 for 'OpenStack Glance Image Upload and Download Throughput'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.9.5 negative (Download Throughput): ingest benign `openstack` / `openstack:glance` events where `store`, `image_id` stays below `mbps` < 10, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 11 confirms zero alert rows for 'OpenStack Glance Image Upload and Download Throughput'."
+  },
+  "dataSources": "`index=openstack` `sourcetype=\"openstack:glance\"` — `image_id`, `bytes_transferred`, `duration_sec`, `operation` (upload|download), `store` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Glance API logs with transfer metrics — Universal Forwarder (Splunkbase 617)",
   "spl": "index=openstack sourcetype=\"openstack:glance\" earliest=-24h\n| eval mbps=tonumber(bytes_transferred)/(1024*1024)/tonumber(duration_sec)\n| where mbps<10 AND tonumber(bytes_transferred)>104857600\n| stats avg(mbps) as avg_mbps, count as slow_ops by store, image_id",
-  "description": "Slow image transfers delay autoscale and CI image refreshes. Throughput trending highlights object-store latency or congested API networks.",
-  "value": "Keeps golden image pipelines fast and reduces build queue time.",
+  "description": "Alerts on UC-2.9.5 — OpenStack, Glance, Image, Upload, and — using `index=openstack` sourcetype `openstack:glance`, grouped by `store`, `image_id`. Outputs `avg_mbps` each `the scheduled window`; alert when `mbps` < 10. Primary focus: Download Throughput. Purpose-built for 'OpenStack Glance Image Upload and Download Throughput' in Linux workflows.",
+  "value": "UC-2.9.5 helps teams contain OpenStack, Glance, Image, Upload, and scenarios and reduce capacity incidents, patch regressions, and service outages before incidents compound.",
   "implementation": "Compute mbps per operation. Alert on sustained slow large transfers. Compare stores (file vs rbd vs swift).",
   "visualization": "Line chart throughput; table slow images; histogram latency.",
   "cimModels": [
@@ -22,12 +28,31 @@
   "references": [
     {
       "title": "OpenStack Glance",
-      "url": "https://docs.openstack.org/glance/latest/"
+      "url": "https://docs.openstack.org/glance/latest/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "OpenStack metrics may swing during image builds, large migrations, or control-plane rolling updates; verify services are healthy in parallel before declaring data-plane failure.",
+  "knownFalsePositives": "1. **Patch Tuesday on `openstack`** — Package managers spike `store` metrics for 'OpenStack Glance Image Upload and Download Throughput'. Correlate with apt/yum logs in the same `openstack:glance` window.\n\n2. **Nightly backup I/O on `store`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `openstack:glance`** — Nagios/Zabbix polls `store` and mimics sustained load without crossing `mbps` < 10.\n\n4. **New host onboarding** — `store` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `store`, `valid_until`.",
   "equipment": [
     "openstack"
+  ],
+  "equipmentModels": [
+    "openstack_generic"
   ],
   "status": "verified",
   "lastReviewed": "2025-06-01",
@@ -36,5 +61,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We monitor the building blocks of your private cloud—computers, networks, disks, and logins—so new systems come up reliably and people are not locked out when something upstream hiccups."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Glance API logs with transfer metrics — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=openstack:glance into openstack. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`image_id, mbps, store`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We monitor the building blocks of your private cloud—computers, networks, disks, and logins—so new systems come up reliably and people are not locked out when something upstream hiccups.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

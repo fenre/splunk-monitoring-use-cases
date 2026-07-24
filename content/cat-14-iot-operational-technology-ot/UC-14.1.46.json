@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=bms:bacnet`, `sourcetype=bms:hvac`",
-  "app": "BMS alarm feed via syslog, BACnet alarm notifications, vendor API",
+  "exclusions": "Covers the detection logic documented for 'BMS Alarm Flood Detection and Suppression' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_bms_alarm_flood_detection_and_suppression` (UC-14.1.46), SOC dashboard panel \"Operations — BMS Alarm Flood Detection and Suppression\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.1.46 positive (BMS, Alarm, Flood, Detection, and): ingest synthetic events into `index=building` sourcetype='bms:*' where `devices_affected`, `alarm_types` grouped by `building`, `_time` satisfies `alarm_count` > 20 for 'BMS Alarm Flood Detection and Suppression'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.1.46 negative (and Suppression): ingest benign `building` / `bms:*` events where `building`, `_time` stays below `alarm_count` > 20, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'BMS Alarm Flood Detection and Suppression'."
+  },
+  "dataSources": "`sourcetype=bms:bacnet`, `sourcetype=bms:hvac` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "BMS alarm feed via syslog, BACnet alarm notifications, vendor API — Universal Forwarder (Splunkbase 617)",
   "spl": "index=building sourcetype=\"bms:*\" event_type=\"alarm\"\n| bin _time span=5m\n| stats count as alarm_count, dc(device_id) as devices_affected, dc(alarm_type) as alarm_types, earliest(alarm_description) as first_alarm, earliest(device_name) as first_device by building, _time\n| where alarm_count > 20\n| eval flood_status=\"ALARM FLOOD\", probable_root_cause=first_device.\" - \".first_alarm\n| table _time, building, alarm_count, devices_affected, alarm_types, probable_root_cause",
-  "description": "A single equipment failure (e.g., chiller trip) can generate hundreds of cascading BMS alarms across downstream systems — overwhelming operators and burying the root cause. Detecting alarm floods and identifying the source event reduces mean time to resolve.",
-  "value": "A single equipment failure (e.g., chiller trip) can generate hundreds of cascading BMS alarms across downstream systems — overwhelming operators and burying the root cause. Detecting alarm floods and identifying the source event reduces mean time to resolve.",
+  "description": "Surfaces UC-14.1.46 — BMS, Alarm, Flood, Detection, and — using `index=building` sourcetype `bms:*`, grouped by `building`, `_time`. Outputs `devices_affected`, `alarm_types` each `5m`; alert when `alarm_count` > 20. Primary focus: and Suppression. Purpose-built for 'BMS Alarm Flood Detection and Suppression' in Operations workflows.",
+  "value": "Operators running UC-14.1.46 on `bms:*` feeds shorten triage for and Suppression tied to 'BMS Alarm Flood Detection and Suppression', lowering operational risk and delayed incident response.",
   "implementation": "Aggregate all BMS alarms. Detect bursts exceeding 20 alarms in 5 minutes. Identify the earliest alarm as probable root cause. Suppress downstream alarms in operator dashboard. Track alarm flood frequency for system reliability improvement.",
   "visualization": "Alarm volume timeline; flood event timeline; root cause table; alarm type distribution during floods.",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Alarm floods during equipment commissioning, plant startup sequences, or after BMS or controller software updates.",
+  "knownFalsePositives": "1. **Maintenance window on `building` (UC-14.1.46)** — Planned work for 'BMS Alarm Flood Detection and Suppression' shifts `devices_affected`, `alarm_types` over `span=5m` while `building`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `bms:*`** — Scheduled automation elevates `_time` without crossing `alarm_count` > 20 for UC-14.1.46. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `building`, `_time`** — Health checks in `building` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `bms:*`** — First 48h baseline for UC-14.1.46 on `building` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `building`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kubernetes",
     "syslog"
@@ -33,6 +55,12 @@
   "equipmentModels": [
     "kubernetes_helm"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: BMS alarm feed via syslog, BACnet alarm notifications, vendor API.\n• Ensure the following data sources are available: `sourcetype=bms:bacnet`, `sourcetype=bms:hvac`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAggregate all BMS alarms. Detect bursts exceeding 20 alarms in 5 minutes. Identify the earliest alarm as probable root cause. Suppress downstream alarms in operator dashboard. Track alarm flood frequency for system reliability improvement.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=building sourcetype=\"bms:*\" event_type=\"alarm\"\n| bin _time span=5m\n| stats count as alarm_count, dc(device_id) as devices_affected, dc(alarm_type) as alarm_types, earliest(alarm_description) as first_alarm, earliest(device_name) as first_device by building, _time\n| where alarm_count > 20\n| eval flood_status=\"ALARM FLOOD\", probable_root_cause=first_device.\" - \".first_alarm\n| table _time, building, alarm_count, devices_affected, alarm_types, probable_root_cause\n```\n\nUnderstanding this SPL\n\n**BMS Alarm Flood Detection and Suppression** — A single equipment failure (e.g., chiller trip) can generate hundreds of cascading BMS alarms across downstream systems — overwhelming operators and burying the root cause. Detecting alarm floods and identifying the source event reduces mean time to resolve.\n\nDocumented **Data sources**: `sourcetype=bms:bacnet`, `sourcetype=bms:hvac`. **App/TA** (typical add-on context): BMS alarm feed via syslog, BACnet alarm notifications, vendor API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: building; **sourcetype**: bms:*. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=building, sourcetype=\"bms:*\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by building, _time** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where alarm_count > 20` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **flood_status** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **BMS Alarm Flood Detection and Suppression**): table _time, building, alarm_count, devices_affected, alarm_types, probable_root_cause\n\n\nStep 3 — Validate\nRun the search in a known window. Spot-check a few events against the BMS console (for example Niagara, Tridium, or Honeywell) and confirm zones, values, and alarms line up. Verify field names and that the right roles can search the index.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alarm volume timeline; flood event timeline; root cause table; alarm type distribution during floods.",
-  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with a sudden rush of control alarms in the building before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with a sudden rush of control alarms in the building before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

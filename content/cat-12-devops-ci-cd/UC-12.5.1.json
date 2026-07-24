@@ -9,11 +9,17 @@
     "Configuration"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=argocd:application`, `sourcetype=argocd:audit`",
-  "app": "Splunk Add-on for Argo CD, custom ArgoCD API/audit input",
+  "exclusions": "Covers the detection logic documented for 'ArgoCD Sync Status Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_argocd_sync_status_failures` (UC-12.5.1), SOC dashboard panel \"Operations — ArgoCD Sync Status Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.5.1 positive (ArgoCD, Sync, Status, Failures): ingest synthetic events into `index=devops` sourcetype='argocd:application' where `values` grouped by `name`, `namespace`, `project` satisfies detection threshold for 'ArgoCD Sync Status Failures'. Validate filter `sync_status IN (\"OutOfSync\",\"Unknown\") OR operation_state=\"E`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.5.1 negative (Status Failures): ingest benign `devops` / `argocd:application` events where `name`, `namespace`, `project` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'ArgoCD Sync Status Failures'."
+  },
+  "dataSources": "`sourcetype=argocd:application`, `sourcetype=argocd:audit` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for Argo CD, custom ArgoCD API/audit input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=devops (sourcetype=\"argocd:application\" OR sourcetype=\"argocd:audit\")\n| search sync_status IN (\"OutOfSync\",\"Unknown\") OR operation_state=\"Error\" OR phase=\"Failed\"\n| stats latest(_time) as last_seen, values(message) as messages by name, namespace, project\n| sort -last_seen",
-  "description": "Failed or stuck sync operations leave clusters diverging from Git and block releases; surfacing them quickly limits blast radius and restores desired state.",
-  "value": "Failed or stuck sync operations leave clusters diverging from Git and block releases; surfacing them quickly limits blast radius and restores desired state.",
+  "description": "Alerts on UC-12.5.1 — ArgoCD, Sync, Status, Failures — using `index=devops` sourcetype `argocd:application`, grouped by `name`, `namespace`, `project`. Outputs `values` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `sync_status IN (\"OutOfSync\",\"Unknown\") OR operation_state=\"E`. Purpose-built for 'ArgoCD Sync Status Failures' in Operations workflows.",
+  "value": "UC-12.5.1 operationalises 'ArgoCD Sync Status Failures' against `argocd:application` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ingest Argo CD application CR status and controller/audit logs via add-on or HEC. Normalize `sync_status`, `operation_state`, and error messages. Alert when sync fails or remains in Error/Failed beyond a short window. Correlate with Git commits and cluster events.",
   "visualization": "Table (failed apps), Single value (apps in failed sync), Timeline (sync operations), Status grid by project.",
   "cimModels": [
@@ -23,13 +29,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short-lived sync issues during cluster upgrades, credential rotations, or Git provider incidents.",
+  "knownFalsePositives": "1. **Maintenance window on `devops` (UC-12.5.1)** — Planned work for 'ArgoCD Sync Status Failures' shifts `values` over `span=1h` while `name`, `namespace`, `project` remains in-scope. Applies filter `sync_status IN (\"OutOfSync\",\"Unknown\") OR operation_state=\"E`. Cross-check CMDB CHG.\n\n2. **Batch `values` on `argocd:application`** — Scheduled automation elevates `namespace` without crossing configured threshold for UC-12.5.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `name`, `namespace`, `project`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `argocd:application`** — First 48h baseline for UC-12.5.1 on `name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "argocd"
   ],
+  "equipmentModels": [
+    "argocd_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Argo CD, custom ArgoCD API/audit input.\n• Ensure the following data sources are available: `sourcetype=argocd:application`, `sourcetype=argocd:audit`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest Argo CD application CR status and controller/audit logs via add-on or HEC. Normalize `sync_status`, `operation_state`, and error messages. Alert when sync fails or remains in Error/Failed beyond a short window. Correlate with Git commits and cluster events.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=devops (sourcetype=\"argocd:application\" OR sourcetype=\"argocd:audit\")\n| search sync_status IN (\"OutOfSync\",\"Unknown\") OR operation_state=\"Error\" OR phase=\"Failed\"\n| stats latest(_time) as last_seen, values(message) as messages by name, namespace, project\n| sort -last_seen\n```\n\nUnderstanding this SPL\n\n**ArgoCD Sync Status Failures** — Failed or stuck sync operations leave clusters diverging from Git and block releases; surfacing them quickly limits blast radius and restores desired state.\n\nDocumented **Data sources**: `sourcetype=argocd:application`, `sourcetype=argocd:audit`. **App/TA** (typical add-on context): Splunk Add-on for Argo CD, custom ArgoCD API/audit input. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: devops; **sourcetype**: argocd:application, argocd:audit. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=devops, sourcetype=\"argocd:application\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by name, namespace, project** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with the Argo CD UI and application details. Verify field extractions and index permissions.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (failed apps), Single value (apps in failed sync), Timeline (sync operations), Status grid by project.",
-  "grandmaExplanation": "We watch GitOps sync and Argo signals so clusters stay aligned with the desired configuration in Git."
+  "grandmaExplanation": "We watch GitOps sync and Argo signals so clusters stay aligned with the desired configuration in Git.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

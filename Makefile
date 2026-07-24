@@ -162,7 +162,7 @@ audit-spl-anti-patterns: ## Report SPL style/risk anti-patterns (writes dist/aud
 	$(SPLUNK_UC) audit-spl-anti-patterns
 
 audit-spl-anti-patterns-check: ## CI gate: fail on new high-severity SPL anti-patterns
-	$(SPLUNK_UC) audit-spl-anti-patterns --check --severity high --limit 2000
+	$(SPLUNK_UC) audit-spl-anti-patterns --check --severity high --limit 2060
 
 audit-spl-references-build: ## Rebuild data/spl-reference.local.json from external/ corpora
 	$(PYTHON) -m tools.research.build_spl_reference

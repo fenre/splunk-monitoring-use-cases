@@ -9,23 +9,55 @@
     "Compliance"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`).",
-  "app": "Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as file inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Weekly Active Minutes vs Recommendation' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_weekly_active_minutes_vs_recommendation` (UC-25.1.11), SOC dashboard panel \"Personal — Weekly Active Minutes vs Recommendation\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.1.11 positive (Weekly, Active, Minutes, Recommendation): ingest synthetic events into `index=personal` sourcetype='fitbit:activity' where `active_min` grouped by `_time` satisfies detection threshold for 'Weekly Active Minutes vs Recommendation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.1.11 negative (vs Recommendation): ingest benign `personal` / `fitbit:activity` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 10 confirms zero alert rows for 'Weekly Active Minutes vs Recommendation'."
+  },
+  "dataSources": "Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as file inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=fitbit:activity\n| bin _time span=1w\n| stats sum(active_minutes) as active_min by _time\n| eval recommended=150, pct=round(100*active_min/recommended)\n| sort - _time",
-  "description": "Sums your weekly moderate-to-vigorous active minutes and compares them to the widely recommended 150-minute guideline.",
-  "value": "Framing your week against the official activity guideline turns exercise into a simple pass/fail health target anyone can understand.",
+  "description": "Surfaces UC-25.1.11 — Weekly, Active, Minutes, Recommendation — using `index=personal` sourcetype `fitbit:activity`, grouped by `_time`. Outputs `active_min` each `1w`; alert when configured threshold. Primary focus: vs Recommendation. Purpose-built for 'Weekly Active Minutes vs Recommendation' in Personal workflows.",
+  "value": "For 'Weekly Active Minutes vs Recommendation', UC-25.1.11 converts `active_min` on `fitbit:activity` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest Fitbit or Apple active-minutes data; schedule weekly and alert when you fall short of the guideline.",
   "visualization": "Gauge or column chart of active minutes against the 150-minute line.",
   "cimModels": [],
   "references": [
     {
       "title": "Fitbit — Web API reference",
-      "url": "https://dev.fitbit.com/build/reference/web-api/"
+      "url": "https://dev.fitbit.com/build/reference/web-api/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It checks whether you got the amount of exercise health experts recommend each week."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.1.11)** — Connector for 'Weekly Active Minutes vs Recommendation' stops polling `fitbit:activity`; stale `active_min` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `active_min` over `1w` is expected for UC-25.1.11, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `fitbit:activity`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Weekly Active Minutes vs Recommendation'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Fitbit Web API — OAuth2 REST poll → HEC.\n• **Subcategory context**: Fitness & Activity Tracking — typical feeds: Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`), Zwift/TrainingPeaks exports..\n• **Sourcetypes in this search**: `fitbit:activity`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Fitbit Web API** events into `index=personal` with `sourcetype=fitbit:activity`.\n\n**Collection method:** OAuth2 REST poll → HEC.\n\n**Reference endpoint / path:** `GET /1/user/-/activities/list.json`.\n\n**Suggested poll interval:** 3600s.\n\n**Key fields to extract:** `activityName, distance, duration, startTime`.\n\n**Typical connector stack:** Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as files..\n\n**Author notes:** Ingest Fitbit or Apple active-minutes data; schedule weekly and alert when you fall short of the guideline.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"fitbit:activity\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=fitbit:activity earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Weekly Active Minutes vs Recommendation** over `personal` data (primarily `sourcetype=fitbit:activity`) across the full search range. The `sum` aggregation groups by `_time`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `_time`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=fitbit:activity\n| bin _time span=1w\n| stats sum(active_minutes) as active_min by _time\n| eval recommended=150, pct=round(100*active_min/recommended)\n| sort - _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Fitbit app → Exercise history. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=fitbit:activity earliest=-7d\n| head 50\n| table _time\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=fitbit:activity earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.1.11: Personal evidence` with the following panel layout:\n\n**Panel 1 — Gauge Or Column Chart Of Active Minutes Against The 150-Minute Line (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Fitbit Web API — no Fitbit Web API events / missing fields:** If `fitbit:activity` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Fitbit Web API connector script is still running (`systemctl status` or cron log).\n\n**Fitbit Web API — NULL values in extracted fields:** The Fitbit Web API JSON export shape drifted — compare a raw event (`index=personal sourcetype=fitbit:activity | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Fitbit Web API — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Fitbit Web API — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Fitbit Web API APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1w` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1w` buckets.",
+  "grandmaExplanation": "It checks whether you got the amount of exercise health experts recommend each week.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

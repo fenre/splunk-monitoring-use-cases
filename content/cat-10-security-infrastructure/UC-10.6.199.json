@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=xd` `sourcetype=\"citrix:broker:events\"` (launch, enumeration, error); `sourcetype=\"citrix:storefront:resource\"` (requested resource, deny); fields `app_name`, `user`, `result`, `deny_reason`",
-  "app": "Citrix DaaS / CVAD broker event collection, StoreFront or Workspace app logs, optional identity group lookup for expected entitlements",
+  "exclusions": "Covers the detection logic documented for 'Citrix Unauthorized Published Application Launch Attempts' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_citrix_unauthorized_published_application_launch` (UC-10.6.199), SOC dashboard panel \"Security Infra — Citrix Unauthorized Published Application Launch Attempts\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.6.199 positive (Citrix, Unauthorized, Published, Application, Launch): ingest synthetic events into `index=xd` sourcetype='citrix:broker:events' where `values` grouped by `_time`, `user`, `client_ip` satisfies `hits` > 3 for 'Citrix Unauthorized Published Application Launch Attempts'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.6.199 negative (Launch Attempts): ingest benign `xd` / `citrix:broker:events` events where `_time`, `user`, `client_ip` stays below `hits` > 3, or exclude the test entity via `soc_exception_register.csv`. Variant 0 confirms zero alert rows for 'Citrix Unauthorized Published Application Launch Attempts'."
+  },
+  "dataSources": "`index=xd` `sourcetype=\"citrix:broker:events\"` (launch, enumeration, error); `sourcetype=\"citrix:storefront:resource\"` (requested resource, deny); fields `app_name`, `user`, `result`, `deny_reason` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Citrix DaaS / CVAD broker event collection, StoreFront or Workspace app logs, optional identity group lookup for expected entitlements — Universal Forwarder (Splunkbase 617)",
   "spl": "index=xd (sourcetype=\"citrix:broker:events\" OR sourcetype=\"citrix:storefront:resource\") earliest=-24h\n| eval denied=if(match(lower(result),\"(?i)deny|unauthorized|forbidden|not.?(allowed|entitled|assigned)\") OR match(lower(deny_reason),\"(?i)deny|policy|not.?(found|entitled)\"),1,0)\n| where denied=1\n| bin _time span=1h\n| stats count as hits, values(app_name) as apps, values(deny_reason) as reason by _time, user, client_ip\n| where hits>3\n| table _time, user, client_ip, hits, apps, reason",
-  "description": "Users should only start applications and desktops they are assigned. Elevated or repeated denials for resources outside entitlement can show probing for exposed icons, policy gaps, or automation testing wrong shortcuts. A burst from one account to many unassigned apps is higher risk than a single typo in self-service.",
-  "value": "Users should only start applications and desktops they are assigned. Elevated or repeated denials for resources outside entitlement can show probing for exposed icons, policy gaps, or automation testing wrong shortcuts. A burst from one account to many unassigned apps is higher risk than a single typo in self-service.",
+  "description": "Monitors 'Citrix Unauthorized Published Application Launch Attempts' (UC-10.6.199) using `index=xd` sourcetype `citrix:broker:events` by aggregating `values` grouped by `_time`, `user`, `client_ip` over `1h` and alerting when `hits` > 3. Keywords: Citrix, Unauthorized, Published, Application, Launch. Focuses on Launch Attempts behaviour so security infra teams can triage UC-10.6.199 without ad-hoc log review.",
+  "value": "UC-10.6.199 accelerates insight into Launch Attempts ('Citrix Unauthorized Published Application Launch Attempts') by tracking `activity` on `citrix:broker:events` feeds, reducing missed threat campaigns, control regressions, and SOC SLA breaches before spreadsheet checks hide regressions.",
   "implementation": "Distinguish user-driven mistakes from service accounts. Join `app_name` to a catalog of all published resources and role assignments. Alert on more than N distinct denied apps per user per day. If storefront exposes sensitive names to the wrong group, also fix catalog visibility, not just logging. For Citrix DaaS, include cloud connector–visible events in scope.",
   "visualization": "Bar chart: denied launches by app; table: top users; sparkline: hits over time for flagged accounts.",
   "cimModels": [
@@ -21,10 +27,26 @@
   "references": [
     {
       "title": "Citrix — Publish applications and entitlements",
-      "url": "https://docs.citrix.com/en-us/"
+      "url": "https://docs.citrix.com/en-us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Pen-test, red-team, and negative UAT on unauthorized icons are supposed to show blocked launches. A purple-team window, test usernames, and a non-prod store scope stop harmless blocked attempts in test from a production insider-threat page.",
+  "knownFalsePositives": "1. **Maintenance window on `xd` (UC-10.6.199)** — Planned work for 'Citrix Unauthorized Published Application Launch Attempts' shifts `values` over `span=1h` while `_time`, `user`, `client_ip` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `citrix:broker:events`** — Scheduled automation elevates `user` without crossing `hits` > 3 for UC-10.6.199. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `user`, `client_ip`** — Health checks in `xd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `citrix:broker:events`** — First 48h baseline for UC-10.6.199 on `_time` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1078"
   ],
@@ -35,6 +57,12 @@
     "citrix_cvad"
   ],
   "lastReviewed": "2026-04-24",
-  "detailedImplementation": "Prerequisites\n• `index=xd`; `citrix:broker:events` and `citrix:storefront:resource` with `app_name`, `result` or `deny_reason`, `user`, `client_ip`. Optional `entitled_apps` lookup (AD group x app id).\n\nStep 1 — Configure data collection\nNormalize denial: one `eval denied=` for deny/forbidden/not entitled. Filter LB probes: `search NOT (uri=\"*health*\")` or known probe users. Tag `env=lab` for lower sev. `FIELDALIAS` for `app_name` if `resource_name` is used instead.\n\nStep 2 — Create the search and alert\nStart `hits>3`/h; raise to 5–10 after one week. Second alert: `dc(app_name)`>N/24h where app in `sensitive_apps.csv` (P1). Throttle: user+hour. Optional: `streamstats` first-seen denied app per 30d for probe pattern.\n\nStep 3 — Validate\nLab: intentional denied launch increments; entitled success is zero. SAs in allow-list. Check `deny_reason` is populated on StoreFront.\n\nStep 4 — Operationalize\nSOC: pivot to PAM. Insiders: many distinct denied LOB. Escalation: L2 identity + catalog, L3 if OU-wide icon misconfig. Remediate Store visibility, not just SIEM. Include DaaS connector–visible events if in cloud.",
-  "grandmaExplanation": "We count tries to open apps that were never meant for that person’s badge — so you see probing or a broken catalog before a lucky click finds something that should have stayed hidden."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• `index=xd`; `citrix:broker:events` and `citrix:storefront:resource` with `app_name`, `result` or `deny_reason`, `user`, `client_ip`. Optional `entitled_apps` lookup (AD group x app id).\n\nStep 1 — Configure data collection\nNormalize denial: one `eval denied=` for deny/forbidden/not entitled. Filter LB probes: `search NOT (uri=\"*health*\")` or known probe users. Tag `env=lab` for lower sev. `FIELDALIAS` for `app_name` if `resource_name` is used instead.\n\nStep 2 — Create the search and alert\nStart `hits>3`/h; raise to 5–10 after one week. Second alert: `dc(app_name)`>N/24h where app in `sensitive_apps.csv` (P1). Throttle: user+hour. Optional: `streamstats` first-seen denied app per 30d for probe pattern.\n\nStep 3 — Validate\nLab: intentional denied launch increments; entitled success is zero. SAs in allow-list. Check `deny_reason` is populated on StoreFront.\n\nStep 4 — Operationalize\nSOC: pivot to PAM. Insiders: many distinct denied LOB. Escalation: L2 identity + catalog, L3 if OU-wide icon misconfig. Remediate Store visibility, not just SIEM. Include DaaS connector–visible events if in cloud.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Citrix DaaS / CVAD broker event collection, StoreFront or Workspace app logs, optional identity group lookup for expected entitlements — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=citrix:broker:events, citrix:storefront:resource into xd. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, client_ip, denied, hits`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We count tries to open apps that were never meant for that person’s badge — so you see probing or a broken catalog before a lucky click finds something that should have stayed hidden.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

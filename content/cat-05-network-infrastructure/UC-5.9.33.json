@@ -8,24 +8,42 @@
     "Anomaly"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Cloud Provider Path Visualization' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_cloud_provider_path_visualization` (UC-5.9.33), SOC dashboard panel \"Operations — Cloud Provider Path Visualization\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.9.33 positive (Cloud, Provider, Path, Visualization): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `avg_hops`, `max_hops`, `unique_paths` grouped by `thousandeyes.source.agent.name`, `server.address` satisfies `unique_paths` > 1 for 'Cloud Provider Path Visualization'. Validate macro `path_viz_index`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.9.33 negative (Path Visualization): ingest benign `target_index` / `target_sourcetype` events where `thousandeyes.source.agent.name`, `server.address` stays below `unique_paths` > 1, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Cloud Provider Path Visualization'."
+  },
   "dataSources": "`index=thousandeyes_pathvis sourcetype=cisco:thousandeyes:path-vis` from the path visualization collection in `ta_cisco_thousandeyes` (Splunkbase 7719). Path visualization data provides the hop-by-hop network path between the ThousandEyes agent and the target — including intermediate router IPs, ASNs, and per-hop latency/loss. For cloud provider paths, this reveals the exact route traffic takes from your network into the cloud provider's backbone, through their internal network, and to the target service.",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported.",
   "spl": "`path_viz_index` thousandeyes.test.name=\"*AWS*\" OR thousandeyes.test.name=\"*Azure*\" OR thousandeyes.test.name=\"*GCP*\"\n| stats avg(hop_count) as avg_hops max(hop_count) as max_hops dc(path_hash) as unique_paths by thousandeyes.source.agent.name, server.address\n| where unique_paths > 1\n| sort -unique_paths",
-  "description": "Analyzes hop-by-hop path data for connections to cloud provider services, detecting path changes, unexpected routing through third-party networks, and per-hop latency contributions. Extends the basic path analysis (UC-5.9.5/5.9.6) to specifically focus on cloud-bound traffic, where path stability is critical for latency-sensitive workloads.",
-  "value": "Traffic to cloud services traverses multiple networks and peering points. A path change from direct peering (your ISP → AWS) to transit (your ISP → Telia → NTT → AWS) can add 20–50 ms of latency. Cloud providers sometimes shift peering arrangements, reroute traffic through different PoPs, or experience backbone congestion — all invisible without path-level data. This UC detects when the path to your cloud services changes, quantifies the latency impact, and provides the AS-level detail needed to engage your ISP or cloud provider with evidence: \"Our traffic to AWS us-east-1 is now routing through AS3356 (Lumen) instead of direct peering, adding 15 ms.\"",
+  "description": "Detects UC-5.9.33 — Cloud, Provider, Path, Visualization — using `index=target_index` sourcetype `configured sourcetype`, grouped by `thousandeyes.source.agent.name`, `server.address`. Outputs `avg_hops`, `max_hops`, `unique_paths` each `the scheduled window`; alert when `unique_paths` > 1. Filter chain includes macro `path_viz_index`. Purpose-built for 'Cloud Provider Path Visualization' in Operations workflows.",
+  "value": "UC-5.9.33 helps teams contain Cloud, Provider, Path, Visualization scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Uses the path visualization data collected by the same input that provides pathvis for UC-5.9.5. Filter by test names that target cloud provider endpoints.",
   "visualization": "(1) Path diagram (if rendered in ThousandEyes). (2) Table: cloud paths with hop count, unique paths, path stability indicator. (3) Timechart: hop count changes over time. (4) Alert indicator: paths with > 1 unique path in the measurement window.",
   "references": [
     {
       "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
-      "url": "https://splunkbase.splunk.com/app/7719"
+      "url": "https://splunkbase.splunk.com/app/7719",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes path visualization",
-      "url": "https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/"
+      "url": "https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Cloud provider internal path changes.** Cloud providers (AWS, Azure, GCP) regularly optimize internal routing. Path changes within the cloud provider's AS are usually benign and don't affect latency. Only flag path changes that cross AS boundaries.\n\n**ECMP load balancing.** Equal-Cost Multi-Path routing at ISP and cloud edges may show multiple paths simultaneously. This is normal and doesn't indicate instability. Check whether hop count and latency are consistent despite path variation.\n\n**Traceroute-resistant hops.** Some cloud provider hops don't respond to ICMP/traceroute probes, showing as \"*\" or \"unknown.\" This doesn't mean a problem — it's a security policy of the cloud provider.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index` (UC-5.9.33)** — Planned work for 'Cloud Provider Path Visualization' shifts `avg_hops`, `max_hops`, `unique_paths` over `span=1h` while `thousandeyes.source.agent.name`, `server.address` remains in-scope. Applies macro `path_viz_index`. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `server.address` without crossing `unique_paths` > 1 for UC-5.9.33. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `thousandeyes.source.agent.name`, `server.address`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.9.33 on `thousandeyes.source.agent.name` is unstable; join `path_viz_index` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `thousandeyes.source.agent.name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "azure",
     "cisco"

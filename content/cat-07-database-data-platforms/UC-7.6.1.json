@@ -9,11 +9,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=db` `sourcetype=mysql:status`, `sourcetype=postgresql:metrics`, `sourcetype=mssql:perf`, `sourcetype=oracle:session`",
-  "app": "Splunk DB Connect, vendor DB TAs (MySQL Enterprise, PostgreSQL, Oracle, SQL Server), application pool metrics if forwarded",
+  "exclusions": "Covers the detection logic documented for 'Database Connection Pool Utilization Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_database_connection_pool_utilization_trending` (UC-7.6.1), SOC dashboard panel \"Operations — Database Connection Pool Utilization Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.6.1 positive (Database, Connection, Pool, Utilization, Trending): ingest synthetic events into `index=db` sourcetype='mysql:status' where `peak_pool_util_pct` grouped by `instance` satisfies `max_conn` > 0 for 'Database Connection Pool Utilization Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.6.1 negative (Utilization Trending): ingest benign `db` / `mysql:status` events where `instance` stays below `max_conn` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Database Connection Pool Utilization Trending'."
+  },
+  "dataSources": "`index=db` `sourcetype=mysql:status`, `sourcetype=postgresql:metrics`, `sourcetype=mssql:perf`, `sourcetype=oracle:session` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk DB Connect, vendor DB TAs (MySQL Enterprise, PostgreSQL, Oracle, SQL Server), application pool metrics if forwarded — Universal Forwarder (Splunkbase 617)",
   "spl": "index=db (sourcetype=\"mysql:status\" OR sourcetype=\"postgresql:metrics\" OR sourcetype=\"mssql:perf\" OR sourcetype=\"oracle:session\")\n| eval active=coalesce(threads_connected, numbackends, active_sessions, session_count)\n| eval max_conn=coalesce(max_connections, max_connections_setting, session_limit)\n| eval pool_pct=if(max_conn>0, round(100*active/max_conn,2), null())\n| timechart span=1d max(pool_pct) as peak_pool_util_pct by instance",
-  "description": "Peak connection pool utilization over 30 days shows how close applications are to exhausting database sessions. Rising peaks justify pool tuning, connection string fixes, or server scale-up before login storms cause outages.",
-  "value": "Peak connection pool utilization over 30 days shows how close applications are to exhausting database sessions. Rising peaks justify pool tuning, connection string fixes, or server scale-up before login storms cause outages.",
+  "description": "Monitors Utilization Trending anomalies for UC-7.6.1 with window `1d` on `index=db` sourcetype `mysql:status`. Combines `peak_pool_util_pct` by `instance` and compares against `max_conn` > 0. Mapped to keywords Database, Connection, Pool, Utilization, Trending for dashboard routing.",
+  "value": "Alerting on Database, Connection, Pool, Utilization, Trending through UC-7.6.1 reduces operational risk and delayed incident response by surfacing `peak_pool_util_pct` early.",
   "implementation": "Map instance identifiers consistently (`host` + `port` + `db_name`). For PgBouncer or RDS proxy, track pool versus backend limits separately. Alert on sustained peaks above policy (for example 80%). Combine with application-side pool settings to find mismatches. Use `perc95` if peaks are noisy from batch jobs only.",
   "visualization": "Line chart (peak pool % by instance), column chart (30-day max), table (instances over threshold).",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Splunk DB Connect",
-      "url": "https://splunkbase.splunk.com/app/2686"
+      "url": "https://splunkbase.splunk.com/app/2686",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Connection pool warm-up after restarts, blue-green deploys, or autoscaling can look like a spike until the pool or fleet reaches steady state.",
+  "knownFalsePositives": "1. **Maintenance window on `db` (UC-7.6.1)** — Planned work for 'Database Connection Pool Utilization Trending' shifts `peak_pool_util_pct` over `span=1d` while `instance` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `mysql:status`** — Scheduled automation elevates `active` without crossing `max_conn` > 0 for UC-7.6.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `instance`** — Health checks in `db` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mysql:status`** — First 48h baseline for UC-7.6.1 on `instance` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `instance`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "mssql",
@@ -38,6 +60,12 @@
     "postgresql_pg",
     "postgresql_pgbouncer"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• In operations we cross-check the same window in SQL Server Management Studio, Azure Data Studio, or the Azure SQL portal with `sys.dm_*` views; Oracle Enterprise Manager, SQLcl, or SQL Developer with `V$` views; psql, pgAdmin, or the managed-PostgreSQL console with `pg_stat_*` and replication views; MySQL Workbench, the managed-MySQL console, or `performance_schema` / replica status so live metrics match what Splunk shows.\n• Install and configure the required add-on or app: Splunk DB Connect, vendor DB TAs (MySQL Enterprise, PostgreSQL, Oracle, SQL Server), application pool metrics if forwarded.\n• Ensure the following data sources are available: `index=db` `sourcetype=mysql:status`, `sourcetype=postgresql:metrics`, `sourcetype=mssql:perf`, `sourcetype=oracle:session`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap instance identifiers consistently (`host` + `port` + `db_name`). For PgBouncer or RDS proxy, track pool versus backend limits separately. Alert on sustained peaks above policy (for example 80%). Combine with application-side pool settings to find mismatches. Use `perc95` if peaks are noisy from batch jobs only.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=db (sourcetype=\"mysql:status\" OR sourcetype=\"postgresql:metrics\" OR sourcetype=\"mssql:perf\" OR sourcetype=\"oracle:session\")\n| eval active=coalesce(threads_connected, numbackends, active_sessions, session_count)\n| eval max_conn=coalesce(max_connections, max_connections_setting, session_limit)\n| eval pool_pct=if(max_conn>0, round(100*active/max_conn,2), null())\n| timechart span=1d max(pool_pct) as peak_pool_util_pct by instance\n```\n\nUnderstanding this SPL\n\n**Database Connection Pool Utilization Trending** — Peak connection pool utilization over 30 days shows how close applications are to exhausting database sessions. Rising peaks justify pool tuning, connection string fixes, or server scale-up before login storms cause outages.\n\nDocumented **Data sources**: `index=db` `sourcetype=mysql:status`, `sourcetype=postgresql:metrics`, `sourcetype=mssql:perf`, `sourcetype=oracle:session`. **App/TA** (typical add-on context): Splunk DB Connect, vendor DB TAs (MySQL Enterprise, PostgreSQL, Oracle, SQL Server), application pool metrics if forwarded. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: db; **sourcetype**: mysql:status, postgresql:metrics, mssql:perf, oracle:session. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=db, sourcetype=\"mysql:status\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **active** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **max_conn** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **pool_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by instance** — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nFor the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (peak pool % by instance), column chart (30-day max), table (instances over threshold).",
-  "grandmaExplanation": "We watch for repeated or suspicious sign-in activity on our databases so we can catch brute-force and misconfiguration before they become account takeovers."
+  "grandmaExplanation": "We watch for repeated or suspicious sign-in activity on our databases so we can catch brute-force and misconfiguration before they become account takeovers.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

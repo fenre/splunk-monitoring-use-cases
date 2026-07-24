@@ -9,11 +9,17 @@
     "Safety"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=environment` `sourcetype=aranet:sensor` fields `temp_c`, `humidity_pct` (Aranet CO₂ probes ship RH sensors)",
-  "app": "Aranet data pipeline via MQTT (Splunkbase #1890) or HEC",
+  "exclusions": "Covers the detection logic documented for 'Aranet Dew Point from Temperature and Relative Humidity' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_aranet_dew_point_from_temperature_and_relative_h` (UC-14.3.60), SOC dashboard panel \"Operations — Aranet Dew Point from Temperature and Relative Humidity\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.3.60 positive (Aranet, Dew, Point, from, Temperature): ingest synthetic events into `index=environment` sourcetype='aranet:sensor' where `count` grouped by `entity` satisfies `dew_c` > 15, or `RH` > 65 for 'Aranet Dew Point from Temperature and Relative Humidity'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.3.60 negative (Relative Humidity): ingest benign `environment` / `aranet:sensor` events where `entity` stays below `dew_c` > 15, or `RH` > 65, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Aranet Dew Point from Temperature and Relative Humidity'."
+  },
+  "dataSources": "`index=environment` `sourcetype=aranet:sensor` fields `temp_c`, `humidity_pct` (Aranet CO₂ probes ship RH sensors) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Aranet data pipeline via MQTT (Splunkbase #1890) or HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=environment sourcetype=aranet:sensor\n| eval T=tonumber(temp_c), RH=tonumber(humidity_pct)\n| eval a=(17.27*T)/(237.7+T)\n| eval dew_c=round((237.7*a+log(RH/100.0))/(17.27-a),2)\n| where dew_c > 15 AND RH > 65\n| table _time, sensor_id, location, T, RH, dew_c\n| sort - dew_c",
-  "description": "Condensation in data halls and labs follows dew point, not RH alone. Magnus-formula dew point computed from Aranet temperature and humidity predicts surface condensation risk when chilled water temperatures or door seals drift.",
-  "value": "Protects equipment and commodities from moisture damage by alerting on psychrometric risk before water forms on racks or packaging.",
+  "description": "Detects risk tied to Aranet, Dew, Point, from, Temperature through UC-14.3.60 on `index=environment` sourcetype `aranet:sensor`. Summarises `count` grouped by `entity` across `the scheduled window` before applying `dew_c` > 15, or `RH` > 65. Operators tune 'Aranet Dew Point from Temperature and Relative Humidity' using UC-14.3.60 runbook steps.",
+  "value": "Tracking `activity` via UC-14.3.60 on `aranet:sensor` feeds improves response to 'Aranet Dew Point from Temperature and Relative Humidity' and reduces operational risk and delayed incident response.",
   "implementation": "Ensure `temp_c` and `humidity_pct` are numeric. The SPL uses the common Magnus approximation over water (good for facility monitoring). Tune thresholds: data centers often target dew point well below room dry bulb; adjust `dew_c > 15` to your architecture. Document sensor calibration cadence per QA.",
   "visualization": "Scatter (RH vs dew point), Line chart (dew_c trend), Heatmap (room × time).",
   "cimModels": [
@@ -23,17 +29,33 @@
   "references": [
     {
       "title": "ASHRAE Handbook — Fundamentals (psychrometrics)",
-      "url": "https://www.ashrae.org/technical-resources/ashrae-handbook"
+      "url": "https://www.ashrae.org/technical-resources/ashrae-handbook",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "MQTT Topics Ingestor (Splunkbase 7575)",
-      "url": "https://splunkbase.splunk.com/app/7575"
+      "url": "https://splunkbase.splunk.com/app/7575",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Sensors offline during scheduled site visits, calibration, or replacement campaigns.",
+  "knownFalsePositives": "1. **Maintenance window on `environment` (UC-14.3.60)** — Planned work for 'Aranet Dew Point from Temperature and Relative Humidity' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `aranet:sensor`** — Scheduled automation elevates `T` without crossing `dew_c` > 15 for UC-14.3.60. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `environment` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aranet:sensor`** — First 48h baseline for UC-14.3.60 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aranet",
     "mqtt"
+  ],
+  "equipmentModels": [
+    "aranet_generic",
+    "mqtt_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -42,6 +64,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Validate formula against handheld psychrometer quarterly.\n• Exclude outdoor canopy sensors if mixed index.\n\nStep 1 — Add `case()` for Fahrenheit sites converting to Celsius first.\n\nStep 2 — Correlate with chilled water supply temp if ingested.\n\nStep 3 — SOP for facilities when alert fires.\n\nStep 4 — Optional ITSI thresholding.",
-  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with uncomfortable or unsafe hot and cold spots before harm, damage, or wasted effort piles up."
+  "detailedImplementation": "Prerequisites\n• Validate formula against handheld psychrometer quarterly.\n• Exclude outdoor canopy sensors if mixed index.\n\nStep 1 — Add `case()` for Fahrenheit sites converting to Celsius first.\n\nStep 2 — Correlate with chilled water supply temp if ingested.\n\nStep 3 — SOP for facilities when alert fires.\n\nStep 4 — Optional ITSI thresholding.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Aranet data pipeline via MQTT (Splunkbase #1890) or HEC — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=aranet:sensor into environment. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`RH, dew_c`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with uncomfortable or unsafe hot and cold spots before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,28 +8,42 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Event Notification Delivery Failure Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_event_notification_delivery_failure_tracking` (UC-5.13.66), SOC dashboard panel \"Operations — Event Notification Delivery Failure Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.13.66 positive (Event, Notification, Delivery, Failure, Tracking): ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:event:notification' where `avg_events`, `stdev_events` grouped by `_time` satisfies detection threshold for 'Event Notification Delivery Failure Tracking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.13.66 negative (Failure Tracking): ingest benign `catalyst` / `cisco:dnac:event:notification` events where `_time` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Event Notification Delivery Failure Tracking'."
+  },
   "dataSources": "`index=catalyst sourcetype=cisco:dnac:event:notification`. via Catalyst Center webhook → Splunk HEC (push model, real-time). Configure under Platform > Developer Toolkit > Event Notifications. Volume: Variable; event-driven. Depends on subscribed event types and network activity.. RBAC: SUPER-ADMIN-ROLE (for configuring event subscriptions in Catalyst Center). Key fields: `eventType` (string), `eventCategory` (string), `eventSeverity` (integer), `description` (string), `timestamp` (epoch milliseconds), `domain` (string), `tenantId` (string), `source` (string).",
   "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538) + Splunk HEC for Catalyst Center webhook event notifications",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:event:notification\" | bin _time span=1h | stats count as received_events by _time | eventstats avg(received_events) as avg_events stdev(received_events) as stdev_events | where received_events < (avg_events - 2*stdev_events) OR received_events=0 | eval gap_type=if(received_events=0, \"Complete delivery gap\", \"Unusual drop in notifications\") | table _time received_events avg_events gap_type",
-  "description": "Monitors the Catalyst Center event notification pipeline for delivery failures — events that Catalyst Center attempted to send via webhook but that didn't arrive in Splunk, indicating HEC endpoint issues, certificate problems, firewall changes, or Catalyst Center platform problems that silently break the real-time alerting pathway.",
-  "value": "A silent failure in the webhook pipeline is the worst kind of monitoring gap — you think real-time alerting is active, but events aren't actually arriving. This UC catches pipeline failures by monitoring for gaps in event volume (no events for > 2 hours when events are expected) and checking HEC health (`index=_internal component=HttpInputDataHandler`). Without this meta-monitoring, a broken webhook could go undetected for days, during which all the real-time alerting UCs (UC-5.13.65, UC-5.13.61) are blind.",
+  "description": "Detects UC-5.13.66 — Event, Notification, Delivery, Failure, Tracking — using `index=catalyst` sourcetype `cisco:dnac:event:notification`, grouped by `_time`. Outputs `avg_events`, `stdev_events` each `1h`; alert when configured threshold. Primary focus: Failure Tracking. Purpose-built for 'Event Notification Delivery Failure Tracking' in Operations workflows.",
+  "value": "UC-5.13.66 operationalises 'Event Notification Delivery Failure Tracking' against `cisco:dnac:event:notification` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "**Primary data:** `index=catalyst` `sourcetype=cisco:dnac:event:notification` (HEC as in UC-5.13.64). **HEC health:** In parallel, monitor `index=_internal` `source=*metrics.log* OR source=*splunkd.log*` for HEC 4xx/5xx, connection errors, or token failures (tune to your log volume). If HEC is on a forwarder, also watch `metrics.log` for `group=per_source_metrics` and `per_sourcetype` throughput. **Catalyst Center side:** if the product exposes webhook **delivery** status in the admin UI, align drops with Splunk gaps. For this UC’s SPL: hourly bucketing and statistical drop detection flag \"quiet\" hours; tune `stdev` when volume is very low. **Catalyst Center** webhook URL remains `https://<splunk>:8088/services/collector/event` with the Splunk HEC `Authorization` header. Document maintenance windows (Catalyst or Splunk) so the alert can be suppressed.",
   "visualization": "Time series of `received_events` with `avg_events` band, table of `gap_type` and timestamps, combine with a panel of HEC error count from _internal on the same dashboard.",
   "references": [
     {
       "title": "Splunkbase app 7538",
-      "url": "https://splunkbase.splunk.com/app/7538"
+      "url": "https://splunkbase.splunk.com/app/7538",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center API docs",
-      "url": "https://developer.cisco.com/docs/catalyst-center/"
+      "url": "https://developer.cisco.com/docs/catalyst-center/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Event Management API — Cisco DevNet",
-      "url": "https://developer.cisco.com/docs/catalyst-center/#!get-notifications"
+      "url": "https://developer.cisco.com/docs/catalyst-center/#!get-notifications",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Low event volume during quiet periods appearing as delivery failure.** Nights, weekends, and change freezes naturally produce fewer events. If the delivery health check uses a fixed minimum threshold, quiet periods may trigger a false delivery failure alert. Distinguish by comparing the event volume against a time-of-day and day-of-week baseline rather than a flat threshold. Suppress by using time-aware baselines for the delivery health check.\n\n**Catalyst Center webhook destination configuration changed.** If the webhook destination URL, authentication, or TLS certificate is changed, events generated between the old and new configuration may fail delivery. Distinguish by checking `index=catalyst sourcetype=\"cisco:dnac:audit:logs\"` for webhook configuration changes. Suppress by allowing a 15-minute grace period after webhook configuration changes.\n\n**Splunk HEC token rotation causing temporary authentication failures.** When the HEC token is rotated, events sent with the old token fail authentication. Distinguish by checking `index=_internal sourcetype=splunkd source=\"*httpinput*\"` for authentication failures coinciding with the HEC token rotation. Suppress by coordinating HEC token rotation with Catalyst Center webhook credential updates.\n\n**Network path issue between Catalyst Center and Splunk HEC endpoint.** Firewall changes, routing issues, or TLS certificate mismatches on the HEC endpoint can cause delivery failures. Distinguish by checking whether the delivery failures affect all event types uniformly (path issue) or only specific types (configuration issue). Do not suppress — investigate and resolve the network path issue.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst` (UC-5.13.66)** — Planned work for 'Event Notification Delivery Failure Tracking' shifts `avg_events`, `stdev_events` over `span=1h` while `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `cisco:dnac:event:notification`** — Scheduled automation elevates `gap_type` without crossing configured threshold for UC-5.13.66. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:event:notification`** — First 48h baseline for UC-5.13.66 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

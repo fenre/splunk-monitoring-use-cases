@@ -9,11 +9,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=pexip:media_stream` (polled from `/api/admin/history/v1/participant/media_stream/`)",
-  "app": "Custom Pexip TA (scripted input polling Management REST API)",
+  "exclusions": "Covers the detection logic documented for 'Pexip Participant Call Quality Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_pexip_participant_call_quality_monitoring` (UC-11.3.52), SOC dashboard panel \"Operations — Pexip Participant Call Quality Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-11.3.52 positive (Pexip, Participant, Call, Quality, Monitoring): ingest synthetic events into `index=pexip` sourcetype='pexip:media_stream' where `avg_loss`, `avg_jitter` grouped by `participant_alias`, `conference_name`, `stream_type` satisfies `packet_loss` < 1, `packet_loss` < 3, `packet_loss` < 10, or `packet_loss` >= 10 for 'Pexip Participant Call Quality Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.3.52 negative (Quality Monitoring): ingest benign `pexip` / `pexip:media_stream` events where `participant_alias`, `conference_name`, `stream_type` stays below `packet_loss` < 1, `packet_loss` < 3, `packet_loss` < 10, or `packet_loss` >= 10, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Pexip Participant Call Quality Monitoring'."
+  },
+  "dataSources": "`sourcetype=pexip:media_stream` (polled from `/api/admin/history/v1/participant/media_stream/`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom Pexip TA (scripted input polling Management REST API) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=pexip sourcetype=\"pexip:media_stream\"\n| eval quality_rating=case(\n    packet_loss < 1, \"Good\",\n    packet_loss < 3, \"OK\",\n    packet_loss < 10, \"Bad\",\n    packet_loss >= 10, \"Terrible\",\n    1==1, \"Unknown\")\n| stats count as streams,\n    avg(packet_loss) as avg_loss,\n    avg(jitter) as avg_jitter,\n    perc95(packet_loss) as p95_loss,\n    sum(eval(case(quality_rating=\"Bad\" OR quality_rating=\"Terrible\", 1, 0))) as poor_streams\n    by participant_alias, conference_name, stream_type\n| eval poor_pct=round(poor_streams*100/streams, 1)\n| where poor_pct > 5\n| sort -poor_pct\n| table participant_alias, conference_name, stream_type, streams, avg_loss, avg_jitter, p95_loss, poor_pct",
-  "description": "Pexip calculates call quality based on packet loss: Good (<1%), OK (<3%), Bad (<10%), Terrible (>=10%). Unlike platforms that only report aggregate quality, Pexip media stream statistics provide per-participant, per-stream metrics including jitter and packet loss for both audio and video. Identifying quality degradation by participant, location, or protocol allows targeted remediation — a site with consistently bad quality likely has a WAN problem, while a single participant with issues may have a local network or endpoint problem.",
-  "value": "Pexip calculates call quality based on packet loss: Good (<1%), OK (<3%), Bad (<10%), Terrible (>=10%). Unlike platforms that only report aggregate quality, Pexip media stream statistics provide per-participant, per-stream metrics including jitter and packet loss for both audio and video. Identifying quality degradation by participant, location, or protocol allows targeted remediation — a site with consistently bad quality likely has a WAN problem, while a single participant with issues may have a local network or endpoint problem.",
+  "description": "Identifies UC-11.3.52 — Pexip, Participant, Call, Quality, Monitoring — using `index=pexip` sourcetype `pexip:media_stream`, grouped by `participant_alias`, `conference_name`, `stream_type`. Outputs `avg_loss`, `avg_jitter` each `the scheduled window`; alert when `packet_loss` < 1, `packet_loss` < 3, `packet_loss` < 10, or `packet_loss` >= 10. Primary focus: Quality Monitoring. Purpose-built for 'Pexip Participant Call Quality Monitoring' in Operations workflows.",
+  "value": "UC-11.3.52 operationalises 'Pexip Participant Call Quality Monitoring' against `pexip:media_stream` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Poll `/api/admin/history/v1/participant/media_stream/` every 5 minutes via the custom Pexip TA. Each media stream record contains packet loss, jitter, and the quality rating that Pexip itself assigns. Index as `pexip:media_stream`. Classify streams using Pexip's own thresholds (Good/OK/Bad/Terrible based on packet loss percentages). Calculate the percentage of streams rated Bad or Terrible per participant and conference. Alert when more than 5% of streams in a 15-minute window are Bad/Terrible. Build a site-pair quality lookup mapping participant IP subnets to office locations to identify geographic patterns. Compare quality by protocol (SIP, H.323, WebRTC, Teams connector) to identify protocol-specific issues. Correlate with network monitoring data (UC-5.x) for root cause analysis when quality degrades.",
   "visualization": "Pie chart (quality distribution: Good/OK/Bad/Terrible), Heatmap (quality by location pair), Table (worst participants with quality metrics), Line chart (poor stream percentage trend over 7 days).",
   "cimModels": [
@@ -23,11 +29,39 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Client-side quality issues, VPN hairpin, and home Wi-Fi rather than the conference node.",
+  "knownFalsePositives": "1. **Maintenance window on `pexip` (UC-11.3.52)** — Planned work for 'Pexip Participant Call Quality Monitoring' shifts `avg_loss`, `avg_jitter` over `span=1h` while `participant_alias`, `conference_name`, `stream_type` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `pexip:media_stream`** — Scheduled automation elevates `conference_name` without crossing `packet_loss` < 1 for UC-11.3.52. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `participant_alias`, `conference_name`, `stream_type`** — Health checks in `pexip` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `pexip:media_stream`** — First 48h baseline for UC-11.3.52 on `participant_alias` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `participant_alias`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom Pexip TA (scripted input polling Management REST API).\n• Ensure the following data sources are available: `sourcetype=pexip:media_stream` (polled from `/api/admin/history/v1/participant/media_stream/`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll `/api/admin/history/v1/participant/media_stream/` every 5 minutes via the custom Pexip TA. Each media stream record contains packet loss, jitter, and the quality rating that Pexip itself assigns. Index as `pexip:media_stream`. Classify streams using Pexip's own thresholds (Good/OK/Bad/Terrible based on packet loss percentages). Calculate the percentage of streams rated Bad or Terrible per participant and conference. Alert when more than 5% of streams in a 15-minute window are Bad/Terrible. …\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=pexip sourcetype=\"pexip:media_stream\"\n| eval quality_rating=case(\n    packet_loss < 1, \"Good\",\n    packet_loss < 3, \"OK\",\n    packet_loss < 10, \"Bad\",\n    packet_loss >= 10, \"Terrible\",\n    1==1, \"Unknown\")\n| stats count as streams,\n    avg(packet_loss) as avg_loss,\n    avg(jitter) as avg_jitter,\n    perc95(packet_loss) as p95_loss,\n    sum(eval(case(quality_rating=\"Bad\" OR quality_rating=\"Terrible\", 1, 0))) as poor_streams\n    by participant_alias, conference_name, stream_type\n| eval poor_pct=round(poor_streams*100/streams, 1)\n| where poor_pct > 5\n| sort -poor_pct\n| table participant_alias, conference_name, stream_type, streams, avg_loss, avg_jitter, p95_loss, poor_pct\n```\n\nUnderstanding this SPL\n\n**Pexip Participant Call Quality Monitoring** — Pexip calculates call quality based on packet loss: Good (<1%), OK (<3%), Bad (<10%), Terrible (>=10%). Unlike platforms that only report aggregate quality, Pexip media stream statistics provide per-participant, per-stream metrics including jitter and packet loss for both audio and video. Identifying quality degradation by participant, location, or protocol allows targeted remediation — a site with consistently bad quality likely has a WAN problem, while a single…\n\nDocumented **Data sources**: `sourcetype=pexip:media_stream` (polled from `/api/admin/history/v1/participant/media_stream/`). **App/TA** (typical add-on context): Custom Pexip TA (scripted input polling Management REST API). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: pexip; **sourcetype**: pexip:media_stream. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=pexip, sourcetype=\"pexip:media_stream\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **quality_rating** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by participant_alias, conference_name, stream_type** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **poor_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where poor_pct > 5` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Pexip Participant Call Quality Monitoring**): table participant_alias, conference_name, stream_type, streams, avg_loss, avg_jitter, p95_loss, poor_pct\n\n\nStep 3 — Validate\nCompare with Pexip management console, licensing, and alarm history for the same nodes and interval.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Pie chart (quality distribution: Good/OK/Bad/Terrible), Heatmap (quality by location pair), Table (worst participants with quality metrics), Line chart (poor stream percentage trend over 7 days).",
   "grandmaExplanation": "We use this to stay ahead of email and collaboration problems, so the team is not the last to know when something drifts or breaks.",
-  "hardware": "Pexip Infinity Management Node, Pexip Conferencing Nodes"
+  "hardware": "Pexip Infinity Management Node, Pexip Conferencing Nodes",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

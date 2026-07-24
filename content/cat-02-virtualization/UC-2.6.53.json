@@ -9,11 +9,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=xd` `sourcetype=\"citrix:broker:events\"` (desktop assignment, entitlement, and machine assignment changes; admin actions); `index=xd` `sourcetype=\"citrix:monitor:odata\"` `Machines` or `Assignments` if you take periodic inventory snapshots; optional Microsoft-365/Entra sign-in or AD audit for correlating the same `user` principal",
-  "app": "Template for Citrix XenDesktop 7 (`TA-XD7-Broker`); optional Citrix Monitor OData for snapshot-based diff",
+  "exclusions": "Covers the detection logic documented for 'Citrix Delivery Group Desktop Assignment Changes' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_citrix_delivery_group_desktop_assignment_changes` (UC-2.6.53), SOC dashboard panel \"Linux — Citrix Delivery Group Desktop Assignment Changes\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.6.53 positive (Citrix, Delivery, Group, Desktop, Assignment): ingest synthetic events into `index=xd` sourcetype='citrix:broker:events' where `values` grouped by `dg`, `_time`, `actor` satisfies `changes` > 0 for 'Citrix Delivery Group Desktop Assignment Changes'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.6.53 negative (Assignment Changes): ingest benign `xd` / `citrix:broker:events` events where `dg`, `_time`, `actor` stays below `changes` > 0, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 5 confirms zero alert rows for 'Citrix Delivery Group Desktop Assignment Changes'."
+  },
+  "dataSources": "`index=xd` `sourcetype=\"citrix:broker:events\"` (desktop assignment, entitlement, and machine assignment changes; admin actions); `index=xd` `sourcetype=\"citrix:monitor:odata\"` `Machines` or `Assignments` if you take periodic inventory snapshots; optional Microsoft-365/Entra sign-in or AD audit for correlating the same `user` principal Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Template for Citrix XenDesktop 7 (`TA-XD7-Broker`); optional Citrix Monitor OData for snapshot-based diff — Universal Forwarder (Splunkbase 617)",
   "spl": "index=xd sourcetype=\"citrix:broker:events\"\n| where event_type IN (\"DesktopAssignmentChange\", \"MachineAssignment\", \"EntitlementChange\") OR match(_raw, \"(?i)(assignment|entitlement|desktop.?.?user|user.?.?machine)\")\n| eval user_key=coalesce(user, UPN, sam_account, \"unknown\")\n| eval dg=coalesce(delivery_group, desktop_group, \"Unknown\")\n| eval machine=coalesce(machine_name, machine, \"Unassigned\")\n| eval change=coalesce(change_type, action, event_type, \"change\")\n| eval actor=coalesce(admin_user, Admin, \"unknown\")\n| bin _time span=1h\n| stats count as changes, values(change) as change_types, values(user_key) as users_touched, values(machine) as machines by dg, _time, actor\n| where changes>0\n| sort - _time\n| table _time, actor, dg, change_types, users_touched, machines, changes",
-  "description": "Desktop and machine assignments determine who can reach which host pool, including support jump boxes and high-risk clinical or trading desktops. A mistaken assignment can grant a broad security group direct access to a gold image, or remove access during an incident. You should log add/remove actions on assignments with the acting admin, delivery group, user or group principal, and machine where applicable. Day-to-day automation may drive many rows — the control is the unexpected actor, off-hours change, or assignment outside an approved list of groups, not the volume alone.",
-  "value": "Desktop and machine assignments determine who can reach which host pool, including support jump boxes and high-risk clinical or trading desktops. A mistaken assignment can grant a broad security group direct access to a gold image, or remove access during an incident. You should log add/remove actions on assignments with the acting admin, delivery group, user or group principal, and machine where applicable. Day-to-day automation may drive many rows — the control is the unexpected actor, off-hours change, or assignment outside an approved list of groups, not the volume alone.",
+  "description": "Detects 'Citrix Delivery Group Desktop Assignment Changes' patterns (UC-2.6.53) sourced from `index=xd` sourcetype `citrix:broker:events`. Threshold bundle: `changes` > 0; aggregation grain: `dg`, `_time`, `actor`; metrics: `values`. Watch terms: Citrix, Delivery, Group, Desktop, Assignment.",
+  "value": "UC-2.6.53 gives Linux teams earlier visibility into Assignment Changes through `citrix:broker:events` feeds, lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Map broker admin events into `citrix:broker:events` with stable field names. Create a `lookup` of approved automation service accounts. Alert when `actor` is not in the list and the hour is outside change windows, or when a new Active Directory group is added to a sensitive delivery group. If your broker is quiet, supplement with hourly OData `Machines` output diffed in a saved search. Feed results to the identity and access team for recertification evidence.",
   "visualization": "Timeline of changes by admin, table of the last 50 events with before/after if your feed includes it, single value of changes in last 24 h compared to 30-day average.",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Assign machines to users in CVAD",
-      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/"
+      "url": "https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Change",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Citrix environments often coordinate broker, VDA, gateway, and profile layers; a single noisy component may clear when maintenance or a publish job completes.",
+  "knownFalsePositives": "1. **Patch Tuesday on `xd`** — Package managers spike `dg` metrics for 'Citrix Delivery Group Desktop Assignment Changes'. Correlate with apt/yum logs in the same `citrix:broker:events` window.\n\n2. **Nightly backup I/O on `dg`** — Predictable `values` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `citrix:broker:events`** — Nagios/Zabbix polls `dg` and mimics sustained load without crossing `changes` > 0.\n\n4. **New host onboarding** — `dg` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `dg`, `valid_until`.",
   "mitreAttack": [
     "T1098"
   ],
@@ -37,6 +59,12 @@
     "citrix_cvad"
   ],
   "lastReviewed": "2026-04-24",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `TA-XD7-Broker` with admin audit events enabled; optional Citrix Monitor OData for inventory diff.\n• Ensure the following data sources are available: broker or Studio audit trail events with actor and subject; time sync across controllers.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIf Event IDs or `event_type` values differ by version, normalize with `eval` and a case statement. Truncate PII in `user` if your privacy policy requires hashing — keep a reversible vault outside Splunk for investigations.\n\nStep 2 — Create the search and alert\nTighten the `match` on `_raw` after you know your exact `Message` format. A minimal start:\n\n```spl\nindex=xd sourcetype=\"citrix:broker:events\" event_type=\"AdminAction\" matchstr=\"*assignment*\"\n| table _time, admin_user, user, delivery_group, Message\n```\n\n**Citrix Delivery Group Desktop Assignment Changes** — Add `| join` to your `lookup approved_admins` when ready.\n\nStep 3 — Validate\nRun a test assignment in non-production, confirm a row, and backfill one week of history. Compare to Citrix Director or Studio logs.\n\nStep 4 — Operationalize\nRoute unexpected rows to a security distribution list, attach to quarterly recertification, and do not page on automation noise once baselined.",
-  "grandmaExplanation": "We record when someone’s desktop is tied to a different person or group than before, so risky or surprise access changes are visible in plain reporting, not only inside the admin console."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `TA-XD7-Broker` with admin audit events enabled; optional Citrix Monitor OData for inventory diff.\n• Ensure the following data sources are available: broker or Studio audit trail events with actor and subject; time sync across controllers.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIf Event IDs or `event_type` values differ by version, normalize with `eval` and a case statement. Truncate PII in `user` if your privacy policy requires hashing — keep a reversible vault outside Splunk for investigations.\n\nStep 2 — Create the search and alert\nTighten the `match` on `_raw` after you know your exact `Message` format. A minimal start:\n\n```spl\nindex=xd sourcetype=\"citrix:broker:events\" event_type=\"AdminAction\" matchstr=\"*assignment*\"\n| table _time, admin_user, user, delivery_group, Message\n```\n\n**Citrix Delivery Group Desktop Assignment Changes** — Add `| join` to your `lookup approved_admins` when ready.\n\nStep 3 — Validate\nRun a test assignment in non-production, confirm a row, and backfill one week of history. Compare to Citrix Director or Studio logs.\n\nStep 4 — Operationalize\nRoute unexpected rows to a security distribution list, attach to quarterly recertification, and do not page on automation noise once baselined.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Template for Citrix XenDesktop 7 (`TA-XD7-Broker`); optional Citrix Monitor OData for snapshot-based diff — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=citrix:broker:events into xd. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, actor, changes, dg`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We record when someone’s desktop is tied to a different person or group than before, so risky or surprise access changes are visible in plain reporting, not only inside the admin console.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

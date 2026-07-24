@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=elasticsearch:cache_stats`",
-  "app": "Custom REST scripted input (`_nodes/stats/indices/fielddata,query_cache,request_cache`)",
+  "exclusions": "Covers the detection logic documented for 'Elasticsearch Fielddata and Cache Evictions' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_elasticsearch_fielddata_and_cache_evictions` (UC-7.5.18), SOC dashboard panel \"Operations — Elasticsearch Fielddata and Cache Evictions\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.5.18 positive (Elasticsearch, Fielddata, and, Cache, Evictions): ingest synthetic events into `index=database` sourcetype='elasticsearch:cache_stats' where `fielddata_evictions`, `query_cache_evictions` grouped by `node_name` satisfies `fd_evict_delta` > 0, or `qc_evict_delta` > 100 for 'Elasticsearch Fielddata and Cache Evictions'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.5.18 negative (Cache Evictions): ingest benign `database` / `elasticsearch:cache_stats` events where `node_name` stays below `fd_evict_delta` > 0, or `qc_evict_delta` > 100, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Elasticsearch Fielddata and Cache Evictions'."
+  },
+  "dataSources": "`sourcetype=elasticsearch:cache_stats` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom REST scripted input (`_nodes/stats/indices/fielddata,query_cache,request_cache`) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"elasticsearch:cache_stats\"\n| eval fd_evict_delta=fielddata.evictions-prev_fd_evictions, qc_evict_delta=query_cache.evictions-prev_qc_evictions\n| where fd_evict_delta > 0 OR qc_evict_delta > 100\n| timechart span=5m sum(fd_evict_delta) as fielddata_evictions, sum(qc_evict_delta) as query_cache_evictions by node_name",
-  "description": "Fielddata evictions force expensive re-computation of in-memory data structures, causing search latency spikes. Query cache evictions reduce the benefit of repeated queries. Tracking eviction rates guides memory tuning.",
-  "value": "Fielddata evictions force expensive re-computation of in-memory data structures, causing search latency spikes. Query cache evictions reduce the benefit of repeated queries. Tracking eviction rates guides memory tuning.",
+  "description": "Detects UC-7.5.18 — Elasticsearch, Fielddata, and, Cache, Evictions — using `index=database` sourcetype `elasticsearch:cache_stats`, grouped by `node_name`. Outputs `fielddata_evictions`, `query_cache_evictions` each `5m`; alert when `fd_evict_delta` > 0, or `qc_evict_delta` > 100. Primary focus: Cache Evictions. Purpose-built for 'Elasticsearch Fielddata and Cache Evictions' in Operations workflows.",
+  "value": "For 'Elasticsearch Fielddata and Cache Evictions', UC-7.5.18 converts `fielddata_evictions`, `query_cache_evictions` on `elasticsearch:cache_stats` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Poll `GET _nodes/stats/indices/fielddata,query_cache,request_cache` and compute deltas for `evictions` counters. Any fielddata eviction is significant — alert immediately and investigate which fields use fielddata (should be using doc_values instead). For query cache, alert when eviction rate exceeds a percentage of total cache entries. Correlate with heap usage.",
   "visualization": "Line chart (eviction rate by cache type), Bar chart (evictions by node), Single value (fielddata memory size).",
   "cimModels": [
@@ -21,16 +27,38 @@
   "references": [
     {
       "title": "Splunk — DB Connect",
-      "url": "https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/WhatisDBX"
+      "url": "https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/WhatisDBX",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned index rollovers, rebalancing, and cluster restarts can move shard counts and health states briefly; correlate with Elasticsearch or OpenSearch change records.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.5.18)** — Planned work for 'Elasticsearch Fielddata and Cache Evictions' shifts `fielddata_evictions`, `query_cache_evictions` over `span=5m` while `node_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `elasticsearch:cache_stats`** — Scheduled automation elevates `fd_evict_delta` without crossing `fd_evict_delta` > 0 for UC-7.5.18. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `node_name`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `elasticsearch:cache_stats`** — First 48h baseline for UC-7.5.18 on `node_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `node_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "elasticsearch"
   ],
   "equipmentModels": [
     "elasticsearch_es"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• In operations we confirm in Kibana or OpenSearch Dashboards and the `_cat` / cluster APIs for that stack.\n• Install and configure the required add-on or app: Custom REST scripted input (`_nodes/stats/indices/fielddata,query_cache,request_cache`).\n• Ensure the following data sources are available: `sourcetype=elasticsearch:cache_stats`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll `GET _nodes/stats/indices/fielddata,query_cache,request_cache` and compute deltas for `evictions` counters. Any fielddata eviction is significant — alert immediately and investigate which fields use fielddata (should be using doc_values instead). For query cache, alert when eviction rate exceeds a percentage of total cache entries. Correlate with heap usage.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=database sourcetype=\"elasticsearch:cache_stats\"\n| eval fd_evict_delta=fielddata.evictions-prev_fd_evictions, qc_evict_delta=query_cache.evictions-prev_qc_evictions\n| where fd_evict_delta > 0 OR qc_evict_delta > 100\n| timechart span=5m sum(fd_evict_delta) as fielddata_evictions, sum(qc_evict_delta) as query_cache_evictions by node_name\n```\n\nUnderstanding this SPL\n\n**Elasticsearch Fielddata and Cache Evictions** — Fielddata evictions force expensive re-computation of in-memory data structures, causing search latency spikes. Query cache evictions reduce the benefit of repeated queries. Tracking eviction rates guides memory tuning.\n\nDocumented **Data sources**: `sourcetype=elasticsearch:cache_stats`. **App/TA** (typical add-on context): Custom REST scripted input (`_nodes/stats/indices/fielddata,query_cache,request_cache`). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: database; **sourcetype**: elasticsearch:cache_stats. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=database, sourcetype=\"elasticsearch:cache_stats\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **fd_evict_delta** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where fd_evict_delta > 0 OR qc_evict_delta > 100` — typically the threshold or rule expression for this monitoring goal.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by node_name** — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nFor the same time range, compare Splunk results with the engine’s own tools and system views (SQL Server: SQL Server Management Studio and `sys.dm_*`; Oracle: Oracle Enterprise Manager, SQLcl, or `V$` views; MySQL: Workbench or `performance_schema` / `SHOW` output; PostgreSQL: `pg_stat_*` in psql or pgAdmin; MongoDB: mongosh or Atlas metrics; Cassandra: nodetool; Elasticsearch/OpenSearch: Kibana or REST `_cat` / `_cluster/health`; ClickHouse: `system` tables in clickhouse-client; Snowflake: Snowsight or `ACCOUNT_USAGE`; others: the managed PaaS console). Confirm event counts, field names, timestamps, and Splunk role permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (eviction rate by cache type), Bar chart (evictions by node), Single value (fielddata memory size).",
-  "grandmaExplanation": "We follow search cluster health, indexing, and query latency so we can keep log and search services responsive when load or mapping changes."
+  "grandmaExplanation": "We follow search cluster health, indexing, and query latency so we can keep log and search services responsive when load or mapping changes.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

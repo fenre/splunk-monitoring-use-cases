@@ -31,14 +31,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set `last_audit_date` to >24 months ago. UC-22.57.5 MUST flag.",
-    "negativeScenario": "Run audit within 24 months; close findings within 90 days. UC-22.57.5 MUST NOT escalate."
+    "positiveScenario": "UC-22.57.5 positive (Cyber, Act, annual, independent, cybersecurity): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `count` grouped by `entity` satisfies `months_since_audit` > 24, `months_since_audit` > 22, `findings_overdue` > 0, or `months_since_audit` > 1 for 'SG Cyber Act bi-annual independent cybersecurity audit ledger + remediation tracking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.57.5 negative (remediation tracking): ingest benign `target_index` / `target_sourcetype` events where `entity` stays below `months_since_audit` > 24, `months_since_audit` > 22, `findings_overdue` > 0, or `months_since_audit` > 1, or exclude the test entity via `compliance_exception_register.csv`. Variant 14 confirms zero alert rows for 'SG Cyber Act bi-annual independent cybersecurity audit ledger + remediation tracking'."
   },
   "dataSources": "KV Store `csa_audit_lookup` (cii_id, last_audit_date, auditor, report_doc_url, findings_open, findings_overdue, submitted_to_commissioner_at).",
   "app": "Splunk Enterprise Security (Splunkbase 263).",
   "spl": "| inputlookup csa_audit_lookup\n| eval months_since_audit = round((now() - last_audit_date) / 2592000, 1)\n| eval audit_status = case(\n    months_since_audit > 24, \"overdue\",\n    months_since_audit > 22, \"due_soon\",\n    findings_overdue > 0, \"findings_overdue\",\n    isnull(submitted_to_commissioner_at) AND months_since_audit > 1, \"not_submitted\",\n    1=1, \"current\")\n| where audit_status IN (\"overdue\",\"findings_overdue\",\"not_submitted\")\n| table cii_id last_audit_date months_since_audit auditor findings_open findings_overdue audit_status report_doc_url",
-  "description": "Tracks bi-annual audit currency, findings closure, and Commissioner submission.",
-  "value": "Bi-annual audit is a hard requirement. Auditor and CC alike are listed on the Commissioner's register.",
+  "description": "Surfaces UC-22.57.5 — Cyber, Act, annual, independent, cybersecurity — using `index=target_index` sourcetype `configured sourcetype`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `months_since_audit` > 24, `months_since_audit` > 22, `findings_overdue` > 0, or `months_since_audit` > 1. Primary focus: remediation tracking. Purpose-built for 'SG Cyber Act bi-annual independent cybersecurity audit ledger + remediation tracking' in Compliance workflows.",
+  "value": "Alerting on Cyber, Act, annual, independent, cybersecurity through UC-22.57.5 reduces audit findings, regulatory gaps, and attestation delays by surfacing `activity` early.",
   "implementation": "(1) Populate `csa_audit_lookup` after each audit. (2) Schedule UC-22.57.5 daily. (3) Build the `CSA Bi-Annual Audit Ledger` dashboard.",
   "visualization": "(Panel 1) Audit currency by CII. (Panel 2) Findings-overdue. (Panel 3) Commissioner submission status. (Panel 4) Auditor coverage.",
   "cimModels": [
@@ -47,14 +47,26 @@
   "references": [
     {
       "title": "Cybersecurity Act 2018 §15(2)",
-      "url": "https://sso.agc.gov.sg/Act/CA2018?ProvIds=pr15-"
+      "url": "https://sso.agc.gov.sg/Act/CA2018?ProvIds=pr15-",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CSA — Cybersecurity Service Provider licensing",
-      "url": "https://www.csa.gov.sg/legislation/cybersecurity-service-provider-licensing"
+      "url": "https://www.csa.gov.sg/legislation/cybersecurity-service-provider-licensing",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Auditor switch**: changing auditor mid-cycle may compress timing; pin in lookup.\n\n**Suppression mechanism**: KV Store `csa_22_57_5_exceptions`.",
+  "knownFalsePositives": "1. **Authorised SG CYBER ACT control testing** — Internal audit exercises 'SG Cyber Act bi-annual independent cybersecurity audit ledger + remediation tracking' (UC-22.57.5) on `entity` during scheduled clause SG-CA-s15(2) sampling. Match compliance programme calendar.\n\n2. **External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing `months_since_audit` > 24. Cross-check engagement letter in `sg_cyber_act_exception_register.csv`.\n\n3. **Planned maintenance affecting control telemetry** — CAB change pauses ingestion to `audit_evidence` for `entity`. Compare `_time` with active change record.\n\n4. **Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `entity` during normal service delivery.\n\n**Suppression mechanism:** `sg_cyber_act_exception_register.csv` keyed on `entity`, `exception_reason`, `valid_until`, joined before alert threshold.",
   "mitreAttack": [
     "N/A (governance)"
   ],
@@ -79,7 +91,7 @@
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk ES.\n- KV Store `csa_audit_lookup`.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.57.5: CSA Bi-Annual Audit Ledger]\ncron_schedule = 49 12 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.5,reg=SG-Cyber-Act,clause=CSA-CII-s15(2)\nalert.severity = 3\n```\n\n## Step 2 — Runbook\n\n**`audit_status=overdue`**: schedule audit within 60 days.\n**`findings_overdue > 0`**: close within 90 days OR document remediation plan to Commissioner.\n\n**SG-specific failure modes**:\n- **Auditor licensing**: ensure auditor is on the Commissioner-approved licensee register.\n- **2024 amendment**: scope may expand; track new CII Service Providers under separate audit requirements.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES.\n- KV Store `csa_audit_lookup`.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.57.5: CSA Bi-Annual Audit Ledger]\ncron_schedule = 49 12 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.5,reg=SG-Cyber-Act,clause=CSA-CII-s15(2)\nalert.severity = 3\n```\n\n## Step 2 — Runbook\n\n**`audit_status=overdue`**: schedule audit within 60 days.\n**`findings_overdue > 0`**: close within 90 days OR document remediation plan to Commissioner.\n\n**SG-specific failure modes**:\n- **Auditor licensing**: ensure auditor is on the Commissioner-approved licensee register.\n- **2024 amendment**: scope may expand; track new CII Service Providers under separate audit requirements.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263).). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`audit_status, findings_overdue, months_since_audit`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Every two years, an outside expert checks our cyber security. We track when each audit happens, what they find, and whether we've fixed everything they noted.",
   "prerequisiteUseCases": [
     "UC-22.57.4"

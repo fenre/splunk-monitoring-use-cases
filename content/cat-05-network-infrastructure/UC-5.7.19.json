@@ -10,24 +10,42 @@
     "Operations"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Top Conversation Pairs and New Communication Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_top_conversation_pairs_and_new_communication_det` (UC-5.7.19), SOC dashboard panel \"Operations — Top Conversation Pairs and New Communication Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.7.19 positive (Top, Conversation, Pairs, and, New): ingest synthetic events into `index=netflow` sourcetype='target_sourcetype' where `recent_bytes`, `recent_packets` grouped by `pair`, `]` satisfies `mb_recent` > 5 for 'Top Conversation Pairs and New Communication Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.7.19 negative (Communication Detection): ingest benign `netflow` / `target_sourcetype` events where `pair`, `]` stays below `mb_recent` > 5, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Top Conversation Pairs and New Communication Detection'."
+  },
   "dataSources": "`index=netflow` with `sourcetype=netflow` or `stream:ipfix` carrying normalized five-tuple summaries (`src`, `dest`, `bytes`, `packets`, `protocol`, ports); consider summary-index acceleration when cardinality exceeds millions of pairs per day.",
   "app": "Splunk Add-on for NetFlow (Splunkbase 1838)",
   "spl": "index=netflow earliest=-24h\n| eval lo=min(src,dest), hi=max(src,dest), pair=lo.\"|\".hi\n| stats sum(bytes) as recent_bytes sum(packets) as recent_packets first(lo) as endpoint_a first(hi) as endpoint_b by pair\n| join max=500000 type=left pair [\n    search index=netflow earliest=-30d latest=-24h\n    | eval lo=min(src,dest), hi=max(src,dest), pair=lo.\"|\".hi\n    | stats count as prior_flow_records by pair\n]\n| fillnull value=0 prior_flow_records\n| eval mb_recent=round(recent_bytes/1048576, 2)\n| eval insight=if(prior_flow_records=0 AND mb_recent>5, \"NEW_HIGH_VOLUME_PAIR\", \"KNOWN_PAIR\")\n| sort -recent_bytes\n| head 40\n| table insight endpoint_a endpoint_b mb_recent recent_packets prior_flow_records pair",
-  "description": "Lists the heaviest unordered endpoint pairs from the last day while highlighting pairs with meaningful volume that lacked any sampled flows during the prior thirty-day baseline window.",
-  "value": "Hunting teams surface lateral movement staging and shadow information-technology links without predefined indicators; capacity planners still read the embedded top-volume appendix for hotspot remediation.",
+  "description": "Alerts on UC-5.7.19 for Top, Conversation, Pairs, and, New over `index=netflow` sourcetype `configured sourcetype` with thresholds `mb_recent` > 5. Groups `recent_bytes`, `recent_packets` by `pair`, `]` each `the scheduled window`. Centered on Communication Detection indicators. Supports repeatable operations triage for 'Top Conversation Pairs and New Communication Detection'.",
+  "value": "For 'Top Conversation Pairs and New Communication Detection', UC-5.7.19 converts `recent_bytes`, `recent_packets` on UC-5.7.19 search results into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Tune megabyte floor and join limits per hardware tier; materialize baseline pairs nightly into a KV store when subsearch ceilings bite; separate dashboards for volume champions versus novelty-only rows.",
   "visualization": "Force-directed graph sampling for top pairs (sample cap); dual tables split NEW_PAIR versus TOP_VOLUME_PAIR; sparklines when fed from summary index.",
   "references": [
     {
       "title": "Splunk — Hunting with NetFlow data",
-      "url": "https://www.splunk.com/en_us/blog/"
+      "url": "https://www.splunk.com/en_us/blog/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "MITRE ATT&CK — Lateral Movement",
-      "url": "https://attack.mitre.org/tactics/TA0008/"
+      "url": "https://attack.mitre.org/tactics/TA0008/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short-retention archives pretend novelty after retention rollover. Cloud auto-scaling introduces ephemeral pairs hourly. Penetration tests purposely mimic suspicious connectivity.",
+  "knownFalsePositives": "1. **Maintenance window on `netflow` (UC-5.7.19)** — Planned work for 'Top Conversation Pairs and New Communication Detection' shifts `recent_bytes`, `recent_packets` over `span=1h` while `pair`, `]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `min` on `configured_sourcetype`** — Scheduled automation elevates `]` without crossing `mb_recent` > 5 for UC-5.7.19. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pair`, `]`** — Health checks in `netflow` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.7.19 on `pair` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pair`, `exception_reason`, `valid_until`.",
   "equipment": [
     "netflow"
   ],
@@ -43,7 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Adequate indexer compute for wide-time joins or prebuilt baseline lookups refreshed nightly.\n• Data retention exceeding the baseline horizon so absence truly implies novelty rather than expiry.\n• Change-management feed optionally merged to annotate expected new pairs.\n\nStep 1 — Configure data collection\nEnsure Network Address Translation logging aligns internal hosts so pairs reflect true endpoints rather than translated gateways.\n\nStep 2 — Create the search\nWhen `join max` truncates, pivot to `| lookup baseline_pairs.csv pair OUTPUT first_seen` populated by a scheduled transform. Add asset enrichment columns for business unit labels.\n\nStep 3 — Validate\nSeed a fresh lab virtual machine talking solely to a new file share and confirm novelty classification within one reporting interval.\n\nStep 4 — Operationalize\nSOC reviewers receive CSV extracts limited to regulated subnets; network operations consumes only the top-volume portion via saved-search ACL separation.\n\nStep 5 — Troubleshooting\nSampling bias misses rare pairs—lower megabyte thresholds cautiously. Split exporters duplicates inflate prior counts—deduplicate using `dedup _raw` cautiously only after verifying redundancy patterns.",
+  "detailedImplementation": "Prerequisites\n• Adequate indexer compute for wide-time joins or prebuilt baseline lookups refreshed nightly.\n• Data retention exceeding the baseline horizon so absence truly implies novelty rather than expiry.\n• Change-management feed optionally merged to annotate expected new pairs.\n\nStep 1 — Configure data collection\nEnsure Network Address Translation logging aligns internal hosts so pairs reflect true endpoints rather than translated gateways.\n\nStep 2 — Create the search\nWhen `join max` truncates, pivot to `| lookup baseline_pairs.csv pair OUTPUT first_seen` populated by a scheduled transform. Add asset enrichment columns for business unit labels.\n\nStep 3 — Validate\nSeed a fresh lab virtual machine talking solely to a new file share and confirm novelty classification within one reporting interval.\n\nStep 4 — Operationalize\nSOC reviewers receive CSV extracts limited to regulated subnets; network operations consumes only the top-volume portion via saved-search ACL separation.\n\nStep 5 — Troubleshooting\nSampling bias misses rare pairs—lower megabyte thresholds cautiously. Split exporters duplicates inflate prior counts—deduplicate using `dedup _raw` cautiously only after verifying redundancy patterns.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for NetFlow (Splunkbase 1838)). Enable the modular input or HEC token that writes sourcetype=see SPL into netflow. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`], insight, mb_recent, pair`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We list who talked the most to whom lately and call out brand-new friendships that moved serious traffic. That helps guardians notice odd introductions without reading every chat.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

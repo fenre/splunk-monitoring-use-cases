@@ -9,11 +9,17 @@
     "Safety"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Hardware sensors via `truenas:alert` or IPMI syslog",
-  "app": "UF or SC4S from BMC and host sensors",
+  "exclusions": "Covers the detection logic documented for 'TrueNAS CPU temperature and fan speed thermal threshold monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_truenas_cpu_temperature_and_fan_speed_thermal_th` (UC-6.2.49), SOC dashboard panel \"Operations — TrueNAS CPU temperature and fan speed thermal threshold monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.2.49 positive (TrueNAS, CPU, temperature, and, fan): ingest synthetic events into `index=storage` sourcetype='truenas:alert' where `count` grouped by `hostname`, `sensor` satisfies `temp_c` > 85, or `fan_rpm` < 1000 for 'TrueNAS CPU temperature and fan speed thermal threshold monitoring'. Validate filter `thermal OR temperature OR fan OR RPM`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.49 negative (threshold monitoring): ingest benign `storage` / `truenas:alert` events where `hostname`, `sensor` stays below `temp_c` > 85, or `fan_rpm` < 1000, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'TrueNAS CPU temperature and fan speed thermal threshold monitoring'."
+  },
+  "dataSources": "Hardware sensors via `truenas:alert` or IPMI syslog Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "UF or SC4S from BMC and host sensors — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=storage sourcetype=\"truenas:alert\" earliest=-1h\n| search thermal OR temperature OR fan OR RPM\n| eval temp_c=coalesce(cpu_temp_c, temp_c)\n| eval fan_rpm=coalesce(fan_rpm, fan1_rpm)\n| where temp_c > 85 OR fan_rpm < 1000\n| stats latest(temp_c) as cpu_c latest(fan_rpm) as fan by hostname, sensor",
-  "description": "Thermal excursions throttle CPUs and accelerate component wear, often preceding random reboots that threaten ZFS integrity.",
-  "value": "Reduces hardware-induced corruption risk and datacenter fire safety exposure for edge TrueNAS appliances.",
+  "description": "Alerts on UC-6.2.49 — TrueNAS, CPU, temperature, and, fan — using `index=storage` sourcetype `truenas:alert`, grouped by `hostname`, `sensor`. Outputs `count` each `the scheduled window`; alert when `temp_c` > 85, or `fan_rpm` < 1000. Filter chain includes filter `thermal OR temperature OR fan OR RPM`. Purpose-built for 'TrueNAS CPU temperature and fan speed thermal threshold monitoring' in Operations workflows.",
+  "value": "UC-6.2.49 accelerates insight into threshold monitoring ('TrueNAS CPU temperature and fan speed thermal threshold monitoring') by tracking `activity` on `truenas:alert` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Calibrate thresholds per chassis model in a lookup. Suppress alerts during known HVAC maintenance windows.",
   "visualization": "Gauge (temp), table (host, sensor).",
   "cimModels": [
@@ -22,14 +28,26 @@
   "references": [
     {
       "title": "TrueNAS SCALE API documentation",
-      "url": "https://www.truenas.com/docs/scale/scaletutorials/toptoolbar/"
+      "url": "https://www.truenas.com/docs/scale/scaletutorials/toptoolbar/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TrueNAS CORE/SCALE docs — alerts",
-      "url": "https://www.truenas.com/docs/"
+      "url": "https://www.truenas.com/docs/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.2.49)** — Planned work for 'TrueNAS CPU temperature and fan speed thermal threshold monitoring' shifts `count` over `span=1h` while `hostname`, `sensor` remains in-scope. Applies filter `thermal OR temperature OR fan OR RPM`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `truenas:alert`** — Scheduled automation elevates `sensor` without crossing `temp_c` > 85 for UC-6.2.49. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `hostname`, `sensor`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `truenas:alert`** — First 48h baseline for UC-6.2.49 on `hostname` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `hostname`, `exception_reason`, `valid_until`.",
   "equipment": [
     "hardware_bmc",
     "syslog",
@@ -46,5 +64,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We help you see how object storage is growing, who can reach it, and when something is exposed or mis-tagged, so cloud storage stays under control."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (UF or SC4S from BMC and host sensors — Splunk Add-on for Unix and Linux (Splunkbase 833)). Enable the modular input or HEC token that writes sourcetype=truenas:alert into storage. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`fan_rpm, hostname, sensor, temp_c`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you see how object storage is growing, who can reach it, and when something is exposed or mis-tagged, so cloud storage stays under control.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

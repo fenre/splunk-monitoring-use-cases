@@ -9,6 +9,8 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Configuration Change Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_configuration_change_detection` (UC-5.1.7), SOC dashboard panel \"Operations — Configuration Change Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "compliance": [
     {
       "regulation": "nerc-cip",
@@ -88,11 +90,15 @@
       "evidenceArtifact": "Saved search 'UC-5.1.7' running on sourcetype=cisco:ios, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
     }
   ],
-  "dataSources": "`sourcetype=cisco:ios`",
-  "app": "`TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog",
+  "controlTest": {
+    "positiveScenario": "UC-5.1.7 positive (Configuration, Change, Detection): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `count` grouped by `entity` satisfies detection threshold for 'Configuration Change Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.1.7 negative (Change Detection): ingest benign `network` / `cisco:ios` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Configuration Change Detection'."
+  },
+  "dataSources": "`sourcetype=cisco:ios` Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network sourcetype=\"cisco:ios\" \"%SYS-5-CONFIG_I\"\n| rex \"Configured from (?<config_source>\\S+) by (?<user>\\S+)\"\n| table _time host user config_source",
-  "description": "Unauthorized config changes are a top cause of outages. Essential for compliance.",
-  "value": "Operations teams track network device configuration changes with administrator attribution, enabling rapid change correlation with incidents and compliance audit.",
+  "description": "Monitors UC-5.1.7 for Configuration, Change, Detection over `index=network` sourcetype `cisco:ios` with thresholds configured threshold. Groups `count` by `entity` each `the scheduled window`. Centered on Change Detection indicators. Supports repeatable operations triage for 'Configuration Change Detection'.",
+  "value": "For 'Configuration Change Detection', UC-5.1.7 converts `activity` on `cisco:ios` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Forward syslog. Enable archive logging. Alert on any config change. Correlate with change tickets.",
   "visualization": "Table (device, user, time), Timeline, Single value (changes last 24h).",
   "cimModels": [],
@@ -101,16 +107,36 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Authorized changes during change windows, scheduled compliance pushes, or device decommissioning will trigger this. Correlate to tickets before escalating.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.1.7)** — Planned work for 'Configuration Change Detection' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ios`** — Scheduled automation elevates `src` without crossing configured threshold for UC-5.1.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.1.7 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
   ],
   "equipmentModels": [
     "cisco_ios"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     {
@@ -119,7 +145,9 @@
       "note": "UBA"
     }
   ],
-  "detailedImplementation": "Prerequisites\n* Configuration change syslog messages. Data in `index=network` with `sourcetype=cisco:ios` or vendor-specific sourcetypes. Key mnemonics: Cisco `%SYS-5-CONFIG_I`, `%PARSER-5-CFGLOG_LOGGEDCMD`; Juniper `UI_COMMIT`, `UI_COMMIT_COMPLETED`; Arista `SYS-5-CONFIG_I`.\n* Configuration changes are a top cause of network outages. Tracking who changed what and when enables rapid rollback, compliance auditing, and change correlation with incidents.\n\nStep 1 -- Configure data collection\n```\n# Cisco IOS -- enable config change logging\narchive\n log config\n  logging enable\n  logging size 200\n  notify syslog contenttype plaintext\n  hidekeys\n\nlogging host <splunk-syslog-ip>\nlogging trap informational\n```\nVerify:\n```spl\nindex=network earliest=-24h\n| where match(_raw, \"(?i)CONFIG_I|CONFIG.*CHANGE|CFGLOG|COMMIT|config.*changed|configured.*from\")\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Configuration change detection:**\n```spl\nindex=network earliest=-24h\n| where match(_raw, \"(?i)CONFIG_I|CONFIG.*CHANGE|CFGLOG|COMMIT|config.*changed|configured.*from|running-config\")\n| rex field=_raw \"(?i)(?:by|user)\\s+(?<config_user>\\S+)\"\n| rex field=_raw \"(?i)(?:console|vty|line)\\s*(?<access_method>\\S+)\"\n| rex field=_raw \"(?i)(?:from|source)\\s+(?<source_ip>\\d+\\.\\d+\\.\\d+\\.\\d+)\"\n| eval user=coalesce(config_user, user, admin, \"unknown\")\n| eval method=coalesce(access_method, if(match(_raw, \"(?i)console\"), \"console\", if(match(_raw, \"(?i)vty|ssh|telnet\"), \"remote\", \"unknown\")))\n| eval device=coalesce(host, device_name)\n| eval change_type=case(\n    match(_raw, \"(?i)COMMIT\"), \"COMMIT\",\n    match(_raw, \"(?i)running.*startup|write\"), \"SAVE\",\n    match(_raw, \"(?i)CONFIG_I|config.*change\"), \"CONFIG_CHANGE\",\n    1==1, \"OTHER\")\n| stats count as changes dc(user) as unique_admins values(user) as admins values(source_ip) as source_ips latest(_time) as last_change by device, change_type\n| eval severity=case(\n    change_type=\"CONFIG_CHANGE\" AND match(mvjoin(source_ips, \",\"), \"unknown\"), \"WARNING -- config change from unknown source\",\n    changes > 10, \"INFO -- high config change frequency\",\n    1==1, \"INFO\")\n| eval last_change_time=strftime(last_change, \"%Y-%m-%d %H:%M:%S\")\n| table device, change_type, changes, admins, source_ips, last_change_time, severity\n| sort severity, -changes\n```\n\nStep 3 -- Validate\n(a) CLI: `show archive log config all` (Cisco) -- verify logged commands.\n(b) CLI: `show running-config | include Last` -- check last config change time.\n(c) Cross-reference with change management tickets.\n\nStep 4 -- Operationalize\nDashboard (\"Network -- Configuration Changes\"):\n* Row 1 -- Single-value: \"Config changes (24h)\", \"Devices changed\", \"Administrators active\".\n* Row 2 -- Configuration change timeline.\n* Row 3 -- Change audit trail table.\n\nAlert: Warning (config change outside maintenance window): unauthorized change.\n\nStep 5 -- Troubleshooting\n\n* **Unauthorized change** -- Check user identity and source IP. Cross-reference with AAA/TACACS+ logs. Verify change management approval.\n\n* **Config not saved** -- Running-config changed but not written to startup. Check: `show startup-config` vs `show running-config`. Risk: changes lost on reload.\n\n* **Correlate config change with outage** -- Overlay config change events with interface down/BGP flap events. Time-based correlation identifies change-induced incidents.",
+  "detailedImplementation": "Prerequisites\n* Configuration change syslog messages. Data in `index=network` with `sourcetype=cisco:ios` or vendor-specific sourcetypes. Key mnemonics: Cisco `%SYS-5-CONFIG_I`, `%PARSER-5-CFGLOG_LOGGEDCMD`; Juniper `UI_COMMIT`, `UI_COMMIT_COMPLETED`; Arista `SYS-5-CONFIG_I`.\n* Configuration changes are a top cause of network outages. Tracking who changed what and when enables rapid rollback, compliance auditing, and change correlation with incidents.\n\nStep 1 -- Configure data collection\n```\n# Cisco IOS -- enable config change logging\narchive\n log config\n  logging enable\n  logging size 200\n  notify syslog contenttype plaintext\n  hidekeys\n\nlogging host <splunk-syslog-ip>\nlogging trap informational\n```\nVerify:\n```spl\nindex=network earliest=-24h\n| where match(_raw, \"(?i)CONFIG_I|CONFIG.*CHANGE|CFGLOG|COMMIT|config.*changed|configured.*from\")\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Configuration change detection:**\n```spl\nindex=network earliest=-24h\n| where match(_raw, \"(?i)CONFIG_I|CONFIG.*CHANGE|CFGLOG|COMMIT|config.*changed|configured.*from|running-config\")\n| rex field=_raw \"(?i)(?:by|user)\\s+(?<config_user>\\S+)\"\n| rex field=_raw \"(?i)(?:console|vty|line)\\s*(?<access_method>\\S+)\"\n| rex field=_raw \"(?i)(?:from|source)\\s+(?<source_ip>\\d+\\.\\d+\\.\\d+\\.\\d+)\"\n| eval user=coalesce(config_user, user, admin, \"unknown\")\n| eval method=coalesce(access_method, if(match(_raw, \"(?i)console\"), \"console\", if(match(_raw, \"(?i)vty|ssh|telnet\"), \"remote\", \"unknown\")))\n| eval device=coalesce(host, device_name)\n| eval change_type=case(\n    match(_raw, \"(?i)COMMIT\"), \"COMMIT\",\n    match(_raw, \"(?i)running.*startup|write\"), \"SAVE\",\n    match(_raw, \"(?i)CONFIG_I|config.*change\"), \"CONFIG_CHANGE\",\n    1==1, \"OTHER\")\n| stats count as changes dc(user) as unique_admins values(user) as admins values(source_ip) as source_ips latest(_time) as last_change by device, change_type\n| eval severity=case(\n    change_type=\"CONFIG_CHANGE\" AND match(mvjoin(source_ips, \",\"), \"unknown\"), \"WARNING -- config change from unknown source\",\n    changes > 10, \"INFO -- high config change frequency\",\n    1==1, \"INFO\")\n| eval last_change_time=strftime(last_change, \"%Y-%m-%d %H:%M:%S\")\n| table device, change_type, changes, admins, source_ips, last_change_time, severity\n| sort severity, -changes\n```\n\nStep 3 -- Validate\n(a) CLI: `show archive log config all` (Cisco) -- verify logged commands.\n(b) CLI: `show running-config | include Last` -- check last config change time.\n(c) Cross-reference with change management tickets.\n\nStep 4 -- Operationalize\nDashboard (\"Network -- Configuration Changes\"):\n* Row 1 -- Single-value: \"Config changes (24h)\", \"Devices changed\", \"Administrators active\".\n* Row 2 -- Configuration change timeline.\n* Row 3 -- Change audit trail table.\n\nAlert: Warning (config change outside maintenance window): unauthorized change.\n\nStep 5 -- Troubleshooting\n\n* **Unauthorized change** -- Check user identity and source IP. Cross-reference with AAA/TACACS+ logs. Verify change management approval.\n\n* **Config not saved** -- Running-config changed but not written to startup. Check: `show startup-config` vs `show running-config`. Risk: changes lost on reload.\n\n* **Correlate config change with outage** -- Overlay config change events with interface down/BGP flap events. Time-based correlation identifies change-induced incidents.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ios into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user, action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We log who changed a switch or router config and when, so you can line up what happened in the network with your approved change tickets.",
-  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360"
+  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`ceph osd df` / status JSON indexed as `ceph:osd` with `utilization`, `apply_class_*` fields",
-  "app": "Custom scripted input or community Ceph TA; Universal Forwarder + HEC",
+  "exclusions": "Covers the detection logic documented for 'Ceph cluster OSD nearfull and backfillfull capacity pressure' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ceph_cluster_osd_nearfull_and_backfillfull_capac` (UC-6.2.20), SOC dashboard panel \"Operations — Ceph cluster OSD nearfull and backfillfull capacity pressure\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.2.20 positive (Ceph, cluster, OSD, nearfull, and): ingest synthetic events into `index=storage` sourcetype='ceph:osd' where `max_util` grouped by `osd_id`, `cluster_name` satisfies `util` > 85 for 'Ceph cluster OSD nearfull and backfillfull capacity pressure'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.20 negative (capacity pressure): ingest benign `storage` / `ceph:osd` events where `osd_id`, `cluster_name` stays below `util` > 85, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Ceph cluster OSD nearfull and backfillfull capacity pressure'."
+  },
+  "dataSources": "`ceph osd df` / status JSON indexed as `ceph:osd` with `utilization`, `apply_class_*` fields Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input or community Ceph TA; Universal Forwarder + HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"ceph:osd\" earliest=-30m\n| eval util=coalesce(utilization, pcent, space_used_percent)\n| where util > 85 OR state=\"nearfull\" OR state=\"backfillfull\" OR match(_raw, \"nearfull|backfillfull\")\n| stats max(util) as max_util values(state) as states by osd_id, cluster_name\n| sort - max_util",
-  "description": "OSDs approaching nearfull or backfillfull slow rebalancing and risk write failures during recovery. Per-OSD utilization highlights imbalanced CRUSH weights or failed additions.",
-  "value": "Prevents cluster-wide ingest stalls and gives operators time to expand before PGs cannot backfill.",
+  "description": "Alerts on risk tied to Ceph, cluster, OSD, nearfull, and through UC-6.2.20 on `index=storage` sourcetype `ceph:osd`. Summarises `max_util` grouped by `osd_id`, `cluster_name` across `the scheduled window` before applying `util` > 85. Operators tune 'Ceph cluster OSD nearfull and backfillfull capacity pressure' using UC-6.2.20 runbook steps.",
+  "value": "Tracking `max_util` via UC-6.2.20 on `ceph:osd` feeds improves response to 'Ceph cluster OSD nearfull and backfillfull capacity pressure' and reduces operational risk and delayed incident response.",
   "implementation": "Run `ceph osd df -f json` every 5 minutes via scripted input; flatten `nodes` array into one event per OSD. Set `props.conf` for `ceph:osd`. Page when util > 85% for any OSD class serving production pools.",
   "visualization": "Bar chart (util by OSD), table (osd_id, util, host).",
   "cimModels": [
@@ -24,21 +30,33 @@
   "references": [
     {
       "title": "Ceph Documentation — monitoring",
-      "url": "https://docs.ceph.com/en/latest/radosgw/"
+      "url": "https://docs.ceph.com/en/latest/radosgw/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Red Hat Ceph Storage — troubleshooting",
-      "url": "https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/"
+      "url": "https://access.redhat.com/documentation/en-us/red_hat_ceph_storage/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Backfill and rebalancing after node changes can move the cluster toward full before new capacity is absorbed; check recovery and CRUSH activity in the cluster manager.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.2.20)** — Planned work for 'Ceph cluster OSD nearfull and backfillfull capacity pressure' shifts `max_util` over `span=1h` while `osd_id`, `cluster_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `ceph:osd`** — Scheduled automation elevates `cluster_name` without crossing `util` > 85 for UC-6.2.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `osd_id`, `cluster_name`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ceph:osd`** — First 48h baseline for UC-6.2.20 on `osd_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `osd_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "ceph",
     "dell_emc"
+  ],
+  "equipmentModels": [
+    "ceph_generic",
+    "dell_emc_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -48,5 +66,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We warn when Ceph disks are getting too full so the cluster can rebalance in time and you avoid write stops or emergency expansion."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom scripted input or community Ceph TA; Universal Forwarder + HEC — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ceph:osd into storage. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cluster_name, osd_id, util`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We warn when Ceph disks are getting too full so the cluster can rebalance in time and you avoid write stops or emergency expansion.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

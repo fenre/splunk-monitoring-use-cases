@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=xd` `sourcetype=\"citrix:cloudconnector\"` fields `connector_host`, `connectivity_status`, `last_contact`, `service_status`, `resource_location`",
-  "app": "Splunk Universal Forwarder on Cloud Connector hosts",
+  "exclusions": "Covers the detection logic documented for 'Citrix Cloud Connector Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_citrix_cloud_connector_health` (UC-2.6.16), SOC dashboard panel \"Linux — Citrix Cloud Connector Health\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.6.16 positive (Citrix, Cloud, Connector, Health): ingest synthetic events into `index=xd` sourcetype='citrix:cloudconnector' where `count` grouped by `connector_host`, `resource_location` satisfies `hours_since_contact` > 1 for 'Citrix Cloud Connector Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.6.16 negative (Connector Health): ingest benign `xd` / `citrix:cloudconnector` events where `connector_host`, `resource_location` stays below `hours_since_contact` > 1, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 11 confirms zero alert rows for 'Citrix Cloud Connector Health'."
+  },
+  "dataSources": "`index=xd` `sourcetype=\"citrix:cloudconnector\"` fields `connector_host`, `connectivity_status`, `last_contact`, `service_status`, `resource_location` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder on Cloud Connector hosts — Universal Forwarder (Splunkbase 617)",
   "spl": "index=xd sourcetype=\"citrix:cloudconnector\"\n| stats latest(connectivity_status) as cloud_status, latest(service_status) as svc_status, latest(_time) as last_seen by connector_host, resource_location\n| eval hours_since_contact=round((now()-last_seen)/3600, 1)\n| where cloud_status!=\"Connected\" OR svc_status!=\"Running\" OR hours_since_contact > 1\n| table connector_host, resource_location, cloud_status, svc_status, hours_since_contact",
-  "description": "For Citrix DaaS (cloud-managed) deployments, Cloud Connectors are the link between on-premises resources and Citrix Cloud. If all Cloud Connectors in a resource location fail, the site enters Local Host Cache (LHC) mode with limited functionality — no new machine registrations, no power management, and no access to cloud-hosted services. Monitoring connector health ensures continuous cloud management connectivity.",
-  "value": "For Citrix DaaS (cloud-managed) deployments, Cloud Connectors are the link between on-premises resources and Citrix Cloud. If all Cloud Connectors in a resource location fail, the site enters Local Host Cache (LHC) mode with limited functionality — no new machine registrations, no power management, and no access to cloud-hosted services. Monitoring connector health ensures continuous cloud management connectivity.",
+  "description": "Detects UC-2.6.16 — Citrix, Cloud, Connector, Health — using `index=xd` sourcetype `citrix:cloudconnector`, grouped by `connector_host`, `resource_location`. Outputs `count` each `the scheduled window`; alert when `hours_since_contact` > 1. Primary focus: Connector Health. Purpose-built for 'Citrix Cloud Connector Health' in Linux workflows.",
+  "value": "UC-2.6.16 helps teams contain Citrix, Cloud, Connector, Health scenarios and reduce capacity incidents, patch regressions, and service outages before incidents compound.",
   "implementation": "Deploy a Splunk Universal Forwarder on Cloud Connector hosts and monitor Windows Event Logs for Citrix Cloud Connector events. Also run the Cloud Health Check utility via scheduled PowerShell scripted input to validate connectivity to Citrix Cloud services. Track connectivity status (Connected, Disconnected), service health, and last successful cloud contact time. Alert when: any connector loses cloud connectivity for more than 15 minutes, all connectors in a resource location become disconnected (LHC mode imminent), or Cloud Connector services stop. Ensure at least 2 connectors per resource location for redundancy.",
   "visualization": "Status grid (connector x resource location), Timeline (connectivity events), Single value (connected connectors count).",
   "cimModels": [
@@ -21,17 +27,38 @@
   "references": [
     {
       "title": "uberAgent indexer app",
-      "url": "https://splunkbase.splunk.com/app/2998"
+      "url": "https://splunkbase.splunk.com/app/2998",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase app 1448",
-      "url": "https://splunkbase.splunk.com/app/1448"
+      "url": "https://splunkbase.splunk.com/app/1448",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Citrix environments often coordinate broker, VDA, gateway, and profile layers; a single noisy component may clear when maintenance or a publish job completes.",
+  "knownFalsePositives": "1. **Patch Tuesday on `xd`** — Package managers spike `connector_host` metrics for 'Citrix Cloud Connector Health'. Correlate with apt/yum logs in the same `citrix:cloudconnector` window.\n\n2. **Nightly backup I/O on `connector_host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `citrix:cloudconnector`** — Nagios/Zabbix polls `connector_host` and mimics sustained load without crossing `hours_since_contact` > 1.\n\n4. **New host onboarding** — `connector_host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `connector_host`, `valid_until`.",
   "equipment": [
     "citrix"
   ],
+  "equipmentModels": [
+    "citrix_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Universal Forwarder on Cloud Connector hosts.\n• Ensure the following data sources are available: `index=xd` `sourcetype=\"citrix:cloudconnector\"` fields `connector_host`, `connectivity_status`, `last_contact`, `service_status`, `resource_location`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy a Splunk Universal Forwarder on Cloud Connector hosts and monitor Windows Event Logs for Citrix Cloud Connector events. Also run the Cloud Health Check utility via scheduled PowerShell scripted input to validate connectivity to Citrix Cloud services. Track connectivity status (Connected, Disconnected), service health, and last successful cloud contact time. Alert when: any connector loses cloud connectivity for more than 15 minutes, all connectors in a resource location become disconnecte…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=xd sourcetype=\"citrix:cloudconnector\"\n| stats latest(connectivity_status) as cloud_status, latest(service_status) as svc_status, latest(_time) as last_seen by connector_host, resource_location\n| eval hours_since_contact=round((now()-last_seen)/3600, 1)\n| where cloud_status!=\"Connected\" OR svc_status!=\"Running\" OR hours_since_contact > 1\n| table connector_host, resource_location, cloud_status, svc_status, hours_since_contact\n```\n\nUnderstanding this SPL\n\n**Citrix Cloud Connector Health** — For Citrix DaaS (cloud-managed) deployments, Cloud Connectors are the link between on-premises resources and Citrix Cloud. If all Cloud Connectors in a resource location fail, the site enters Local Host Cache (LHC) mode with limited functionality — no new machine registrations, no power management, and no access to cloud-hosted services. Monitoring connector health ensures continuous cloud management connectivity.\n\nDocumented **Data sources**: `index=xd` `sourcetype=\"citrix:cloudconnector\"` fields `connector_host`, `connectivity_status`, `last_contact`, `service_status`, `resource_location`. **App/TA** (typical add-on context): Splunk Universal Forwarder on Cloud Connector hosts. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: xd; **sourcetype**: citrix:cloudconnector. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=xd, sourcetype=\"citrix:cloudconnector\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by connector_host, resource_location** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **hours_since_contact** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where cloud_status!=\"Connected\" OR svc_status!=\"Running\" OR hours_since_contact > 1` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Citrix Cloud Connector Health**): table connector_host, resource_location, cloud_status, svc_status, hours_since_contact\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (connector x resource location), Timeline (connectivity events), Single value (connected connectors count).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We keep an eye on cloud Connector Health and raise the alarm before it drags down real work or real outages start."
+  "grandmaExplanation": "We keep an eye on cloud Connector Health and raise the alarm before it drags down real work or real outages start.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

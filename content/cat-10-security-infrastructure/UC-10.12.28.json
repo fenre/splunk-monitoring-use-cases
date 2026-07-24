@@ -9,11 +9,17 @@
   ],
   "splunkPillar": "Security",
   "industry": "Healthcare",
-  "dataSources": "`sourcetype=\"pharmacy:dispense\"`",
-  "app": "Pharmacy system (Pyxis, Epic Willow)",
+  "exclusions": "Covers the detection logic documented for 'Pharmacy Dispensing Audit' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_pharmacy_dispensing_audit` (UC-10.12.28), SOC dashboard panel \"Security Infra — Pharmacy Dispensing Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.12.28 positive (Pharmacy, Dispensing, Audit): ingest synthetic events into `index=clinical` sourcetype='pharmacy:dispense' where `units` grouped by `drug_name`, `pharmacist_id`, `patient_hash` satisfies `fill_hour` < 6, or `fill_hour` > 22 for 'Pharmacy Dispensing Audit'. Validate filter `override_flag=\"true\" OR fill_hour<6 OR fill_hour>22`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.12.28 negative (Dispensing Audit): ingest benign `clinical` / `pharmacy:dispense` events where `drug_name`, `pharmacist_id`, `patient_hash` stays below `fill_hour` < 6, or `fill_hour` > 22, or exclude the test entity via `soc_exception_register.csv`. Variant 14 confirms zero alert rows for 'Pharmacy Dispensing Audit'."
+  },
+  "dataSources": "`sourcetype=\"pharmacy:dispense\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Pharmacy system (Pyxis, Epic Willow) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=clinical sourcetype=\"pharmacy:dispense\" dea_schedule IN (\"2\",\"3\",\"4\")\n| search override_flag=\"true\" OR fill_hour<6 OR fill_hour>22\n| stats count, sum(quantity) as units by drug_name, pharmacist_id, patient_hash\n| sort -units",
-  "description": "Tracks controlled substance dispensing overrides and after-hours fills for diversion programs.",
-  "value": "Tracks controlled substance dispensing overrides and after-hours fills for diversion programs.",
+  "description": "Alerts on UC-10.12.28 — Pharmacy, Dispensing, Audit — using `index=clinical` sourcetype `pharmacy:dispense`, grouped by `drug_name`, `pharmacist_id`, `patient_hash`. Outputs `units` each `the scheduled window`; alert when `fill_hour` < 6, or `fill_hour` > 22. Filter chain includes filter `override_flag=\"true\" OR fill_hour<6 OR fill_hour>22`. Purpose-built for 'Pharmacy Dispensing Audit' in Security Infra workflows.",
+  "value": "Alerting on Pharmacy, Dispensing, Audit through UC-10.12.28 reduces missed threat campaigns, control regressions, and SOC SLA breaches by surfacing `units` early.",
   "implementation": "Align with state PDMP reporting; peer review for high override rates.",
   "visualization": "Table (overrides), Bar chart (by drug), Heatmap (pharmacist × shift).",
   "cimModels": [
@@ -23,10 +29,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Pharmacy-dispense anomalies from 340B programs, off-hours compounding, and after-hours retail volumes; use formulary and shift context.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Pharmacy system (Pyxis, Epic Willow).\n• Ensure the following data sources are available: `sourcetype=\"pharmacy:dispense\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAlign with state PDMP reporting; peer review for high override rates.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=clinical sourcetype=\"pharmacy:dispense\" dea_schedule IN (\"2\",\"3\",\"4\")\n| search override_flag=\"true\" OR fill_hour<6 OR fill_hour>22\n| stats count, sum(quantity) as units by drug_name, pharmacist_id, patient_hash\n| sort -units\n```\n\nUnderstanding this SPL\n\n**Pharmacy Dispensing Audit** — Tracks controlled substance dispensing overrides and after-hours fills for diversion programs.\n\nDocumented **Data sources**: `sourcetype=\"pharmacy:dispense\"`. **App/TA** (typical add-on context): Pharmacy system (Pyxis, Epic Willow). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: clinical; **sourcetype**: pharmacy:dispense. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=clinical, sourcetype=\"pharmacy:dispense\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by drug_name, pharmacist_id, patient_hash** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nRun the search on recent production data, spot-check a handful of results against the source system or operational runbooks (cash operations, EHR, payment gateway, etc.), and adjust thresholds to match your seasonal patterns and test windows so teams are not flooded with noise.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (overrides), Bar chart (by drug), Heatmap (pharmacist × shift).",
-  "grandmaExplanation": "In Healthcare, we pay close attention to \"Pharmacy Dispensing Audit\" in our day-to-day work so that fraud, waste, and compliance issues do not slip by quietly. We help teams focus on the few situations that need a person, not every routine blip in the data."
+  "knownFalsePositives": "1. **Maintenance window on `clinical` (UC-10.12.28)** — Planned work for 'Pharmacy Dispensing Audit' shifts `units` over `span=1h` while `drug_name`, `pharmacist_id`, `patient_hash` remains in-scope. Applies filter `override_flag=\"true\" OR fill_hour<6 OR fill_hour>22`. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `pharmacy:dispense`** — Scheduled automation elevates `pharmacist_id` without crossing `fill_hour` < 6 for UC-10.12.28. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `drug_name`, `pharmacist_id`, `patient_hash`** — Health checks in `clinical` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `pharmacy:dispense`** — First 48h baseline for UC-10.12.28 on `drug_name` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `drug_name`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Pharmacy system (Pyxis, Epic Willow).\n• Ensure the following data sources are available: `sourcetype=\"pharmacy:dispense\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAlign with state PDMP reporting; peer review for high override rates.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=clinical sourcetype=\"pharmacy:dispense\" dea_schedule IN (\"2\",\"3\",\"4\")\n| search override_flag=\"true\" OR fill_hour<6 OR fill_hour>22\n| stats count, sum(quantity) as units by drug_name, pharmacist_id, patient_hash\n| sort -units\n```\n\nUnderstanding this SPL\n\n**Pharmacy Dispensing Audit** — Tracks controlled substance dispensing overrides and after-hours fills for diversion programs.\n\nDocumented **Data sources**: `sourcetype=\"pharmacy:dispense\"`. **App/TA** (typical add-on context): Pharmacy system (Pyxis, Epic Willow). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: clinical; **sourcetype**: pharmacy:dispense. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=clinical, sourcetype=\"pharmacy:dispense\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by drug_name, pharmacist_id, patient_hash** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nRun the search on recent production data, spot-check a handful of results against the source system or operational runbooks (cash operations, EHR, payment gateway, etc.), and adjust thresholds to match your seasonal patterns and test windows so teams are not flooded with noise.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (overrides), Bar chart (by drug), Heatmap (pharmacist × shift).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Pharmacy system (Pyxis, Epic Willow) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=pharmacy:dispense into clinical. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`drug_name, fill_hour, patient_hash, pharmacist_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "In Healthcare, we pay close attention to \"Pharmacy Dispensing Audit\" in our day-to-day work so that fraud, waste, and compliance issues do not slip by quietly. We help teams focus on the few situations that need a person, not every routine blip in the data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

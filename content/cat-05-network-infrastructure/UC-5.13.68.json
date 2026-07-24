@@ -9,32 +9,42 @@
     "Availability"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Catalyst Center + ISE Authentication Correlation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_catalyst_center_ise_authentication_correlation` (UC-5.13.68), SOC dashboard panel \"Operations — Catalyst Center + ISE Authentication Correlation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.13.68 positive (Catalyst, Center, ISE, Authentication, Correlation): ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:issue' where `total_auth_failures` grouped by `nas_ip_address`, `deviceName`, `managementIpAddress` satisfies detection threshold for 'Catalyst Center + ISE Authentication Correlation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.13.68 negative (Authentication Correlation): ingest benign `catalyst` / `cisco:dnac:issue` events where `nas_ip_address`, `deviceName`, `managementIpAddress` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Catalyst Center + ISE Authentication Correlation'."
+  },
   "dataSources": "`index=catalyst sourcetype=cisco:dnac:issue`. from the `issue` modular input in the Cisco Catalyst Add-on (Splunkbase 7538) polling `GET /dna/intent/api/v1/issues`. Default poll interval: 900s (15m). Volume: ~1 event per active issue per poll. RBAC: NETWORK-ADMIN-ROLE. Key fields: `priority` (string), `category` (string), `name` (string), `deviceName` (string), `status` (string), `issueId` (string), `siteId` (string), `lastOccurenceTime` (epoch milliseconds). Additionally correlates with `index=ise sourcetype=cisco:ise:syslog` (Cisco ISE authentication events) for authentication failure context. Requires Cisco ISE syslog ingestion via SC4S or direct syslog input.",
   "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538)",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:issue\" category=\"Onboarding\" | join type=left managementIpAddress [search index=ise sourcetype=\"cisco:ise:*\" | stats count as auth_failures by nas_ip_address | rename nas_ip_address as managementIpAddress] | where isnotnull(auth_failures) | stats count as correlated_issues sum(auth_failures) as total_auth_failures by deviceName, managementIpAddress | sort -total_auth_failures",
-  "description": "Correlates Catalyst Center client onboarding issues with ISE authentication failure events to determine whether client connectivity problems are caused by network infrastructure (Catalyst Center) or identity services (ISE).",
-  "value": "When users cannot connect, the root cause could be the network or the authentication server. Cross-correlating Catalyst Center and ISE data isolates the failing component in minutes instead of hours.",
+  "description": "Alerts on UC-5.13.68 — Catalyst, Center, ISE, Authentication, Correlation — using `index=catalyst` sourcetype `cisco:dnac:issue`, grouped by `nas_ip_address`, `deviceName`, `managementIpAddress`. Outputs `total_auth_failures` each `the scheduled window`; alert when configured threshold. Primary focus: Authentication Correlation. Purpose-built for 'Catalyst Center + ISE Authentication Correlation' in Operations workflows.",
+  "value": "UC-5.13.68 gives Operations teams earlier visibility into Authentication Correlation through `cisco:dnac:issue` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Both Catalyst Center and ISE data are ingested via the same Cisco Catalyst Add-on (7538). Ensure both account types are configured:\n\n1. **Catalyst Center account:** Configure as per UC-5.13.1 setup\n2. **ISE account:** In the TA, add an ISE account pointing to your ISE PAN node\n3. **Enable ISE inputs:** Enable the ISE administrative input with data types `security_group_tags,authz_policy_hit,ise_tacacs_rule_hit`\n4. **ISE index:** ISE data goes to `index=ise` by default\n5. **Correlation key:** Match on device IP address — Catalyst Center `managementIpAddress` maps to ISE `nas_ip_address`\n\nFor ISE authentication logs (RADIUS), you may also need syslog ingestion from ISE to Splunk (sourcetype `cisco:ise:syslog`) for detailed auth pass/fail events.",
   "visualization": "Sorted table: deviceName, managementIpAddress, correlated_issues, total_auth_failures; optional column chart of top access layers by total_auth_failures.",
   "references": [
     {
       "title": "Splunkbase app 7538",
-      "url": "https://splunkbase.splunk.com/app/7538"
+      "url": "https://splunkbase.splunk.com/app/7538",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center API docs",
-      "url": "https://developer.cisco.com/docs/catalyst-center/"
+      "url": "https://developer.cisco.com/docs/catalyst-center/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco ISE + Splunk integration",
-      "url": "https://developer.cisco.com/docs/identity-services-engine/"
+      "url": "https://developer.cisco.com/docs/identity-services-engine/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Issues API — Cisco DevNet",
-      "url": "https://developer.cisco.com/docs/catalyst-center/#!issues"
+      "url": "https://developer.cisco.com/docs/catalyst-center/#!issues",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**ISE reporting authentication events for a different NAS than the Catalyst Center-managed device.** The join on `managementIpAddress` assumes the device's management IP in Catalyst Center matches the NAS IP in ISE. If the device uses a different IP for RADIUS (e.g., a loopback or VLAN SVI), the join will miss valid correlations. Distinguish by comparing the join key: check whether `managementIpAddress` in Catalyst Center matches `nas_ip_address` in ISE for the same device. Fix by using a `catalyst_ise_ip_map` lookup to translate between management IPs and NAS IPs.\n\n**ISE authentication failures caused by user credential issues, not network problems.** The correlation may surface ISE authentication failures that coincide with Catalyst Center onboarding issues, but the root cause is an expired password or locked account, not a network fault. Distinguish by checking the ISE failure reason: `ise_auth_failure_reason` will indicate credential-related failures (e.g., \"Wrong password\", \"User disabled\"). Do not suppress — the correlation is valid, but the remediation path is IAM, not network operations.\n\n**High-volume ISE authentication events overwhelming the join.** In large environments, ISE generates thousands of authentication events per hour. The join may be slow or incomplete if the ISE data volume exceeds the subsearch limits. Distinguish by checking whether the join returns incomplete results (missing devices known to have ISE events). Suppress by pre-filtering ISE data to failed authentications only: `| where ise_auth_result!=\"SUCCESS\"` before the join.\n\n**ISE and Catalyst Center data on different time scales.** ISE syslog events arrive in real-time while Catalyst Center issues are polled every 15 minutes. The time-based join may miss correlations where the ISE failure occurs between Catalyst Center poll cycles. Distinguish by widening the time window for the join using `| bin _time span=15m` on both data sources.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst` (UC-5.13.68)** — Planned work for 'Catalyst Center + ISE Authentication Correlation' shifts `total_auth_failures` over `span=1h` while `nas_ip_address`, `deviceName`, `managementIpAddress` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `cisco:dnac:issue`** — Scheduled automation elevates `deviceName` without crossing configured threshold for UC-5.13.68. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `nas_ip_address`, `deviceName`, `managementIpAddress`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:issue`** — First 48h baseline for UC-5.13.68 on `nas_ip_address` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `nas_ip_address`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"

@@ -9,11 +9,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=ovirt` `sourcetype=\"ovirt:vm\"` — device hotplug: `vm_name`, `device`, `action` (plug|unplug), `size_mb` or `vcpu_delta`, `user`",
-  "app": "Engine user events or audit mapped to `ovirt:vm`",
+  "exclusions": "Covers the detection logic documented for 'oVirt Hot-Plug vCPU and Memory Change Events on Running VMs' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_ovirt_hot_plug_vcpu_and_memory_change_events_on_` (UC-2.8.8), SOC dashboard panel \"Linux — oVirt Hot-Plug vCPU and Memory Change Events on Running VMs\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.8.8 positive (oVirt, Hot, Plug, vCPU, and): ingest synthetic events into `index=ovirt` sourcetype='ovirt:vm' where `vcpu_added`, `mem_mb_delta` grouped by `vm_name`, `user` satisfies -7d for 'oVirt Hot-Plug vCPU and Memory Change Events on Running VMs'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.8.8 negative (Running VMs): ingest benign `ovirt` / `ovirt:vm` events where `vm_name`, `user` stays below -7d, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 0 confirms zero alert rows for 'oVirt Hot-Plug vCPU and Memory Change Events on Running VMs'."
+  },
+  "dataSources": "`index=ovirt` `sourcetype=\"ovirt:vm\"` — device hotplug: `vm_name`, `device`, `action` (plug|unplug), `size_mb` or `vcpu_delta`, `user` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Engine user events or audit mapped to `ovirt:vm` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ovirt sourcetype=\"ovirt:vm\" earliest=-7d\n| eval ac=lower(coalesce(action, operation))\n| where match(ac, \"(?i)hot.?plug|set.?numa|memory|cpu.*update\")\n| stats count as changes, sum(vcpu_delta) as vcpu_added, sum(size_mb) as mem_mb_delta by vm_name, user\n| sort - changes",
-  "description": "Hot-plug changes affect capacity planning, licensing, and noisy-neighbor behavior. Centralized visibility prevents untracked resource growth.",
-  "value": "Aligns capacity and finance with actual running configurations.",
+  "description": "Identifies 'oVirt Hot-Plug vCPU and Memory Change Events on Running VMs' (UC-2.8.8) using `index=ovirt` sourcetype `ovirt:vm` by aggregating `vcpu_added`, `mem_mb_delta` grouped by `vm_name`, `user` over `the scheduled window` and alerting when -7d. Keywords: oVirt, Hot, Plug, vCPU, and. Focuses on Running VMs behaviour so linux teams can triage UC-2.8.8 without ad-hoc log review.",
+  "value": "UC-2.8.8 accelerates insight into Running VMs ('oVirt Hot-Plug vCPU and Memory Change Events on Running VMs') by tracking `vcpu_added`, `mem_mb_delta` on `ovirt:vm` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
   "implementation": "Parse hotplug audit lines. Feed FinOps dashboards. Alert on large single-step RAM adds in non-prod tenants.",
   "visualization": "Bar chart changes by user; table of VMs with deltas.",
   "cimModels": [
@@ -22,13 +28,33 @@
   "references": [
     {
       "title": "oVirt Resource Usage",
-      "url": "https://www.ovirt.org/documentation/administration_guide/#chap-Resource_Usage"
+      "url": "https://www.ovirt.org/documentation/administration_guide/#chap-Resource_Usage",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "AOS storage metrics can look worse during background heal, curator, or disk removal work; match alerts to Nutanix task progress and maintenance windows.",
+  "knownFalsePositives": "1. **Patch Tuesday on `ovirt`** — Package managers spike `vm_name` metrics for 'oVirt Hot-Plug vCPU and Memory Change Events on Running VMs'. Correlate with apt/yum logs in the same `ovirt:vm` window.\n\n2. **Nightly backup I/O on `vm_name`** — Predictable `sum` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `ovirt:vm`** — Nagios/Zabbix polls `vm_name` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `vm_name` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `vm_name`, `valid_until`.",
   "equipment": [
     "m365",
     "ovirt"
+  ],
+  "equipmentModels": [
+    "m365_generic",
+    "ovirt_generic"
   ],
   "status": "verified",
   "lastReviewed": "2025-06-01",
@@ -37,5 +63,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We keep an eye on the control panel that runs your virtual datacenter—who changed what, whether storage and hosts are healthy, and when something is about to strand running machines."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Engine user events or audit mapped to `ovirt:vm` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ovirt:vm into ovirt. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`user, vm_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We keep an eye on the control panel that runs your virtual datacenter—who changed what, whether storage and hosts are healthy, and when something is about to strand running machines.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

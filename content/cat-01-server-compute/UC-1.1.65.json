@@ -8,6 +8,8 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Auditd Rule Violation Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_auditd_rule_violation_detection` (UC-1.1.65), SOC dashboard panel \"Linux — Auditd Rule Violation Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "compliance": [
     {
       "regulation": "fedramp",
@@ -87,11 +89,15 @@
       "evidenceArtifact": "Saved search 'UC-1.1.65' running on sourcetype=linux_audit, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
     }
   ],
-  "dataSources": "`sourcetype=linux_audit`",
-  "app": "`Splunk_TA_nix`",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.65 positive (Auditd, Rule, Violation, Detection): ingest synthetic events into `index=os` sourcetype='linux_audit' where `count` grouped by `host`, `avc_type`, `comm` satisfies `count` > 5 for 'Auditd Rule Violation Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.65 negative (Violation Detection): ingest benign `os` / `linux_audit` events where `host`, `avc_type`, `comm` stays below `count` > 5, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 0 confirms zero alert rows for 'Auditd Rule Violation Detection'."
+  },
+  "dataSources": "`sourcetype=linux_audit` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=linux_audit type=AVC\n| stats count by host, avc_type, comm\n| where count>5",
-  "description": "Ranks SELinux or AppArmor-style **denied** access decisions seen in `linux_audit`, grouped by host, access vector class, and process name, when the count in the window is higher than a small floor.",
-  "value": "A burst of access-vector denials often lines up with a mis-deployed build, a real probe, or policy drift; central counts let IR and platform teams start from a concrete `(host, avc_type, comm)` row instead of raw logs only.",
+  "description": "Surfaces 'Auditd Rule Violation Detection' (UC-1.1.65) using `index=os` sourcetype `linux_audit` by aggregating `count` grouped by `host`, `avc_type`, `comm` over `the scheduled window` and alerting when `count` > 5. Keywords: Auditd, Rule, Violation, Detection. Focuses on Violation Detection behaviour so linux teams can triage UC-1.1.65 without ad-hoc log review.",
+  "value": "UC-1.1.65 accelerates insight into Violation Detection ('Auditd Rule Violation Detection') by tracking `activity` on `linux_audit` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
   "implementation": "Map `type`, `avc_type`, and `comm` in **props** for the sourcetype your TA actually emits (strings vary). Tighten the leading search to the rule keys you care about, and add **allow** lists for known noisy workloads once you have history.",
   "visualization": "Table, Alert",
   "cimModels": [
@@ -102,18 +108,39 @@
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk CIM (Authentication, Change) for mapped variants",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Overview"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Overview",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned app releases that hit new file paths under enforcing policy until policy is updated; backup or scanner accounts that always trip the same `avc_type`; a too-low `>5` on chatty but benign automation—tune to `>25` in mature estates.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Auditd Rule Violation Detection'. Correlate with apt/yum logs in the same `linux_audit` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `linux_audit`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `count` > 5.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux"
   ],
+  "equipmentModels": [
+    "linux_generic"
+  ],
   "status": "verified",
-  "detailedImplementation": "Prerequisites\n• `Splunk_TA_nix` with **augment**-style parsing of **linux_audit** into multi-line JSON or **key=value** (your props determine whether `type=AVC` is literally present in `_raw` or normalized differently).\n• **CIM** note: a straight **tstats** on **Authentication** or **Change** only mirrors this UC after you have **eventtypes**+**tags** that project **AVC** denials into those models. Until then, keep the primary SPL on the raw sourcetype.\n\nStep 1 — Configure data collection\nHarden `auditd` rules, forward **/var/log/audit/audit.log** (or the journal path your distro uses) into the **os** index, and add **SME**-owned allow lists for build pipelines.\n\nStep 2 — Create the search and alert\nThe saved SPL uses a numeric **>5**; convert to a token `$threshold$` in the saved search if you need per-environment values.\n\n```spl\nindex=os sourcetype=linux_audit type=AVC\n| stats count by host, avc_type, comm\n| where count>5\n```\n\n**Understanding this SPL** — Counts **denied** decisions per tuple; you can add `| search avc_type=file` style clauses on day one to drop noise you already understand.\n\n**CIM** — The `cimSpl` on this use case is the same failure-count form; it only populates after you project audit denials into **Authentication** (tags + fields).\n\n\nStep 3 — Validate\nOn the host, `ausearch -m avc` or your distro’s `auditctl` status should show the same seconds and subjects as Splunk for a reproduced event. On non-prod, trigger a **known** policy denial in a test directory and search it back in Splunk.\n\nStep 4 — Operationalize\nFeed **host+avc_type+comm** to IR if counts spike across many machines at once; for single-host spikes, start with a recent **package** change and SELinux **boolean** diffs before assuming breach.",
-  "grandmaExplanation": "We help you know when the security layer on a Linux box is saying “no, you may not do that” more often than usual, so the right people can check policy or a possible break-in early."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• `Splunk_TA_nix` with **augment**-style parsing of **linux_audit** into multi-line JSON or **key=value** (your props determine whether `type=AVC` is literally present in `_raw` or normalized differently).\n• **CIM** note: a straight **tstats** on **Authentication** or **Change** only mirrors this UC after you have **eventtypes**+**tags** that project **AVC** denials into those models. Until then, keep the primary SPL on the raw sourcetype.\n\nStep 1 — Configure data collection\nHarden `auditd` rules, forward **/var/log/audit/audit.log** (or the journal path your distro uses) into the **os** index, and add **SME**-owned allow lists for build pipelines.\n\nStep 2 — Create the search and alert\nThe saved SPL uses a numeric **>5**; convert to a token `$threshold$` in the saved search if you need per-environment values.\n\n```spl\nindex=os sourcetype=linux_audit type=AVC\n| stats count by host, avc_type, comm\n| where count>5\n```\n\n**Understanding this SPL** — Counts **denied** decisions per tuple; you can add `| search avc_type=file` style clauses on day one to drop noise you already understand.\n\n**CIM** — The `cimSpl` on this use case is the same failure-count form; it only populates after you project audit denials into **Authentication** (tags + fields).\n\n\nStep 3 — Validate\nOn the host, `ausearch -m avc` or your distro’s `auditctl` status should show the same seconds and subjects as Splunk for a reproduced event. On non-prod, trigger a **known** policy denial in a test directory and search it back in Splunk.\n\nStep 4 — Operationalize\nFeed **host+avc_type+comm** to IR if counts spike across many machines at once; for single-host spikes, start with a recent **package** change and SELinux **boolean** diffs before assuming breach.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=linux_audit into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`avc_type, comm, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you know when the security layer on a Linux box is saying “no, you may not do that” more often than usual, so the right people can check policy or a possible break-in early.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

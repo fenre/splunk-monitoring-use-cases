@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`index=edge-hub-data` metric_name=light, `index=edge-hub-logs` sourcetype=splunk_edge_hub_log, camera motion event",
-  "app": "Splunk Edge Hub (light sensor + USB camera container with NPU), v2.1+",
+  "exclusions": "Covers the detection logic documented for 'Security Camera Motion Detection with Light Level Correlation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_security_camera_motion_detection_with_light_leve` (UC-14.3.12), SOC dashboard panel \"Operations — Security Camera Motion Detection with Light Level Correlation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.3.12 positive (Security, Camera, Motion, Detection, with): ingest synthetic events into `index=edge-hub-logs` sourcetype='splunk_edge_hub_log' where `lux` grouped by `host`, `_time` satisfies `lux` < 10 for 'Security Camera Motion Detection with Light Level Correlation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.3.12 negative (Level Correlation): ingest benign `edge-hub-logs` / `splunk_edge_hub_log` events where `host`, `_time` stays below `lux` < 10, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Security Camera Motion Detection with Light Level Correlation'."
+  },
+  "dataSources": "`index=edge-hub-data` metric_name=light, `index=edge-hub-logs` sourcetype=splunk_edge_hub_log, camera motion event Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Edge Hub (light sensor + USB camera container with NPU), v2.1+ — Universal Forwarder (Splunkbase 617)",
   "spl": "index=edge-hub-logs sourcetype=splunk_edge_hub_log motion_detected=true\n| join max=1 host [| mstats avg(light_level) as lux by host, _time span=5m | where lux < 10]\n| stats count as false_positives by host\n| eval false_positive_rate=(false_positives / (false_positives + true_detections)) * 100",
-  "description": "Reduces false motion alerts by correlating camera motion events with ambient light levels and eliminating day/night false positives.",
-  "value": "Reduces false motion alerts by correlating camera motion events with ambient light levels and eliminating day/night false positives.",
+  "description": "Surfaces risk tied to Security, Camera, Motion, Detection, with through UC-14.3.12 on `index=edge-hub-logs` sourcetype `splunk_edge_hub_log`. Summarises `lux` grouped by `host`, `_time` across `5m` before applying `lux` < 10. Operators tune 'Security Camera Motion Detection with Light Level Correlation' using UC-14.3.12 runbook steps.",
+  "value": "Tracking `lux` via UC-14.3.12 on `splunk_edge_hub_log` feeds improves response to 'Security Camera Motion Detection with Light Level Correlation' and reduces operational risk and delayed incident response.",
   "implementation": "Deploy Edge Hub with USB camera attached (requires USB device passthrough v2.1+). Build custom ARM64 container with OpenCV + NPU inference for motion detection. Filter detections with built-in ambient light sensor: suppress alerts when lux < 10 (night) or > 50000 (direct sun glare). Configure edge.json manifest with resource limits (memory: 256MB, CPU: 1 core) to avoid impacting sensor polling.",
   "visualization": "Motion vs light correlation scatter, false positive trend, alert effectiveness dashboard.",
   "cimModels": [
@@ -22,16 +28,41 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Sensors offline during scheduled site visits, calibration, or replacement campaigns.",
+  "knownFalsePositives": "1. **Maintenance window on `edge-hub-logs` (UC-14.3.12)** — Planned work for 'Security Camera Motion Detection with Light Level Correlation' shifts `lux` over `span=5m` while `host`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `splunk_edge_hub_log`** — Scheduled automation elevates `_time` without crossing `lux` < 10 for UC-14.3.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `_time`** — Health checks in `edge-hub-logs` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `splunk_edge_hub_log`** — First 48h baseline for UC-14.3.12 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "edge_hub"
+  ],
+  "equipmentModels": [
+    "edge_hub_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     "Splunk Edge Hub"
   ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Edge Hub (light sensor + USB camera container with NPU), v2.1+.\n• Ensure the following data sources are available: `index=edge-hub-data` metric_name=light, `index=edge-hub-logs` sourcetype=splunk_edge_hub_log, camera motion event.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy Edge Hub with USB camera attached (requires USB device passthrough v2.1+). Build custom ARM64 container with OpenCV + NPU inference for motion detection. Filter detections with built-in ambient light sensor: suppress alerts when lux < 10 (night) or > 50000 (direct sun glare). Configure edge.json manifest with resource limits (memory: 256MB, CPU: 1 core) to avoid impacting sensor polling.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=edge-hub-logs sourcetype=splunk_edge_hub_log motion_detected=true\n| join max=1 host [| mstats avg(light_level) as lux by host, _time span=5m | where lux < 10]\n| stats count as false_positives by host\n| eval false_positive_rate=(false_positives / (false_positives + true_detections)) * 100\n```\n\nUnderstanding this SPL\n\n**Security Camera Motion Detection with Light Level Correlation** — Reduces false motion alerts by correlating camera motion events with ambient light levels and eliminating day/night false positives.\n\nDocumented **Data sources**: `index=edge-hub-data` metric_name=light, `index=edge-hub-logs` sourcetype=splunk_edge_hub_log, camera motion event. **App/TA** (typical add-on context): Splunk Edge Hub (light sensor + USB camera container with NPU), v2.1+. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: edge-hub-logs; **sourcetype**: splunk_edge_hub_log. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=edge-hub-logs, sourcetype=splunk_edge_hub_log. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **false_positive_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nNote: for mstats, confirm the metrics indexes in the search exist and your role can run mstats. This is separate from CIM data model acceleration.\n\nStep 3 — Validate\nConfirm metric or event volume in the time range, then compare trends and device status to the Splunk Edge Hub admin UI or the mobile app for the same devices. Verify metric names, hosts, and time skew.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Motion vs light correlation scatter, false positive trend, alert effectiveness dashboard.",
-  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with light levels and sudden darkness when you would expect lights on before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch what edge sensors report from the physical world. We help you know if something is off with light levels and sudden darkness when you would expect lights on before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,6 +9,8 @@
     "Operations"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Cisco ISE PassiveID — WMI / AD Agent / Syslog Provider Health' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_cisco_ise_passiveid_wmi_ad_agent_syslog_provider` (UC-17.1.45), SOC dashboard panel \"Network — Cisco ISE PassiveID — WMI / AD Agent / Syslog Provider Health\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "compliance": [
     {
       "regulation": "nis2",
@@ -49,14 +51,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Stop the AD Agent service on a Domain Controller. Within 5 min ISE emits 91020 (AD Agent connection lost). UC-17.1.45 fires.",
-    "negativeScenario": "Restart the AD Agent. ISE reconnects. Alert clears."
+    "positiveScenario": "UC-17.1.45 positive (Cisco, ISE, PassiveID, WMI, Agent): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `count` grouped by `provider_type`, `provider_name` satisfies `drops` > 1, or `errors` > 0 for 'Cisco ISE PassiveID — WMI / AD Agent / Syslog Provider Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.45 negative (Provider Health): ingest benign `nac` / `cisco:ise:syslog` events where `provider_type`, `provider_name` stays below `drops` > 1, or `errors` > 0, or exclude the test entity via `network_exception_register.csv`. Variant 15 confirms zero alert rows for 'Cisco ISE PassiveID — WMI / AD Agent / Syslog Provider Health'."
   },
   "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *PassiveID* category — codes `91000` (PassiveID provider connected), `91001` (provider disconnected), `91002` (provider error), `91003` (mapping ingested), `91010` (WMI session ended unexpectedly), `91020` (AD Agent connection lost), `91030` (syslog provider parse error). Field: `provider_type` (WMI/AD-Agent/syslog/SPAN/Endpoint/REST), `provider_name`, `mapping_count`. ISE OpenAPI `/api/v1/passiveid/providerstatus` polled every 5 min, written to `index=nac sourcetype=cisco:ise:passiveid_health`.",
   "app": "`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).",
   "spl": "(index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (91000, 91001, 91002, 91010, 91020, 91030))\n  OR (index=nac sourcetype=\"cisco:ise:passiveid_health\")\n| stats count latest(_time) as last_event count(eval(MessageCode==\"91001\")) as drops count(eval(MessageCode==\"91002\")) as errors latest(provider_status) as status by provider_type, provider_name\n| where drops > 1 OR errors > 0 OR status==\"DOWN\"\n| sort - errors - drops",
-  "description": "Detects PassiveID provider failures (WMI, AD Agent, syslog, SPAN, Endpoint, REST). PassiveID is how ISE acquires user-to-IP mappings without 802.1X — critical for non-supplicant networks where the user identity comes from AD logon events.",
-  "value": "PassiveID is the user-context backbone for many NGFW deployments — Cisco FTD/FMC, Cisco Secure Firewall, third-party firewalls all consume PassiveID-derived user-to-IP mappings via pxGrid or REST. When PassiveID providers fail, downstream firewall policies that gate by user identity revert to anonymous treatment.",
+  "description": "Detects UC-17.1.45 — Cisco, ISE, PassiveID, WMI, Agent — using `index=nac` sourcetype `cisco:ise:syslog`, grouped by `provider_type`, `provider_name`. Outputs `count` each `the scheduled window`; alert when `drops` > 1, or `errors` > 0. Primary focus: Provider Health. Purpose-built for 'Cisco ISE PassiveID — WMI / AD Agent / Syslog Provider Health' in Network workflows.",
+  "value": "UC-17.1.45 operationalises 'Cisco ISE PassiveID — WMI / AD Agent / Syslog Provider Health' against `cisco:ise:syslog` feeds so operators reduce unauthorized access, segmentation drift, and NAC policy failures without manual correlation.",
   "implementation": "Confirm *PassiveID* logging category at INFO. Deploy OpenAPI poller. Schedule every 5 min, search window `-15m@m to @m`, trigger on count > 0, throttle suppression on `provider_name` for 30 min.",
   "visualization": "(1) Single value: providers DOWN. (2) Per-provider mapping rate timechart. (3) Top-N providers with errors.",
   "cimModels": [
@@ -66,10 +68,36 @@
   "references": [
     {
       "title": "Cisco ISE 3.4 — PassiveID",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "NIS2 Directive — EUR-Lex",
+      "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32022L2555",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1915",
+      "url": "https://splunkbase.splunk.com/app/1915",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Security (Splunkbase 1352)",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Authentication",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "(a) **AD Agent restart during patch** — Brief drop+reconnect, suppress isolated events. (b) **WMI permission glitch on a single DC** — DC patch or GPO change may break WMI for one DC; reconnect after re-grant. (c) **Mapping rate drops at night** — PassiveID volume tracks user logon volume; off-hours legit drops aren't failures.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for 'Cisco ISE PassiveID — WMI / AD Agent / Syslog Provider Health'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:syslog` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "mitreAttack": [
     "T1499.001"
   ],
@@ -87,7 +115,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• ISE PassiveID configured with at least one provider.\n• `passiveid_providers.csv` with `provider_name`, `provider_type`, `is_critical`, `domain`.\n\nStep 1 — Configure data collection\nEnable *PassiveID* category at INFO.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 5 min.\n\nStep 3 — Validate\nProvoke as above.\n\nStep 4 — Operationalize\nDashboard \"ISE — PassiveID Health\":\n• Per-provider status tile.\n• Mapping rate timechart.\n• Top-N error sources.\n\nAlerting: PagerDuty medium on provider DOWN.\n\nStep 5 — Troubleshooting\n• **WMI fails** — DC's WMI namespace permission for ISE service account. PowerShell `wmic` test.\n• **AD Agent missing** — installer not deployed on DC; deploy or update.\n• **REST provider failures** — endpoint URL/cert/auth issue; validate from PSN CLI.",
+  "detailedImplementation": "Prerequisites\n• ISE PassiveID configured with at least one provider.\n• `passiveid_providers.csv` with `provider_name`, `provider_type`, `is_critical`, `domain`.\n\nStep 1 — Configure data collection\nEnable *PassiveID* category at INFO.\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 5 min.\n\nStep 3 — Validate\nProvoke as above.\n\nStep 4 — Operationalize\nDashboard \"ISE — PassiveID Health\":\n• Per-provider status tile.\n• Mapping rate timechart.\n• Top-N error sources.\n\nAlerting: PagerDuty medium on provider DOWN.\n\nStep 5 — Troubleshooting\n• **WMI fails** — DC's WMI namespace permission for ISE service account. PowerShell `wmic` test.\n• **AD Agent missing** — installer not deployed on DC; deploy or update.\n• **REST provider failures** — endpoint URL/cert/auth issue; validate from PSN CLI.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog, cisco:ise:passiveid_health into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`drops, errors, provider_name, provider_type`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "When a person logs onto a Windows computer at the office, ISE learns who's using which IP address by listening to the company directory. We watch this listening line — if it goes silent, ISE no longer knows who's who, and other security tools that depend on that info also stop working.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

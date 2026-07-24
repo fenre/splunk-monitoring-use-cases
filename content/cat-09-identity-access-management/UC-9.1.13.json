@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "ADCS issued certificates database (certutil -view), Certificate Services logs",
-  "app": "`Splunk_TA_windows`, custom scripted input (certutil)",
+  "exclusions": "Covers the detection logic documented for 'AD Certificate Services Certificate Expiration' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `iam_ad_certificate_services_certificate_expiration` (UC-9.1.13), SOC dashboard panel \"IAM — AD Certificate Services Certificate Expiration\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-9.1.13 positive (Certificate, Services, Certificate, Expiration): ingest synthetic events into `index=adcs` sourcetype='adcs:cert_inventory' where `count` grouped by `entity` satisfies `days_to_expiry` < 30, or `days_to_expiry` > 0 for 'AD Certificate Services Certificate Expiration'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.1.13 negative (Certificate Expiration): ingest benign `adcs` / `adcs:cert_inventory` events where `entity` stays below `days_to_expiry` < 30, or `days_to_expiry` > 0, or exclude the test entity via `iam_exception_register.csv`. Variant 10 confirms zero alert rows for 'AD Certificate Services Certificate Expiration'."
+  },
+  "dataSources": "ADCS issued certificates database (certutil -view), Certificate Services logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_windows`, custom scripted input (certutil) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=adcs sourcetype=\"adcs:cert_inventory\"\n| eval days_to_expiry=round((expiry_epoch-now())/86400)\n| where days_to_expiry < 30 AND days_to_expiry > 0\n| table _time, subject, issuer, days_to_expiry, serial_number\n| sort days_to_expiry",
-  "description": "Internal CA-issued certificates approaching expiry; missed renewals cause outages.",
-  "value": "Internal CA-issued certificates approaching expiry; missed renewals cause outages.",
+  "description": "Alerts on UC-9.1.13 — Certificate, Services, Certificate, Expiration — using `index=adcs` sourcetype `adcs:cert_inventory`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `days_to_expiry` < 30, or `days_to_expiry` > 0. Primary focus: Certificate Expiration. Purpose-built for 'AD Certificate Services Certificate Expiration' in IAM workflows.",
+  "value": "For 'AD Certificate Services Certificate Expiration', UC-9.1.13 converts `activity` on `adcs:cert_inventory` feeds into actionable rows and reduces account takeover risk, help-desk load, and audit findings.",
   "implementation": "Run `certutil -view -restrict \"Disposition=20\"` (issued certs) on CA servers via scripted input daily. Parse output and compute days until expiry. Alert on certificates expiring within 30 days. Include Certificate Services event logs (Event ID 100–107) for issuance/renewal events. Maintain lookup of critical certs (e.g., LDAPS, VPN) for prioritized alerts.",
   "visualization": "Table (expiring certificates), Single value (certs expiring in 30 days), Gauge (days until next expiry), Bar chart (expiry by issuer).",
   "cimModels": [
@@ -23,10 +29,26 @@
   "references": [
     {
       "title": "Splunk_TA_windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Planned change windows, maintenance, approved automation, and known good service accounts; correlate with change tickets and identity team communication.",
+  "knownFalsePositives": "1. **Maintenance window on `adcs` (UC-9.1.13)** — Planned work for 'AD Certificate Services Certificate Expiration' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `adcs:cert_inventory`** — Scheduled automation elevates `days_to_expiry` without crossing `days_to_expiry` < 30 for UC-9.1.13. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `adcs` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `adcs:cert_inventory`** — First 48h baseline for UC-9.1.13 on `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1133"
   ],
@@ -37,6 +59,12 @@
   "equipmentModels": [
     "cert_pki_adcs"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`, custom scripted input (certutil).\n• Ensure the following data sources are available: ADCS issued certificates database (certutil -view), Certificate Services logs.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nRun `certutil -view -restrict \"Disposition=20\"` (issued certs) on CA servers via scripted input daily. Parse output and compute days until expiry. Alert on certificates expiring within 30 days. Include Certificate Services event logs (Event ID 100–107) for issuance/renewal events. Maintain lookup of critical certs (e.g., LDAPS, VPN) for prioritized alerts.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=adcs sourcetype=\"adcs:cert_inventory\"\n| eval days_to_expiry=round((expiry_epoch-now())/86400)\n| where days_to_expiry < 30 AND days_to_expiry > 0\n| table _time, subject, issuer, days_to_expiry, serial_number\n| sort days_to_expiry\n```\n\nUnderstanding this SPL\n\n**AD Certificate Services Certificate Expiration** — Internal CA-issued certificates approaching expiry; missed renewals cause outages.\n\nDocumented **Data sources**: ADCS issued certificates database (certutil -view), Certificate Services logs. **App/TA** (typical add-on context): `Splunk_TA_windows`, custom scripted input (certutil). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: adcs; **sourcetype**: adcs:cert_inventory. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=adcs, sourcetype=\"adcs:cert_inventory\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **days_to_expiry** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where days_to_expiry < 30 AND days_to_expiry > 0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **AD Certificate Services Certificate Expiration**): table _time, subject, issuer, days_to_expiry, serial_number\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nCompare with Event Viewer on domain controllers (or exported Security logs) and with Active Directory Users and Computers for the same objects and time window.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (expiring certificates), Single value (certs expiring in 30 days), Gauge (days until next expiry), Bar chart (expiry by issuer).\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We use identity and sign-in data in Splunk so we can notice unusual logins, access changes, and privileged use while it still matters — AD Certificate Services Certificate Expiration"
+  "grandmaExplanation": "We use identity and sign-in data in Splunk so we can notice unusual logins, access changes, and privileged use while it still matters — AD Certificate Services Certificate Expiration",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "UCM device status, RISPORT real-time data",
-  "app": "UCM syslog, RISPORT API",
+  "exclusions": "Covers the detection logic documented for 'Phone Registration Status (Cisco CUCM)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_phone_registration_status_cisco_cucm` (UC-11.3.7), SOC dashboard panel \"Operations — Phone Registration Status (Cisco CUCM)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-11.3.7 positive (Phone, Registration, Status, (Cisco, CUCM)): ingest synthetic events into `index=voip` sourcetype='cisco:ucm:syslog' where `count` grouped by `entity` satisfies `deregistrations` > 10 for 'Phone Registration Status (Cisco CUCM)'. Validate filter `\"DeviceUnregistered\" OR \"StationDeregister\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.3.7 negative ((Cisco CUCM)): ingest benign `voip` / `cisco:ucm:syslog` events where `entity` stays below `deregistrations` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Phone Registration Status (Cisco CUCM)'."
+  },
+  "dataSources": "UCM device status, RISPORT real-time data Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "UCM syslog, RISPORT API — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=voip sourcetype=\"cisco:ucm:syslog\"\n| search \"DeviceUnregistered\" OR \"StationDeregister\"\n| timechart span=5m count as deregistrations\n| where deregistrations > 10",
-  "description": "Mass phone de-registration indicates network or UCM issues affecting the entire communications infrastructure.",
-  "value": "Mass phone de-registration indicates network or UCM issues affecting the entire communications infrastructure.",
+  "description": "Monitors UC-11.3.7 — Phone, Registration, Status, (Cisco, CUCM) — using `index=voip` sourcetype `cisco:ucm:syslog`, grouped by `entity`. Outputs `count` each `5m`; alert when `deregistrations` > 10. Filter chain includes filter `\"DeviceUnregistered\" OR \"StationDeregister\"`. Purpose-built for 'Phone Registration Status (Cisco CUCM)' in Operations workflows.",
+  "value": "UC-11.3.7 operationalises 'Phone Registration Status (Cisco CUCM)' against `cisco:ucm:syslog` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Poll UCM RISPORT API for device registration status or forward UCM syslog. Alert on mass de-registrations (>10 devices in 5 minutes). Track registration counts per site. Monitor SRST fallback activations.",
   "visualization": "Single value (registered phones), Line chart (registration count trend), Table (recently de-registered devices).",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Phone reboots, firmware updates, and DHCP renewals that drop registration for seconds.",
+  "knownFalsePositives": "1. **Maintenance window on `voip` (UC-11.3.7)** — Planned work for 'Phone Registration Status (Cisco CUCM)' shifts `count` over `span=5m` while `host` remains in-scope. Applies filter `\"DeviceUnregistered\" OR \"StationDeregister\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ucm:syslog`** — Scheduled automation elevates `src` without crossing `deregistrations` > 10 for UC-11.3.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `voip` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ucm:syslog`** — First 48h baseline for UC-11.3.7 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
@@ -33,7 +55,13 @@
   "equipmentModels": [
     "cisco_ucm"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: UCM syslog, RISPORT API.\n• Ensure the following data sources are available: UCM device status, RISPORT real-time data.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll UCM RISPORT API for device registration status or forward UCM syslog. Alert on mass de-registrations (>10 devices in 5 minutes). Track registration counts per site. Monitor SRST fallback activations.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=voip sourcetype=\"cisco:ucm:syslog\"\n| search \"DeviceUnregistered\" OR \"StationDeregister\"\n| timechart span=5m count as deregistrations\n| where deregistrations > 10\n```\n\nUnderstanding this SPL\n\n**Phone Registration Status (Cisco CUCM)** — Mass phone de-registration indicates network or UCM issues affecting the entire communications infrastructure.\n\nDocumented **Data sources**: UCM device status, RISPORT real-time data. **App/TA** (typical add-on context): UCM syslog, RISPORT API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: voip; **sourcetype**: cisco:ucm:syslog. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=voip, sourcetype=\"cisco:ucm:syslog\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `timechart` plots the metric over time using **span=5m** buckets — ideal for trending and alerting on this use case.\n• Filters the current rows with `where deregistrations > 10` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nCompare with CUCM RTMT, CallManager service parameters, and CDR/CMR or quality reports in Cisco unified communications admin for the same cluster and interval.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (registered phones), Line chart (registration count trend), Table (recently de-registered devices).",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: UCM syslog, RISPORT API.\n• Ensure the following data sources are available: UCM device status, RISPORT real-time data.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll UCM RISPORT API for device registration status or forward UCM syslog. Alert on mass de-registrations (>10 devices in 5 minutes). Track registration counts per site. Monitor SRST fallback activations.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=voip sourcetype=\"cisco:ucm:syslog\"\n| search \"DeviceUnregistered\" OR \"StationDeregister\"\n| timechart span=5m count as deregistrations\n| where deregistrations > 10\n```\n\nUnderstanding this SPL\n\n**Phone Registration Status (Cisco CUCM)** — Mass phone de-registration indicates network or UCM issues affecting the entire communications infrastructure.\n\nDocumented **Data sources**: UCM device status, RISPORT real-time data. **App/TA** (typical add-on context): UCM syslog, RISPORT API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: voip; **sourcetype**: cisco:ucm:syslog. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=voip, sourcetype=\"cisco:ucm:syslog\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `timechart` plots the metric over time using **span=5m** buckets — ideal for trending and alerting on this use case.\n• Filters the current rows with `where deregistrations > 10` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nCompare with CUCM RTMT, CallManager service parameters, and CDR/CMR or quality reports in Cisco unified communications admin for the same cluster and interval.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (registered phones), Line chart (registration count trend), Table (recently de-registered devices).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (UCM syslog, RISPORT API — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ucm:syslog into voip. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`deregistrations`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We use this to stay ahead of email and collaboration problems, so the team is not the last to know when something drifts or breaks.",
-  "hardware": "Cisco Unified Communications Manager (CUCM), Unity Connection, IP Phone 7800 series, IP Phone 8800 series"
+  "hardware": "Cisco Unified Communications Manager (CUCM), Unity Connection, IP Phone 7800 series, IP Phone 8800 series",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

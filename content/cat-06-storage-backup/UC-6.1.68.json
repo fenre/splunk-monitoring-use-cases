@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Array software inventory in `purestorage:array` (`version`, `pending_upgrade`, `upgrade_status`)",
-  "app": "Pure Storage Unified Add-on for Splunk (5513)",
+  "exclusions": "Covers the detection logic documented for 'Pure Storage FlashArray Purity upgrade readiness and deferred software compliance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_pure_storage_flasharray_purity_upgrade_readiness` (UC-6.1.68), SOC dashboard panel \"Operations — Pure Storage FlashArray Purity upgrade readiness and deferred software compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.1.68 positive (Pure, Storage, FlashArray, Purity, upgrade): ingest synthetic events into `index=storage` sourcetype='purestorage:array' where `count` grouped by `array_name` satisfies detection threshold for 'Pure Storage FlashArray Purity upgrade readiness and deferred software compliance'. Validate lookup `pure_approved_purity_versions`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.1.68 negative (software compliance): ingest benign `storage` / `purestorage:array` events where `array_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Pure Storage FlashArray Purity upgrade readiness and deferred software compliance'."
+  },
+  "dataSources": "Array software inventory in `purestorage:array` (`version`, `pending_upgrade`, `upgrade_status`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Pure Storage Unified Add-on for Splunk (5513) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"purestorage:array\"\n| eval ver=coalesce(version, purity_version, os_version)\n| eval pending=coalesce(pending_upgrade, upgrade_pending, \"false\")\n| lookup pure_approved_purity_versions env OUTPUT approved_version\n| where isnull(approved_version) OR ver!=approved_version OR match(lower(pending), \"true|yes|pending\")\n| stats latest(ver) as running latest(pending) as upgrade_pending by array_name",
-  "description": "Arrays lagging approved Purity releases miss security fixes and interoperability certifications. Tracking pending upgrades supports change governance and vendor support posture.",
-  "value": "Reduces exposure to known defects and speeds security audit responses with a single fleet view.",
+  "description": "Monitors UC-6.1.68 — Pure, Storage, FlashArray, Purity, upgrade — using `index=storage` sourcetype `purestorage:array`, grouped by `array_name`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes lookup `pure_approved_purity_versions`. Purpose-built for 'Pure Storage FlashArray Purity upgrade readiness and deferred software compliance' in Operations workflows.",
+  "value": "UC-6.1.68 helps teams contain Pure, Storage, FlashArray, Purity, upgrade scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Maintain `pure_approved_purity_versions.csv` in `lookups/` and define `transforms.conf`. Refresh array inventory hourly via the TA. Exclude canary arrays with a `notes` field in the lookup.",
   "visualization": "Table (array, version, approved, pending), single value (non-compliant count).",
   "cimModels": [
@@ -22,16 +28,31 @@
   "references": [
     {
       "title": "Pure Storage Unified Add-on for Splunk (Splunkbase)",
-      "url": "https://splunkbase.splunk.com/app/5513"
+      "url": "https://splunkbase.splunk.com/app/5513",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Pure Storage Splunk reference",
-      "url": "https://support.purestorage.com/Solutions/Splunk/Splunk_Reference/Array_Monitoring_on_Splunk_with_PureStorage_Unified_App_and_TA"
+      "url": "https://support.purestorage.com/Solutions/Splunk/Splunk_Reference/Array_Monitoring_on_Splunk_with_PureStorage_Unified_App_and_TA",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.1.68)** — Planned work for 'Pure Storage FlashArray Purity upgrade readiness and deferred software compliance' shifts `count` over `span=1h` while `array_name` remains in-scope. Applies lookup `pure_approved_purity_versions`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `purestorage:array`** — Scheduled automation elevates `ver` without crossing configured threshold for UC-6.1.68. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `array_name`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `purestorage:array`** — First 48h baseline for UC-6.1.68 on `array_name` is unstable; join `pure_approved_purity_versions` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `array_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "pure_storage"
+  ],
+  "equipmentModels": [
+    "pure_storage_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -41,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We help you see how your arrays and related gear are doing before small issues turn into full outages or restore surprises."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Pure Storage Unified Add-on for Splunk (5513) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=purestorage:array into storage. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`approved_version, array_name, env`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you see how your arrays and related gear are doing before small issues turn into full outages or restore surprises.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -1,0 +1,117 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.56.34",
+  "title": "TSA-SD Passenger Rail CIRP annual exercise — scheduling, after-action evidence, and corrective-action ledger",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Governance",
+    "Resilience"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Passenger Rail",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes tabletop exercises that do not exercise the CIRP (general crisis-management or non-cyber-incident exercises). Excludes exercises run on de-scoped pipelines.",
+  "evidence": "Saved search `UC-22.56.34` archived daily to `audit_evidence` with `tsa_sd_clause=\"TSA-SD-1582-2022-01-s4\"`. Every row pins (facility_id, last_exercise_date, days_since_exercise, exercise_type, after_action_doc_url, ca_open_count, ca_overdue_count, exercise_status).",
+  "compliance": [
+    {
+      "regulation": "tsa-surface",
+      "version": "2024-consolidated-pipeline-rail",
+      "clause": "TSA-SD-1582-2022-01-s4",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "TSA-SD Pipeline §4 requires annual CIRP exercise with documented after-action and corrective-action tracking. This UC measures: (a) exercise frequency, (b) after-action evidence presence, (c) corrective-action close-out. Marked 'full' because all three facets are operationalised.",
+      "controlObjective": "Proves the CIRP is exercised at least annually and corrective actions are tracked to closure.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `TSA-SD CIRP Exercise Ledger` dashboard, and the signed after-action reports filed in SharePoint.",
+      "obligationRef": "tsa-surface@2024-consolidated-pipeline-rail#TSA-SD-1582-2022-01-s4",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Set `last_exercise_date` to 400 days ago for a TSA-regulated facility. Within 24 hours UC-22.56.34 MUST flag `exercise_status=overdue` and notify the IR Commander.",
+    "negativeScenario": "Set `last_exercise_date` within the last 365 days with a valid `after_action_doc_url` and `ca_open_count <= ca_overdue_count`. UC-22.56.34 MUST record `exercise_status=current`."
+  },
+  "dataSources": "KV Store `tsa_passenger_cirp_exercise_lookup` (facility_id, last_exercise_date, exercise_type, after_action_doc_url, exercise_lead). ServiceNow corrective-action records (`snow:ir_ca`). SharePoint after-action document audit (`o365:management`).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "| inputlookup tsa_passenger_cirp_exercise_lookup\n| eval days_since_exercise = round((now() - last_exercise_date) / 86400, 0)\n| join type=left facility_id [search index=itsm sourcetype=\"snow:ir_ca\" tsa_pipeline_facility_id=* | stats count as ca_open_count count(eval(ca_due_date < now() AND state=\"open\")) as ca_overdue_count by tsa_pipeline_facility_id | rename tsa_pipeline_facility_id as facility_id]\n| eval exercise_status = case(\n    days_since_exercise > 365, \"overdue\",\n    days_since_exercise > 335, \"due_soon\",\n    isnull(after_action_doc_url), \"after_action_missing\",\n    ca_overdue_count > 0, \"corrective_actions_overdue\",\n    1=1, \"current\")\n| table facility_id last_exercise_date days_since_exercise exercise_type after_action_doc_url ca_open_count ca_overdue_count exercise_status",
+  "description": "TSA-SD Passenger Rail CIRP annual exercise — Splunk continuously validates TSA-SD-1582-2022-01-s4 using the saved search in this UC, routes gaps to Enterprise Security notables, and archives proof rows to `audit_evidence`.",
+  "value": "Inspectors ask for proof that «TSA-SD Passenger Rail CIRP annual exercise» is operational today, not at last audit. Missing live evidence for TSA-SD-1582-2022-01-s4 is a direct regulatory deficiency with enforcement exposure.",
+  "implementation": "(1) Populate `tsa_passenger_cirp_exercise_lookup` after each exercise. (2) Track corrective actions in ServiceNow Security Incident Response. (3) Schedule UC-22.56.34 daily; route `overdue` severity=critical. (4) Build the `TSA-SD CIRP Exercise Ledger` dashboard.",
+  "visualization": "(Panel 1) Exercise status by facility. (Panel 2) Days-since-exercise heat-map. (Panel 3) Open corrective actions by facility. (Panel 4) Exercise-type breakdown (tabletop, functional, full-scale). (Panel 5) 5-year exercise history timeline.",
+  "cimModels": [
+    "Inventory",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "TSA SD Pipeline-2021-02D §4 (CIRP)",
+      "url": "https://www.tsa.gov/sites/default/files/sd-pipeline-2021-02d.pdf"
+    },
+    {
+      "title": "CISA Tabletop Exercise Packages",
+      "url": "https://www.cisa.gov/resources-tools/services/cisa-tabletop-exercise-packages"
+    },
+    {
+      "title": "NIST 800-84 — Test, Training and Exercise Programs",
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-84/final"
+    },
+    {
+      "title": "TSA Surface Cybersecurity Requirements (June 2024 reissue)",
+      "url": "https://www.tsa.gov/news/press/releases/2024/06/07/tsa-reissues-cybersecurity-requirements-pipeline-industry"
+    }
+  ],
+  "knownFalsePositives": "1. **Planned maintenance window** — documented change windows in lookup `tsa_22_56_34_exceptions` suppress benign activity during approved work.\n\n2. **Pen-test / red-team activity** — engagements with agreed rules-of-engagement marker excluded via lookup `tsa_22_56_34_exceptions`.\n\n3. **Vendor remote-access sessions** — authorised vendor PAM sessions cross-reference lookup `tsa_22_56_34_exceptions` before alerting.\n\n4. **Regulatory transition / grace period** — time-bound exception register entry in lookup `tsa_22_56_34_exceptions` with documented approver and expiry.\n\n**Suppression mechanism**: filter results with lookup `tsa_22_56_34_exceptions` (time-bound exception register); rows must carry `approved_by` and `valid_until` epoch fields.",
+  "mitreAttack": [
+    "N/A (exercise governance)"
+  ],
+  "requiredFields": [
+    "facility_id",
+    "last_exercise_date",
+    "after_action_doc_url",
+    "exercise_status"
+  ],
+  "equipment": [
+    "servicenow",
+    "sharepoint",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "ServiceNow SIR (Vancouver / Washington / Xanadu)",
+    "Splunk ES 7.x"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-07-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Compliance SME Panel (finalized; pending verification)",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- ServiceNow Security Incident Response with `ir_ca` (corrective-action) table.\n- KV Store `tsa_passenger_cirp_exercise_lookup`.\n\n## Step 1 — Define exercise register\n\n```ini\n[tsa_passenger_cirp_exercise_lookup]\nenforceTypes = true\nfield.facility_id = string\nfield.last_exercise_date = number\nfield.exercise_type = string\nfield.exercise_lead = string\nfield.after_action_doc_url = string\nfield.tsa_notified_at = number\nfield.scope_notes = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.34: TSA-SD CIRP Annual Exercise Ledger]\ncron_schedule = 17 6 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.34,reg=TSA-Surface,clause=TSA-SD-1582-2022-01-s4\nalert.severity = 4\n```\n\n## Step 3 — Runbooks\n\n**`exercise_status=overdue`** (owner: IR Commander, severity P2):\n1. Within 7 days: schedule the exercise.\n2. Within 60 days: conduct the exercise; produce after-action.\n3. Within 90 days: close all P1/P2 corrective actions.\n\n## Step 4 — Troubleshooting\n\n- **Multi-facility exercise**: ensure all in-scope facilities are tagged in the exercise row.\n- **After-action document URL**: must point to a stable evidence-vault location.\n\n**TSA-specific failure modes**:\n- **CISA Cyber Storm participation**: cross-sector exercises may count if facility-specific objectives are documented.\n- **PHMSA exercises**: pipeline operators may run PHMSA-related exercises that don't fully exercise the cyber CIRP; ensure cyber-specific exercises are separately tracked.\n\n## Step 5 — Troubleshooting\n\n**Product-specific failure modes**:\n\n- **ServiceNow SIR custom-field drift** — if `csa_awareness_time` or `tsa_awareness_time` is NULL, verify the Security Incident Response workflow still writes the field on state transition to `In Progress`; compare against the vendor UI on the open ticket.\n- **KV Store sync lag** — if the lookup row updates but the saved search still surfaces stale status, confirm the `outputlookup` command completed (`| rest /services/data/transforms/lookup-table-files` shows matching row count).\n- **HEC token / modular-input silence** — run `index=_internal sourcetype=splunkd component=AggregatorMiningProcessor` for the source; no events for >2× the expected poll interval indicates an API or forwarder failure.\n- **Summary-index routing gaps** — validate `action.summary_index._name = audit_evidence` and RBAC role `compliance-analyst` retains write on the destination index.",
+  "grandmaExplanation": "Every pipeline facility must practice its cyber-emergency response at least once a year. We track the dates, the after-action notes, and any leftover follow-up tasks — so we know we're ready.",
+  "prerequisiteUseCases": [
+    "UC-22.56.1"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}

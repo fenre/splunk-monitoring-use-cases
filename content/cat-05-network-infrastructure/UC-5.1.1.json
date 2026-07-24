@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=cisco:ios`",
-  "app": "`TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog",
+  "exclusions": "Covers the detection logic documented for 'Interface Up/Down Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_interface_up_down_events` (UC-5.1.1), SOC dashboard panel \"Operations — Interface Up/Down Events\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.1.1 positive (Interface, Down, Events): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `count` grouped by `host`, `interface`, `state` satisfies `count` > 3 for 'Interface Up/Down Events'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.1.1 negative (Up/Down Events): ingest benign `network` / `cisco:ios` events where `host`, `interface`, `state` stays below `count` > 3, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'Interface Up/Down Events'."
+  },
+  "dataSources": "`sourcetype=cisco:ios` Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network sourcetype=\"cisco:ios\" \"%LINEPROTO-5-UPDOWN\" OR \"%LINK-3-UPDOWN\"\n| rex \"Interface (?<interface>\\S+), changed state to (?<state>\\w+)\"\n| stats count by host, interface, state | where count > 3 | sort -count",
-  "description": "A hard-down uplink or WAN port can isolate an entire site or VLAN; flapping often manifests as application timeouts and VoIP drops before a ticket names 'the network.' Treat each DOWN on a trunk or uplink as a potential SEV-1 for that site; treat more than 3 transitions in 10 minutes as a stability risk requiring immediate investigation of optics, cabling, or port configuration.",
-  "value": "NOC teams detect network interface up/down events and link flapping across routers and switches, enabling rapid identification of cabling failures, optics issues, and unstable links.",
+  "description": "Detects UC-5.1.1 — Interface, Down, Events — using `index=network` sourcetype `cisco:ios`, grouped by `host`, `interface`, `state`. Outputs `count` each `the scheduled window`; alert when `count` > 3. Primary focus: Up/Down Events. Purpose-built for 'Interface Up/Down Events' in Operations workflows.",
+  "value": "Tracking `activity` via UC-5.1.1 on `cisco:ios` feeds improves response to 'Interface Up/Down Events' and reduces operational risk and delayed incident response.",
   "implementation": "Configure syslog forwarding on all network devices (UDP/TCP 514). Install TA for field extraction. Alert on down events for uplinks/trunks. Track flapping (>3 transitions in 10 min).",
   "visualization": "Status grid (green/red per interface), Table, Timeline.",
   "cimModels": [],
@@ -21,16 +27,36 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Interfaces flap during scheduled cable replacements, port channel rebalancing, or PoE device power cycling. Some test and lab ports flap routinely.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.1.1)** — Planned work for 'Interface Up/Down Events' shifts `count` over `span=1h` while `host`, `interface`, `state` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ios`** — Scheduled automation elevates `interface` without crossing `count` > 3 for UC-5.1.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `interface`, `state`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.1.1 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
   ],
   "equipmentModels": [
     "cisco_ios"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     {
@@ -41,5 +67,7 @@
   ],
   "detailedImplementation": "Prerequisites\n* Network device syslog forwarded to Splunk. Data in `index=network` or `index=infrastructure` with `sourcetype=syslog`, `sourcetype=cisco:ios`, or vendor-specific sourcetypes. Key syslog mnemonics: Cisco `%LINK-3-UPDOWN`, `%LINEPROTO-5-UPDOWN`; Juniper `SNMP_TRAP_LINK_DOWN/UP`; Arista `LINEPROTO-5-UPDOWN`.\n* Interface up/down events indicate physical link changes (cable pull, optics failure, remote device reboot) or administrative shutdowns. High-frequency flapping indicates unstable links requiring immediate investigation.\n\nStep 1 -- Configure data collection\n```\n# Cisco IOS/IOS-XE -- ensure syslog is forwarded\nlogging host <splunk-syslog-ip>\nlogging trap informational\nlogging source-interface Loopback0\n\n# Splunk inputs.conf\n[udp://514]\nsourcetype = cisco:ios\nindex = network\n```\nVerify:\n```spl\nindex=network sourcetype=\"cisco:ios\" earliest=-4h\n| where match(_raw, \"(?i)UPDOWN|LINK.*(UP|DOWN)|LINEPROTO.*(UP|DOWN)\")\n| stats count by host\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Interface up/down event tracking:**\n```spl\nindex=network earliest=-4h\n| where match(_raw, \"(?i)UPDOWN|LINK.*(UP|DOWN)|LINEPROTO.*(UP|DOWN)|link.state|ifOperStatus\")\n| rex field=_raw \"(?i)Interface\\s+(?<interface>\\S+).*(?<state>up|down)\"\n| eval interface=coalesce(interface, ifName, port)\n| eval state=lower(coalesce(state, if(match(_raw, \"(?i)down\"), \"down\", \"up\")))\n| eval device=coalesce(host, device_name)\n| sort device, interface, _time\n| streamstats count as event_num window=10 time_window=3600 by device, interface\n| stats count as events count(eval(state=\"down\")) as downs count(eval(state=\"up\")) as ups latest(state) as current_state latest(_time) as last_event by device, interface\n| eval flapping=if(events > 4, \"YES\", \"NO\")\n| eval severity=case(\n    current_state=\"down\" AND flapping=\"YES\", \"CRITICAL -- interface DOWN and flapping\",\n    current_state=\"down\", \"WARNING -- interface DOWN\",\n    flapping=\"YES\", \"WARNING -- interface flapping (currently up)\",\n    1==1, \"OK\")\n| where severity != \"OK\"\n| eval last_event_time=strftime(last_event, \"%Y-%m-%d %H:%M:%S\")\n| sort severity, -events\n```\n\nStep 3 -- Validate\n(a) CLI: `show interface status` (Cisco) or `show interfaces terse` (Juniper) -- verify current states.\n(b) Compare event count with SNMP ifOperStatus traps.\n(c) Correlate with CDP/LLDP neighbor changes to identify cascading failures.\n\nStep 4 -- Operationalize\nDashboard (\"Network -- Interface Status\"):\n* Row 1 -- Single-value: \"Interfaces DOWN\", \"Flapping interfaces\", \"Events (4h)\".\n* Row 2 -- Interface event timeline.\n* Row 3 -- Currently down interfaces table.\n\nAlert: Critical (critical interface DOWN, e.g., uplink, trunk): page NOC.\n\nStep 5 -- Troubleshooting\n\n* **Interface flapping** -- Check: (1) cable/optics (SFP light levels), (2) remote device port status, (3) auto-negotiation issues, (4) power supply on PoE. CLI: `show interface <intf> | include flap`.\n\n* **Admin shutdown vs physical failure** -- Differentiate by syslog message: `administratively down` = intentional. `down` without admin = physical/protocol failure.\n\n* **Trunk link down** -- Cascading impact. Check spanning tree reconvergence (UC-5.1.6), routing adjacency (UC-5.1.4/5.1.5), and downstream devices.",
   "grandmaExplanation": "We watch when network ports go up and down so we can tell if a link is flapping or a whole site is at risk before users flood the help desk.",
-  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, EX4650, QFX5100, QFX5110, QFX5120, QFX5200, QFX5210, QFX5220, MX204, MX304, MX480, MX960, SRX300, SRX320, SRX340, SRX345, SRX1500, SRX4100, SRX4200, SRX4600; Arista 7010T, 7020R, 7050X3, 7060X, 7260X3, 7280R3, 7300X3, 7500R3, 7800R3; HPE Aruba CX 6000, CX 6100, CX 6200, CX 6300, CX 6400, CX 8100, CX 8320, CX 8325, CX 8360, CX 8400, CX 10000"
+  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, EX4650, QFX5100, QFX5110, QFX5120, QFX5200, QFX5210, QFX5220, MX204, MX304, MX480, MX960, SRX300, SRX320, SRX340, SRX345, SRX1500, SRX4100, SRX4200, SRX4600; Arista 7010T, 7020R, 7050X3, 7060X, 7260X3, 7280R3, 7300X3, 7500R3, 7800R3; HPE Aruba CX 6000, CX 6100, CX 6200, CX 6300, CX 6400, CX 8100, CX 8320, CX 8325, CX 8360, CX 8400, CX 10000",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

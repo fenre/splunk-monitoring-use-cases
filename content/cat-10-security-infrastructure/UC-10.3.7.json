@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "EDR agent inventory, CMDB/asset inventory",
-  "app": "EDR API + CMDB lookup",
+  "exclusions": "Covers the detection logic documented for 'EDR Coverage Gaps' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_edr_coverage_gaps` (UC-10.3.7), SOC dashboard panel \"Security Infra — EDR Coverage Gaps\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.3.7 positive (EDR, Coverage, Gaps): ingest synthetic events into `index=edr` sourcetype='crowdstrike:sensor_health' where `count` grouped by `hostname]` satisfies detection threshold for 'EDR Coverage Gaps'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.3.7 negative (Coverage Gaps): ingest benign `edr` / `crowdstrike:sensor_health` events where `hostname]` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv`. Variant 9 confirms zero alert rows for 'EDR Coverage Gaps'."
+  },
+  "dataSources": "EDR agent inventory, CMDB/asset inventory Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "EDR API + CMDB lookup — Universal Forwarder (Splunkbase 617)",
   "spl": "| inputlookup cmdb_endpoints.csv WHERE os_type IN (\"Windows\",\"Linux\",\"macOS\")\n| join type=left max=1 hostname [search index=edr sourcetype=\"crowdstrike:sensor_health\" | stats latest(status) as edr_status by hostname]\n| where isnull(edr_status) OR edr_status!=\"active\"\n| table hostname, os_type, department, edr_status",
-  "description": "Identifies endpoints without EDR protection, closing blind spots that attackers exploit.",
-  "value": "Identifies endpoints without EDR protection, closing blind spots that attackers exploit.",
+  "description": "Identifies UC-10.3.7 — EDR, Coverage, Gaps — using `index=edr` sourcetype `crowdstrike:sensor_health`, grouped by `hostname]`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Coverage Gaps. Purpose-built for 'EDR Coverage Gaps' in Security Infra workflows.",
+  "value": "Operators running UC-10.3.7 on `crowdstrike:sensor_health` feeds shorten triage for Coverage Gaps tied to 'EDR Coverage Gaps', lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Export EDR agent inventory and cross-reference with CMDB/AD computer accounts. Identify systems without agents. Report coverage percentage. Alert when coverage drops below target (e.g., <98%). Prioritize critical servers.",
   "visualization": "Single value (coverage %), Table (uncovered endpoints), Pie chart (covered vs uncovered), Bar chart (gaps by department).",
   "cimModels": [
@@ -21,14 +27,40 @@
   "references": [
     {
       "title": "CIM: Endpoint",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Lab gear, kiosks, and build servers may be off the standard agent on purpose; reconcile the gap list to the asset owner and the CMDB, not the alert count alone.",
+  "knownFalsePositives": "1. **Maintenance window on `edr` (UC-10.3.7)** — Planned work for 'EDR Coverage Gaps' shifts `count` over `span=1h` while `hostname]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `crowdstrike:sensor_health`** — Scheduled automation elevates `src` without crossing configured threshold for UC-10.3.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `hostname]`** — Health checks in `edr` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `crowdstrike:sensor_health`** — First 48h baseline for UC-10.3.7 on `hostname]` is unstable; join `cmdb_endpoints.csv` prior to threshold.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `hostname]`, `exception_reason`, `valid_until`.",
   "equipment": [
     "crowdstrike",
     "macos"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: EDR API + CMDB lookup.\n• Ensure the following data sources are available: EDR agent inventory, CMDB/asset inventory.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nExport EDR agent inventory and cross-reference with CMDB/AD computer accounts. Identify systems without agents. Report coverage percentage. Alert when coverage drops below target (e.g., <98%). Prioritize critical servers.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup cmdb_endpoints.csv WHERE os_type IN (\"Windows\",\"Linux\",\"macOS\")\n| join type=left max=1 hostname [search index=edr sourcetype=\"crowdstrike:sensor_health\" | stats latest(status) as edr_status by hostname]\n| where isnull(edr_status) OR edr_status!=\"active\"\n| table hostname, os_type, department, edr_status\n```\n\nUnderstanding this SPL\n\n**EDR Coverage Gaps** — Identifies endpoints without EDR protection, closing blind spots that attackers exploit.\n\nDocumented **Data sources**: EDR agent inventory, CMDB/asset inventory. **App/TA** (typical add-on context): EDR API + CMDB lookup. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where isnull(edr_status) OR edr_status!=\"active\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **EDR Coverage Gaps**): table hostname, os_type, department, edr_status\n\n\nStep 3 — Validate\nCompare the EDR or sensor inventory to your CMDB export for the same day: a host in Splunk with no EDR should match a known gap (lab, decommission) or a real install miss. Reconcile the gap list with asset owners; coverage percentage is a management metric, not a silent alarm by itself.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (coverage %), Table (uncovered endpoints), Pie chart (covered vs uncovered), Bar chart (gaps by department).",
-  "grandmaExplanation": "We compare the full list of company machines to who actually has a working sensor so we are not comforted by a green dashboard when real devices are not reporting."
+  "equipmentModels": [
+    "crowdstrike_generic",
+    "macos_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: EDR API + CMDB lookup.\n• Ensure the following data sources are available: EDR agent inventory, CMDB/asset inventory.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nExport EDR agent inventory and cross-reference with CMDB/AD computer accounts. Identify systems without agents. Report coverage percentage. Alert when coverage drops below target (e.g., <98%). Prioritize critical servers.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| inputlookup cmdb_endpoints.csv WHERE os_type IN (\"Windows\",\"Linux\",\"macOS\")\n| join type=left max=1 hostname [search index=edr sourcetype=\"crowdstrike:sensor_health\" | stats latest(status) as edr_status by hostname]\n| where isnull(edr_status) OR edr_status!=\"active\"\n| table hostname, os_type, department, edr_status\n```\n\nUnderstanding this SPL\n\n**EDR Coverage Gaps** — Identifies endpoints without EDR protection, closing blind spots that attackers exploit.\n\nDocumented **Data sources**: EDR agent inventory, CMDB/asset inventory. **App/TA** (typical add-on context): EDR API + CMDB lookup. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\n**Pipeline walkthrough**\n\n• Loads rows via `inputlookup` (KV store or CSV lookup) for enrichment or reporting.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where isnull(edr_status) OR edr_status!=\"active\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **EDR Coverage Gaps**): table hostname, os_type, department, edr_status\n\n\nStep 3 — Validate\nCompare the EDR or sensor inventory to your CMDB export for the same day: a host in Splunk with no EDR should match a known gap (lab, decommission) or a real install miss. Reconcile the gap list with asset owners; coverage percentage is a management metric, not a silent alarm by itself.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (coverage %), Table (uncovered endpoints), Pie chart (covered vs uncovered), Bar chart (gaps by department).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (EDR API + CMDB lookup — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=crowdstrike:sensor_health into edr. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`hostname]`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We compare the full list of company machines to who actually has a working sensor so we are not comforted by a green dashboard when real devices are not reporting.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

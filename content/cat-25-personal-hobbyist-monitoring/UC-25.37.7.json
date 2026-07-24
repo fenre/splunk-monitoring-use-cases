@@ -8,26 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Mould risk (`mould:risk`), crack meters (`crackmeter:reading`), HVAC filter life (`hvacfilter:life`), structural tilt (`structural:tilt`).",
-  "app": "Building-health sensors — indoor humidity / mould-risk monitors, crack and tilt meters, HVAC filter-life trackers, and damp sensors — streamed to Splunk HEC via MQTT and ESPHome.",
+  "exclusions": "Covers personal hobby monitoring for 'Indoor Temperature Stability by Room' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_indoor_temperature_stability_by_room` (UC-25.37.7), SOC dashboard panel \"Personal — Indoor Temperature Stability by Room\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.37.7 positive (Indoor, Temperature, Stability, Room): ingest synthetic events into `index=personal` sourcetype='mould:risk' where `high`, `low`, `avg_swing` grouped by `room`, `_time` satisfies detection threshold for 'Indoor Temperature Stability by Room'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.37.7 negative (by Room): ingest benign `personal` / `mould:risk` events where `room`, `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 12 confirms zero alert rows for 'Indoor Temperature Stability by Room'."
+  },
+  "dataSources": "Mould risk (`mould:risk`), crack meters (`crackmeter:reading`), HVAC filter life (`hvacfilter:life`), structural tilt (`structural:tilt`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Building-health sensors — indoor humidity / mould-risk monitors, crack and tilt meters, HVAC filter-life trackers, and damp sensors — streamed to Splunk HEC via MQTT and ESPHome. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=mould:risk\n| bin _time span=1d\n| stats max(surface_temp_c) as high, min(surface_temp_c) as low by room _time\n| eval swing=round(high-low,1)\n| stats avg(swing) as avg_swing by room\n| sort - avg_swing",
-  "description": "Measures how much each room's temperature swings through the day, revealing poor insulation or draughts.",
-  "value": "Big daily temperature swings point to insulation gaps; ranking rooms shows where improvements pay off most.",
+  "description": "Alerts on UC-25.37.7 — Indoor, Temperature, Stability, Room — using `index=personal` sourcetype `mould:risk`, grouped by `room`, `_time`. Outputs `high`, `low`, `avg_swing` each `1d`; alert when configured threshold. Primary focus: by Room. Purpose-built for 'Indoor Temperature Stability by Room' in Personal workflows.",
+  "value": "Tracking `high`, `low`, `avg_swing` via UC-25.37.7 on `mould:risk` feeds improves response to 'Indoor Temperature Stability by Room' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest room temperatures into `index=personal`; compare daily swing per room.",
   "visualization": "Bar chart of average daily temperature swing by room.",
   "cimModels": [],
   "references": [
     {
       "title": "ESPHome — DIY sensors",
-      "url": "https://esphome.io/"
+      "url": "https://esphome.io/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.37.7)** — Connector for 'Indoor Temperature Stability by Room' stops polling `mould:risk`; stale `high`, `low`, `avg_swing` on `room`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `high`, `low`, `avg_swing` over `1d` is expected for UC-25.37.7, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mould:risk`. Dedup with `stats latest(*) by room`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold for 'Indoor Temperature Stability by Room'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It measures how much each room's temperature changes through the day, hinting where insulation is poor."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Building Health & Structural — typical feeds: Mould risk (`mould:risk`), crack meters (`crackmeter:reading`), HVAC filter life (`hvacfilter:life`), structural tilt (`structural:tilt`)..\n• **Sourcetypes in this search**: `mould:risk`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=mould:risk`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Building-health sensors — indoor humidity / mould-risk monitors, crack and tilt meters, HVAC filter-life trackers, and damp sensors — streamed to Splunk HEC via MQTT and ESPHome..\n\n**Author notes:** Ingest room temperatures into `index=personal`; compare daily swing per room.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"mould:risk\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=mould:risk earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Indoor Temperature Stability by Room** over `personal` data (primarily `sourcetype=mould:risk`) across the full search range. The `max, min, avg` aggregation groups by `room`, `_time`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `_time`, `room`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=mould:risk\n| bin _time span=1d\n| stats max(surface_temp_c) as high, min(surface_temp_c) as low by room _time\n| eval swing=round(high-low,1)\n| stats avg(swing) as avg_swing by room\n| sort - avg_swing\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=mould:risk earliest=-7d\n| head 50\n| table _time, room\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=mould:risk earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.37.7: Personal evidence` with the following panel layout:\n\n**Panel 1 — Bar Chart Of Average Daily Temperature Swing By Room (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `mould:risk` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=mould:risk | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It measures how much each room's temperature changes through the day, hinting where insulation is poor.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

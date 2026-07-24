@@ -9,32 +9,42 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Assurance Issue Summary by Priority and Category' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_assurance_issue_summary_by_priority_and_category` (UC-5.13.21), SOC dashboard panel \"Operations — Assurance Issue Summary by Priority and Category\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.13.21 positive (Assurance, Issue, Summary, Priority, and): ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:issue' where `count` grouped by `priority`, `category`, `name` satisfies detection threshold for 'Assurance Issue Summary by Priority and Category'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.13.21 negative (and Category): ingest benign `catalyst` / `cisco:dnac:issue` events where `priority`, `category`, `name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Assurance Issue Summary by Priority and Category'."
+  },
   "dataSources": "`index=catalyst sourcetype=cisco:dnac:issue` from the `issue` modular input in `TA_cisco_catalyst` (Splunkbase 7538). The TA polls `GET /dna/intent/api/v1/issues` using token auth with pagination. Default poll interval: 900s (15m). Volume: 1 event per *active* issue per poll × ~600 bytes. A campus with 30 active issues produces ~30 events/poll ≈ 2,900 events/day ≈ 1.7 MB/day. The feed scales with active issue count, not device count. Auto-extracted fields: `priority` (string: P1, P2, P3, P4), `category` (string: Connectivity, Onboarding, Connected, Performance, etc.), `name` (string: human-readable issue title), `deviceName` (FQDN), `status` (string: ACTIVE, RESOLVED, IGNORED), `issueId` (UUID), `siteId` (UUID), `lastOccurenceTime` (epoch milliseconds), `deviceType` (string). No native CIM mapping.",
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+. Install on Search Heads (knowledge objects) AND the Heavy Forwarder or single-instance running inputs.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:issue\"\n| stats count by priority, category, name\n| sort -priority -count",
-  "description": "Aggregates all active Catalyst Center Assurance issues into a Pareto table by priority (P1–P4) and category, so NOC engineers can see at a glance which issue types are dominating the backlog and which are the most persistent — addressing the highest-count, highest-priority rows first for maximum impact.",
-  "value": "Catalyst Center's AI/ML engine detects network issues automatically — connectivity losses, onboarding failures, performance degradation — but the native Assurance UI is a closed ecosystem. Centralising these issues in Splunk unlocks three things the GUI alone cannot provide: (1) correlation with syslog, NetFlow, ISE, and change-management data to find root causes faster; (2) historical trending beyond Catalyst Center's 7-day retention to prove that a recurring issue is getting worse, not better; (3) automated triage via SOAR playbooks that enrich, deduplicate, and route issues without a human clicking through the GUI for each one.",
+  "description": "Surfaces UC-5.13.21 — Assurance, Issue, Summary, Priority, and — using `index=catalyst` sourcetype `cisco:dnac:issue`, grouped by `priority`, `category`, `name`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: and Category. Purpose-built for 'Assurance Issue Summary by Priority and Category' in Operations workflows.",
+  "value": "UC-5.13.21 accelerates insight into and Category ('Assurance Issue Summary by Priority and Category') by tracking `activity` on `cisco:dnac:issue` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Install `TA_cisco_catalyst` (Splunkbase 7538) on the Search Head and Heavy Forwarder. Configure a Catalyst Center account and enable the `issue` input (Inputs → Create → Issues: account `catcenter-prod`, index `catalyst`, interval `900`). For P1 alerting, schedule a separate alert with `| where priority=\"P1\" AND status=\"ACTIVE\"` every 5 minutes, throttled by `issueId` for 4 hours.",
   "visualization": "(1) Sortable table: priority, category, name, count — sorted by -priority -count to surface highest-priority, most-frequent issues at the top. (2) Bar chart: count by priority (P1 red, P2 orange, P3 yellow, P4 grey). (3) Pie or donut: share by category (Connectivity, Onboarding, Performance, etc.) to show the dominant issue type. (4) Single value: count of active P1 issues (red threshold ≥ 1, links to filtered table).",
   "references": [
     {
       "title": "Cisco Catalyst Add-on for Splunk (Splunkbase 7538)",
-      "url": "https://splunkbase.splunk.com/app/7538"
+      "url": "https://splunkbase.splunk.com/app/7538",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Intent API — Issues endpoint",
-      "url": "https://developer.cisco.com/docs/catalyst-center/#!issues"
+      "url": "https://developer.cisco.com/docs/catalyst-center/#!issues",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Integration Guide (this repo)",
-      "url": "docs/guides/catalyst-center.md"
+      "url": "docs/guides/catalyst-center.md",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Catalyst Center Assurance Issue Categories — Cisco Documentation",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Recurring known-bug issues that Catalyst Center auto-detects but have published workarounds.** Some Assurance issue types correspond to known Catalyst Center or IOS-XE bugs with available fixes or workarounds. These persist in the issue feed until the firmware is upgraded. Distinguish by checking whether the `name` matches a known Cisco bug ID pattern or a previously triaged issue. Suppress by maintaining a `catalyst_known_issues` lookup with `name` patterns and exclusion flags; filter known-bug issues from the priority summary while tracking them in a separate remediation dashboard.\n\n**Same issue re-polled on every cycle inflating the count.** The issues API returns all currently active issues on each poll. If you count events rather than distinct `issueId` values, counts will inflate with each poll cycle. Distinguish by checking whether `| stats dc(issueId)` is significantly lower than `| stats count`. This is a *design choice* — see Step 2 for why event count is intentional in this UC.\n\n**Informational P4 issues creating noise in the priority distribution.** P4 informational issues (e.g., device sync status, configuration recommendations) may dominate the issue count without indicating operational problems. Distinguish by checking whether the majority of issues are P4 with `status` that auto-resolves. Suppress by filtering `| where priority IN (\"P1\",\"P2\",\"P3\")` for operational dashboards and tracking P4 separately for trend analysis.\n\n**Assurance issue category reclassification after Catalyst Center upgrade.** Catalyst Center may add or rename issue categories between versions, causing apparent new issue types in the summary. Distinguish by checking whether new categories appeared coincident with a Catalyst Center upgrade. Suppress by maintaining a `catalyst_issue_categories` lookup that maps old and new category names.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst` (UC-5.13.21)** — Planned work for 'Assurance Issue Summary by Priority and Category' shifts `count` over `span=1h` while `priority`, `category`, `name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:dnac:issue`** — Scheduled automation elevates `category` without crossing configured threshold for UC-5.13.21. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `priority`, `category`, `name`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:issue`** — First 48h baseline for UC-5.13.21 on `priority` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `priority`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

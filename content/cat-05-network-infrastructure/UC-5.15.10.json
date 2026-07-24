@@ -9,11 +9,17 @@
     "Analytics"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Infoblox DNS NXDOMAIN Rate Trending for Recursive Clients (Infoblox)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_infoblox_dns_nxdomain_rate_trending_for_recursiv` (UC-5.15.10), SOC dashboard panel \"Operations — Infoblox DNS NXDOMAIN Rate Trending for Recursive Clients (Infoblox)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.15.10 positive (Infoblox, DNS, NXDOMAIN, Rate, Trending): ingest synthetic events into `index=dns` sourcetype='infoblox:dns' where `nx_count`, `med` grouped by `_time`, `src_ip`, `host` satisfies `nx_rate` >= 35, or `queries` >= 200 for 'Infoblox DNS NXDOMAIN Rate Trending for Recursive Clients (Infoblox)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.15.10 negative (Clients (Infoblox)): ingest benign `dns` / `infoblox:dns` events where `_time`, `src_ip`, `host` stays below `nx_rate` >= 35, or `queries` >= 200, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Infoblox DNS NXDOMAIN Rate Trending for Recursive Clients (Infoblox)'."
+  },
   "dataSources": "`index=dns` `sourcetype=infoblox:dns` query/response logs containing response codes (`rcode`, `response_code`, or embedded `NXDOMAIN` tokens depending on TA version); sampling policies documented because verbose logging affects Grid CPU.",
   "app": "Splunk Add-on for Infoblox (Splunk_TA_infoblox, Splunkbase 2934)",
   "spl": "index=dns sourcetype=\"infoblox:dns\" earliest=-7d@h latest=now\n| eval rcode_norm=upper(trim(coalesce(rcode,rcode_str,\"\")))\n| eval is_nx=if(rcode_norm=\"NXDOMAIN\" OR match(_raw,\"(?i)\\\\bNXDOMAIN\\\\b\") OR rcode=\"3\" OR rcode=3, 1, 0)\n| bin _time span=1h\n| stats count as queries sum(is_nx) as nx_count by _time src_ip host\n| eval nx_rate=round(100*nx_count/queries,2)\n| eventstats median(nx_rate) as med by src_ip\n| where nx_rate >= 35 AND queries>=200\n| sort - nx_rate\n| head 200",
-  "description": "Hourly aggregation compares NXDOMAIN responses to total DNS queries per internal client IP so sudden hikes—often tied to malware DGAs or misconfigured applications—stand out against historical medians.",
-  "value": "Risk teams gain a lightweight complementary indicator to full PCAP inspection, guiding containment decisions while application owners receive evidence for fixing fat-fingered suffix searches or broken automation.",
+  "description": "Alerts on UC-5.15.10 — Infoblox, DNS, NXDOMAIN, Rate, Trending — using `index=dns` sourcetype `infoblox:dns`, grouped by `_time`, `src_ip`, `host`. Outputs `nx_count`, `med` each `1h`; alert when `nx_rate` >= 35, or `queries` >= 200. Primary focus: Clients (Infoblox). Purpose-built for 'Infoblox DNS NXDOMAIN Rate Trending for Recursive Clients (Infoblox)' in Operations workflows.",
+  "value": "Alerting on Infoblox, DNS, NXDOMAIN, Rate, Trending through UC-5.15.10 reduces operational risk and delayed incident response by surfacing `nx_count`, `med` early.",
   "implementation": "Normalize rcode fields via eval, exclude authoritative-only members if splits exist using `host` tags, baseline per building, alert when nx_rate exceeds adaptive percentile with minimum query floor.",
   "visualization": "Timechart nx_rate for top talkers, geographic site facet, reference line at organizational threshold.",
   "cimModels": [
@@ -24,14 +30,26 @@
   "references": [
     {
       "title": "Splunk Documentation — Sourcetypes for the Splunk Add-on for Infoblox",
-      "url": "https://docs.splunk.com/Documentation/AddOns/released/Infoblox/Sourcetypes"
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/Infoblox/Sourcetypes",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunkbase — Splunk Add-on for Infoblox",
-      "url": "https://splunkbase.splunk.com/app/2934"
+      "url": "https://splunkbase.splunk.com/app/2934",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Broken SaaS clients:** Misconfigured connectors hammer invalid hostnames.**Guest Wi‑Fi:** Captive portals generate noisy NXDOMAIN.**New AV deployments:** Large NX spikes during initial lookups sometimes normalize within days.",
+  "knownFalsePositives": "1. **Maintenance window on `dns` (UC-5.15.10)** — Planned work for 'Infoblox DNS NXDOMAIN Rate Trending for Recursive Clients (Infoblox)' shifts `nx_count`, `med` over `span=1h` while `_time`, `src_ip`, `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `infoblox:dns`** — Scheduled automation elevates `src_ip` without crossing `nx_rate` >= 35 for UC-5.15.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `src_ip`, `host`** — Health checks in `dns` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `infoblox:dns`** — First 48h baseline for UC-5.15.10 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1071.004"
   ],
@@ -40,6 +58,7 @@
     "infoblox"
   ],
   "equipmentModels": [
+    "infoblox_dns",
     "infoblox_nios"
   ],
   "status": "verified",
@@ -49,7 +68,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Recursive members identified in `infoblox_members_role.csv` lookup for filtering.\n• Understanding of split-horizon DNS—internal NXDOMAIN expected for some namespaces.\n• Storage sizing for query logging volumes.\n\nStep 1 — Configure data collection\nEnable DNS query logging categories balanced with Infoblox sizing guidelines; prefer sampled logging plus RPZ feeds for layered coverage.\n\nStep 2 — Create the search and alert\nPrimary SPL measures nx_rate hourly; complement with `predict` on aggregate NXDOMAIN/min for fleet-wide malware surge alerts.\n\nStep 3 — Validate\nCross-check randomly sampled hour against Splunk raw events counting NXDOMAIN substrings vs TA numeric rcode.\n\nStep 4 — Operationalize\nHeatmap of src_ip by site, integration with proxy logs for HTTP correlation when nx_rate spikes.\n\nStep 5 — Troubleshooting\n**Missing rcode:** rely on substring match path cautiously—performance heavy.**Legitimate scanners:** exclude vulnerability scanner subnets.**Wildcard internal zones:** misconfigured search lists inflate NXDOMAIN.",
+  "detailedImplementation": "Prerequisites\n• Recursive members identified in `infoblox_members_role.csv` lookup for filtering.\n• Understanding of split-horizon DNS—internal NXDOMAIN expected for some namespaces.\n• Storage sizing for query logging volumes.\n\nStep 1 — Configure data collection\nEnable DNS query logging categories balanced with Infoblox sizing guidelines; prefer sampled logging plus RPZ feeds for layered coverage.\n\nStep 2 — Create the search and alert\nPrimary SPL measures nx_rate hourly; complement with `predict` on aggregate NXDOMAIN/min for fleet-wide malware surge alerts.\n\nStep 3 — Validate\nCross-check randomly sampled hour against Splunk raw events counting NXDOMAIN substrings vs TA numeric rcode.\n\nStep 4 — Operationalize\nHeatmap of src_ip by site, integration with proxy logs for HTTP correlation when nx_rate spikes.\n\nStep 5 — Troubleshooting\n**Missing rcode:** rely on substring match path cautiously—performance heavy.**Legitimate scanners:** exclude vulnerability scanner subnets.**Wildcard internal zones:** misconfigured search lists inflate NXDOMAIN.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Infoblox (Splunk_TA_infoblox, Splunkbase 2934)). Enable the modular input or HEC token that writes sourcetype=infoblox:dns into dns. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, host, is_nx, nx_rate`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We track how often computers ask for names that do not exist; when that jumps for one machine it can mean malware guessing names or a broken app mis-typing addresses.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

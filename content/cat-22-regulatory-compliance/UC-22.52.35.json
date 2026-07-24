@@ -1,0 +1,107 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.52.35",
+  "title": "SOCI audit-evidence retention for CIRMP and cyber-incident reporting",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Audit"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Pipeline + Rail + Aviation",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes informational telemetry not in scope of TSA preservation. Excludes assets in decommission with documented retirement note.",
+  "evidence": "Saved search `UC-22.52.35` archived daily to `audit_evidence` with `soci_clause=\"SOCI-cross-audit-evidence\"`.",
+  "compliance": [
+    {
+      "regulation": "soci",
+      "version": "2022-SLACIP+CIRMP-2023",
+      "clause": "SOCI-cross-audit-evidence",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "TSA SDs require log preservation for forensic and inspector use. This UC surveys source-availability, retention conformance, and `audit_evidence` summary-index health.",
+      "controlObjective": "Proves source-availability across TSA-regulated logging assets and `audit_evidence` retention conforms to TSA inspection window.",
+      "evidenceArtifact": "Saved search, `TSA Log Source Health` dashboard, retention configuration audit.",
+      "obligationRef": "soci@2022-SLACIP+CIRMP-2023#SOCI-cross-audit-evidence",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Stop the syslog forwarder on a TSA-critical asset. UC-22.52.35 MUST flag `source_status=silent` within 24h.",
+    "negativeScenario": "Restart forwarder; source resumes. UC-22.52.35 MUST NOT escalate."
+  },
+  "dataSources": "Splunk metadata (`| metadata type=hosts`, `| metadata type=sources`). TSA logging asset register (KV Store `soci_audit_retention_lookup`). Splunk Distributed Management Console (DMC) for forwarder health.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "| inputlookup soci_audit_retention_lookup\n| where tsa_in_scope=true\n| join type=left source [| metadata type=sources | stats latest(lastTime) as latest_event_time by source]\n| eval hours_since_event = round((now() - latest_event_time) / 3600, 1)\n| eval source_status = case(\n    isnull(latest_event_time), \"never_seen\",\n    hours_since_event > expected_silence_hours * 2, \"silent\",\n    hours_since_event > expected_silence_hours, \"degraded\",\n    1=1, \"healthy\")\n| where source_status IN (\"never_seen\",\"silent\",\"degraded\")\n| table facility_id source modality expected_silence_hours hours_since_event source_status owner",
+  "description": "SOCI audit-evidence retention for CIRMP and cyber-incident reporting — Splunk continuously validates SOCI-cross-audit-evidence using the saved search in this UC, routes gaps to Enterprise Security notables, and archives proof rows to `audit_evidence`.",
+  "value": "Inspectors ask for proof that «SOCI audit-evidence retention for CIRMP and cyber-incident reporting» is operational today, not at last audit. Missing live evidence for SOCI-cross-audit-evidence is a direct regulatory deficiency with enforcement exposure.",
+  "implementation": "(1) Populate `soci_audit_retention_lookup` with every TSA-relevant source and expected silence interval. (2) Schedule UC-22.52.35 daily. (3) Build the `TSA Log Source Health` dashboard.",
+  "visualization": "(Panel 1) Status by modality. (Panel 2) Silent-trend. (Panel 3) Owner-attribution. (Panel 4) Audit_evidence index lag.",
+  "cimModels": [
+    "Inventory"
+  ],
+  "references": [
+    {
+      "title": "TSA SD cross-modal log preservation expectations",
+      "url": "https://www.tsa.gov/cybersecurity"
+    },
+    {
+      "title": "NIST 800-92 — Computer Security Log Management",
+      "url": "https://csrc.nist.gov/publications/detail/sp/800-92/final"
+    },
+    {
+      "title": "Cyber and Infrastructure Security Centre (CISC)",
+      "url": "https://www.cisc.gov.au/"
+    },
+    {
+      "title": "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    }
+  ],
+  "knownFalsePositives": "1. **Planned maintenance window** — documented change windows in lookup `soci_22_52_35_exceptions` suppress benign activity during approved work.\n\n2. **Pen-test / red-team activity** — engagements with agreed rules-of-engagement marker excluded via lookup `soci_22_52_35_exceptions`.\n\n3. **Vendor remote-access sessions** — authorised vendor PAM sessions cross-reference lookup `soci_22_52_35_exceptions` before alerting.\n\n4. **Regulatory transition / grace period** — time-bound exception register entry in lookup `soci_22_52_35_exceptions` with documented approver and expiry.\n\n**Suppression mechanism**: filter results with lookup `soci_22_52_35_exceptions` (time-bound exception register); rows must carry `approved_by` and `valid_until` epoch fields.",
+  "mitreAttack": [
+    "T1562.008",
+    "T1070"
+  ],
+  "requiredFields": [
+    "facility_id",
+    "source",
+    "modality",
+    "source_status"
+  ],
+  "equipment": [
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk DMC",
+    "Splunk ES 7.x"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-07-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Compliance SME Panel (finalized; pending verification)",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + KV Store `soci_audit_retention_lookup`.\n\n## Step 1 — Define log-source register\n\n```ini\n[soci_audit_retention_lookup]\nfield.facility_id = string\nfield.source = string\nfield.modality = string\nfield.tsa_in_scope = string\nfield.expected_silence_hours = number\nfield.owner = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.52.35: TSA Log Source Health]\ncron_schedule = 51 9 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.52.35,reg=TSA-Surface,clause=TSA-SD-multi-log-retention\nalert.severity = 3\n```\n\n## Step 3 — Runbooks\n\n**`source_status=silent` on critical TSA source**: investigate within 4 hours; restore within 24 hours.\n\n## Step 4 — Troubleshooting\n\n- **Burst-mode sources**: certain OT logs are episodic; set `expected_silence_hours` generously.\n- **Decommissioned assets**: update register promptly.\n\n**TSA-specific failure modes**:\n- **Preservation order**: in active investigations, certain sources may be preservation-ordered; tag and exempt from rotation.\n\n## Step 5 — Troubleshooting\n\n**Product-specific failure modes**:\n\n- **ServiceNow SIR custom-field drift** — if `csa_awareness_time` or `tsa_awareness_time` is NULL, verify the Security Incident Response workflow still writes the field on state transition to `In Progress`; compare against the vendor UI on the open ticket.\n- **KV Store sync lag** — if the lookup row updates but the saved search still surfaces stale status, confirm the `outputlookup` command completed (`| rest /services/data/transforms/lookup-table-files` shows matching row count).\n- **HEC token / modular-input silence** — run `index=_internal sourcetype=splunkd component=AggregatorMiningProcessor` for the source; no events for >2× the expected poll interval indicates an API or forwarder failure.\n- **Summary-index routing gaps** — validate `action.summary_index._name = audit_evidence` and RBAC role `compliance-analyst` retains write on the destination index.",
+  "grandmaExplanation": "Every log feed we depend on must keep flowing. If one goes quiet, we catch it within a day so the inspector never asks why there's a gap.",
+  "prerequisiteUseCases": [
+    "UC-22.52.1"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "run"
+}

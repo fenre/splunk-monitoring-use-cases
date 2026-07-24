@@ -8,29 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Pilot logbook (`flightlog:entry`), avionics telemetry (`avionics:telemetry`), flight-sim sessions (`flightsim:session`), pre-flight checklists (`preflight:check`).",
-  "app": "Pilot and flight-sim telemetry — electronic logbooks (ForeFlight, LogTen Pro), Stratux / GDL90 avionics receivers, and Microsoft Flight Simulator / X-Plane SimConnect sessions — streamed to Splunk HEC via scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Fuel Burn vs Book Figures' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_fuel_burn_vs_book_figures` (UC-25.42.9), SOC dashboard panel \"Personal — Fuel Burn vs Book Figures\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.42.9 positive (Fuel, Burn, Book, Figures): ingest synthetic events into `index=personal` sourcetype='flightlog:entry' where `actual_gph` grouped by `aircraft_type` satisfies detection threshold for 'Fuel Burn vs Book Figures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.42.9 negative (Book Figures): ingest benign `personal` / `flightlog:entry` events where `aircraft_type` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 12 confirms zero alert rows for 'Fuel Burn vs Book Figures'."
+  },
+  "dataSources": "Pilot logbook (`flightlog:entry`), avionics telemetry (`avionics:telemetry`), flight-sim sessions (`flightsim:session`), pre-flight checklists (`preflight:check`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Pilot and flight-sim telemetry — electronic logbooks (ForeFlight, LogTen Pro), Stratux / GDL90 avionics receivers, and Microsoft Flight Simulator / X-Plane SimConnect sessions — streamed to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=flightlog:entry\n| eval gph=round(fuel_gal/hours,1)\n| stats avg(gph) as actual_gph by aircraft_type\n| eval book_gph=8.5, delta=round(actual_gph-book_gph,1)\n| sort - delta",
-  "description": "Compares your actual fuel burn against the aircraft's published figures, a check on both technique and engine health.",
-  "value": "A creeping fuel burn can indicate a leaning technique to fix or an engine issue worth a mechanic's look.",
+  "description": "Monitors UC-25.42.9 — Fuel, Burn, Book, Figures — using `index=personal` sourcetype `flightlog:entry`, grouped by `aircraft_type`. Outputs `actual_gph` each `the scheduled window`; alert when configured threshold. Primary focus: Book Figures. Purpose-built for 'Fuel Burn vs Book Figures' in Personal workflows.",
+  "value": "Tracking `actual_gph` via UC-25.42.9 on `flightlog:entry` feeds improves response to 'Fuel Burn vs Book Figures' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest fuel and hours into `index=personal`; compare actual burn to book figures per type.",
   "visualization": "Bar chart of actual versus book fuel burn by type.",
   "cimModels": [],
   "references": [
     {
       "title": "ForeFlight — pilot app",
-      "url": "https://foreflight.com/"
+      "url": "https://foreflight.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.42.9)** — Connector for 'Fuel Burn vs Book Figures' stops polling `flightlog:entry`; stale `actual_gph` on `aircraft_type` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `actual_gph` over `1w` is expected for UC-25.42.9, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `flightlog:entry`. Dedup with `stats latest(*) by aircraft_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Fuel Burn vs Book Figures'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "hardware_bmc"
   ],
   "equipmentModels": [
     "hardware_bmc_ilo"
   ],
-  "grandmaExplanation": "It compares how much fuel you actually use against the plane's official figures, a check on technique and engine."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Aviation & Flight Simulation — typical feeds: Pilot logbook (`flightlog:entry`), avionics telemetry (`avionics:telemetry`), flight-sim sessions (`flightsim:session`), pre-flight checklists (`preflight:check`)..\n• **Sourcetypes in this search**: `flightlog:entry`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=flightlog:entry`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Pilot and flight-sim telemetry — electronic logbooks (ForeFlight, LogTen Pro), Stratux / GDL90 avionics receivers, and Microsoft Flight Simulator / X-Plane SimConnect sessions — streamed to Splunk HEC via scripted inputs..\n\n**Author notes:** Ingest fuel and hours into `index=personal`; compare actual burn to book figures per type.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"flightlog:entry\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=flightlog:entry earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Fuel Burn vs Book Figures** over `personal` data (primarily `sourcetype=flightlog:entry`) across the full search range. The `avg` aggregation groups by `aircraft_type`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `aircraft_type`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=flightlog:entry\n| eval gph=round(fuel_gal/hours,1)\n| stats avg(gph) as actual_gph by aircraft_type\n| eval book_gph=8.5, delta=round(actual_gph-book_gph,1)\n| sort - delta\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=flightlog:entry earliest=-7d\n| head 50\n| table aircraft_type\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=flightlog:entry earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.42.9: Personal evidence` with the following panel layout:\n\n**Panel 1 — Bar Chart Of Actual Versus Book Fuel Burn By Type (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `flightlog:entry` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=flightlog:entry | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It compares how much fuel you actually use against the plane's official figures, a check on technique and engine.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

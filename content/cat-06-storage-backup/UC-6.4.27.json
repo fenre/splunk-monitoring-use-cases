@@ -9,11 +9,17 @@
     "Governance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Client inventory `commvault:client` with `agent_version`, `service_pack`",
-  "app": "Commvault analytics feed to Splunk HEC",
+  "exclusions": "Covers the detection logic documented for 'Commvault client agent version compliance and unsupported endpoint audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_commvault_client_agent_version_compliance_and_un` (UC-6.4.27), SOC dashboard panel \"Operations — Commvault client agent version compliance and unsupported endpoint audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.4.27 positive (Commvault, client, agent, version, compliance): ingest synthetic events into `index=backup` sourcetype='commvault:client' where `host_count` grouped by `ver`, `client_group` satisfies -24h for 'Commvault client agent version compliance and unsupported endpoint audit'. Validate lookup `commvault_supported_agents`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.4.27 negative (endpoint audit): ingest benign `backup` / `commvault:client` events where `ver`, `client_group` stays below -24h, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Commvault client agent version compliance and unsupported endpoint audit'."
+  },
+  "dataSources": "Client inventory `commvault:client` with `agent_version`, `service_pack` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Commvault analytics feed to Splunk HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=backup sourcetype=\"commvault:client\" earliest=-24h\n| eval ver=coalesce(agent_version, client_version)\n| lookup commvault_supported_agents product OUTPUT min_supported\n| where isnull(min_supported) OR ver < min_supported\n| stats values(hostname) as hosts dc(hostname) as host_count by ver, client_group\n| sort host_count",
-  "description": "Out-of-date agents miss features, hotfixes, and security patches; they also complicate vendor support during restore incidents.",
-  "value": "Reduces Sev1 restore time by ensuring the fleet is on supported combinations before audits or ransomware events.",
+  "description": "Detects UC-6.4.27 for Commvault, client, agent, version, compliance over `index=backup` sourcetype `commvault:client` with thresholds -24h. Groups `host_count` by `ver`, `client_group` each `the scheduled window`. Differentiated by lookup `commvault_supported_agents`. Supports repeatable operations triage for 'Commvault client agent version compliance and unsupported endpoint audit'.",
+  "value": "For 'Commvault client agent version compliance and unsupported endpoint audit', UC-6.4.27 converts `host_count` on `commvault:client` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Maintain `commvault_supported_agents.csv` with `min_supported` per product line. Refresh client inventory daily. Feed results to CMDB patch team.",
   "visualization": "Pie chart (supported vs not), table (version, host count).",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Commvault Documentation — Splunk integration",
-      "url": "https://documentation.commvault.com/"
+      "url": "https://documentation.commvault.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `backup` (UC-6.4.27)** — Planned work for 'Commvault client agent version compliance and unsupported endpoint audit' shifts `host_count` over `span=1h` while `ver`, `client_group` remains in-scope. Applies lookup `commvault_supported_agents`. Cross-check CMDB CHG.\n\n2. **Batch `values` on `commvault:client`** — Scheduled automation elevates `client_group` without crossing configured threshold for UC-6.4.27. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ver`, `client_group`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `commvault:client`** — First 48h baseline for UC-6.4.27 on `ver` is unstable; join `commvault_supported_agents` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ver`, `exception_reason`, `valid_until`.",
   "equipment": [
     "commvault",
     "hashicorp"
@@ -41,5 +63,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We help you see which backup runs finished cleanly and which did not, so you are not caught thinking data was protected when a job really failed or stopped early."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Commvault analytics feed to Splunk HEC — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=commvault:client into backup. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`client_group, min_supported, product, ver`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you see which backup runs finished cleanly and which did not, so you are not caught thinking data was protected when a job really failed or stopped early.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

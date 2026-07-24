@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`deployment_event` outcome, post-deploy incident within 1h",
-  "app": "Deployment + incident linkage",
+  "exclusions": "Covers the detection logic documented for 'Change Failure Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_change_failure_rate` (UC-12.2.23), SOC dashboard panel \"Operations — Change Failure Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.2.23 positive (Change, Failure, Rate): ingest synthetic events into `index=cicd` sourcetype='deployment_event' where `fails` grouped by `application` satisfies `cfr` > 15 for 'Change Failure Rate'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.2.23 negative (Failure Rate): ingest benign `cicd` / `deployment_event` events where `application` stays below `cfr` > 15, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Change Failure Rate'."
+  },
+  "dataSources": "`deployment_event` outcome, post-deploy incident within 1h Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Deployment + incident linkage — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cicd sourcetype=\"deployment_event\" environment=\"production\"\n| eval failed=if(status=\"failed\" OR incident_within_1h=\"true\",1,0)\n| stats sum(failed) as fails, count as total by application\n| eval cfr=round(fails/total*100,2)\n| where cfr > 15\n| sort -cfr",
-  "description": "Ratio of failed deployments or hotfix-required releases to total deployments—DORA metric.",
-  "value": "Ratio of failed deployments or hotfix-required releases to total deployments—DORA metric.",
+  "description": "Surfaces 'Change Failure Rate' (UC-12.2.23) using `index=cicd` sourcetype `deployment_event` by aggregating `fails` grouped by `application` over `the scheduled window` and alerting when `cfr` > 15. Keywords: Change, Failure, Rate. Focuses on Failure Rate behaviour so operations teams can triage UC-12.2.23 without ad-hoc log review.",
+  "value": "UC-12.2.23 accelerates insight into Failure Rate ('Change Failure Rate') by tracking `fails` on `deployment_event` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Flag incidents linked to version within 1h window. Target CFR <15% for mature teams. Review outliers in postmortems.",
   "visualization": "Bar chart (CFR by app), Line chart (CFR trend), Single value (org CFR).",
   "cimModels": [
@@ -22,10 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Build failures spike during CI infrastructure issues, dependency registry outages, flaky test runs, or major framework upgrades.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Deployment + incident linkage.\n• Ensure the following data sources are available: `deployment_event` outcome, post-deploy incident within 1h.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nFlag incidents linked to version within 1h window. Target CFR <15% for mature teams. Review outliers in postmortems.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cicd sourcetype=\"deployment_event\" environment=\"production\"\n| eval failed=if(status=\"failed\" OR incident_within_1h=\"true\",1,0)\n| stats sum(failed) as fails, count as total by application\n| eval cfr=round(fails/total*100,2)\n| where cfr > 15\n| sort -cfr\n```\n\nUnderstanding this SPL\n\n**Change Failure Rate** — Ratio of failed deployments or hotfix-required releases to total deployments—DORA metric.\n\nDocumented **Data sources**: `deployment_event` outcome, post-deploy incident within 1h. **App/TA** (typical add-on context): Deployment + incident linkage. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cicd; **sourcetype**: deployment_event. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cicd, sourcetype=\"deployment_event\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **failed** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by application** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **cfr** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where cfr > 15` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with the vendor console or native job history for that tool. Verify field extractions and index permissions.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (CFR by app), Line chart (CFR trend), Single value (org CFR).",
-  "grandmaExplanation": "We watch this part of your delivery chain for risks and reliability so issues show up before they hit customers."
+  "knownFalsePositives": "1. **Maintenance window on `cicd` (UC-12.2.23)** — Planned work for 'Change Failure Rate' shifts `fails` over `span=1h` while `application` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `deployment_event`** — Scheduled automation elevates `failed` without crossing `cfr` > 15 for UC-12.2.23. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `application`** — Health checks in `cicd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `deployment_event`** — First 48h baseline for UC-12.2.23 on `application` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `application`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Deployment + incident linkage.\n• Ensure the following data sources are available: `deployment_event` outcome, post-deploy incident within 1h.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nFlag incidents linked to version within 1h window. Target CFR <15% for mature teams. Review outliers in postmortems.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cicd sourcetype=\"deployment_event\" environment=\"production\"\n| eval failed=if(status=\"failed\" OR incident_within_1h=\"true\",1,0)\n| stats sum(failed) as fails, count as total by application\n| eval cfr=round(fails/total*100,2)\n| where cfr > 15\n| sort -cfr\n```\n\nUnderstanding this SPL\n\n**Change Failure Rate** — Ratio of failed deployments or hotfix-required releases to total deployments—DORA metric.\n\nDocumented **Data sources**: `deployment_event` outcome, post-deploy incident within 1h. **App/TA** (typical add-on context): Deployment + incident linkage. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cicd; **sourcetype**: deployment_event. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cicd, sourcetype=\"deployment_event\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **failed** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by application** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **cfr** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where cfr > 15` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with the vendor console or native job history for that tool. Verify field extractions and index permissions.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (CFR by app), Line chart (CFR trend), Single value (org CFR).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Deployment + incident linkage — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=deployment_event into cicd. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`application, cfr, failed`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch this part of your delivery chain for risks and reliability so issues show up before they hit customers.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

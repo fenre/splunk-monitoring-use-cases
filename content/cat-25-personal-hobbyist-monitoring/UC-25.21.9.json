@@ -8,23 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "APRS packets (`aprs:packet`), WSPR spots (`wspr:spot`), satellite passes (`satpass:prediction`), NOAA APT captures (`noaa:apt`), meteor-scatter pings (`meteorscatter:ping`), SSTV images (`sstv:image`).",
-  "app": "Software-defined radio and ham-radio stations — APRS igate, WSPR beacon, NOAA weather-satellite (APT) receiver, meteor-scatter monitor, and SSTV decoder — logging to Splunk HEC via scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'WSPR Signal-to-Noise Distribution' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_wspr_signal_to_noise_distribution` (UC-25.21.9), SOC dashboard panel \"Personal — WSPR Signal-to-Noise Distribution\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.21.9 positive (WSPR, Signal, Noise, Distribution): ingest synthetic events into `index=personal` sourcetype='wspr:spot' where `count` grouped by `band`, `snr_bucket` satisfies `snr` < -25, `snr` < -15, or `snr` < -5 for 'WSPR Signal-to-Noise Distribution'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.21.9 negative (Noise Distribution): ingest benign `personal` / `wspr:spot` events where `band`, `snr_bucket` stays below `snr` < -25, `snr` < -15, or `snr` < -5, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 13 confirms zero alert rows for 'WSPR Signal-to-Noise Distribution'."
+  },
+  "dataSources": "APRS packets (`aprs:packet`), WSPR spots (`wspr:spot`), satellite passes (`satpass:prediction`), NOAA APT captures (`noaa:apt`), meteor-scatter pings (`meteorscatter:ping`), SSTV images (`sstv:image`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Software-defined radio and ham-radio stations — APRS igate, WSPR beacon, NOAA weather-satellite (APT) receiver, meteor-scatter monitor, and SSTV decoder — logging to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=wspr:spot\n| eval snr_bucket=case(snr<-25,\"very weak\",snr<-15,\"weak\",snr<-5,\"fair\",1=1,\"strong\")\n| stats count by band snr_bucket\n| sort band",
-  "description": "Breaks your received WSPR reports into signal-strength bands so you can judge how well your antenna hears faint signals.",
-  "value": "The share of very-weak decodes you catch is a real measure of receiver sensitivity, useful for comparing antennas objectively.",
+  "description": "Identifies UC-25.21.9 — WSPR, Signal, Noise, Distribution — using `index=personal` sourcetype `wspr:spot`, grouped by `band`, `snr_bucket`. Outputs `count` each `the scheduled window`; alert when `snr` < -25, `snr` < -15, or `snr` < -5. Primary focus: Noise Distribution. Purpose-built for 'WSPR Signal-to-Noise Distribution' in Personal workflows.",
+  "value": "UC-25.21.9 gives Personal teams earlier visibility into Noise Distribution through `wspr:spot` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest WSPR spots with signal-to-noise values; review the strength distribution per band.",
   "visualization": "Stacked bar chart of signal strength buckets by band.",
   "cimModels": [],
   "references": [
     {
       "title": "WSPRnet — weak-signal propagation reporter",
-      "url": "https://www.wsprnet.org/"
+      "url": "https://www.wsprnet.org/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It sorts the radio signals you receive by how faint they are, showing how good your antenna is at hearing weak ones."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.21.9)** — Connector for 'WSPR Signal-to-Noise Distribution' stops polling `wspr:spot`; stale `count` on `band`, `snr_bucket` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.21.9, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `wspr:spot`. Dedup with `stats latest(*) by band`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `snr` < -25 for 'WSPR Signal-to-Noise Distribution'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Radio, SDR & Space — typical feeds: APRS packets (`aprs:packet`), WSPR spots (`wspr:spot`), satellite passes (`satpass:prediction`), NOAA APT captures (`noaa:apt`), meteor-scatter pings (`meteorscatter:ping`), SSTV images (`sstv:image`).\n• **Sourcetypes in this search**: `wspr:spot`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=wspr:spot`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Software-defined radio and ham stations — APRS igate, WSPR beacon, NOAA weather-satellite (APT) receiver, meteor-scatter monitor, and SSTV decoder — logging to Splunk HEC via scripted inputs..\n\n**Author notes:** Ingest WSPR spots with signal-to-noise values; review the strength distribution per band.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"wspr:spot\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=wspr:spot earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **WSPR Signal-to-Noise Distribution** over `personal` data (primarily `sourcetype=wspr:spot`) across the full search range. It applies numeric thresholds on `snr` (< -25) after aggregation — tune these constants to your household baseline.\n\n**Fields this search depends on:** `band`, `snr`, `snr_bucket`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=wspr:spot\n| eval snr_bucket=case(snr<-25,\"very weak\",snr<-15,\"weak\",snr<-5,\"fair\",1=1,\"strong\")\n| stats count by band snr_bucket\n| sort band\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=wspr:spot earliest=-7d\n| head 50\n| table band, snr, snr_bucket\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=wspr:spot earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `snr` before alerting:\n\n```spl\nindex=personal sourcetype=wspr:spot earliest=-30d\n| stats perc50(snr) AS p50 perc90(snr) AS p90 perc99(snr) AS p99 max(snr) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.21.9: Personal evidence` with the following panel layout:\n\n**Panel 1 — Stacked Bar Chart Of Signal Strength Buckets By Band (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `wspr:spot` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=wspr:spot | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It sorts the radio signals you receive by how faint they are, showing how good your antenna is at hearing weak ones.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

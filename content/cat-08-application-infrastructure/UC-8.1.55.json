@@ -9,11 +9,17 @@
     "Reliability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`zk_max_latency` / `zk_avg_latency` from `zookeeper:mntr`",
-  "app": "Scripted `mntr` to Splunk",
+  "exclusions": "Covers the detection logic documented for 'ZooKeeper Transaction Log fsync Latency Proxy' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_zookeeper_transaction_log_fsync_latency_proxy` (UC-8.1.55), SOC dashboard panel \"Operations — ZooKeeper Transaction Log fsync Latency Proxy\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.1.55 positive (ZooKeeper, Transaction, Log, fsync, Latency): ingest synthetic events into `index=infrastructure` sourcetype='zookeeper:mntr' where `max_latency_ms`, `avg_latency_ms` grouped by `host` satisfies `mx` > 500, or `av` > 100 for 'ZooKeeper Transaction Log fsync Latency Proxy'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.55 negative (Latency Proxy): ingest benign `infrastructure` / `zookeeper:mntr` events where `host` stays below `mx` > 500, or `av` > 100, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'ZooKeeper Transaction Log fsync Latency Proxy'."
+  },
+  "dataSources": "`zk_max_latency` / `zk_avg_latency` from `zookeeper:mntr` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Scripted `mntr` to Splunk — Universal Forwarder (Splunkbase 617)",
   "spl": "index=infrastructure sourcetype=\"zookeeper:mntr\"\n| eval mx=tonumber(zk_max_latency)\n| eval av=tonumber(zk_avg_latency)\n| where mx > 500 OR av > 100\n| timechart span=1m max(mx) as max_latency_ms avg(av) as avg_latency_ms by host",
-  "description": "High max latency on ZooKeeper often reflects slow txn log fsyncs or disk contention—precursors to missed heartbeats and session loss. Using `mntr` latency as a proxy avoids invasive profiling on production ensembles.",
-  "value": "Protects low-latency metadata paths during storage maintenance or noisy-neighbor VM events.",
+  "description": "Identifies Latency Proxy anomalies for UC-8.1.55 with window `1m` on `index=infrastructure` sourcetype `zookeeper:mntr`. Combines `max_latency_ms`, `avg_latency_ms` by `host` and compares against `mx` > 500, or `av` > 100. Mapped to keywords ZooKeeper, Transaction, Log, fsync, Latency for dashboard routing.",
+  "value": "Alerting on ZooKeeper, Transaction, Log, fsync, Latency through UC-8.1.55 reduces operational risk and delayed incident response by surfacing `max_latency_ms`, `avg_latency_ms` early.",
   "implementation": "Baseline latencies per hardware class. Correlate with Linux `iostat` forwarded separately. When SSD wear or RAID rebuild occurs, expect spikes—use maintenance context. Tune thresholds per AZ.",
   "visualization": "Line chart (max_latency_ms), Heatmap host×time.",
   "cimModels": [
@@ -23,12 +29,31 @@
   "references": [
     {
       "title": "ZooKeeper — Performance tuning",
-      "url": "https://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_performance"
+      "url": "https://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_performance",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Response time spikes during JVM garbage collection, connection pool exhaustion, or backend dependency degradation. Load tests, campaigns, and cold caches also move percentiles.",
+  "knownFalsePositives": "1. **Maintenance window on `infrastructure` (UC-8.1.55)** — Planned work for 'ZooKeeper Transaction Log fsync Latency Proxy' shifts `max_latency_ms`, `avg_latency_ms` over `span=1m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `zookeeper:mntr`** — Scheduled automation elevates `mx` without crossing `mx` > 500 for UC-8.1.55. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `infrastructure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zookeeper:mntr`** — First 48h baseline for UC-8.1.55 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "zookeeper"
+  ],
+  "equipmentModels": [
+    "zookeeper_generic"
   ],
   "status": "draft",
   "lastReviewed": "2025-06-01",
@@ -37,6 +62,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We use this to protect low-latency metadata paths during storage maintenance or noisy-neighbor VM events."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Scripted `mntr` to Splunk — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=zookeeper:mntr into infrastructure. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`av, host, mx`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to protect low-latency metadata paths during storage maintenance or noisy-neighbor VM events.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

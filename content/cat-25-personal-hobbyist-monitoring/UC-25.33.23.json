@@ -9,35 +9,60 @@
     "Risk"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Alcohol habit events (`habit:alcohol`), caffeine intake (`habit:caffeine`), screen-time sessions (`habit:screen`), and fasting windows (`habit:fasting`).",
-  "app": "Habit-boundary telemetry for Dry January, caffeine cutoffs, screen-before-bed limits, and fasting windows sent to Splunk HEC via apps, shortcuts, and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Screen-Before-Bed Overage by App Category' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_screen_before_bed_overage_by_app_category` (UC-25.33.23), SOC dashboard panel \"Personal — Screen-Before-Bed Overage by App Category\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.33.23 positive (Screen, Before, Bed, Overage, App): ingest synthetic events into `index=personal` sourcetype='habit:screen' where `overage_min` grouped by `_time`, `app_category` satisfies `overage_min` > 0 for 'Screen-Before-Bed Overage by App Category'. Validate filter `bed_window=true overage_min>0`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.33.23 negative (App Category): ingest benign `personal` / `habit:screen` events where `_time`, `app_category` stays below `overage_min` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 14 confirms zero alert rows for 'Screen-Before-Bed Overage by App Category'."
+  },
+  "dataSources": "Alcohol habit events (`habit:alcohol`), caffeine intake (`habit:caffeine`), screen-time sessions (`habit:screen`), and fasting windows (`habit:fasting`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Habit-boundary telemetry for Dry January, caffeine cutoffs, screen-before-bed limits, and fasting windows sent to Splunk HEC via apps, shortcuts, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=habit:screen\n| search bed_window=true overage_min>0\n| bin _time span=1d\n| stats sum(overage_min) as overage_min by _time app_category\n| sort - _time",
-  "description": "Tracks screen-before-bed overage over time and breaks it out by app category.",
-  "value": "App-category overage tells you whether the last-hour leak is mainly social, video, or gaming.",
+  "description": "Surfaces UC-25.33.23 — Screen, Before, Bed, Overage, App — using `index=personal` sourcetype `habit:screen`, grouped by `_time`, `app_category`. Outputs `overage_min` each `1d`; alert when `overage_min` > 0. Filter chain includes filter `bed_window=true overage_min>0`. Purpose-built for 'Screen-Before-Bed Overage by App Category' in Personal workflows.",
+  "value": "Alerting on Screen, Before, Bed, Overage, App through UC-25.33.23 reduces missed training goals, stale hobby data, and connector failures by surfacing `overage_min` early.",
   "implementation": "Send screen-before-bed overage events to `index=personal` with the fields used in the breakdown and review the resulting trend at 1d granularity.",
   "visualization": "Stacked time chart of screen-before-bed overage by app category.",
   "cimModels": [],
   "references": [
     {
       "title": "Drinkaware",
-      "url": "https://www.drinkaware.co.uk/"
+      "url": "https://www.drinkaware.co.uk/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Apple Screen Time",
-      "url": "https://support.apple.com/guide/iphone/get-started-with-screen-time-iphbfa595995/ios"
+      "url": "https://support.apple.com/guide/iphone/get-started-with-screen-time-iphbfa595995/ios",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ZERO fasting",
-      "url": "https://www.zerofasting.com/"
+      "url": "https://www.zerofasting.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Oura",
-      "url": "https://oura.com/"
+      "url": "https://oura.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It totals how screen-before-bed overage changes over time so the busy spells and quiet spells stand out."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.33.23)** — Connector for 'Screen-Before-Bed Overage by App Category' stops polling `habit:screen`; stale `overage_min` on `_time`, `app_category` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `overage_min` over `1d` is expected for UC-25.33.23, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `habit:screen`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `overage_min` > 0 for 'Screen-Before-Bed Overage by App Category'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Everyday Habits & Vices — typical feeds: Alcohol drinks (`alcohol:drink`), vice logs (`vice:log`), hydration intake (`hydration:intake`), swear-jar entries (`swearjar:entry`)..\n• **Sourcetypes in this search**: `habit:screen`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=habit:screen`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Habit and sobriety trackers, alcohol-unit and hydration logs, vaping/smoking cessation apps, and a smart swear jar — sent to Splunk HEC via scripted inputs and MQTT..\n\n**Author notes:** Send screen-before-bed overage events to `index=personal` with the fields used in the breakdown and review the resulting trend at 1d granularity.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"habit:screen\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=habit:screen earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Screen-Before-Bed Overage by App Category** over `personal` data (primarily `sourcetype=habit:screen`) across the full search range. It applies numeric thresholds on `overage_min` (> 0) after sum — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `app_category`, `overage_min`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=habit:screen\n| search bed_window=true overage_min>0\n| bin _time span=1d\n| stats sum(overage_min) as overage_min by _time app_category\n| sort - _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=habit:screen earliest=-7d\n| head 50\n| table _time, app_category, overage_min\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=habit:screen earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `overage_min` before alerting:\n\n```spl\nindex=personal sourcetype=habit:screen earliest=-30d\n| stats perc50(overage_min) AS p50 perc90(overage_min) AS p90 perc99(overage_min) AS p99 max(overage_min) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.33.23: Personal evidence` with the following panel layout:\n\n**Panel 1 — Stacked Time Chart Of Screen-Before-Bed Overage By App Category (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `habit:screen` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=habit:screen | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It totals how screen-before-bed overage changes over time so the busy spells and quiet spells stand out.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

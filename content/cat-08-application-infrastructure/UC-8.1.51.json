@@ -9,11 +9,17 @@
     "Capacity"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`echo mntr | nc localhost 2181` output ingested as `zookeeper:mntr`",
-  "app": "Scripted input or Telegraf `exec` calling four-letter `mntr` (enable `4lw.commands.whitelist=mntr` in `zoo.cfg`)",
+  "exclusions": "Covers the detection logic documented for 'ZooKeeper Outstanding Requests Queue Depth' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_zookeeper_outstanding_requests_queue_depth` (UC-8.1.51), SOC dashboard panel \"Operations — ZooKeeper Outstanding Requests Queue Depth\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.1.51 positive (ZooKeeper, Outstanding, Requests, Queue, Depth): ingest synthetic events into `index=infrastructure` sourcetype='zookeeper:mntr' where `outstanding` grouped by `host` satisfies `out` > 1000 for 'ZooKeeper Outstanding Requests Queue Depth'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.51 negative (Queue Depth): ingest benign `infrastructure` / `zookeeper:mntr` events where `host` stays below `out` > 1000, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'ZooKeeper Outstanding Requests Queue Depth'."
+  },
+  "dataSources": "`echo mntr | nc localhost 2181` output ingested as `zookeeper:mntr` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Scripted input or Telegraf `exec` calling four-letter `mntr` (enable `4lw.commands.whitelist=mntr` in `zoo.cfg`) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=infrastructure sourcetype=\"zookeeper:mntr\"\n| eval out=tonumber(zk_outstanding_requests)\n| where out > 1000\n| timechart span=1m max(out) as outstanding by host",
-  "description": "The outstanding requests metric is the fastest indicator that the ensemble cannot dequeue client operations quickly enough—usually CPU saturation, storage latency on txn logs, or a noisy neighbor client.",
-  "value": "Stops coordinated services from timing out en masse when ZK request latency climbs.",
+  "description": "Identifies 'ZooKeeper Outstanding Requests Queue Depth' patterns (UC-8.1.51) sourced from `index=infrastructure` sourcetype `zookeeper:mntr`. Threshold bundle: `out` > 1000; aggregation grain: `host`; metrics: `outstanding`. Watch terms: ZooKeeper, Outstanding, Requests, Queue, Depth.",
+  "value": "UC-8.1.51 gives Operations teams earlier visibility into Queue Depth through `zookeeper:mntr` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Poll `mntr` every 10–30s; parse `zk_outstanding_requests`, `zk_avg_latency`, `zk_server_state`. Use dedicated monitoring user and firewall rules. Alert >1000 sustained 5 minutes (tune to cluster size).",
   "visualization": "Line chart (outstanding), Gauge peak.",
   "cimModels": [
@@ -23,12 +29,31 @@
   "references": [
     {
       "title": "ZooKeeper — Four letter words",
-      "url": "https://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_4lw"
+      "url": "https://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_4lw",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Queues grow during consumer maintenance, slow consumers, or burst producer activity. Seasonal traffic can also create sustained backlog without a hard fault.",
+  "knownFalsePositives": "1. **Maintenance window on `infrastructure` (UC-8.1.51)** — Planned work for 'ZooKeeper Outstanding Requests Queue Depth' shifts `outstanding` over `span=1m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `zookeeper:mntr`** — Scheduled automation elevates `out` without crossing `out` > 1000 for UC-8.1.51. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `infrastructure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zookeeper:mntr`** — First 48h baseline for UC-8.1.51 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "zookeeper"
+  ],
+  "equipmentModels": [
+    "zookeeper_generic"
   ],
   "status": "draft",
   "lastReviewed": "2025-06-01",
@@ -37,6 +62,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We use this to stops coordinated services from timing out en masse when ZK request latency climbs."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Scripted input or Telegraf `exec` calling four-letter `mntr` (enable `4lw.commands.whitelist=mntr` in `zoo.cfg`) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=zookeeper:mntr into infrastructure. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, out`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to stops coordinated services from timing out en masse when ZK request latency climbs.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

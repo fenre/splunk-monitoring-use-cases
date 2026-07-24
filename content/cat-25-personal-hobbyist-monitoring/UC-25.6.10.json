@@ -9,26 +9,55 @@
     "Risk"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue (`emporia:circuit`).",
-  "app": "Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, and smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Battery Reserve Too Low During Peak Tariff' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_battery_reserve_too_low_during_peak_tariff` (UC-25.6.10), SOC dashboard panel \"Personal — Battery Reserve Too Low During Peak Tariff\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.6.10 positive (Battery, Reserve, Too, Low, During): ingest synthetic events into `index=personal` sourcetype='powerwall:aggregate' where `avg_soc` grouped by `_time` satisfies `hour` >= 17, `hour` <= 20, `grid_kw` > 0, or `avg_soc` < 20 for 'Battery Reserve Too Low During Peak Tariff'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.6.10 negative (Peak Tariff): ingest benign `personal` / `powerwall:aggregate` events where `_time` stays below `hour` >= 17, `hour` <= 20, `grid_kw` > 0, or `avg_soc` < 20, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 4 confirms zero alert rows for 'Battery Reserve Too Low During Peak Tariff'."
+  },
+  "dataSources": "SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue (`emporia:circuit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, and smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=powerwall:aggregate\n| eval hour=strftime(_time,\"%H\")\n| where hour>=17 AND hour<=20\n| bin _time span=1d\n| stats avg(battery_soc_pct) as avg_soc, sum(eval(if(grid_kw>0,grid_kw,0))) as grid_import_kw by _time\n| where avg_soc<20 AND grid_import_kw>0\n| sort avg_soc",
-  "description": "Looks for expensive evening windows where the home battery was too empty to help, forcing you back onto peak-rate grid power.",
-  "value": "A battery that is depleted before the expensive hours is not serving its economic purpose; this query measures that miss directly.",
+  "description": "Detects risk tied to Battery, Reserve, Too, Low, During through UC-25.6.10 on `index=personal` sourcetype `powerwall:aggregate`. Summarises `avg_soc` grouped by `_time` across `1d` before applying `hour` >= 17, `hour` <= 20, `grid_kw` > 0, or `avg_soc` < 20. Operators tune 'Battery Reserve Too Low During Peak Tariff' using UC-25.6.10 runbook steps.",
+  "value": "Tracking `avg_soc` via UC-25.6.10 on `powerwall:aggregate` feeds improves response to 'Battery Reserve Too Low During Peak Tariff' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest state-of-charge and grid-import telemetry; review daily and adjust reserve or charging strategy if evening imports persist.",
   "visualization": "Daily table of evening average battery state of charge and peak-window import.",
   "cimModels": [],
   "references": [
     {
       "title": "Tesla Powerwall owner resources",
-      "url": "https://www.tesla.com/support/energy/powerwall"
+      "url": "https://www.tesla.com/support/energy/powerwall",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.6.10)** — Connector for 'Battery Reserve Too Low During Peak Tariff' stops polling `powerwall:aggregate`; stale `avg_soc` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_soc` over `1d` is expected for UC-25.6.10, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `powerwall:aggregate`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `hour` >= 17 for 'Battery Reserve Too Low During Peak Tariff'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It counts when your home battery is running too low right when electricity is usually most expensive."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Home Energy & Solar — typical feeds: SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Tesla Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue circuits (`emporia:circuit`), Sense .\n• **Sourcetypes in this search**: `powerwall:aggregate`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=powerwall:aggregate`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC..\n\n**Author notes:** Ingest state-of-charge and grid-import telemetry; review daily and adjust reserve or charging strategy if evening imports persist.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"powerwall:aggregate\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=powerwall:aggregate earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Battery Reserve Too Low During Peak Tariff** over `personal` data (primarily `sourcetype=powerwall:aggregate`) across the full search range. It applies numeric thresholds on `hour` (>= 17) after avg, sum — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `avg_soc`, `grid_import_kw`, `grid_kw`, `hour`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=powerwall:aggregate\n| eval hour=strftime(_time,\"%H\")\n| where hour>=17 AND hour<=20\n| bin _time span=1d\n| stats avg(battery_soc_pct) as avg_soc, sum(eval(if(grid_kw>0,grid_kw,0))) as grid_import_kw by _time\n| where avg_soc<20 AND grid_import_kw>0\n| sort avg_soc\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=powerwall:aggregate earliest=-7d\n| head 50\n| table _time, avg_soc, grid_import_kw, grid_kw, hour\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=powerwall:aggregate earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `hour` before alerting:\n\n```spl\nindex=personal sourcetype=powerwall:aggregate earliest=-30d\n| stats perc50(hour) AS p50 perc90(hour) AS p90 perc99(hour) AS p99 max(hour) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.6.10: Personal evidence` with the following panel layout:\n\n**Panel 1 — Daily Table Of Evening Average Battery State Of Charge And Peak-Window Import (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `powerwall:aggregate` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=powerwall:aggregate | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It counts when your home battery is running too low right when electricity is usually most expensive.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

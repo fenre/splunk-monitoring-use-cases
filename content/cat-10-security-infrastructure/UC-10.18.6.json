@@ -9,11 +9,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Broadcom Symantec SEP Unmanaged Endpoint Discovery vs Agent Heartbeat' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_broadcom_symantec_sep_unmanaged_endpoint_discove` (UC-10.18.6), SOC dashboard panel \"Security Infra — Broadcom Symantec SEP Unmanaged Endpoint Discovery vs Agent Heartbeat\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.18.6 positive (Broadcom, Symantec, SEP, Unmanaged, Endpoint): ingest synthetic events into `index=endpoint` sourcetype='symantec:ep:agent:file' where `count` grouped by `Computer_Name]` satisfies `days_since_sep` > 3 for 'Broadcom Symantec SEP Unmanaged Endpoint Discovery vs Agent Heartbeat'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.18.6 negative (Agent Heartbeat): ingest benign `endpoint` / `symantec:ep:agent:file` events where `Computer_Name]` stays below `days_since_sep` > 3, or exclude the test entity via `soc_exception_register.csv`. Variant 2 confirms zero alert rows for 'Broadcom Symantec SEP Unmanaged Endpoint Discovery vs Agent Heartbeat'."
+  },
   "dataSources": "Corporate asset inventory lookup (CSV) joined to `sourcetype=symantec:ep:agent:file` last-seen telemetry",
   "app": "Splunk Add-on for Symantec Endpoint Protection (Splunkbase 2772)",
   "spl": "| inputlookup corporate_endpoints.csv\n| rename hostname AS Computer_Name\n| fields Computer_Name OU owner\n| join type=left Computer_Name [search index=endpoint sourcetype=\"symantec:ep:agent:file\" earliest=-7d\n| eval Computer_Name=coalesce(Computer_Name, computer_name, host)\n| stats latest(_time) as last_sep_seen latest(Agent_Version) as sep_version by Computer_Name]\n| eval days_since_sep=round((now()-last_sep_seen)/86400,2)\n| where isnull(last_sep_seen) OR days_since_sep>3\n| sort days_since_sep desc",
-  "description": "Assets without a healthy SEP agent are blind spots for malware and policy enforcement. Comparing authoritative inventory to recent `symantec:ep:agent:file` heartbeats finds missing, broken, or decommissioned agents that still appear in CMDB.",
-  "value": "Closes coverage gaps for endpoint protection SLAs and supports merger, BYOD, and contractor device governance programs.",
+  "description": "Detects UC-10.18.6 for Broadcom, Symantec, SEP, Unmanaged, Endpoint over `index=endpoint` sourcetype `symantec:ep:agent:file` with thresholds `days_since_sep` > 3. Groups `count` by `Computer_Name]` each `the scheduled window`. Centered on Agent Heartbeat indicators. Supports repeatable security infra triage for 'Broadcom Symantec SEP Unmanaged Endpoint Discovery vs Agent Heartbeat'.",
+  "value": "For 'Broadcom Symantec SEP Unmanaged Endpoint Discovery vs Agent Heartbeat', UC-10.18.6 converts `activity` on `symantec:ep:agent:file` feeds into actionable rows and reduces missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "(1) Maintain `corporate_endpoints.csv` with canonical hostnames aligned to SEPM naming. (2) Schedule daily agent status ingestion. (3) Tune grace period for mobile users (for example three to seven days). (4) Auto-open tickets to desktop services. (5) Exclude lab VLANs via lookup.",
   "visualization": "Table (host, OU, owner, days since SEP), single-value (unmanaged count), bar chart by OU.",
   "cimModels": [
@@ -22,16 +28,32 @@
   "references": [
     {
       "title": "Splunk Add-on for Symantec Endpoint Protection",
-      "url": "https://splunkbase.splunk.com/app/2772"
+      "url": "https://splunkbase.splunk.com/app/2772",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Docs — inputlookup",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Inputlookup"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Inputlookup",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `endpoint` (UC-10.18.6)** — Planned work for 'Broadcom Symantec SEP Unmanaged Endpoint Discovery vs Agent Heartbeat' shifts `count` over `span=1h` while `Computer_Name]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `symantec:ep:agent:file`** — Scheduled automation elevates `Computer_Name` without crossing `days_since_sep` > 3 for UC-10.18.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `Computer_Name]`** — Health checks in `endpoint` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `symantec:ep:agent:file`** — First 48h baseline for UC-10.18.6 on `Computer_Name]` is unstable; join `corporate_endpoints.csv` prior to threshold.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `Computer_Name]`, `exception_reason`, `valid_until`.",
   "securityDomain": "endpoint",
   "equipment": [
     "broadcom_symantec"
+  ],
+  "equipmentModels": [
+    "broadcom_symantec_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-24",
@@ -40,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We compare the official list of company computers with Broadcom Symantec agent check-ins to find machines that should be protected but are not reporting in."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Symantec Endpoint Protection (Splunkbase 2772)). Enable the modular input or HEC token that writes sourcetype=symantec:ep:agent:file into endpoint. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`Computer_Name], days_since_sep`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We compare the official list of company computers with Broadcom Symantec agent check-ins to find machines that should be protected but are not reporting in.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,6 +8,8 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Detects volume-based brute-force patterns on Windows Event ID 4625 only. Does not cover successful logons (4624), OAuth/Okta cloud IdP failures, or LDAP bind failures on non-Windows directories. Accounts in `iam_exception_register.csv` during approved pen tests are out of scope.",
+  "evidence": "Saved search `iam_brute_force_4625_10plus` (UC-9.1.1), ES Notable or SOC dashboard panel \"IAM — Failed Logon Bursts\", and archived weekly CSV to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "compliance": [
     {
       "regulation": "hitrust",
@@ -65,11 +67,15 @@
       "evidenceArtifact": "Saved search 'UC-9.1.1' running on Windows Security Event Log (Event ID 4625 — failed logon), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
     }
   ],
-  "dataSources": "Windows Security Event Log (Event ID 4625 — failed logon)",
-  "app": "`Splunk_TA_windows`",
+  "controlTest": {
+    "positiveScenario": "UC-9.1.1 positive (Brute, Force, Login, Detection): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4625 where `count` grouped by `Account_Name`, `Source_Network_Address` satisfies `count` > 10 for 'Brute-Force Login Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.1.1 negative (Login Detection): ingest benign `wineventlog` / `WinEventLog:Security` events where `Account_Name`, `Source_Network_Address` stays below `count` > 10, or exclude the test entity via `iam_exception_register.csv`. Variant 12 confirms zero alert rows for 'Brute-Force Login Detection'."
+  },
+  "dataSources": "Windows Security Event Log (Event ID 4625 — failed logon) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4625\n| stats count by Account_Name, Source_Network_Address\n| where count > 10\n| sort -count",
-  "description": "Brute-force attacks are a primary credential compromise vector. Early detection prevents account takeover.",
-  "value": "Brute-force attacks are a primary credential compromise vector. Early detection prevents account takeover.",
+  "description": "Identifies UC-9.1.1 — Brute, Force, Login, Detection — using `index=wineventlog` sourcetype `WinEventLog:Security`, grouped by `Account_Name`, `Source_Network_Address`. Outputs `count` each `the scheduled window`; alert when `count` > 10. Primary focus: Login Detection. Purpose-built for 'Brute-Force Login Detection' in IAM workflows.",
+  "value": "Tracking `activity` via UC-9.1.1 on `WinEventLog:Security` feeds improves response to 'Brute-Force Login Detection' and reduces account takeover risk, help-desk load, and audit findings.",
   "implementation": "Deploy the Universal Forwarder on all Domain Controllers with `[WinEventLog://Security]` enabled. Ensure the GPO enables Audit Logon Success and Failure. Alert with `stats count by Account_Name, src span=15m` when count exceeds 10. Suppress break-glass and service accounts via a `privileged_accounts` lookup to reduce false positives.",
   "visualization": "Table (accounts with failure counts), Line chart (failure rate over time), Geo map (source IPs).",
   "cimModels": [
@@ -80,14 +86,26 @@
   "references": [
     {
       "title": "Splunk_TA_windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Service accounts with rotated passwords, scripts using old credentials, monitoring tools polling without auth refresh, shared kiosks, or legitimate lockouts after user mistakes.",
+  "knownFalsePositives": "1. **Password spray below per-pair threshold** — Attacker rotates accounts; this UC thresholds on (`Account_Name`, `Source_Network_Address`). Escalate to spray analytics if distinct accounts spike.\n\n2. **Service account Kerberos failure after rotation** — Clustered 4625 from `index=wineventlog` `WinEventLog:Security` post-password change.\n\n3. **Break-glass testing** — Intentional failures from jump hosts during exercise.\n\n4. **Approved scanner netblock** — Qualys/Tenable credentialed scan from `approved_scanners.csv`.\n\n**Suppression mechanism:** Join `iam_exception_register.csv` before threshold filter.",
   "mitreAttack": [
     "T1110",
     "T1110.001"
@@ -95,6 +113,15 @@
   "equipment": [
     "windows"
   ],
+  "equipmentModels": [
+    "windows_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: Windows Security Event Log (Event ID 4625 — failed logon).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy the Universal Forwarder on all Domain Controllers with `[WinEventLog://Security]` enabled. Ensure the GPO enables Audit Logon Success and Failure. Alert with `stats count by Account_Name, src span=15m` when count exceeds 10. Suppress break-glass and service accounts via a `privileged_accounts` lookup to reduce false positives.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4625\n| stats count by Account_Name, Source_Network_Address\n| where count > 10\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Brute-Force Login Detection** — Brute-force attacks are a primary credential compromise vector. Early detection prevents account takeover.\n\nDocumented **Data sources**: Windows Security Event Log (Event ID 4625 — failed logon). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:Security. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:Security\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by Account_Name, Source_Network_Address** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where count > 10` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  where Authentication.action=\"failure\"\n  by Authentication.user Authentication.src span=1h\n| where count > 10\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Brute-Force Login Detection** — Brute-force attacks are a primary credential compromise vector. Early detection prevents account takeover.\n\nDocumented **Data sources**: Windows Security Event Log (Event ID 4625 — failed logon). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Authentication.Authentication` — enable acceleration for that model.\n• Filters the current rows with `where count > 10` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nCompare with Event Viewer on domain controllers (or exported Security logs) and with Active Directory Users and Computers for the same objects and time window.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (accounts with failure counts), Line chart (failure rate over time), Geo map (source IPs).",
-  "grandmaExplanation": "We watch for many failed sign-in attempts from the same place or against the same account so we can stop password guessing before a takeover."
+  "grandmaExplanation": "We watch for many failed sign-in attempts from the same place or against the same account so we can stop password guessing before a takeover.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

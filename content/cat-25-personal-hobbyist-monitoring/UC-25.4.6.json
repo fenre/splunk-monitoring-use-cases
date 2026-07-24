@@ -9,26 +9,55 @@
     "Audit"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Home Assistant state/logbook events (`homeassistant:event`), Homey flow/insights (`homey:flow`), SmartThings events (`smartthings:event`), Node-RED flow events (`nodered:event`).",
-  "app": "Home Assistant / Homey / SmartThings / Hubitat / openHAB event streams via MQTT, webhooks, and REST — forwarded to Splunk HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Voice Assistant Command Log' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_voice_assistant_command_log` (UC-25.4.6), SOC dashboard panel \"Personal — Voice Assistant Command Log\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.4.6 positive (Voice, Assistant, Command, Log): ingest synthetic events into `index=personal` sourcetype='homeassistant:event' where `count` grouped by `intent` satisfies detection threshold for 'Voice Assistant Command Log'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.4.6 negative (Command Log): ingest benign `personal` / `homeassistant:event` events where `intent` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 9 confirms zero alert rows for 'Voice Assistant Command Log'."
+  },
+  "dataSources": "Home Assistant state/logbook events (`homeassistant:event`), Homey flow/insights (`homey:flow`), SmartThings events (`smartthings:event`), Node-RED flow events (`nodered:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Home Assistant / Homey / SmartThings / Hubitat / openHAB event streams via MQTT, webhooks, and REST — forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=homeassistant:event event_type=voice_command\n| stats count as commands by intent\n| sort - commands\n| head 20",
-  "description": "Ranks the voice commands your household actually uses so you can design better automations around real behaviour.",
-  "value": "Knowing your most-used voice intents reveals which routines to streamline and which fancy automations nobody ever triggers.",
+  "description": "Detects UC-25.4.6 — Voice, Assistant, Command, Log — using `index=personal` sourcetype `homeassistant:event`, grouped by `intent`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Command Log. Purpose-built for 'Voice Assistant Command Log' in Personal workflows.",
+  "value": "Operators running UC-25.4.6 on `homeassistant:event` feeds shorten triage for Command Log tied to 'Voice Assistant Command Log', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Forward voice-assistant intents to HEC; schedule weekly and review the top commands.",
   "visualization": "Bar chart of top voice intents by count.",
   "cimModels": [],
   "references": [
     {
       "title": "Home Assistant — Documentation",
-      "url": "https://www.home-assistant.io/docs/"
+      "url": "https://www.home-assistant.io/docs/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.4.6)** — Connector for 'Voice Assistant Command Log' stops polling `homeassistant:event`; stale `count` on `intent` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.4.6, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `homeassistant:event`. Dedup with `stats latest(*) by intent`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Voice Assistant Command Log'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It lists the voice commands your family uses most, so you can make the popular ones work even better."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Home Assistant — HA Splunk integration, webhook, or MQTT → HEC.\n• **Subcategory context**: Smart Home Platforms & Automation — typical feeds: Home Assistant state/logbook events (`homeassistant:event`), Homey flow/insights (`homey:flow`), SmartThings events (`smartthings:event`), Hubitat/openHAB logs, Node-RED flow events (`nodered:event`)..\n• **Sourcetypes in this search**: `homeassistant:event`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Home Assistant** events into `index=personal` with `sourcetype=homeassistant:event`.\n\n**Collection method:** HA Splunk integration, webhook, or MQTT → HEC.\n\n**Reference endpoint / path:** `POST /api/events/state_changed or logbook stream`.\n\n**Suggested poll interval:** real-time (event-driven).\n\n**Key fields to extract:** `entity_id, state, attributes, domain`.\n\n**Typical connector stack:** Home Assistant / Homey / SmartThings / Hubitat / openHAB event streams via MQTT, webhooks, and REST — forwarded to Splunk HEC..\n\n**Author notes:** Forward voice-assistant intents to HEC; schedule weekly and review the top commands.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"homeassistant:event\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=homeassistant:event earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Voice Assistant Command Log** over `personal` data (primarily `sourcetype=homeassistant:event`) across the full search range. The `aggregation` aggregation groups by `intent`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `intent`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=homeassistant:event event_type=voice_command\n| stats count as commands by intent\n| sort - commands\n| head 20\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Home Assistant → Developer Tools → States. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=homeassistant:event earliest=-7d\n| head 50\n| table intent\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=homeassistant:event earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.4.6: Personal evidence` with the following panel layout:\n\n**Panel 1 — Bar Chart Of Top Voice Intents By Count (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Home Assistant — no Home Assistant events / missing fields:** If `homeassistant:event` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Home Assistant connector script is still running (`systemctl status` or cron log).\n\n**Home Assistant — NULL values in extracted fields:** The Home Assistant JSON export shape drifted — compare a raw event (`index=personal sourcetype=homeassistant:event | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Home Assistant — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Home Assistant — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Home Assistant APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It lists the voice commands your family uses most, so you can make the popular ones work even better.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,26 +9,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Tesla vehicle/charge state (`tesla:vehicle`, `tesla:charge`), TeslaMate MQTT, OBD-II PIDs (`obd:pid`), Smartcar API (`smartcar:vehicle`), charger sessions (`evcharger:session`).",
-  "app": "Tesla Fleet API / TeslaMate, Teslafi, and generic OBD-II / Smartcar / manufacturer APIs via HEC scripted inputs and MQTT bridges.",
+  "exclusions": "Covers personal hobby monitoring for 'Optimal Charge-Window Adherence' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_optimal_charge_window_adherence` (UC-25.3.8), SOC dashboard panel \"Personal — Optimal Charge-Window Adherence\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.3.8 positive (Optimal, Charge, Window, Adherence): ingest synthetic events into `index=personal` sourcetype='tesla:charge' where `total_kwh` grouped by `entity` satisfies `hour` >= 1, or `hour` < 6 for 'Optimal Charge-Window Adherence'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.3.8 negative (Window Adherence): ingest benign `personal` / `tesla:charge` events where `entity` stays below `hour` >= 1, or `hour` < 6, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 8 confirms zero alert rows for 'Optimal Charge-Window Adherence'."
+  },
+  "dataSources": "Tesla vehicle/charge state (`tesla:vehicle`, `tesla:charge`), TeslaMate MQTT, OBD-II PIDs (`obd:pid`), Smartcar API (`smartcar:vehicle`), charger sessions (`evcharger:session`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Tesla Fleet API / TeslaMate, Teslafi, and generic OBD-II / Smartcar / manufacturer APIs via HEC scripted inputs and MQTT bridges. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=tesla:charge\n| eval hour=strftime(_time,\"%H\")\n| eval off_peak=if(hour>=1 AND hour<6,1,0)\n| stats sum(eval(off_peak*energy_added_kwh)) as offpeak_kwh, sum(energy_added_kwh) as total_kwh\n| eval pct_offpeak=round(100*offpeak_kwh/total_kwh,1)",
-  "description": "Measures what share of your charging happened during cheap off-peak hours so you can see whether your scheduled charging is actually working.",
-  "value": "Off-peak charging can halve your fuelling cost; verifying adherence catches a mis-set schedule that is quietly charging at peak rates.",
+  "description": "Detects UC-25.3.8 — Optimal, Charge, Window, Adherence — using `index=personal` sourcetype `tesla:charge`, grouped by `entity`. Outputs `total_kwh` each `the scheduled window`; alert when `hour` >= 1, or `hour` < 6. Primary focus: Window Adherence. Purpose-built for 'Optimal Charge-Window Adherence' in Personal workflows.",
+  "value": "UC-25.3.8 accelerates insight into Window Adherence ('Optimal Charge-Window Adherence') by tracking `total_kwh` on `tesla:charge` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Ingest charge sessions with timestamps; adjust the off-peak window to your tariff and schedule weekly.",
   "visualization": "Gauge of off-peak charging percentage over time.",
   "cimModels": [],
   "references": [
     {
       "title": "Tesla — Fleet API documentation",
-      "url": "https://developer.tesla.com/docs/fleet-api"
+      "url": "https://developer.tesla.com/docs/fleet-api",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.3.8)** — Connector for 'Optimal Charge-Window Adherence' stops polling `tesla:charge`; stale `total_kwh` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `total_kwh` over `1w` is expected for UC-25.3.8, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tesla:charge`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hour` >= 1 for 'Optimal Charge-Window Adherence'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It checks that your car charges mostly during the cheap night-time hours, so you are not paying peak prices."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Tesla Fleet API / TeslaMate — TeslaMate MQTT/Postgres export or Fleet API poll → HEC.\n• **Subcategory context**: Connected Cars & EVs — typical feeds: Tesla vehicle/charge state (`tesla:vehicle`, `tesla:charge`), TeslaMate MQTT/Postgres, OBD-II PIDs (`obd:pid`), Smartcar API (`smartcar:vehicle`), EV charger sessions (`evcharger:session`)..\n• **Sourcetypes in this search**: `tesla:charge`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Tesla Fleet API / TeslaMate** events into `index=personal` with `sourcetype=tesla:charge`.\n\n**Collection method:** TeslaMate MQTT/Postgres export or Fleet API poll → HEC.\n\n**Reference endpoint / path:** `vehicle_data / charge_state endpoints`.\n\n**Suggested poll interval:** 300s while charging, 900s otherwise.\n\n**Key fields to extract:** `battery_level, charge_rate, charge_energy_added, latitude, longitude`.\n\n**Typical connector stack:** Tesla Fleet API / TeslaMate, Teslafi, and generic OBD-II / Smartcar / manufacturer APIs via HEC scripted inputs and MQTT..\n\n**Author notes:** Ingest charge sessions with timestamps; adjust the off-peak window to your tariff and schedule weekly.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"tesla:charge\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=tesla:charge earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Optimal Charge-Window Adherence** over `personal` data (primarily `sourcetype=tesla:charge`) across the full search range. It applies numeric thresholds on `hour` (>= 1) after sum — tune these constants to your household baseline.\n\n**Fields this search depends on:** `hour`, `off_peak`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=tesla:charge\n| eval hour=strftime(_time,\"%H\")\n| eval off_peak=if(hour>=1 AND hour<6,1,0)\n| stats sum(eval(off_peak*energy_added_kwh)) as offpeak_kwh, sum(energy_added_kwh) as total_kwh\n| eval pct_offpeak=round(100*offpeak_kwh/total_kwh,1)\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Tesla app → Energy / Charging screen. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=tesla:charge earliest=-7d\n| head 50\n| table hour, off_peak\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=tesla:charge earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `hour` before alerting:\n\n```spl\nindex=personal sourcetype=tesla:charge earliest=-30d\n| stats perc50(hour) AS p50 perc90(hour) AS p90 perc99(hour) AS p99 max(hour) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.3.8: Personal evidence` with the following panel layout:\n\n**Panel 1 — Gauge Of Off-Peak Charging Percentage Over Time (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Tesla Fleet API / TeslaMate — no Tesla Fleet API / TeslaMate events / missing fields:** If `tesla:charge` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Tesla Fleet API / TeslaMate connector script is still running (`systemctl status` or cron log).\n\n**Tesla Fleet API / TeslaMate — NULL values in extracted fields:** The Tesla Fleet API / TeslaMate JSON export shape drifted — compare a raw event (`index=personal sourcetype=tesla:charge | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Tesla Fleet API / TeslaMate — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Tesla Fleet API / TeslaMate — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Tesla Fleet API / TeslaMate APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It checks that your car charges mostly during the cheap night-time hours, so you are not paying peak prices.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

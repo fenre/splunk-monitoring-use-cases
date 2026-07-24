@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "RADIUS server logs (FreeRADIUS, NPS, ISE), switch/WLC syslog (dot1x events)",
-  "app": "`Splunk_TA_cisco-ise`, `Splunk_TA_windows` (NPS), FreeRADIUS syslog, `TA-cisco_ios`, HPE Aruba CX syslog, RADIUS TA, NAS syslog",
+  "exclusions": "Covers the detection logic documented for '802.1X Supplicant Timeout Tracking' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_802_1x_supplicant_timeout_tracking` (UC-17.1.9), SOC dashboard panel \"Network — 802.1X Supplicant Timeout Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.1.9 positive (802.1X, Supplicant, Timeout, Tracking): ingest synthetic events into `index=nac` sourcetype='cisco:ise:auth' where `count` grouped by `mac`, `nas`, `_time` satisfies `count` > 3 for '802.1X Supplicant Timeout Tracking'. Validate filter `\"timeout\" OR \"timed out\" OR \"EAP timeout\" OR \"supplicant\" OR`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.9 negative (Timeout Tracking): ingest benign `nac` / `cisco:ise:auth` events where `mac`, `nas`, `_time` stays below `count` > 3, or exclude the test entity via `network_exception_register.csv`. Variant 0 confirms zero alert rows for '802.1X Supplicant Timeout Tracking'."
+  },
+  "dataSources": "RADIUS server logs (FreeRADIUS, NPS, ISE), switch/WLC syslog (dot1x events) Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_cisco-ise`, `Splunk_TA_windows` (NPS), FreeRADIUS syslog, `TA-cisco_ios`, HPE Aruba CX syslog, RADIUS TA, NAS syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac (sourcetype=\"cisco:ise:auth\" OR sourcetype=\"radius:auth\" OR sourcetype=\"freeradius\")\n| search \"timeout\" OR \"timed out\" OR \"EAP timeout\" OR \"supplicant\" OR \"no response\"\n| rex field=_raw \"Calling-Station-Id=(?<mac>[^\\s]+)\"\n| rex field=_raw \"NAS-Identifier=(?<nas>[^\\s,]+)\"\n| bin _time span=1h\n| stats count by mac, nas, _time\n| where count > 3\n| sort -count",
-  "description": "Clients timing out during RADIUS authentication (common issue with Wi-Fi and wired NAC). Tracking timeouts helps identify supplicant misconfiguration, certificate issues, or network latency affecting authentication.",
-  "value": "Network teams identify where 802.1X supplicant timeouts cluster — by switch, port, and device type — distinguishing between RADIUS connectivity problems, supplicant software issues, and server overload to reduce authentication delays.",
+  "description": "Surfaces '802.1X Supplicant Timeout Tracking' (UC-17.1.9) using `index=nac` sourcetype `cisco:ise:auth` via filter `\"timeout\" OR \"timed out\" OR \"EAP timeout\" OR \"supplicant\" OR` by aggregating `count` grouped by `mac`, `nas`, `_time` over `1h` and alerting when `count` > 3. Keywords: 802.1X, Supplicant, Timeout, Tracking. Focuses on Timeout Tracking behaviour so network teams can triage UC-17.1.9 without ad-hoc log review.",
+  "value": "UC-17.1.9 accelerates insight into Timeout Tracking ('802.1X Supplicant Timeout Tracking') by tracking `activity` on `cisco:ise:auth` feeds, reducing unauthorized access, segmentation drift, and NAC policy failures before spreadsheet checks hide regressions.",
   "implementation": "Forward RADIUS authentication logs and NAS (switch/WLC) syslog to Splunk. Configure sourcetypes for FreeRADIUS, NPS, or ISE. Extract Calling-Station-Id (MAC), NAS-Identifier, and timeout-related messages. Alert when timeout count exceeds 5 per NAS per hour. Correlate with switch port and SSID to identify problematic segments. Report on timeout trends by location and time of day.",
   "visualization": "Line chart (timeout rate over time), Bar chart (timeouts by NAS/switch), Table (affected MACs and NAS), Heatmap (NAS × hour of day).",
   "cimModels": [
@@ -24,18 +30,26 @@
   "references": [
     {
       "title": "Splunk_TA_cisco-ise",
-      "url": "https://splunkbase.splunk.com/app/1915"
+      "url": "https://splunkbase.splunk.com/app/1915",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk_TA_windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Authentication pattern spikes during ISE or RADIUS maintenance, certificate renewal windows, or RADIUS time-outs that affect many clients at once.",
+  "knownFalsePositives": "1. **Certificate or EAP profile rollout** — Clients fail EAP-TLS during staged cert deployment for '802.1X Supplicant Timeout Tracking'. Cross-check `FailureReason` and CMDB cert expiry.\n\n2. **RADIUS/PSN maintenance restart** — Short auth failure burst while ISE node restarts. Match change window on `index=changes`.\n\n3. **Guest or IoT onboarding surge** — Legitimate MAC registration spike skews `index=nac` `cisco:ise:auth` baselines.\n\n4. **Approved pen-test or scanner traffic** — Red-team exercises from netblock in `approved_scanners.csv` mimic auth failures.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `CallingStationID`, `NAS-IP-Address`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog",
@@ -44,6 +58,10 @@
   "equipmentModels": [
     "cisco_ios",
     "cisco_ise"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     {
@@ -54,5 +72,7 @@
   ],
   "detailedImplementation": "Prerequisites\n• Cisco ISE and switch/WLC logs in `index=nac`. ISE `sourcetype=cisco:ise:syslog`, switch logs `sourcetype=cisco:ios`. Key ISE fields: `CallingStationID`, `NetworkDeviceName`, `NAS-Port-Id`, `UserName`, `FailureReason`. Key switch fields: `DOT1X-5-FAIL` (802.1X authentication failure syslog message).\n• 802.1X timeouts occur when the supplicant (endpoint) and authenticator (switch) cannot complete the EAP conversation within the configured time. Common causes: supplicant not installed, certificate issues, RADIUS server slow, network latency.\n• The switch has a `dot1x timeout tx-period` (default 30 seconds) and `dot1x max-reauth-req` (default 2). After exhausting retries, the port falls back to MAB or drops.\n\nStep 1 — Configure data collection\nVerify timeout events:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" earliest=-24h\n| where match(FailureReason, \"(?i)timeout\") OR match(FailureReason, \"(?i)no response\")\n| stats count by FailureReason, NetworkDeviceName\n```\n\nAlso check switch-side:\n```spl\nindex=nac sourcetype=\"cisco:ios\" earliest=-24h DOT1X-5-FAIL\n| rex \"Interface (?<interface>\\S+).*AuditSessionID (?<audit_id>\\S+)\"\n| stats count by interface, host\n| sort - count\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Timeout hotspots:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" earliest=-24h\n| where match(FailureReason, \"(?i)timeout\") OR match(FailureReason, \"(?i)no response\") OR match(FailureReason, \"(?i)timed out\")\n| stats count dc(CallingStationID) as devices by NetworkDeviceName, NAS-Port-Id\n| sort - count\n```\n\nUnderstanding this SPL: Identifies which network devices (switches/WLCs) and which ports have the most 802.1X timeouts. If timeouts are concentrated on one switch, it may be a RADIUS reachability problem from that switch. If spread across many switches for one port type, it may be a supplicant issue on a specific device type. If widespread, the RADIUS server itself may be slow.\n\nTimeout trend:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" earliest=-7d\n| where match(FailureReason, \"(?i)timeout\")\n| timechart span=1h count as timeouts\n| eventstats avg(timeouts) as avg_timeouts stdev(timeouts) as stdev_timeouts\n| eval upper_bound=avg_timeouts + 2*stdev_timeouts\n| eval anomaly=if(timeouts>upper_bound, \"YES\", \"no\")\n```\n\nStep 3 — Validate\n(a) Check a switch port that shows frequent timeouts: `show authentication sessions interface [int]`.\n(b) Verify the RADIUS server is reachable from that switch: `test aaa group radius server [name]`.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Timeout trend with anomaly overlay. Row 2 — Top switches by timeout count. Row 3 — Affected devices.\nAlert: Trigger when timeouts exceed 2x the 7-day average in any 1h window.\n\nRunbook:\n1. **Single switch** — Check RADIUS connectivity from that switch. May be a firewall rule or routing issue.\n2. **Single device type** — Supplicant software issue. Check vendor release notes.\n3. **Widespread** — RADIUS server overloaded. Check ISE node CPU/memory.\n\nStep 5 — Troubleshooting\n• **No timeout events in ISE** — The FailureReason field may use different wording. Search for all unique FailureReasons: `| stats count by FailureReason | sort - count`.\n• **Switch-side events missing** — Enable logging on the switch: `logging host [HF_IP]` and `logging trap informational`.",
   "grandmaExplanation": "When devices try to prove who they are to get on the network but the conversation takes too long and times out, we figure out whether the problem is with a specific switch, a type of device, or our authentication server being overloaded.",
-  "hardware": "Cisco ISE, Windows NPS, FreeRADIUS, Cisco/Aruba switches and WLCs"
+  "hardware": "Cisco ISE, Windows NPS, FreeRADIUS, Cisco/Aruba switches and WLCs",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

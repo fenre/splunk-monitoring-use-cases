@@ -10,28 +10,42 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Detailed: `index=network` or `index=web` (reverse-proxy fronting devices); `sourcetype` examples — `nginx:access`, `apache:access`, `cisco:ios_xe` HTTPS audit, `flash:AIRE`, vendor RESTCONF gateway logs; normalize HTTP `status`, `method`, `uri` (`/restconf/`), `client_ip`, `device_host`, `latency_ms`, `error_body` snippet (non-PII). Automation runners may tag `job_id` via forwarded headers.",
-  "app": "Splunk Add-on for NGINX (`TA-nginx`), Splunk Add-on for Apache, Cisco IOS-XE HTTPS/REST audit forwarding, or generic HEC JSON from API gateways; optional Splunk Observability Cloud OTLP bridge if proxies emit spans.",
+  "exclusions": "Covers the detection logic documented for 'RESTCONF API Error Rate to Network Devices' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_restconf_api_error_rate_to_network_devices` (UC-5.19.3), SOC dashboard panel \"Operations — RESTCONF API Error Rate to Network Devices\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.19.3 positive (RESTCONF, API, Error, Rate, Network): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `err_ct` grouped by `_time`, `dev` satisfies `sc` >= 400, `reqs` >= 20, or `err_rate` >= 5 for 'RESTCONF API Error Rate to Network Devices'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.19.3 negative (Network Devices): ingest benign `target_index` / `target_sourcetype` events where `_time`, `dev` stays below `sc` >= 400, `reqs` >= 20, or `err_rate` >= 5, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'RESTCONF API Error Rate to Network Devices'."
+  },
+  "dataSources": "Detailed: `index=network` or `index=web` (reverse-proxy fronting devices); `sourcetype` examples — `nginx:access`, `apache:access`, `cisco:ios_xe` HTTPS audit, `flash:AIRE`, vendor RESTCONF gateway logs; normalize HTTP `status`, `method`, `uri` (`/restconf/`), `client_ip`, `device_host`, `latency_ms`, `error_body` snippet (non-PII). Automation runners may tag `job_id` via forwarded headers. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for NGINX (`TA-nginx`), Splunk Add-on for Apache, Cisco IOS-XE HTTPS/REST audit forwarding, or generic HEC JSON from API gateways; optional Splunk Observability Cloud OTLP bridge if proxies emit spans. — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index IN (\"network\",\"web\",\"proxy\") earliest=-4h@m latest=now\n| eval uri_l=lower(coalesce(uri,request_uri,url_path,\"\"))\n| where match(uri_l,\"restconf\") OR match(lower(_raw),\"restconf\")\n| eval sc=tonumber(coalesce(status,http_status,response_code))\n| eval err=if(isnull(sc),1,if(sc>=400,1,0))\n| eval ms=tonumber(coalesce(latency_ms,request_time,duration_ms))\n| eval dev=coalesce(device_host,upstream_host,host)\n| bin _time span=10m\n| stats count as reqs sum(err) as err_ct perc95(ms) as p95_ms values(client_ip) as clients by _time dev\n| eval err_rate=round(100*err_ct/nullif(reqs,0),2)\n| where reqs>=20 AND err_rate>=5\n| sort -err_rate,-p95_ms",
-  "description": "Splunk aggregates RESTCONF-facing HTTP access trails so elevated 4xx/5xx ratios, payload validation faults, and latency tails across automation tenants become visible before controllers silently stall bulk intent pushes.",
-  "value": "Operators regain confidence in model-driven workflows because misauthentication, schema mismatches, or oversubscribed TLS frontends are quantified per device cluster rather than inferred from vague \"commit failed\" chatter in chat rooms.",
+  "description": "Surfaces 'RESTCONF API Error Rate to Network Devices' patterns (UC-5.19.3) sourced from `index=target_index` sourcetype `configured sourcetype`. Threshold bundle: `sc` >= 400, `reqs` >= 20, or `err_rate` >= 5; aggregation grain: `_time`, `dev`; metrics: `err_ct`. Watch terms: RESTCONF, API, Error, Rate, Network.",
+  "value": "UC-5.19.3 gives Operations teams earlier visibility into Network Devices through UC-5.19.3 search results, lowering operational risk and delayed incident response.",
   "implementation": "Land RESTCONF paths with HTTP status and timing fields; strip secrets from bodies; schedule ten-minute buckets; maintain allowlist for probe clients; correlate spikes with change calendars.",
   "visualization": "Dashboard Studio: single-value error-rate KPI; `splunk.timechart` by device group; drilldown table (`dev`,`reqs`,`err_ct`,`err_rate`,`p95_ms`,`clients`).",
   "references": [
     {
       "title": "IETF RFC 8040 — RESTCONF Protocol",
-      "url": "https://www.rfc-editor.org/rfc/rfc8040"
+      "url": "https://www.rfc-editor.org/rfc/rfc8040",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco Programmability Configuration Guide — RESTCONF",
-      "url": "https://www.cisco.com/c/en/us/"
+      "url": "https://www.cisco.com/c/en/us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "NGINX access log module reference",
-      "url": "https://nginx.org/en/docs/http/ngx_http_log_module.html"
+      "url": "https://nginx.org/en/docs/http/ngx_http_log_module.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Auth rotation:** mass 401s during certificate rollover resemble outages.**Scanner noise:** external scanners hitting `/restconf` drive 404s unless IP-restricted.**Health probes:** synthetic checks bump counts—tag `User-Agent`.**Double logging:** client plus proxy duplicates requests unless deduped.**Large payloads:** latency spikes during config dumps are benign unless sustained.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index` (UC-5.19.3)** — Planned work for 'RESTCONF API Error Rate to Network Devices' shifts `err_ct` over `span=10m` while `_time`, `dev` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `configured_sourcetype`** — Scheduled automation elevates `dev` without crossing `sc` >= 400 for UC-5.19.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `dev`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.19.3 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1190"
   ],
@@ -55,7 +69,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Inventory which devices expose RESTCONF directly versus via centralized API gateway; document TLS offload paths.\n• Standardize log format (JSON preferred) including upstream device identity.\n\nStep 1 — Access logging\nEnable structured access logs on the terminating proxy or enable IOS-XE RESTCONF diagnostics appropriate for operations (avoid full payload capture).\n\nStep 2 — Field extraction\nParse `status`, `uri`, `latency`; map `device_host` from upstream DNS or X-Forwarded headers; reject events missing RESTCONF path markers to reduce noise.\n\nStep 3 — Saved search\nSave as `restconf_error_rate_10m`; alert when `err_rate`≥5% with ≥20 requests per bucket or `p95_ms` doubles rolling median.\n\nStep 4 — Validate\nInject controlled 401/404 responses in lab; verify Splunk classification matches curl transcripts.\n\nStep 5 — Operationalize\nDashboard: timeline of error rate by device group; top URIs table; optional lookup enrichments for owning team; suppress maintenance windows via CSV.",
+  "detailedImplementation": "Prerequisites\n• Inventory which devices expose RESTCONF directly versus via centralized API gateway; document TLS offload paths.\n• Standardize log format (JSON preferred) including upstream device identity.\n\nStep 1 — Access logging\nEnable structured access logs on the terminating proxy or enable IOS-XE RESTCONF diagnostics appropriate for operations (avoid full payload capture).\n\nStep 2 — Field extraction\nParse `status`, `uri`, `latency`; map `device_host` from upstream DNS or X-Forwarded headers; reject events missing RESTCONF path markers to reduce noise.\n\nStep 3 — Saved search\nSave as `restconf_error_rate_10m`; alert when `err_rate`≥5% with ≥20 requests per bucket or `p95_ms` doubles rolling median.\n\nStep 4 — Validate\nInject controlled 401/404 responses in lab; verify Splunk classification matches curl transcripts.\n\nStep 5 — Operationalize\nDashboard: timeline of error rate by device group; top URIs table; optional lookup enrichments for owning team; suppress maintenance windows via CSV.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for NGINX (`TA-nginx`), Splunk Add-on for Apache, Cisco IOS-XE HTTPS/REST audit forwarding, or generic HEC JSON from API gateways; optional Splunk Observability Cloud OTLP bridge if proxies emit spans. — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, dev, err, err_rate`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We measure how often bad replies happen when tools talk to gear over the newer web-style management channel. Spikes tell us something broke in permissions, formatting, or load before hundreds of settings fail at once.",
+  "prerequisiteUseCases": [],
   "wave": "crawl"
 }

@@ -9,11 +9,17 @@
     "Configuration"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=helm:release`, `sourcetype=fluxcd:controller`",
-  "app": "Helm CLI / Flux helm-controller logs, `splunk-otel-collector` for cluster metrics",
+  "exclusions": "Covers the detection logic documented for 'Helm Release Health Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_helm_release_health_monitoring` (UC-12.5.8), SOC dashboard panel \"Operations — Helm Release Health Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.5.8 positive (Helm, Release, Health, Monitoring): ingest synthetic events into `index=devops` sourcetype='helm:release' where `values` grouped by `release`, `namespace`, `chart`, `status` satisfies detection threshold for 'Helm Release Health Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.5.8 negative (Health Monitoring): ingest benign `devops` / `helm:release` events where `release`, `namespace`, `chart`, `status` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Helm Release Health Monitoring'."
+  },
+  "dataSources": "`sourcetype=helm:release`, `sourcetype=fluxcd:controller` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Helm CLI / Flux helm-controller logs, `splunk-otel-collector` for cluster metrics — Universal Forwarder (Splunkbase 617)",
   "spl": "index=devops (sourcetype=\"helm:release\" OR (sourcetype=\"fluxcd:controller\" AND kind=\"HelmRelease\"))\n| where status IN (\"failed\",\"pending-upgrade\",\"pending-rollback\") OR info_status!=\"deployed\"\n| stats latest(_time) as last_event, values(message) as notes by release, namespace, chart, status\n| sort -last_event",
-  "description": "Failed or pending Helm releases leave workloads partially updated or broken; monitoring release status prevents silent partial deploys.",
-  "value": "Failed or pending Helm releases leave workloads partially updated or broken; monitoring release status prevents silent partial deploys.",
+  "description": "Detects UC-12.5.8 — Helm, Release, Health, Monitoring — using `index=devops` sourcetype `helm:release`, grouped by `release`, `namespace`, `chart`, `status`. Outputs `values` each `the scheduled window`; alert when configured threshold. Primary focus: Health Monitoring. Purpose-built for 'Helm Release Health Monitoring' in Operations workflows.",
+  "value": "UC-12.5.8 operationalises 'Helm Release Health Monitoring' against `helm:release` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ingest Helm release status from `helm list -o json` jobs, Flux HelmRelease conditions, or controller logs. Map statuses to deployed/failed/pending. Alert on non-deployed steady states. Include chart version and values hash for change correlation.",
   "visualization": "Table (unhealthy releases), Single value (non-deployed count), Timeline (release operations).",
   "cimModels": [
@@ -23,16 +29,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short-lived sync issues during cluster upgrades, credential rotations, or Git provider incidents.",
+  "knownFalsePositives": "1. **Maintenance window on `devops` (UC-12.5.8)** — Planned work for 'Helm Release Health Monitoring' shifts `values` over `span=1h` while `release`, `namespace`, `chart`, `status` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `helm:release`** — Scheduled automation elevates `namespace` without crossing configured threshold for UC-12.5.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `release`, `namespace`, `chart`, `status`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `helm:release`** — First 48h baseline for UC-12.5.8 on `release` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `release`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kubernetes"
   ],
   "equipmentModels": [
     "kubernetes_helm"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Helm CLI / Flux helm-controller logs, `splunk-otel-collector` for cluster metrics.\n• Ensure the following data sources are available: `sourcetype=helm:release`, `sourcetype=fluxcd:controller`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest Helm release status from `helm list -o json` jobs, Flux HelmRelease conditions, or controller logs. Map statuses to deployed/failed/pending. Alert on non-deployed steady states. Include chart version and values hash for change correlation.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=devops (sourcetype=\"helm:release\" OR (sourcetype=\"fluxcd:controller\" AND kind=\"HelmRelease\"))\n| where status IN (\"failed\",\"pending-upgrade\",\"pending-rollback\") OR info_status!=\"deployed\"\n| stats latest(_time) as last_event, values(message) as notes by release, namespace, chart, status\n| sort -last_event\n```\n\nUnderstanding this SPL\n\n**Helm Release Health Monitoring** — Failed or pending Helm releases leave workloads partially updated or broken; monitoring release status prevents silent partial deploys.\n\nDocumented **Data sources**: `sourcetype=helm:release`, `sourcetype=fluxcd:controller`. **App/TA** (typical add-on context): Helm CLI / Flux helm-controller logs, `splunk-otel-collector` for cluster metrics. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: devops; **sourcetype**: helm:release, fluxcd:controller. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=devops, sourcetype=\"helm:release\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where status IN (\"failed\",\"pending-upgrade\",\"pending-rollback\") OR info_status!=\"deployed\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by release, namespace, chart, status** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with Flux Kustomize/Helm status and source controller logs. Verify field extractions and index permissions.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (unhealthy releases), Single value (non-deployed count), Timeline (release operations).",
-  "grandmaExplanation": "We watch Kubernetes release tooling so manifest or chart problems surface before users do."
+  "grandmaExplanation": "We watch Kubernetes release tooling so manifest or chart problems surface before users do.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

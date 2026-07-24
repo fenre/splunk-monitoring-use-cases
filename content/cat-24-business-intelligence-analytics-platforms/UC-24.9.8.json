@@ -9,26 +9,55 @@
     "Data Quality"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Monte Carlo incident webhooks (`montecarlo:incident`), Great Expectations `validation_result` JSON (`great_expectations:validation`), Soda scan results (`soda:scan`), dbt test failures, warehouse `INFORMATION_SCHEMA` freshness/volume probes via DB Connect.",
-  "app": "Monte Carlo / Bigeye / Soda webhooks and REST APIs via HEC; Great Expectations and dbt test results via HEC scripted inputs; custom warehouse data-quality probes via Splunk DB Connect.",
+  "exclusions": "Covers the detection logic documented for 'Metric Value Distribution Outliers' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_metric_value_distribution_outliers` (UC-24.9.8), SOC dashboard panel \"Operations — Metric Value Distribution Outliers\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.9.8 positive (Metric, Value, Distribution, Outliers): ingest synthetic events into `index=dataops` sourcetype='dbx:metric_probe' where `daily_avg`, `base_avg`, `base_sd` grouped by `metric_name`, `_time` satisfies detection threshold for 'Metric Value Distribution Outliers'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.9.8 negative (Distribution Outliers): ingest benign `dataops` / `dbx:metric_probe` events where `metric_name`, `_time` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Metric Value Distribution Outliers'."
+  },
+  "dataSources": "Monte Carlo incident webhooks (`montecarlo:incident`), Great Expectations `validation_result` JSON (`great_expectations:validation`), Soda scan results (`soda:scan`), dbt test failures, warehouse `INFORMATION_SCHEMA` freshness/volume probes via DB Connect. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Monte Carlo / Bigeye / Soda webhooks and REST APIs via HEC; Great Expectations and dbt test results via HEC scripted inputs; custom warehouse data-quality probes via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dataops sourcetype=dbx:metric_probe\n| bin _time span=1d\n| stats avg(metric_value) as daily_avg by metric_name, _time\n| eventstats avg(daily_avg) as base_avg, stdev(daily_avg) as base_sd by metric_name\n| eval z=round((daily_avg-base_avg)/base_sd,2)\n| where abs(z)>3\n| sort - _time",
-  "description": "Baselines key business-metric values sampled from the warehouse and flags days where a metric deviates sharply from its norm, catching data errors that pass structural checks.",
-  "value": "Structurally valid data can still be wrong; distribution monitoring catches the day revenue or order counts look impossible before the number reaches the board.",
+  "description": "Surfaces UC-24.9.8 — Metric, Value, Distribution, Outliers — using `index=dataops` sourcetype `dbx:metric_probe`, grouped by `metric_name`, `_time`. Outputs `daily_avg`, `base_avg`, `base_sd` each `1d`; alert when configured threshold. Primary focus: Distribution Outliers. Purpose-built for 'Metric Value Distribution Outliers' in Operations workflows.",
+  "value": "For 'Metric Value Distribution Outliers', UC-24.9.8 converts `daily_avg`, `base_avg`, `base_sd` on `dbx:metric_probe` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Sample metric values via DB Connect; schedule daily; tune the z-score; alert and involve the metric owner on anomalies.",
   "visualization": "Table of metric outliers, metric-value trend with bands.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk DB Connect",
-      "url": "https://splunkbase.splunk.com/app/2686"
+      "url": "https://splunkbase.splunk.com/app/2686",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `dataops` (UC-24.9.8)** — Planned work for 'Metric Value Distribution Outliers' shifts `daily_avg`, `base_avg`, `base_sd` over `span=1d` while `metric_name`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `dbx:metric_probe`** — Scheduled automation elevates `_time` without crossing configured threshold for UC-24.9.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `metric_name`, `_time`** — Health checks in `dataops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbx:metric_probe`** — First 48h baseline for UC-24.9.8 on `metric_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `metric_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect"
   ],
-  "grandmaExplanation": "We learn what your key numbers normally look like and flag the days they look impossible, catching errors before they reach leadership."
+  "equipmentModels": [
+    "db_connect_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Monte Carlo / Bigeye / Soda webhooks and REST APIs via HEC; Great Expectations and dbt test results via HEC scripted inputs; custom warehouse data-quality probes via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=dbx:metric_probe into dataops. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, metric_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We learn what your key numbers normally look like and flag the days they look impossible, catching errors before they reach leadership.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,11 +9,17 @@
     "Physical"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=power|cooling|environment` · `sourcetype=\"snmp:apc:envmon\"` (APC PowerNet / AirIR / ATS / NetBotz OIDs per deployment)",
-  "app": "Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input; APC PowerNet-MIB / AirIR-MIB field extractions",
+  "exclusions": "Covers the detection logic documented for 'APC NetBotz Environmental SNMP Humidity Condensation Risk' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_apc_netbotz_environmental_snmp_humidity_condensa` (UC-15.4.10), SOC dashboard panel \"Operations — APC NetBotz Environmental SNMP Humidity Condensation Risk\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-15.4.10 positive (APC, NetBotz, Environmental, SNMP, Humidity): ingest synthetic events into `index=environment` sourcetype='snmp:apc:envmon' where `count` grouped by `sensor_name`, `location` satisfies `rh` > 65, or `dew_gap` < 3 for 'APC NetBotz Environmental SNMP Humidity Condensation Risk'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-15.4.10 negative (Condensation Risk): ingest benign `environment` / `snmp:apc:envmon` events where `sensor_name`, `location` stays below `rh` > 65, or `dew_gap` < 3, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'APC NetBotz Environmental SNMP Humidity Condensation Risk'."
+  },
+  "dataSources": "`index=power|cooling|environment` · `sourcetype=\"snmp:apc:envmon\"` (APC PowerNet / AirIR / ATS / NetBotz OIDs per deployment) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input; APC PowerNet-MIB / AirIR-MIB field extractions — Universal Forwarder (Splunkbase 617)",
   "spl": "index=environment sourcetype=\"snmp:apc:envmon\" earliest=-24h\n| eval rh=tonumber(coalesce(humiditySensorRelativeHumidity, rh_pct, \"\"))\n| eval dew_gap=tonumber(coalesce(dewpoint_margin_c, \"\"))\n| where rh>65 OR (isnotnull(dew_gap) AND dew_gap<3)\n| stats latest(rh) as rh_pct by sensor_name location",
-  "description": "High RH with chilled supply air drives condensation on ducts and gear surfaces.",
-  "value": "Prevents corrosion and shorting in edge sites without full BMS.",
+  "description": "Monitors UC-15.4.10 — APC, NetBotz, Environmental, SNMP, Humidity — using `index=environment` sourcetype `snmp:apc:envmon`, grouped by `sensor_name`, `location`. Outputs `count` each `the scheduled window`; alert when `rh` > 65, or `dew_gap` < 3. Primary focus: Condensation Risk. Purpose-built for 'APC NetBotz Environmental SNMP Humidity Condensation Risk' in Operations workflows.",
+  "value": "UC-15.4.10 gives Operations teams earlier visibility into Condensation Risk through `snmp:apc:envmon` feeds, lowering operational risk and delayed incident response.",
   "implementation": "(1) Pair with supply temp if available. (2) Alert facilities before setpoint changes.",
   "visualization": "Gauge RH; scatter RH vs temp.",
   "cimModels": [
@@ -23,14 +29,26 @@
   "references": [
     {
       "title": "Schneider Electric — APC product support",
-      "url": "https://www.se.com/ww/en/product-category/3100-2000-pdu/"
+      "url": "https://www.se.com/ww/en/product-category/3100-2000-pdu/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Connect for SNMP",
-      "url": "https://splunkbase.splunk.com/apps#/search=connect%20for%20snmp"
+      "url": "https://splunkbase.splunk.com/apps#/search=connect%20for%20snmp",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Leak alerts from condensation, scheduled maintenance moisture, or false-trigger sensors.",
+  "knownFalsePositives": "1. **Maintenance window on `environment` (UC-15.4.10)** — Planned work for 'APC NetBotz Environmental SNMP Humidity Condensation Risk' shifts `count` over `span=1h` while `sensor_name`, `location` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `snmp:apc:envmon`** — Scheduled automation elevates `location` without crossing `rh` > 65 for UC-15.4.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sensor_name`, `location`** — Health checks in `environment` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:apc:envmon`** — First 48h baseline for UC-15.4.10 on `sensor_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `sensor_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apc_dc",
     "snmp"
@@ -46,6 +64,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input; APC PowerNet-MIB / AirIR-MIB field extractions — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=snmp:apc:envmon into environment. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`dew_gap, location, rh, sensor_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

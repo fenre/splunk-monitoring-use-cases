@@ -9,11 +9,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=inventory` or `vmware:inv:vm`, `sourcetype=snow:cmdb_ci`",
-  "app": "Splunk Universal Forwarder inventory, AD, vCenter",
+  "exclusions": "Covers the detection logic documented for 'Undocumented Server Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_undocumented_server_detection` (UC-16.2.10), SOC dashboard panel \"Operations — Undocumented Server Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-16.2.10 positive (Undocumented, Server, Detection): ingest synthetic events into `index=inventory` sourcetype='vmware:inv:vm' where `count` grouped by `host_key` satisfies -4h for 'Undocumented Server Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.2.10 negative (Server Detection): ingest benign `inventory` / `vmware:inv:vm` events where `host_key` stays below -4h, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Undocumented Server Detection'."
+  },
+  "dataSources": "`sourcetype=inventory` or `vmware:inv:vm`, `sourcetype=snow:cmdb_ci` Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder inventory, AD, vCenter — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
   "spl": "index=inventory sourcetype=\"vmware:inv:vm\" earliest=-4h\n| eval host_key=lower(mvindex(split(name,\".\"),0))\n| stats latest(_time) as seen by host_key\n| join type=left max=1 host_key [ search index=itsm sourcetype=\"snow:cmdb_ci\" ci_class=\"cmdb_ci_server\" | eval host_key=lower(mvindex(split(name,\".\"),0)) | table host_key, sys_id ]\n| where isnull(sys_id)\n| table host_key, seen",
-  "description": "Finds servers visible to monitoring or AD but missing from CMDB — classic gap for incident routing and security scope.",
-  "value": "Finds servers visible to monitoring or AD but missing from CMDB — classic gap for incident routing and security scope.",
+  "description": "Monitors UC-16.2.10 — Undocumented, Server, Detection — using `index=inventory` sourcetype `vmware:inv:vm`, grouped by `host_key`. Outputs `count` each `the scheduled window`; alert when -4h. Primary focus: Server Detection. Purpose-built for 'Undocumented Server Detection' in Operations workflows.",
+  "value": "Alerting on Undocumented, Server, Detection through UC-16.2.10 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Compare monitored/VM inventory hostnames (lowercased, short name) to CMDB server CIs. Tune for naming conventions (strip domain). Feed gaps to CMDB onboarding queue.",
   "visualization": "Table (undocumented hosts), Single value (gap count), Line chart (gap trend).",
   "cimModels": [
@@ -23,17 +29,40 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 3684",
+      "url": "https://splunkbase.splunk.com/app/3684",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Unknown installs and license gaps from BYOD-style tools, new packaging, and shadow projects that are not in the inventory feed yet.",
+  "knownFalsePositives": "1. **Maintenance window on `inventory` (UC-16.2.10)** — Planned work for 'Undocumented Server Detection' shifts `count` over `span=1h` while `host_key` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `vmware:inv:vm`** — Scheduled automation elevates `host_key` without crossing configured threshold for UC-16.2.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host_key`** — Health checks in `inventory` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `vmware:inv:vm`** — First 48h baseline for UC-16.2.10 on `host_key` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host_key`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow",
     "vmware"
   ],
   "equipmentModels": [
+    "vmware_esxi",
     "vmware_vcenter"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Universal Forwarder inventory, AD, vCenter.\n• Ensure the following data sources are available: `sourcetype=inventory` or `vmware:inv:vm`, `sourcetype=snow:cmdb_ci`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCompare monitored/VM inventory hostnames (lowercased, short name) to CMDB server CIs. Tune for naming conventions (strip domain). Feed gaps to CMDB onboarding queue.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=inventory sourcetype=\"vmware:inv:vm\" earliest=-4h\n| eval host_key=lower(mvindex(split(name,\".\"),0))\n| stats latest(_time) as seen by host_key\n| join type=left max=1 host_key [ search index=itsm sourcetype=\"snow:cmdb_ci\" ci_class=\"cmdb_ci_server\" | eval host_key=lower(mvindex(split(name,\".\"),0)) | table host_key, sys_id ]\n| where isnull(sys_id)\n| table host_key, seen\n```\n\nUnderstanding this SPL\n\n**Undocumented Server Detection** — Finds servers visible to monitoring or AD but missing from CMDB — classic gap for incident routing and security scope.\n\nDocumented **Data sources**: `sourcetype=inventory` or `vmware:inv:vm`, `sourcetype=snow:cmdb_ci`. **App/TA** (typical add-on context): Splunk Universal Forwarder inventory, AD, vCenter. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: inventory; **sourcetype**: vmware:inv:vm. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=inventory, sourcetype=\"vmware:inv:vm\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **host_key** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by host_key** so each row reflects one combination of those dimensions.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where isnull(sys_id)` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Undocumented Server Detection**): table host_key, seen\n\n\nStep 3 — Validate\nCompare with the ServiceNow configuration item or related CMDB view. Spot-check a few CIs, owners, and relationship fields, then confirm discovery dates if we measure freshness.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (undocumented hosts), Single value (gap count), Line chart (gap trend).",
-  "grandmaExplanation": "We find systems that are live but not in the book, so we add them, own them, and protect them on purpose."
+  "grandmaExplanation": "We find systems that are live but not in the book, so we add them, own them, and protect them on purpose.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

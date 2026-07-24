@@ -10,24 +10,42 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Detailed: `index=wanop OR index=network`; summarized WAN versus LAN counters per appliance (`bytes_saved`, `wan_bits_saved`, `reduction_bytes`), optionally enriched with carrier invoices ingested as CSV lookups (`circuit_cost_per_mbps`). SteelHead `riverbed:steelhead`, EdgeConnect `silverpeak:*`, Citrix WANOP `citrix:sdwan*`, ZDX adjunct logs purely contextual—not sole savings source.",
-  "app": "Vendor dashboards exported via syslog/API, Splunk lookup tables for tariff modeling, optional Splunk App for Chargeback macros.",
+  "exclusions": "Covers the detection logic documented for 'Bandwidth Savings Trending and ROI Reporting' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_bandwidth_savings_trending_and_roi_reporting` (UC-5.16.7), SOC dashboard panel \"Operations — Bandwidth Savings Trending and ROI Reporting\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.16.7 positive (Bandwidth, Savings, Trending, and, ROI): ingest synthetic events into `index=wanop` sourcetype='target_sourcetype' where `sum` grouped by `_time`, `vendor`, `site_code` satisfies -35d for 'Bandwidth Savings Trending and ROI Reporting'. Validate lookup `wan_carrier_tariffs.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.16.7 negative (ROI Reporting): ingest benign `wanop` / `target_sourcetype` events where `_time`, `vendor`, `site_code` stays below -35d, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Bandwidth Savings Trending and ROI Reporting'."
+  },
+  "dataSources": "Detailed: `index=wanop OR index=network`; summarized WAN versus LAN counters per appliance (`bytes_saved`, `wan_bits_saved`, `reduction_bytes`), optionally enriched with carrier invoices ingested as CSV lookups (`circuit_cost_per_mbps`). SteelHead `riverbed:steelhead`, EdgeConnect `silverpeak:*`, Citrix WANOP `citrix:sdwan*`, ZDX adjunct logs purely contextual—not sole savings source. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Vendor dashboards exported via syslog/API, Splunk lookup tables for tariff modeling, optional Splunk App for Chargeback macros. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=wanop OR index=network earliest=-35d@d latest=@d\n| eval v=lower(sourcetype)\n| eval vendor=case(match(v,\"riverbed|steelhead\"),\"Riverbed SteelHead\",match(v,\"silverpeak|edgeconnect\"),\"Silver Peak EdgeConnect\",match(v,\"citrix\"),\"Citrix SD-WAN WANOP\",match(v,\"zdx|zscaler\"),\"Zscaler Digital Experience\",\"other\")\n| where vendor!=\"other\"\n| eval saved_bytes=tonumber(coalesce(bytes_saved,wan_bytes_saved,reduction_bytes,opt_saved_octets))\n| eval saved_bits=if(isnotnull(saved_bytes), saved_bytes*8, tonumber(bits_saved))\n| bin _time span=1d\n| stats sum(eval(if(isnotnull(saved_bits),saved_bits/8,0))) as bytes_saved_sum by _time vendor site_code\n| eval gib_saved=round(bytes_saved_sum/pow(1024,3),3)\n| lookup wan_carrier_tariffs.csv site_code OUTPUT cost_per_gib_usd\n| eval est_cost_avoided_usd=round(gib_saved*coalesce(cost_per_gib_usd,0),2)\n| sort _time vendor site_code\n| head 1000",
-  "description": "Splunk blends appliance-reported byte savings with finance-approved tariff lookups so executive dashboards translate compression into gibibytes removed from billed WAN transports month over month.",
-  "value": "Finance validates WAN renewal ROI without spreadsheet archaeology while network leadership prioritizes upgrade budgets using Splunk-scheduled PDF evidence consumed by procurement workflows.",
+  "description": "Monitors when ROI Reporting criteria fire for 'Bandwidth Savings Trending and ROI Reporting' (UC-5.16.7) in `index=wanop` sourcetype `configured sourcetype`. Pipeline aggregates `sum` by `_time`, `vendor`, `site_code` over `1d`. Alert logic enforces -35d. SPL signature: lookup `wan_carrier_tariffs.csv`. Eliminates manual hunting for UC-5.16.7 conditions.",
+  "value": "UC-5.16.7 helps teams contain Bandwidth, Savings, Trending, and, ROI scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Maintain tariff CSV with owner attestations, run weekly saved search writing summary index, integrate export into CFO briefing slides automatically.",
   "visualization": "Combo chart: stacked gib_saved by vendor with overlaid line est_cost_avoided_usd; executive summary table MoM delta.",
   "references": [
     {
       "title": "Splunk Documentation — Lookup commands overview",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Lookup"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Lookup",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Riverbed Community — WAN Optimization Reporting Concepts",
-      "url": "https://support.riverbed.com/content/support/software/steelhead.html"
+      "url": "https://support.riverbed.com/content/support/software/steelhead.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Metering granularity mismatch:** carrier rounds nightly differently.**Free circuits:** cost avoidance zero despite savings.**Acquisitions:** site_code churn blanks lookups.**Lab traffic pollution:** exclude tagged sandbox hosts.",
+  "knownFalsePositives": "1. **Maintenance window on `wanop` (UC-5.16.7)** — Planned work for 'Bandwidth Savings Trending and ROI Reporting' shifts `sum` over `span=1d` while `_time`, `vendor`, `site_code` remains in-scope. Applies lookup `wan_carrier_tariffs.csv`. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `configured_sourcetype`** — Scheduled automation elevates `vendor` without crossing configured threshold for UC-5.16.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `vendor`, `site_code`** — Health checks in `wanop` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.16.7 on `_time` is unstable; join `wan_carrier_tariffs.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "N/A (financial telemetry)"
   ],
@@ -53,7 +71,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Legal approval storing tariff multipliers inside Splunk KVStore or secured CSV.\n• Alignment with carrier metering cadence (calendar vs billing cycle).\n• Historical baseline month labeled before optimizer rollout.\n\nStep 1 — Configure data collection\nEnsure appliances emit cumulative counters compatible with daily deltas—convert via `delta` command if only totals arrive.\n\nStep 2 — Create the search and alert\nWrap SPL inside scheduled report `wanopt_roi_monthly`; chain `collect` into summary index for BI tools.\n\nStep 3 — Validate\nReconcile Splunk `gib_saved` against carrier portal usage graphs ±10% tolerance acknowledging encapsulation overhead.\n\nStep 4 — Operationalize\nPublish narrative captions interpreting swings (seasonality, acquisitions).\n\nStep 5 — Troubleshooting\n**Missing tariff rows:** default zero cost skews story—alert on lookup misses.**Double counting HA pairs:** dedupe using designated reporting master.**Currency mixes:** normalize FX nightly.",
+  "detailedImplementation": "Prerequisites\n• Legal approval storing tariff multipliers inside Splunk KVStore or secured CSV.\n• Alignment with carrier metering cadence (calendar vs billing cycle).\n• Historical baseline month labeled before optimizer rollout.\n\nStep 1 — Configure data collection\nEnsure appliances emit cumulative counters compatible with daily deltas—convert via `delta` command if only totals arrive.\n\nStep 2 — Create the search and alert\nWrap SPL inside scheduled report `wanopt_roi_monthly`; chain `collect` into summary index for BI tools.\n\nStep 3 — Validate\nReconcile Splunk `gib_saved` against carrier portal usage graphs ±10% tolerance acknowledging encapsulation overhead.\n\nStep 4 — Operationalize\nPublish narrative captions interpreting swings (seasonality, acquisitions).\n\nStep 5 — Troubleshooting\n**Missing tariff rows:** default zero cost skews story—alert on lookup misses.**Double counting HA pairs:** dedupe using designated reporting master.**Currency mixes:** normalize FX nightly.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Vendor dashboards exported via syslog/API, Splunk lookup tables for tariff modeling, optional Splunk App for Chargeback macros. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=see SPL into wanop, network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, cost_per_gib_usd, saved_bits, site_code`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We translate squished traffic into everyday money language—how much expensive long-distance pipe we did not have to buy—so leaders see why those invisible boxes still deserve maintenance dollars.",
+  "prerequisiteUseCases": [],
   "wave": "run"
 }

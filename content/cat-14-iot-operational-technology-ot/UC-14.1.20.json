@@ -8,11 +8,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Air Quality and CO2 Monitoring (Meraki MT)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_air_quality_and_co2_monitoring_meraki_mt` (UC-14.1.20), SOC dashboard panel \"Operations — Air Quality and CO2 Monitoring (Meraki MT)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-14.1.20 positive (Air, Quality, and, CO2, Monitoring): ingest synthetic events into `index=meraki` sourcetype='meraki:sensorreadingshistory' where `avg_co2_ppm` grouped by `serial`, `\"network.name\"` satisfies `current_co2_ppm` > 1000 for 'Air Quality and CO2 Monitoring (Meraki MT)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.1.20 negative ((Meraki MT)): ingest benign `meraki` / `meraki:sensorreadingshistory` events where `serial`, `\"network.name\"` stays below `current_co2_ppm` > 1000, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Air Quality and CO2 Monitoring (Meraki MT)'."
+  },
   "dataSources": "`index=meraki sourcetype=meraki:sensorreadingshistory metric=\"co2\"` from the `cisco_meraki_sensor_readings_history` input in `Splunk_TA_cisco_meraki` (Splunkbase 5580). Key fields: `serial`, `network.name`, `metric`, `co2.concentration` (ppm), `ts`. For broader IAQ also consider `metric=\"tvoc\"`, `metric=\"pm25\"`, and `metric=\"indoorAirQuality\"`.",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580)",
   "spl": "index=meraki sourcetype=\"meraki:sensorreadingshistory\" metric=\"co2\"\n| rename \"co2.concentration\" as co2_ppm\n| stats latest(co2_ppm) as current_co2_ppm, avg(co2_ppm) as avg_co2_ppm by serial, \"network.name\"\n| where current_co2_ppm > 1000\n| sort - current_co2_ppm",
-  "description": "Monitors indoor air quality to ensure safe working conditions.",
-  "value": "Monitors indoor air quality to ensure safe working conditions.",
+  "description": "Monitors (Meraki MT) activity in UC-14.1.20 ('Air Quality and CO2 Monitoring (Meraki MT)') from `index=meraki` sourcetype `meraki:sensorreadingshistory`. Rolls up `avg_co2_ppm` by `serial`, `\"network.name\"` across `the scheduled window` and pages when `current_co2_ppm` > 1000. Covers Air, Quality, and, CO2, Monitoring. Operations operators treat UC-14.1.20 as the canonical signal.",
+  "value": "Operators running UC-14.1.20 on `meraki:sensorreadingshistory` feeds shorten triage for (Meraki MT) tied to 'Air Quality and CO2 Monitoring (Meraki MT)', lowering operational risk and delayed incident response.",
   "implementation": "Configure `cisco_meraki_sensor_readings_history` for MT15 (IAQ) sensors. ASHRAE recommends keeping CO₂ below 1000 ppm in occupied spaces; values above 1500 ppm correlate with reduced cognitive performance. For full IAQ, combine with TVOC, PM2.5, and the composite `indoorAirQuality.score`.",
   "visualization": "CO2 level gauge per location; trend timeline; air quality status chart.",
   "cimModels": [
@@ -22,10 +28,26 @@
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Add-on for Cisco Meraki (Splunkbase 5631)",
+      "url": "https://splunkbase.splunk.com/app/5631",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "IAQ excursions during high occupancy events, open windows, filter changes, or deep cleaning with solvents.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki` (UC-14.1.20)** — Planned work for 'Air Quality and CO2 Monitoring (Meraki MT)' shifts `avg_co2_ppm` over `span=1h` while `serial`, `\"network.name\"` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `meraki:sensorreadingshistory`** — Scheduled automation elevates `\"network.name\"` without crossing `current_co2_ppm` > 1000 for UC-14.1.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `serial`, `\"network.name\"`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `meraki:sensorreadingshistory`** — First 48h baseline for UC-14.1.20 on `serial` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `serial`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "m365"
@@ -33,6 +55,12 @@
   "equipmentModels": [
     "cisco_meraki"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580).\n• Ensure the following data sources are available: `index=meraki sourcetype=meraki:sensorreadingshistory metric=\"co2\"` from the `cisco_meraki_sensor_readings_history` input in `Splunk_TA_cisco_meraki` (Splunkbase 5580). Key fields: `serial`, `network.name`, `metric`, `co2.concentration` (ppm), `ts`. For broader IAQ also consider `metric=\"tvoc\"`, `metric=\"pm25\"`, and `metric=\"indoorAirQuality\"`..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure `cisco_meraki_sensor_readings_history` for MT15 (IAQ) sensors. ASHRAE recommends keeping CO₂ below 1000 ppm in occupied spaces; values above 1500 ppm correlate with reduced cognitive performance. For full IAQ, combine with TVOC, PM2.5, and the composite `indoorAirQuality.score`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=meraki sourcetype=\"meraki:sensorreadingshistory\" metric=\"co2\"\n| rename \"co2.concentration\" as co2_ppm\n| stats latest(co2_ppm) as current_co2_ppm, avg(co2_ppm) as avg_co2_ppm by serial, \"network.name\"\n| where current_co2_ppm > 1000\n| sort - current_co2_ppm\n```\n\nUnderstanding this SPL\n\n**Air Quality and CO2 Monitoring (Meraki MT)** — Monitors indoor air quality to ensure safe working conditions.\n\nDocumented **Data sources**: `index=meraki sourcetype=meraki:sensorreadingshistory metric=\"co2\"` from the `cisco_meraki_sensor_readings_history` input in `Splunk_TA_cisco_meraki` (Splunkbase 5580). Key fields: `serial`, `network.name`, `metric`, `co2.concentration` (ppm), `ts`. For broader IAQ also consider `metric=\"tvoc\"`, `metric=\"pm25\"`, and `metric=\"indoorAirQuality\"`. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki:sensorreadingshistory. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=meraki, sourcetype=\"meraki:sensorreadingshistory\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Renames fields with `rename` for clarity or joins.\n• `stats` rolls up events into metrics; results are split **by serial, \"network.name\"** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Filters the current rows with `where current_co2_ppm > 1000` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: CO2 level gauge per location; trend timeline; air quality status chart.",
-  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with stale air, dust, and indoor comfort before harm, damage, or wasted effort piles up."
+  "grandmaExplanation": "We watch how your building systems behave. We help you know if something is off with stale air, dust, and indoor comfort before harm, damage, or wasted effort piles up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

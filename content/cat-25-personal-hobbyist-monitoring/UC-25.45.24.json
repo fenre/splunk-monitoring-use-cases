@@ -8,35 +8,60 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Release events (`music:distribution`), Bandcamp activity (`music:bandcamp`), project exports (`music:project`), streaming analytics (`music:streaming`), metadata tasks (`music:ops`).",
-  "app": "Music-making and creator telemetry — DistroKid release exports, Bandcamp sales activity, Cockos Reaper project stats, and Spotify for Artists analytics — streamed to Splunk HEC via APIs, exports, and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Reaper Track Count vs Export Time' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_reaper_track_count_vs_export_time` (UC-25.45.24), SOC dashboard panel \"Personal — Reaper Track Count vs Export Time\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.45.24 positive (Reaper, Track, Count, Export, Time): ingest synthetic events into `index=personal` sourcetype='music:project' where `avg_export_time_min` grouped by `project_size` satisfies detection threshold for 'Reaper Track Count vs Export Time'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.45.24 negative (Export Time): ingest benign `personal` / `music:project` events where `project_size` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 1 confirms zero alert rows for 'Reaper Track Count vs Export Time'."
+  },
+  "dataSources": "Release events (`music:distribution`), Bandcamp activity (`music:bandcamp`), project exports (`music:project`), streaming analytics (`music:streaming`), metadata tasks (`music:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Music-making and creator telemetry — DistroKid release exports, Bandcamp sales activity, Cockos Reaper project stats, and Spotify for Artists analytics — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=music:project project_size=* export_time_min=*\n| stats avg(export_time_min) as avg_export_time_min, count as events by project_size\n| sort - avg_export_time_min",
-  "description": "Shows average export time minutes by project size band for Reaper project exports.",
-  "value": "Average export time minutes by project size band helps compare Reaper project exports across the factors that matter most.",
+  "description": "Alerts on Export Time activity in UC-25.45.24 ('Reaper Track Count vs Export Time') from `index=personal` sourcetype `music:project`. Rolls up `avg_export_time_min` by `project_size` across `the scheduled window` and pages when configured threshold. Covers Reaper, Track, Count, Export, Time. Personal operators treat UC-25.45.24 as the canonical signal.",
+  "value": "Operators running UC-25.45.24 on `music:project` feeds shorten triage for Export Time tied to 'Reaper Track Count vs Export Time', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Capture `export_time_min` on `music:project` events and normalize `project_size` so Splunk can summarize performance by project size band.",
   "visualization": "Bar chart of average export time minutes by project size band.",
   "cimModels": [],
   "references": [
     {
       "title": "DistroKid — music distribution",
-      "url": "https://distrokid.com/"
+      "url": "https://distrokid.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Bandcamp — artist sales",
-      "url": "https://bandcamp.com/"
+      "url": "https://bandcamp.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "REAPER — digital audio workstation",
-      "url": "https://www.reaper.fm/"
+      "url": "https://www.reaper.fm/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Spotify for Artists",
-      "url": "https://artists.spotify.com/"
+      "url": "https://artists.spotify.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It lists the average export time minutes for each project size band so you can see what works best for Reaper project exports."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.45.24)** — Connector for 'Reaper Track Count vs Export Time' stops polling `music:project`; stale `avg_export_time_min` on `project_size` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_export_time_min` over `1w` is expected for UC-25.45.24, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `music:project`. Dedup with `stats latest(*) by project_size`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Reaper Track Count vs Export Time'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Music-Making & Creator Analytics — typical feeds: Practice sessions (`practice:session`), DAW sessions (`daw:session`), release/streaming stats (`release:stats`), gig setlists (`setlist:play`)..\n• **Sourcetypes in this search**: `music:project`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=music:project`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Music and creator telemetry — practice-tracker apps (Modacity), DAW project logs, and streaming/creator analytics (Spotify for Artists, YouTube Studio) — streamed to Splunk HEC via APIs and scripted inputs..\n\n**Author notes:** Capture `export_time_min` on `music:project` events and normalize `project_size` so Splunk can summarize performance by project size band.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"music:project\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=music:project earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Reaper Track Count vs Export Time** over `personal` data (primarily `sourcetype=music:project`) across the full search range. The `avg` aggregation groups by `project_size`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `project_size`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=music:project project_size=* export_time_min=*\n| stats avg(export_time_min) as avg_export_time_min, count as events by project_size\n| sort - avg_export_time_min\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=music:project earliest=-7d\n| head 50\n| table project_size\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=music:project earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.45.24: Personal evidence` with the following panel layout:\n\n**Panel 1 — Bar Chart Of Average Export Time Minutes By Project Size Band (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `music:project` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=music:project | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It lists the average export time minutes for each project size band so you can see what works best for Reaper project exports.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

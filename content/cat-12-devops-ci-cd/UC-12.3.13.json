@@ -9,11 +9,17 @@
     "Data Quality"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "AWX external logging to Splunk HEC (`awx.analytics.job_events` per AWX docs; `sourcetype=awx:job_events`)",
-  "app": "AWX / Settings / Logging → Splunk HEC token",
+  "exclusions": "Covers the detection logic documented for 'AWX Job Event Callback Failures to External Logger' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_awx_job_event_callback_failures_to_external_logg` (UC-12.3.13), SOC dashboard panel \"Operations — AWX Job Event Callback Failures to External Logger\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.3.13 positive (AWX, Job, Event, Callback, Failures): ingest synthetic events into `index=automation` sourcetype='awx:job_events' where `count` grouped by `cluster_host_id`, `job_id` satisfies `count` >= 20 for 'AWX Job Event Callback Failures to External Logger'. Validate filter `\"error\" OR \"failed\" OR \"timeout\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.3.13 negative (External Logger): ingest benign `automation` / `awx:job_events` events where `cluster_host_id`, `job_id` stays below `count` >= 20, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'AWX Job Event Callback Failures to External Logger'."
+  },
+  "dataSources": "AWX external logging to Splunk HEC (`awx.analytics.job_events` per AWX docs; `sourcetype=awx:job_events`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "AWX / Settings / Logging → Splunk HEC token — Universal Forwarder (Splunkbase 617)",
   "spl": "index=automation sourcetype=\"awx:job_events\" logger_name=\"awx.analytics.job_events\"\n| search \"error\" OR \"failed\" OR \"timeout\"\n| stats count by cluster_host_id, job_id\n| where count>=20\n| sort -count",
-  "description": "Lost or errored job event streams break compliance evidence and task-level analytics.",
-  "value": "Ensures AWX analytics pipeline to Splunk stays healthy for audit and troubleshooting.",
+  "description": "Surfaces UC-12.3.13 — AWX, Job, Event, Callback, Failures — using `index=automation` sourcetype `awx:job_events`, grouped by `cluster_host_id`, `job_id`. Outputs `count` each `the scheduled window`; alert when `count` >= 20. Filter chain includes filter `\"error\" OR \"failed\" OR \"timeout\"`. Purpose-built for 'AWX Job Event Callback Failures to External Logger' in Operations workflows.",
+  "value": "UC-12.3.13 operationalises 'AWX Job Event Callback Failures to External Logger' against `awx:job_events` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Enable AWX log aggregator; verify `logger_name` and `job_id` fields. Alert on HEC 4xx/5xx patterns in proxy logs.",
   "visualization": "Table (job_id × errors), Timeline.",
   "cimModels": [
@@ -23,14 +29,32 @@
   "references": [
     {
       "title": "AWX logging integration (job events, activity stream)",
-      "url": "https://github.com/ansible/awx/blob/devel/docs/logging_integration.md"
+      "url": "https://github.com/ansible/awx/blob/devel/docs/logging_integration.md",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HEC — HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Alerts from scheduled scans, pilot repositories, or vendor API throttling during bulk operations.",
+  "knownFalsePositives": "1. **Maintenance window on `automation` (UC-12.3.13)** — Planned work for 'AWX Job Event Callback Failures to External Logger' shifts `count` over `span=1h` while `cluster_host_id`, `job_id` remains in-scope. Applies filter `\"error\" OR \"failed\" OR \"timeout\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `awx:job_events`** — Scheduled automation elevates `job_id` without crossing `count` >= 20 for UC-12.3.13. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cluster_host_id`, `job_id`** — Health checks in `automation` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `awx:job_events`** — First 48h baseline for UC-12.3.13 on `cluster_host_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cluster_host_id`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
   "splunkVersions": [
@@ -38,5 +62,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch this part of your delivery chain for risks and reliability so issues show up before they hit customers."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (AWX / Settings / Logging → Splunk HEC token — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=awx:job_events into automation. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cluster_host_id, job_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch this part of your delivery chain for risks and reliability so issues show up before they hit customers.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

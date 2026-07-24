@@ -9,11 +9,17 @@
     "Analytics"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`system.query_log` (query_finish rows) ingested as `clickhouse:query_log`",
-  "app": "ClickHouse `query_log` table + DB Connect batch or `clickhouse-client --query` scripted input to Splunk HEC",
+  "exclusions": "Covers the detection logic documented for 'ClickHouse Query Duration P95 and P99 from Query Log' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_clickhouse_query_duration_p95_and_p99_from_query` (UC-7.1.54), SOC dashboard panel \"Operations — ClickHouse Query Duration P95 and P99 from Query Log\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-7.1.54 positive (ClickHouse, Query, Duration, P95, and): ingest synthetic events into `index=database` sourcetype='clickhouse:query_log' where `count` grouped by `query_kind`, `host`, `_time` satisfies `p95_ms` > 5000, or `p99_ms` > 30000 for 'ClickHouse Query Duration P95 and P99 from Query Log'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.54 negative (Query Log): ingest benign `database` / `clickhouse:query_log` events where `query_kind`, `host`, `_time` stays below `p95_ms` > 5000, or `p99_ms` > 30000, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'ClickHouse Query Duration P95 and P99 from Query Log'."
+  },
+  "dataSources": "`system.query_log` (query_finish rows) ingested as `clickhouse:query_log` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "ClickHouse `query_log` table + DB Connect batch or `clickhouse-client --query` scripted input to Splunk HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"clickhouse:query_log\"\n| where type==2 OR type==\"QueryFinish\" OR match(_raw,\"QueryFinish\")\n| bin _time span=1h\n| stats perc95(query_duration_ms) as p95_ms perc99(query_duration_ms) as p99_ms count by query_kind, host, _time\n| where p95_ms > 5000 OR p99_ms > 30000",
-  "description": "Percentile latency drift in `query_log` is an early signal of CPU, disk, or merge pressure before mean metrics move. Segmenting by `query_kind` keeps ETL batch noise separate from interactive SELECT SLAs.",
-  "value": "Protects analyst and application SLAs by catching regressions tied to schema or data volume changes early.",
+  "description": "Detects UC-7.1.54 — ClickHouse, Query, Duration, P95, and — using `index=database` sourcetype `clickhouse:query_log`, grouped by `query_kind`, `host`, `_time`. Outputs `count` each `1h`; alert when `p95_ms` > 5000, or `p99_ms` > 30000. Primary focus: Query Log. Purpose-built for 'ClickHouse Query Duration P95 and P99 from Query Log' in Operations workflows.",
+  "value": "Operators running UC-7.1.54 on `clickhouse:query_log` feeds shorten triage for Query Log tied to 'ClickHouse Query Duration P95 and P99 from Query Log', lowering operational risk and delayed incident response.",
   "implementation": "Enable `query_log` in `config.xml` (`query_log` section) with appropriate flush interval. Export finished queries only (`type` = QueryFinish / numeric 2 depending on version). Map `query_duration_ms`, `query_kind`, `user`, `read_rows` at index time. Baseline per workload class; tune thresholds per environment.",
   "visualization": "Line chart (p95_ms, p99_ms by query_kind), Heatmap (hour × query_kind).",
   "cimModels": [
@@ -22,13 +28,33 @@
   "references": [
     {
       "title": "ClickHouse — query_log",
-      "url": "https://clickhouse.com/docs/en/operations/system-tables/query_log"
+      "url": "https://clickhouse.com/docs/en/operations/system-tables/query_log",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Maintenance work (ANALYZE, VACUUM, REINDEX, index builds) and ETL or large report jobs may show up as long-running or blocking — compare with the maintenance and batch schedule.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.1.54)** — Planned work for 'ClickHouse Query Duration P95 and P99 from Query Log' shifts `count` over `span=1h` while `query_kind`, `host`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `clickhouse:query_log`** — Scheduled automation elevates `host` without crossing `p95_ms` > 5000 for UC-7.1.54. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `query_kind`, `host`, `_time`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `clickhouse:query_log`** — First 48h baseline for UC-7.1.54 on `query_kind` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `query_kind`, `exception_reason`, `valid_until`.",
   "equipment": [
     "clickhouse",
     "db_connect"
+  ],
+  "equipmentModels": [
+    "clickhouse_generic",
+    "db_connect_generic"
   ],
   "status": "draft",
   "lastReviewed": "2025-06-01",
@@ -37,5 +63,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We log unexpected schema and object changes so we can tie database drift to a change ticket or an investigation when something does not look intentional."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (ClickHouse `query_log` table + DB Connect batch or `clickhouse-client --query` scripted input to Splunk HEC — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=clickhouse:query_log into database. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, host, p95_ms, p99_ms`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We log unexpected schema and object changes so we can tie database drift to a change ticket or an investigation when something does not look intentional.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

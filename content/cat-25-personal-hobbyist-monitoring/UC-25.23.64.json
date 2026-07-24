@@ -9,26 +9,55 @@
     "Business"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Baby feeds (`baby:feed`), baby sleep (`baby:sleep`), diaper changes (`diaper:change`), chore completions (`chore:completion`), allowance ledger (`allowance:ledger`), family calendar (`family:calendar`), growth measurements (`growth:measurement`), screen time (`screentime:usage`).",
-  "app": "Baby-tracking app exports (Huckleberry/Baby Daybook), chore and allowance boards, shared family calendars, screen-time reports, and growth logs via Splunk HEC scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'FamCal Event Duration Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_famcal_event_duration_leaderboard` (UC-25.23.64), SOC dashboard panel \"Personal — FamCal Event Duration Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.23.64 positive (FamCal, Event, Duration, Leaderboard): ingest synthetic events into `index=personal` sourcetype='famcal:event' where `total_value`, `avg_value` grouped by `calendar_name` satisfies detection threshold for 'FamCal Event Duration Leaderboard'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.23.64 negative (Duration Leaderboard): ingest benign `personal` / `famcal:event` events where `calendar_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 0 confirms zero alert rows for 'FamCal Event Duration Leaderboard'."
+  },
+  "dataSources": "Baby feeds (`baby:feed`), baby sleep (`baby:sleep`), diaper changes (`diaper:change`), chore completions (`chore:completion`), allowance ledger (`allowance:ledger`), family calendar (`family:calendar`), growth measurements (`growth:measurement`), screen time (`screentime:usage`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Baby-tracking app exports (Huckleberry/Baby Daybook), chore and allowance boards, shared family calendars, screen-time reports, and growth logs via Splunk HEC scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=famcal:event duration_min=*\n| stats sum(duration_min) as total_value, avg(duration_min) as avg_value by calendar_name\n| sort - total_value",
-  "description": "Ranks calendar values by total and average duration across FamCal event events.",
-  "value": "Leaderboards help you see which people, devices, places, or projects dominate the signal.",
+  "description": "Surfaces 'FamCal Event Duration Leaderboard' (UC-25.23.64) using `index=personal` sourcetype `famcal:event` by aggregating `total_value`, `avg_value` grouped by `calendar_name` over `the scheduled window` and alerting when configured threshold. Keywords: FamCal, Event, Duration, Leaderboard. Focuses on Duration Leaderboard behaviour so personal teams can triage UC-25.23.64 without ad-hoc log review.",
+  "value": "UC-25.23.64 accelerates insight into Duration Leaderboard ('FamCal Event Duration Leaderboard') by tracking `total_value`, `avg_value` on `famcal:event` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Ingest numeric `duration_min` values for each FamCal event event and review total and average duration by calendar.",
   "visualization": "Table of entities ranked by total duration.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk ES Content Management",
+      "url": "https://docs.splunk.com/Documentation/ES/latest/Admin/ContentManagement",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.23.64)** — Connector for 'FamCal Event Duration Leaderboard' stops polling `famcal:event`; stale `total_value`, `avg_value` on `calendar_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `total_value`, `avg_value` over `1w` is expected for UC-25.23.64, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `famcal:event`. Dedup with `stats latest(*) by calendar_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'FamCal Event Duration Leaderboard'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],
-  "grandmaExplanation": "It quickly which calendar shows the biggest duration numbers in your FamCal event data."
+  "equipmentModels": [
+    "asterisk_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Family, Baby & Household Chaos — typical feeds: Baby feeds (`baby:feed`), baby sleep (`baby:sleep`), diaper changes (`diaper:change`), chore completions (`chore:completion`), allowance ledger (`allowance:ledger`), family calendar (`family:calendar`.\n• **Sourcetypes in this search**: `famcal:event`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=famcal:event`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Baby-tracking app exports (Huckleberry/Baby Daybook), chore and allowance boards, shared family calendars, screen-time reports, and growth logs via Splunk HEC scripted inputs..\n\n**Author notes:** Ingest numeric `duration_min` values for each FamCal event event and review total and average duration by calendar.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"famcal:event\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=famcal:event earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **FamCal Event Duration Leaderboard** over `personal` data (primarily `sourcetype=famcal:event`) across the full search range. The `sum, avg` aggregation groups by `calendar_name`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `calendar_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=famcal:event duration_min=*\n| stats sum(duration_min) as total_value, avg(duration_min) as avg_value by calendar_name\n| sort - total_value\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=famcal:event earliest=-7d\n| head 50\n| table calendar_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=famcal:event earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.23.64: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Entities Ranked By Total Duration (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `famcal:event` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=famcal:event | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It quickly which calendar shows the biggest duration numbers in your FamCal event data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

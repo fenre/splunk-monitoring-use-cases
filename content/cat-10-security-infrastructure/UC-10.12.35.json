@@ -9,11 +9,17 @@
   ],
   "splunkPillar": "Security",
   "industry": "Retail and E-Commerce",
-  "dataSources": "`sourcetype=\"price:audit\"`",
-  "app": "ERP, e-commerce pricing engine",
+  "exclusions": "Covers the detection logic documented for 'Promotional Pricing Compliance' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_promotional_pricing_compliance` (UC-10.12.35), SOC dashboard panel \"Security Infra — Promotional Pricing Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.12.35 positive (Promotional, Pricing, Compliance): ingest synthetic events into `index=retail` sourcetype='price:audit' where `values` grouped by `sku`, `store_id`, `_time` satisfies detection threshold for 'Promotional Pricing Compliance'. Validate lookup `promo_calendar`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.12.35 negative (Pricing Compliance): ingest benign `retail` / `price:audit` events where `sku`, `store_id`, `_time` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv`. Variant 3 confirms zero alert rows for 'Promotional Pricing Compliance'."
+  },
+  "dataSources": "`sourcetype=\"price:audit\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "ERP, e-commerce pricing engine — Universal Forwarder (Splunkbase 617)",
   "spl": "index=retail sourcetype=\"price:audit\"\n| lookup promo_calendar sku OUTPUT promo_start promo_end\n| where _time < promo_start OR _time > promo_end\n| stats values(shelf_price) as prices by sku, store_id, _time\n| sort -_time",
-  "description": "Ensures discounts apply only during approved windows and price books match marketing filings.",
-  "value": "Ensures discounts apply only during approved windows and price books match marketing filings.",
+  "description": "Detects when Pricing Compliance criteria fire for 'Promotional Pricing Compliance' (UC-10.12.35) in `index=retail` sourcetype `price:audit`. Pipeline aggregates `values` by `sku`, `store_id`, `_time` over `the scheduled window`. Alert logic enforces configured threshold. SPL signature: lookup `promo_calendar`. Eliminates manual hunting for UC-10.12.35 conditions.",
+  "value": "UC-10.12.35 helps teams contain Promotional, Pricing, Compliance scenarios and reduce missed threat campaigns, control regressions, and SOC SLA breaches before incidents compound.",
   "implementation": "SOX-relevant for material promotions; feed exceptions to merchandising before financial close.",
   "visualization": "Table (out-of-window pricing), Calendar heatmap (promos), Bar chart (variance $).",
   "cimModels": [
@@ -23,10 +29,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Pricing audit variances from approved overrides, tax jurisdiction updates, and coupon stack rules; use merchandising policy before compliance panic.",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: ERP, e-commerce pricing engine.\n• Ensure the following data sources are available: `sourcetype=\"price:audit\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nSOX-relevant for material promotions; feed exceptions to merchandising before financial close.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=retail sourcetype=\"price:audit\"\n| lookup promo_calendar sku OUTPUT promo_start promo_end\n| where _time < promo_start OR _time > promo_end\n| stats values(shelf_price) as prices by sku, store_id, _time\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Promotional Pricing Compliance** — Ensures discounts apply only during approved windows and price books match marketing filings.\n\nDocumented **Data sources**: `sourcetype=\"price:audit\"`. **App/TA** (typical add-on context): ERP, e-commerce pricing engine. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: retail; **sourcetype**: price:audit. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=retail, sourcetype=\"price:audit\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where _time < promo_start OR _time > promo_end` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by sku, store_id, _time** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nRun the search on recent production data, spot-check a handful of results against the source system or operational runbooks (cash operations, EHR, payment gateway, etc.), and adjust thresholds to match your seasonal patterns and test windows so teams are not flooded with noise.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (out-of-window pricing), Calendar heatmap (promos), Bar chart (variance $).",
-  "grandmaExplanation": "In Retail and E-Commerce, we pay close attention to \"Promotional Pricing Compliance\" in our day-to-day work so that fraud, waste, and compliance issues do not slip by quietly. We help teams focus on the few situations that need a person, not every routine blip in the data."
+  "knownFalsePositives": "1. **Maintenance window on `retail` (UC-10.12.35)** — Planned work for 'Promotional Pricing Compliance' shifts `values` over `span=1h` while `sku`, `store_id`, `_time` remains in-scope. Applies lookup `promo_calendar`. Cross-check CMDB CHG.\n\n2. **Batch `values` on `price:audit`** — Scheduled automation elevates `store_id` without crossing configured threshold for UC-10.12.35. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sku`, `store_id`, `_time`** — Health checks in `retail` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `price:audit`** — First 48h baseline for UC-10.12.35 on `sku` is unstable; join `promo_calendar` prior to threshold.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `sku`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: ERP, e-commerce pricing engine.\n• Ensure the following data sources are available: `sourcetype=\"price:audit\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nSOX-relevant for material promotions; feed exceptions to merchandising before financial close.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=retail sourcetype=\"price:audit\"\n| lookup promo_calendar sku OUTPUT promo_start promo_end\n| where _time < promo_start OR _time > promo_end\n| stats values(shelf_price) as prices by sku, store_id, _time\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Promotional Pricing Compliance** — Ensures discounts apply only during approved windows and price books match marketing filings.\n\nDocumented **Data sources**: `sourcetype=\"price:audit\"`. **App/TA** (typical add-on context): ERP, e-commerce pricing engine. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: retail; **sourcetype**: price:audit. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=retail, sourcetype=\"price:audit\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where _time < promo_start OR _time > promo_end` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by sku, store_id, _time** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nRun the search on recent production data, spot-check a handful of results against the source system or operational runbooks (cash operations, EHR, payment gateway, etc.), and adjust thresholds to match your seasonal patterns and test windows so teams are not flooded with noise.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (out-of-window pricing), Calendar heatmap (promos), Bar chart (variance $).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (ERP, e-commerce pricing engine — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=price:audit into retail. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, promo_start promo_end, sku, store_id`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "In Retail and E-Commerce, we pay close attention to \"Promotional Pricing Compliance\" in our day-to-day work so that fraud, waste, and compliance issues do not slip by quietly. We help teams focus on the few situations that need a person, not every routine blip in the data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

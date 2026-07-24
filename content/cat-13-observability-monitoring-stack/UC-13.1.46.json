@@ -9,11 +9,17 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=_internal sourcetype=splunkd` (metrics.log), `index=_internal sourcetype=splunkd` (component=Metrics)",
-  "app": "Splunk Machine Learning Toolkit (MLTK)",
+  "exclusions": "Covers the detection logic documented for 'Log Volume and Error Rate Anomaly per Sourcetype (MLTK)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_log_volume_and_error_rate_anomaly_per_sourcetype` (UC-13.1.46), SOC dashboard panel \"Operations — Log Volume and Error Rate Anomaly per Sourcetype (MLTK)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-13.1.46 positive (Log, Volume, and, Error, Rate): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `count` grouped by `_time`, `sourcetype` satisfies `isOutlier` > 0 for 'Log Volume and Error Rate Anomaly per Sourcetype (MLTK)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-13.1.46 negative (Sourcetype (MLTK)): ingest benign `target_index` / `target_sourcetype` events where `_time`, `sourcetype` stays below `isOutlier` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Log Volume and Error Rate Anomaly per Sourcetype (MLTK)'."
+  },
+  "dataSources": "`index=_internal sourcetype=splunkd` (metrics.log), `index=_internal sourcetype=splunkd` (component=Metrics) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Machine Learning Toolkit (MLTK) — Universal Forwarder (Splunkbase 617)",
   "spl": "| tstats count WHERE index=* by _time span=15m, sourcetype\n| xyseries _time sourcetype count\n| fillnull value=0\n| untable _time sourcetype count\n| fit DensityFunction count by sourcetype into sourcetype_volume_model\n| rename \"IsOutlier(count)\" as isOutlier\n| where isOutlier > 0 OR count=0\n| eval anomaly_type=if(count=0, \"silent_drop\", \"volume_anomaly\")\n| table _time, sourcetype, count, anomaly_type\n| sort anomaly_type, -_time",
-  "description": "Silent data pipeline breaks — a forwarder stops sending, a sourcetype drops to zero, or error rates spike — are invisible to threshold alerts that only fire on presence. By modeling expected log volume and error rate per sourcetype with MLTK, this detection catches ingestion failures within minutes instead of hours, preventing blind spots in security and operational monitoring.",
-  "value": "Silent data pipeline breaks — a forwarder stops sending, a sourcetype drops to zero, or error rates spike — are invisible to threshold alerts that only fire on presence. By modeling expected log volume and error rate per sourcetype with MLTK, this detection catches ingestion failures within minutes instead of hours, preventing blind spots in security and operational monitoring.",
+  "description": "Detects when Sourcetype (MLTK) criteria fire for 'Log Volume and Error Rate Anomaly per Sourcetype (MLTK)' (UC-13.1.46) in `index=target_index` sourcetype `configured sourcetype`. Pipeline aggregates `count` by `_time`, `sourcetype` over `15m`. Alert logic enforces `isOutlier` > 0. Title terms: Log, Volume, and, Error, Rate. Eliminates manual hunting for UC-13.1.46 conditions.",
+  "value": "UC-13.1.46 helps teams contain Log, Volume, and, Error, Rate scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Schedule every 15 minutes against a 30-day trained DensityFunction model per sourcetype. Zero-count windows flag silent pipeline drops immediately. Volume spikes or dips that deviate from the learned distribution trigger volume anomaly alerts. Enrich with forwarder host metadata to pinpoint the broken pipeline segment. Integrate with PagerDuty or Splunk On-Call for infrastructure on-call routing. Retrain the model weekly via a separate scheduled search. Exclude maintenance windows using a KV store lookup.",
   "visualization": "Line chart (volume per sourcetype with anomaly markers), Table (anomalous sourcetypes), Single value (active silent drops).",
   "cimModels": [
@@ -23,13 +29,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Error spikes during deployments, downstream issues, or after schema or contract changes. We line up releases and dependencies with the time window first.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index` (UC-13.1.46)** — Planned work for 'Log Volume and Error Rate Anomaly per Sourcetype (MLTK)' shifts `count` over `span=15m` while `_time`, `sourcetype` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `sourcetype` without crossing `isOutlier` > 0 for UC-13.1.46. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `sourcetype`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-13.1.46 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "pagerduty"
   ],
+  "equipmentModels": [
+    "pagerduty_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Machine Learning Toolkit (MLTK).\n• Ensure the following data sources are available: `index=_internal sourcetype=splunkd` (metrics.log), `index=_internal sourcetype=splunkd` (component=Metrics).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nSchedule every 15 minutes against a 30-day trained DensityFunction model per sourcetype. Zero-count windows flag silent pipeline drops immediately. Volume spikes or dips that deviate from the learned distribution trigger volume anomaly alerts. Enrich with forwarder host metadata to pinpoint the broken pipeline segment. Integrate with PagerDuty or Splunk On-Call for infrastructure on-call routing. Retrain the model weekly via a separate scheduled search. Exclude maintenance windows using a KV sto…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n| tstats count WHERE index=* by _time span=15m, sourcetype\n| xyseries _time sourcetype count\n| fillnull value=0\n| untable _time sourcetype count\n| fit DensityFunction count by sourcetype into sourcetype_volume_model\n| rename \"IsOutlier(count)\" as isOutlier\n| where isOutlier > 0 OR count=0\n| eval anomaly_type=if(count=0, \"silent_drop\", \"volume_anomaly\")\n| table _time, sourcetype, count, anomaly_type\n| sort anomaly_type, -_time\n```\n\nUnderstanding this SPL\n\n**Log Volume and Error Rate Anomaly per Sourcetype (MLTK)** — Silent data pipeline breaks — a forwarder stops sending, a sourcetype drops to zero, or error rates spike — are invisible to threshold alerts that only fire on presence. By modeling expected log volume and error rate per sourcetype with MLTK, this detection catches ingestion failures within minutes instead of hours, preventing blind spots in security and operational monitoring.\n\nDocumented **Data sources**: `index=_internal sourcetype=splunkd` (metrics.log), `index=_internal sourcetype=splunkd` (component=Metrics). **App/TA** (typical add-on context): Splunk Machine Learning Toolkit (MLTK). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: *.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against precomputed summaries; ensure the referenced data model is accelerated.\n• Pivots fields for charting with `xyseries`.\n• Fills null values with `fillnull`.\n• Pipeline stage (see **Log Volume and Error Rate Anomaly per Sourcetype (MLTK)**): untable _time sourcetype count\n• Pipeline stage (see **Log Volume and Error Rate Anomaly per Sourcetype (MLTK)**): fit DensityFunction count by sourcetype into sourcetype_volume_model\n• Renames fields with `rename` for clarity or joins.\n• Filters the current rows with `where isOutlier > 0 OR count=0` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **anomaly_type** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Log Volume and Error Rate Anomaly per Sourcetype (MLTK)**): table _time, sourcetype, count, anomaly_type\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\n\nStep 3 — Validate\nRun the search over calm and busy windows. Compare with the Splunk monitoring console and relevant health and introspection views, and spot-check key fields in sample events.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (volume per sourcetype with anomaly markers), Table (anomalous sourcetypes), Single value (active silent drops).",
-  "grandmaExplanation": "We watch platform health and capacity for search, indexing, and data delivery so the system we use for answers does not go dark or slow first."
+  "grandmaExplanation": "We watch platform health and capacity for search, indexing, and data delivery so the system we use for answers does not go dark or slow first.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

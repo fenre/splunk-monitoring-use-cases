@@ -9,11 +9,17 @@
     "Security"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=mesh` `sourcetype=envoy:stats` (`http.*.downstream_rq_429` counters)",
-  "app": "Envoy admin `/stats`, OpenTelemetry Collector, or Prometheus scraper to Splunk",
+  "exclusions": "Covers the detection logic documented for 'Envoy Downstream HTTP 429 Local Rate Limit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_envoy_downstream_http_429_local_rate_limit` (UC-8.1.28), SOC dashboard panel \"Operations — Envoy Downstream HTTP 429 Local Rate Limit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.1.28 positive (Envoy, Downstream, HTTP, 429, Local): ingest synthetic events into `index=mesh` sourcetype='envoy:stats' where `count` grouped by `listener` satisfies `rq_429` > 0 for 'Envoy Downstream HTTP 429 Local Rate Limit'. Validate filter `\"downstream_rq_429\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.28 negative (Rate Limit): ingest benign `mesh` / `envoy:stats` events where `listener` stays below `rq_429` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Envoy Downstream HTTP 429 Local Rate Limit'."
+  },
+  "dataSources": "`index=mesh` `sourcetype=envoy:stats` (`http.*.downstream_rq_429` counters) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Envoy admin `/stats`, OpenTelemetry Collector, or Prometheus scraper to Splunk — Universal Forwarder (Splunkbase 617)",
   "spl": "index=mesh sourcetype=\"envoy:stats\"\n| search \"downstream_rq_429\"\n| rex \"http\\\\.(?<listener>[^.]+)\\\\.downstream_rq_429=(?<v>\\d+)\"\n| stats latest(v) as rq_429 by listener\n| where rq_429 > 0",
-  "description": "429 responses from local rate limits protect upstreams but can signal abuse, mis-tuned quotas, or partner traffic spikes.",
-  "value": "Balances protection with customer impact when throttling engages.",
+  "description": "Identifies Rate Limit activity in UC-8.1.28 ('Envoy Downstream HTTP 429 Local Rate Limit') from `index=mesh` sourcetype `envoy:stats`. Rolls up `count` by `listener` across `the scheduled window` and pages when `rq_429` > 0. Uses filter `\"downstream_rq_429\"`. Operations operators treat UC-8.1.28 as the canonical signal.",
+  "value": "Operators running UC-8.1.28 on `envoy:stats` feeds shorten triage for Rate Limit tied to 'Envoy Downstream HTTP 429 Local Rate Limit', lowering operational risk and delayed incident response.",
   "implementation": "Scrape Prometheus text or stats lines; ensure listener dimensions are parsed. Correlate with `envoy.access` logs if enabled.",
   "visualization": "Single value (429 rate), line chart per listener, table (cluster × route).",
   "cimModels": [
@@ -23,14 +29,35 @@
   "references": [
     {
       "title": "Envoy — Statistics overview",
-      "url": "https://www.envoyproxy.io/docs/envoy/latest/"
+      "url": "https://www.envoyproxy.io/docs/envoy/latest/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Spikes or gaps can follow approved maintenance, load tests, or short collection outages. We add a second signal and a change window before escalating.",
+  "knownFalsePositives": "1. **Maintenance window on `mesh` (UC-8.1.28)** — Planned work for 'Envoy Downstream HTTP 429 Local Rate Limit' shifts `count` over `span=1h` while `listener` remains in-scope. Applies filter `\"downstream_rq_429\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `envoy:stats`** — Scheduled automation elevates `src` without crossing `rq_429` > 0 for UC-8.1.28. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `listener`** — Health checks in `mesh` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `envoy:stats`** — First 48h baseline for UC-8.1.28 on `listener` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `listener`, `exception_reason`, `valid_until`.",
   "equipment": [
     "envoy",
     "opentelemetry",
     "prometheus"
+  ],
+  "equipmentModels": [
+    "envoy_generic",
+    "opentelemetry_generic",
+    "prometheus_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -39,6 +66,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Envoy admin `/stats`, OpenTelemetry Collector, or Prometheus scraper to Splunk.\n• Ensure the following data sources are available: `index=mesh` `sourcetype=envoy:stats` (`http.*.downstream_rq_429` counters).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMetric naming varies by Envoy version; broaden search to `*rq_429*` if your scrape format differs.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=mesh sourcetype=\"envoy:stats\"\n| search \"downstream_rq_429\"\n| rex \"http\\\\.(?<listener>[^.]+)\\\\.downstream_rq_429=(?<v>\\d+)\"\n| stats latest(v) as rq_429 by listener\n| where rq_429 > 0\n```\n\nUnderstanding this SPL\n\n**Envoy Downstream HTTP 429 Local Rate Limit** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=mesh` `sourcetype=envoy:stats` (`http.*.downstream_rq_429` counters). **App/TA**: Envoy admin `/stats`, OpenTelemetry Collector, or Prometheus scraper to Splunk. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nCompare with web server access logs on disk (Apache, NGINX, or W3C) for the same time range, or tail the same sourcetype in Search, to confirm status codes, URIs, and counts.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Single value (429 rate), line chart per listener, table (cluster × route)..",
-  "grandmaExplanation": "We watch for signs that balances protection with customer impact when throttling engages."
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Envoy admin `/stats`, OpenTelemetry Collector, or Prometheus scraper to Splunk.\n• Ensure the following data sources are available: `index=mesh` `sourcetype=envoy:stats` (`http.*.downstream_rq_429` counters).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMetric naming varies by Envoy version; broaden search to `*rq_429*` if your scrape format differs.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=mesh sourcetype=\"envoy:stats\"\n| search \"downstream_rq_429\"\n| rex \"http\\\\.(?<listener>[^.]+)\\\\.downstream_rq_429=(?<v>\\d+)\"\n| stats latest(v) as rq_429 by listener\n| where rq_429 > 0\n```\n\nUnderstanding this SPL\n\n**Envoy Downstream HTTP 429 Local Rate Limit** — See the description and value fields in this use case JSON.\n\nDocumented **Data sources**: `index=mesh` `sourcetype=envoy:stats` (`http.*.downstream_rq_429` counters). **App/TA**: Envoy admin `/stats`, OpenTelemetry Collector, or Prometheus scraper to Splunk. Rename `index=` / `sourcetype=` to match your deployment.\n\n**Pipeline walkthrough**\n\n• Scope to the documented index and sourcetype, then apply transforms, thresholds, and `timechart`/`stats` as in the SPL above.\n\nStep 3 — Validate\nCompare with web server access logs on disk (Apache, NGINX, or W3C) for the same time range, or tail the same sourcetype in Search, to confirm status codes, URIs, and counts.\n\n\nStep 4 — Operationalize\nAdd to a dashboard or alert; document ownership. Suggested visuals: Single value (429 rate), line chart per listener, table (cluster × route)..\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Envoy admin `/stats`, OpenTelemetry Collector, or Prometheus scraper to Splunk — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=envoy:stats into mesh. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`listener, rq_429`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch for signs that balances protection with customer impact when throttling engages.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

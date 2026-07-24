@@ -1,0 +1,139 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.57.22",
+  "title": "SG CSA Code of Practice — identity, access, MFA, and privileged-account evidence",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Pipeline",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes ephemeral identities that are not provisioned to OT systems (e.g. lab-only test accounts). Excludes documented break-glass accounts (which are tracked separately with stricter sealed-credential controls). Excludes service-account use by the SCADA front-end on internal IT-side only (not crossing into OT).",
+  "evidence": "Saved search `UC-22.57.22` archived every hour to `audit_evidence` with `csa_clause=\"SG-CSA-COC-access-control\"`. Every row pins (account_name, account_type, source_system, has_mfa, last_password_rotation, last_login, last_access_review, access_review_status, privilege_level, owning_group, days_since_review).",
+  "compliance": [
+    {
+      "regulation": "sg-cyber-act",
+      "version": "2018-amended-2024",
+      "clause": "SG-CSA-COC-access-control",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "TSA-SD Pipeline CIP control family 2 requires (a) strong identification + authentication (with MFA preferred for privileged), (b) least privilege, (c) separation of duties, (d) quarterly access-review of privileged accounts, and (e) inventory of service accounts with documented purpose and ownership. This UC operationalises all five.",
+      "controlObjective": "Proves privileged accounts have MFA, are reviewed quarterly, and have documented ownership.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `TSA-SD Pipeline Access Health` dashboard, the quarterly access-review attestation captured in SailPoint / Saviynt.",
+      "obligationRef": "sg-cyber-act@2018-amended-2024#SG-CSA-COC-access-control",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Mark a privileged account as `has_mfa=false`. Within 1 hour UC-22.57.22 MUST flag `mfa_status=\"missing\"` severity=critical and notify the Identity & Access Lead.",
+    "negativeScenario": "Set `has_mfa=true`, `last_access_review` within the last 90 days, `last_password_rotation` within the last 180 days, and `account_owner` populated. UC-22.57.22 MUST record `access_status=current` and MUST NOT alert."
+  },
+  "dataSources": "Microsoft Azure AD / Entra ID privileged-account events (`azuread:audit`, `azuread:signin`). CyberArk PAM session and audit records (`cyberark:session`, `cyberark:audit`). SailPoint IdentityIQ / Saviynt access-review and certification events (`sailpoint:cert`, `saviynt:cert`). Active Directory privileged-group membership snapshots (`mscs:ad:groupmember`). SCADA / OT engineering-workstation logon events (`WinEventLog:Security`, `linux:audit`). Pipeline OT-account register (KV Store `csa_sg_csa_coc_access_control_lookup`) with owning_group, account_purpose, MFA-required-flag, review-cycle-days.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for CyberArk (Splunkbase 2891), Splunk Add-on for Microsoft Azure (Splunkbase 3757), Splunk Add-on for Microsoft Windows (Splunkbase 742), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "| inputlookup csa_sg_csa_coc_access_control_lookup\n| eval now_ts = now()\n| eval days_since_review = round((now_ts - last_access_review) / 86400, 0)\n| eval days_since_rotation = round((now_ts - last_password_rotation) / 86400, 0)\n| eval mfa_status = case(\n    privilege_level=\"privileged\" AND has_mfa != true, \"missing\",\n    privilege_level=\"privileged\" AND has_mfa = true, \"present\",\n    1=1, \"non_privileged\")\n| eval review_status = case(\n    privilege_level=\"privileged\" AND days_since_review > 90, \"overdue\",\n    privilege_level=\"privileged\" AND days_since_review > 75, \"due_soon\",\n    1=1, \"current\")\n| eval ownership_status = case(\n    account_type=\"service\" AND (isnull(account_owner) OR account_owner=\"\"), \"unowned_service_account\",\n    1=1, \"owned\")\n| eval access_status = case(\n    mfa_status=\"missing\", \"action_required_mfa\",\n    review_status=\"overdue\", \"action_required_review\",\n    ownership_status=\"unowned_service_account\", \"action_required_ownership\",\n    1=1, \"current\")\n| where access_status != \"current\"\n| table account_name account_type source_system privilege_level owning_group account_owner has_mfa last_password_rotation last_access_review days_since_review days_since_rotation mfa_status review_status ownership_status access_status",
+  "description": "SG CSA Code of Practice — Splunk continuously validates SG-CSA-COC-access-control using the saved search in this UC, routes gaps to Enterprise Security notables, and archives proof rows to `audit_evidence`.",
+  "value": "Inspectors ask for proof that «SG CSA Code of Practice» is operational today, not at last audit. Missing live evidence for SG-CSA-COC-access-control is a direct regulatory deficiency with enforcement exposure.",
+  "implementation": "(1) Populate `csa_sg_csa_coc_access_control_lookup` from Azure AD + CyberArk + AD privileged-group sync. (2) Schedule UC-22.57.22 hourly; route `action_required_mfa` and `action_required_review` to severity=critical. (3) Build the `TSA-SD Pipeline Access Health` dashboard.",
+  "visualization": "(Panel 1) MFA coverage on privileged accounts. (Panel 2) Access-review currency. (Panel 3) Service-account ownership coverage. (Panel 4) Unowned / orphan accounts. (Panel 5) 90-day trend of action_required counts.",
+  "cimModels": [
+    "Authentication",
+    "Change"
+  ],
+  "references": [
+    {
+      "title": "TSA SD Pipeline-2021-02D §3.2 (Access Control)",
+      "url": "https://www.tsa.gov/sites/default/files/sd-pipeline-2021-02d.pdf"
+    },
+    {
+      "title": "NIST 800-82 Rev 3 — Identification + Authentication",
+      "url": "https://csrc.nist.gov/pubs/sp/800/82/r3/final"
+    },
+    {
+      "title": "Splunk Add-on for CyberArk",
+      "url": "https://splunkbase.splunk.com/app/2891"
+    },
+    {
+      "title": "Cyber Security Agency of Singapore — Legislation",
+      "url": "https://www.csa.gov.sg/legislation"
+    }
+  ],
+  "knownFalsePositives": "1. **Planned maintenance window** — documented change windows in lookup `csa_22_57_22_exceptions` suppress benign activity during approved work.\n\n2. **Pen-test / red-team activity** — engagements with agreed rules-of-engagement marker excluded via lookup `csa_22_57_22_exceptions`.\n\n3. **Vendor remote-access sessions** — authorised vendor PAM sessions cross-reference lookup `csa_22_57_22_exceptions` before alerting.\n\n4. **Regulatory transition / grace period** — time-bound exception register entry in lookup `csa_22_57_22_exceptions` with documented approver and expiry.\n\n**Suppression mechanism**: filter results with lookup `csa_22_57_22_exceptions` (time-bound exception register); rows must carry `approved_by` and `valid_until` epoch fields.",
+  "mitreAttack": [
+    "T1078",
+    "T1078.002",
+    "T1098"
+  ],
+  "requiredFields": [
+    "account_name",
+    "privilege_level",
+    "has_mfa",
+    "last_access_review",
+    "access_status"
+  ],
+  "equipment": [
+    "azure",
+    "cyberark",
+    "m365",
+    "microsoft-azure",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Active Directory 2019/2022",
+    "CyberArk PAM 13.x / 14.x",
+    "Microsoft Azure AD / Entra ID",
+    "SailPoint IdentityIQ 8.x or Saviynt EIC 24.x",
+    "Splunk Enterprise Security 7.x"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-07-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Compliance SME Panel (finalized; pending verification)",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Indexed Azure AD audit + sign-in events.\n- Indexed CyberArk PAM session + audit events.\n- Indexed AD privileged-group snapshots (scheduled).\n- KV Store `csa_sg_csa_coc_access_control_lookup`.\n- ES notable framework.\n\n## Step 1 — Define the account register\n\n```ini\n[csa_sg_csa_coc_access_control_lookup]\nenforceTypes = true\nfield.account_name = string\nfield.account_type = string\nfield.source_system = string\nfield.privilege_level = string\nfield.owning_group = string\nfield.account_owner = string\nfield.has_mfa = bool\nfield.last_password_rotation = number\nfield.last_login = number\nfield.last_access_review = number\nfield.account_purpose = string\nfield.review_cycle_days = number\n```\n\n## Step 2 — Feed the register\n\nA scheduled Splunk search (every 6 hours) pulls Azure AD + CyberArk + AD evidence and rewrites the `csa_sg_csa_coc_access_control_lookup` rows with the latest authoritative values.\n\n## Step 3 — Schedule and route\n\n```ini\n[UC-22.57.22: TSA-SD Pipeline CIP Access Control + MFA]\ncron_schedule = 17 * * * *\ndispatch.earliest_time = -1h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.22,reg=TSA-Surface,clause=SG-CSA-COC-access-control\nalert.severity = 5\nalert.suppress = 1\nalert.suppress.fields = account_name\nalert.suppress.period = 12h\n```\n\n## Step 4 — Operationalize\n\n**Dashboard `TSA-SD Pipeline Access Health`**: MFA coverage, access-review currency, service-account ownership, orphan accounts, 90-day trend.\n\n**Runbook for `action_required_mfa`** (owner: Identity & Access Lead, severity P1):\n1. Within 1 business hour: identify the privileged account and contact the owner.\n2. Within 1 business day: enable MFA or move the account to a managed-identity / compensating-control pathway.\n3. Within 7 days: certify resolution to the CC.\n\n**Runbook for `action_required_review`** (owner: Identity & Access Lead, severity P2):\n1. Within 7 days: run a forced access-review certification via SailPoint / Saviynt.\n2. Within 30 days: certify or revoke based on outcome.\n\n## Step 5 — Troubleshooting\n\n- **AD snapshot staleness** — schedule the AD-group snapshot every 6 hours; alert if more than 24 hours old.\n- **CyberArk feed gaps** — check the Splunk Add-on for CyberArk health; misconfigured input is a common cause.\n- **Service-account ambiguity** — `account_type=service` requires documented purpose; orphans must be remediated within 30 days.\n\n**TSA-specific failure modes**:\n- **CSAS architecture lock-in**: any change to the privileged-account model requires CSAS update before deployment.\n- **PHMSA-shared accounts**: some pipeline accounts are dual-purpose (cyber + safety operations); the privilege model must be coherent across both regimes.\n- **Pre-Final-Rule MFA interpretation**: MFA is preferred but not absolutely required under the current SDs; the Final Rule may tighten. Operate to the higher standard.\n\n## Step 5 — Troubleshooting\n\n**Product-specific failure modes**:\n\n- **ServiceNow SIR custom-field drift** — if `csa_awareness_time` or `tsa_awareness_time` is NULL, verify the Security Incident Response workflow still writes the field on state transition to `In Progress`; compare against the vendor UI on the open ticket.\n- **KV Store sync lag** — if the lookup row updates but the saved search still surfaces stale status, confirm the `outputlookup` command completed (`| rest /services/data/transforms/lookup-table-files` shows matching row count).\n- **HEC token / modular-input silence** — run `index=_internal sourcetype=splunkd component=AggregatorMiningProcessor` for the source; no events for >2× the expected poll interval indicates an API or forwarder failure.\n- **Summary-index routing gaps** — validate `action.summary_index._name = audit_evidence` and RBAC role `compliance-analyst` retains write on the destination index.",
+  "grandmaExplanation": "Every keyholder who can change pipeline computers must use two-factor login, be reviewed every 90 days, and have a clearly-named owner. We watch the keyring so no key gets forgotten.",
+  "prerequisiteUseCases": [
+    "UC-22.57.1"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 2891,
+      "name": "Splunk Add-on for CyberArk",
+      "url": "https://splunkbase.splunk.com/app/2891",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 3757,
+      "name": "Splunk Add-on for Microsoft Azure",
+      "url": "https://splunkbase.splunk.com/app/3757",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}

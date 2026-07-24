@@ -8,6 +8,8 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'PCIe Link Width and Speed Degradation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_pcie_link_width_and_speed_degradation` (UC-1.4.8), SOC dashboard panel \"Linux — PCIe Link Width and Speed Degradation\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "compliance": [
     {
       "regulation": "pci-dss",
@@ -23,11 +25,15 @@
       "provenance": "maintainer"
     }
   ],
-  "dataSources": "`lspci -vv`, `/sys/bus/pci/devices/*/current_link_width_speed`",
-  "app": "Custom scripted input (`lspci -vv` and sysfs on Linux; equivalent vendor PCI inventory on other OSes if used)",
+  "controlTest": {
+    "positiveScenario": "UC-1.4.8 positive (PCIe, Link, Width, and, Speed): ingest synthetic events into `index=hardware` sourcetype='pcie_link' where `count` grouped by `host`, `slot` satisfies detection threshold for 'PCIe Link Width and Speed Degradation'. Validate lookup `pcie_expected`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.4.8 negative (Speed Degradation): ingest benign `hardware` / `pcie_link` events where `host`, `slot` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 14 confirms zero alert rows for 'PCIe Link Width and Speed Degradation'."
+  },
+  "dataSources": "`lspci -vv`, `/sys/bus/pci/devices/*/current_link_width_speed` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input (`lspci -vv` and sysfs on Linux; equivalent vendor PCI inventory on other OSes if used) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=hardware sourcetype=pcie_link host=*\n| stats latest(link_width) as width, latest(link_speed) as speed by host, slot\n| lookup pcie_expected host slot OUTPUT expected_width expected_speed\n| where width < expected_width OR speed < expected_speed\n| table host slot width speed expected_width expected_speed",
-  "description": "PCIe links that downgrade (e.g. x16→x8) indicate slot or cable issues. Affects GPU, NVMe, and HBA performance and can precede full failure.",
-  "value": "A slot that trained narrower or slower than designed hurts throughput for GPUs, NVMe, and HBAs, and is often a sign of a bad connection long before a device disappears entirely.",
+  "description": "Alerts on UC-1.4.8 — PCIe, Link, Width, and, Speed — using `index=hardware` sourcetype `pcie_link`, grouped by `host`, `slot`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes lookup `pcie_expected`. Purpose-built for 'PCIe Link Width and Speed Degradation' in Linux workflows.",
+  "value": "Alerting on PCIe, Link, Width, and, Speed through UC-1.4.8 reduces capacity incidents, patch regressions, and service outages by surfacing `activity` early.",
   "implementation": "Parse `lspci -vv` for \"LnkCap\" and \"LnkSta\" or read sysfs. Run daily. Maintain lookup of expected width/speed per host and slot. Alert on downgrade.",
   "visualization": "Table (host, slot, current vs. expected), Bar chart of link widths.",
   "cimModels": [],
@@ -35,13 +41,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "PCI DSS Document Library",
+      "url": "https://www.pcisecuritystandards.org/document_library/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Some GPUs and NICs downshift link width or speed at idle to save power; compare idle vs. under load before treating a downgrade as hardware failure. Cable reseats and BIOS updates can temporarily change `LnkSta` text—correlate with change records.",
+  "knownFalsePositives": "1. **Patch Tuesday on `hardware`** — Package managers spike `host` metrics for 'PCIe Link Width and Speed Degradation'. Correlate with apt/yum logs in the same `pcie_link` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `pcie_link`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "hardware_bmc"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (`lspci -vv` and sysfs on Linux; vendor inventory scripts elsewhere).\n• Ensure the following data sources are available: `lspci -vv`, `/sys/bus/pci/devices/*/current_link_width_speed` (Linux typical).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nOn Linux, parse `lspci -vv` for LnkCap/LnkSta and/or read sysfs for current link width and speed per device. On non-Linux hosts, use the vendor’s PCI reporting tool to emit the same `link_width` and `link_speed` fields. Populate the `pcie_expected` lookup with per-host, per-slot expectations.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust as needed):\n\n```spl\nindex=hardware sourcetype=pcie_link host=*\n| stats latest(link_width) as width, latest(link_speed) as speed by host, slot\n| lookup pcie_expected host slot OUTPUT expected_width expected_speed\n| where width < expected_width OR speed < expected_speed\n| table host slot width speed expected_width expected_speed\n```\n\nUnderstanding this SPL\n\n**PCIe Link Width and Speed Degradation** — PCIe links that downgrade (e.g. x16→x8) indicate slot or cable issues. Affects GPU, NVMe, and HBA performance and can precede full failure.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=hardware`, `sourcetype=pcie_link`.\n• `stats` and `lookup` compare current width/speed to `expected_*` from policy.\n\n\nStep 3 — Validate\nOn a test host, compare `lspci -vv` to indexed fields. For full details, see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We compare how wide and fast the plug-in cards’ data lanes are running to what they should be, so a loose slot or bad cable does not quietly slow down a whole server."
+  "equipmentModels": [
+    "hardware_bmc_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (`lspci -vv` and sysfs on Linux; vendor inventory scripts elsewhere).\n• Ensure the following data sources are available: `lspci -vv`, `/sys/bus/pci/devices/*/current_link_width_speed` (Linux typical).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nOn Linux, parse `lspci -vv` for LnkCap/LnkSta and/or read sysfs for current link width and speed per device. On non-Linux hosts, use the vendor’s PCI reporting tool to emit the same `link_width` and `link_speed` fields. Populate the `pcie_expected` lookup with per-host, per-slot expectations.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust as needed):\n\n```spl\nindex=hardware sourcetype=pcie_link host=*\n| stats latest(link_width) as width, latest(link_speed) as speed by host, slot\n| lookup pcie_expected host slot OUTPUT expected_width expected_speed\n| where width < expected_width OR speed < expected_speed\n| table host slot width speed expected_width expected_speed\n```\n\nUnderstanding this SPL\n\n**PCIe Link Width and Speed Degradation** — PCIe links that downgrade (e.g. x16→x8) indicate slot or cable issues. Affects GPU, NVMe, and HBA performance and can precede full failure.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=hardware`, `sourcetype=pcie_link`.\n• `stats` and `lookup` compare current width/speed to `expected_*` from policy.\n\n\nStep 3 — Validate\nOn a test host, compare `lspci -vv` to indexed fields. For full details, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom scripted input (`lspci -vv` and sysfs on Linux; equivalent vendor PCI inventory on other OSes if used) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=pcie_link into hardware. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, slot`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We compare how wide and fast the plug-in cards’ data lanes are running to what they should be, so a loose slot or bad cable does not quietly slow down a whole server.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

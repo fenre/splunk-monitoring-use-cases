@@ -1,0 +1,126 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.56.45",
+  "title": "TSA-SD Pipeline cyber incidents affecting physical operations — correlated reporting evidence",
+  "criticality": "critical",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Compliance",
+    "Security",
+    "Safety"
+  ],
+  "splunkPillar": "Security",
+  "industry": "Pipeline",
+  "owner": "Head of OT Security",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes pure-cyber events with no safety dimension. Excludes events on non-PHMSA-regulated assets (e.g. distribution-only systems below 49 CFR threshold).",
+  "evidence": "Saved search `UC-22.56.45` archived every 5 minutes to `audit_evidence` with `tsa_sd_clause=\"TSA-SD-P-2021-01-s4\"`.",
+  "compliance": [
+    {
+      "regulation": "tsa-surface",
+      "version": "2024-consolidated-pipeline-rail",
+      "clause": "TSA-SD-P-2021-01-s4",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "Some cyber events on pipelines have safety-significant impact triggering PHMSA reporting alongside TSA/CISA reporting. This UC ensures both clocks are tracked.",
+      "controlObjective": "Proves cyber events with safety impact trigger parallel PHMSA reporting in addition to TSA/CISA reporting.",
+      "evidenceArtifact": "Saved search, `TSA + PHMSA Dual-Clock` dashboard, NRC + PHMSA submission receipts.",
+      "obligationRef": "tsa-surface@2024-consolidated-pipeline-rail#TSA-SD-P-2021-01-s4",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Inject synthetic incident with `safety_impacting=true` and `phmsa_reportable=true` without PHMSA notification. UC-22.56.45 MUST flag.",
+    "negativeScenario": "Pin PHMSA NRC report ID. UC-22.56.45 MUST record `phmsa_clock=on_time`."
+  },
+  "dataSources": "ServiceNow SIR with `phmsa_reportable`, `nrc_notification_time`, `nrc_report_id`. PHMSA notification log. Pipeline leak-detection events (`pipeline:lds:event`).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928).",
+  "spl": "index=itsm sourcetype=\"snow:sn_si_incident\" tsa_pipeline_in_scope=true safety_impacting=true\n| eval awareness_time = coalesce(tsa_awareness_time, opened_at)\n| eval hours_since_awareness = round((now() - awareness_time) / 3600, 2)\n| eval phmsa_status = case(\n    isnotnull(nrc_notification_time), \"notified\",\n    hours_since_awareness > 2 AND phmsa_reportable=true, \"overdue\",\n    1=1, \"in_window\")\n| where phmsa_status IN (\"overdue\")\n| table incident_id facility_id awareness_time hours_since_awareness phmsa_reportable phmsa_status nrc_report_id",
+  "description": "TSA-SD Pipeline cyber incidents affecting physical operations — Splunk continuously validates TSA-SD-P-2021-01-s4 using the saved search in this UC, routes gaps to Enterprise Security notables, and archives proof rows to `audit_evidence`.",
+  "value": "Inspectors ask for proof that «TSA-SD Pipeline cyber incidents affecting physical operations» is operational today, not at last audit. Missing live evidence for TSA-SD-P-2021-01-s4 is a direct regulatory deficiency with enforcement exposure.",
+  "implementation": "(1) Add `safety_impacting`, `phmsa_reportable`, `nrc_notification_time`, `nrc_report_id` to SIR. (2) Schedule UC-22.56.45 every 5 minutes. (3) SOAR `pipeline_dual_clock_submission` playbook drives parallel CISA + PHMSA. (4) Build dashboard.",
+  "visualization": "(Panel 1) Open dual-clock events. (Panel 2) Clock-burn (CISA + PHMSA). (Panel 3) NRC notification log. (Panel 4) 12-month dual-submission performance.",
+  "cimModels": [
+    "Alerts"
+  ],
+  "references": [
+    {
+      "title": "49 CFR 191 — PHMSA pipeline reporting",
+      "url": "https://www.ecfr.gov/current/title-49/subtitle-B/chapter-I/subchapter-D/part-191"
+    },
+    {
+      "title": "NRC — National Response Center",
+      "url": "https://www.nrc.uscg.mil/"
+    },
+    {
+      "title": "TSA Surface Cybersecurity Requirements (June 2024 reissue)",
+      "url": "https://www.tsa.gov/news/press/releases/2024/06/07/tsa-reissues-cybersecurity-requirements-pipeline-industry"
+    },
+    {
+      "title": "CISA Cross-Sector Cybersecurity Performance Goals",
+      "url": "https://www.cisa.gov/cross-sector-cybersecurity-performance-goals"
+    }
+  ],
+  "knownFalsePositives": "1. **Planned maintenance window** — documented change windows in lookup `csa_22_56_45_exceptions` suppress benign activity during approved work.\n\n2. **Pen-test / red-team activity** — engagements with agreed rules-of-engagement marker excluded via lookup `csa_22_56_45_exceptions`.\n\n3. **Vendor remote-access sessions** — authorised vendor PAM sessions cross-reference lookup `csa_22_56_45_exceptions` before alerting.\n\n4. **Regulatory transition / grace period** — time-bound exception register entry in lookup `csa_22_56_45_exceptions` with documented approver and expiry.\n\n**Suppression mechanism**: filter results with lookup `csa_22_56_45_exceptions` (time-bound exception register); rows must carry `approved_by` and `valid_until` epoch fields.",
+  "mitreAttack": [
+    "T0814",
+    "T0879"
+  ],
+  "requiredFields": [
+    "incident_id",
+    "facility_id",
+    "awareness_time",
+    "phmsa_status"
+  ],
+  "equipment": [
+    "servicenow",
+    "splunk-es",
+    "splunk-soar"
+  ],
+  "equipmentModels": [
+    "ServiceNow SIR",
+    "Splunk ES 7.x",
+    "Splunk SOAR 6.x"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-07-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Compliance SME Panel (finalized; pending verification)",
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Same as UC-22.56.1 plus PHMSA NRC integration.\n\n## Step 1 — Wire SIR fields\n\nAdd `safety_impacting` (Boolean), `phmsa_reportable` (Boolean), `nrc_notification_time` (DateTime), `nrc_report_id` (String).\n\n## Step 2 — SOAR playbook `pipeline_dual_clock_submission`\n\nMirrors `tsa_cisa_submission` (UC-22.56.1) but adds:\n1. Branches CISA + PHMSA in parallel.\n2. PHMSA branch dials NRC (800-424-8802) via voice integration OR uses electronic notification.\n3. Captures NRC report-id back to ticket.\n\n## Step 3 — Schedule\n\n```ini\n[UC-22.56.45: TSA + PHMSA Dual Clock]\ncron_schedule = */5 * * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.45,reg=TSA-Surface,clause=TSA-SD-P-PHMSA-dual\nalert.severity = 5\n```\n\n## Step 4 — Runbooks\n\nMirror UC-22.56.1; PHMSA branch has tighter 2-hour clock.\n\n## Step 5 — Troubleshooting\n\n- **NRC line congestion**: NRC may queue during major incidents; use electronic notification as primary.\n- **Phantom-release**: ensure LDS false-positive workflow doesn't reflexively trigger.\n\n**TSA-specific failure modes**:\n- **State pipeline regulator**: states may have additional clocks; coordinate.\n- **Multi-state pipelines**: pipeline crossings between states may add jurisdictions.\n\n## Step 5 — Troubleshooting\n\n**Product-specific failure modes**:\n\n- **ServiceNow SIR custom-field drift** — if `csa_awareness_time` or `tsa_awareness_time` is NULL, verify the Security Incident Response workflow still writes the field on state transition to `In Progress`; compare against the vendor UI on the open ticket.\n- **KV Store sync lag** — if the lookup row updates but the saved search still surfaces stale status, confirm the `outputlookup` command completed (`| rest /services/data/transforms/lookup-table-files` shows matching row count).\n- **HEC token / modular-input silence** — run `index=_internal sourcetype=splunkd component=AggregatorMiningProcessor` for the source; no events for >2× the expected poll interval indicates an API or forwarder failure.\n- **Summary-index routing gaps** — validate `action.summary_index._name = audit_evidence` and RBAC role `compliance-analyst` retains write on the destination index.",
+  "grandmaExplanation": "If a cyber-attack on a pipeline could cause a leak or spill, we have to tell the pipeline safety agency (PHMSA) immediately — even before we finish the 24-hour cyber report to CISA.",
+  "prerequisiteUseCases": [
+    "UC-22.56.1"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}

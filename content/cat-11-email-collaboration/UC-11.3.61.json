@@ -8,27 +8,48 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Proofpoint TAP Malicious URL Messages with Incomplete Link Rewriting' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_proofpoint_tap_malicious_url_messages_with_incom` (UC-11.3.61), SOC dashboard panel \"Operations — Proofpoint TAP Malicious URL Messages with Incomplete Link Rewriting\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-11.3.61 positive (Proofpoint, TAP, Malicious, URL, Messages): ingest synthetic events into `index=email` sourcetype='proofpoint_tap_siem' where `values` grouped by `sender`, `recipient`, `rewrite` satisfies -24h for 'Proofpoint TAP Malicious URL Messages with Incomplete Link Rewriting'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.3.61 negative (Link Rewriting): ingest benign `email` / `proofpoint_tap_siem` events where `sender`, `recipient`, `rewrite` stays below -24h, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Proofpoint TAP Malicious URL Messages with Incomplete Link Rewriting'."
+  },
   "dataSources": "Proofpoint TAP SIEM message events `sourcetype=proofpoint_tap_siem` (URL threat class)",
   "app": "Proofpoint TAP Modular Input for Splunk (Splunkbase 3681)",
   "spl": "index=email sourcetype=\"proofpoint_tap_siem\" earliest=-24h\n| eval rewrite=coalesce(completelyRewritten, CompletelyRewritten, \"\")\n| eval ttype=coalesce(threatType, ThreatType, \"\")\n| where rewrite=\"false\" AND (ttype=\"URL\" OR match(lower(_raw), \"(?i)url\"))\n| stats count values(subject) as subjects by sender, recipient, rewrite\n| sort -count",
-  "description": "When Proofpoint reports malicious URL-laden messages where `completelyRewritten` is false, at least one dangerous link was not rewritten—users may still reach live phishing or exploit pages.",
-  "value": "Prioritizes incidents for messaging engineering and SOC where URL Defense did not fully neutralize content, reducing reliance on mailbox rules alone.",
+  "description": "Identifies UC-11.3.61 — Proofpoint, TAP, Malicious, URL, Messages — using `index=email` sourcetype `proofpoint_tap_siem`, grouped by `sender`, `recipient`, `rewrite`. Outputs `values` each `the scheduled window`; alert when -24h. Primary focus: Link Rewriting. Purpose-built for 'Proofpoint TAP Malicious URL Messages with Incomplete Link Rewriting' in Operations workflows.",
+  "value": "UC-11.3.61 operationalises 'Proofpoint TAP Malicious URL Messages with Incomplete Link Rewriting' against `proofpoint_tap_siem` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Requires TAP SIEM message (blocked or delivered) events with `completelyRewritten` populated. Validate `threatType` extraction—some builds require `mvexpand` on `threatsInfoMap`. Pair with click telemetry (`proofpoint:click`) for the same GUID when available. Alert on any non-`na` rewrite failure in strict tenants.",
   "visualization": "Table (sender, recipient, subject samples), single value (events per hour), timeline.",
   "dataModelAcceleration": "Not applicable; primary SPL uses raw or vendor-normalized event fields.",
   "references": [
     {
       "title": "Proofpoint TAP Modular Input for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3681"
+      "url": "https://splunkbase.splunk.com/app/3681",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Proofpoint TAP SIEM API — message fields",
-      "url": "https://help.proofpoint.com/Threat_Insight_Dashboard/API_Documentation/SIEM_API"
+      "url": "https://help.proofpoint.com/Threat_Insight_Dashboard/API_Documentation/SIEM_API",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Delayed rewrites on large messages, path MTU oddities, and link scanners timing out once.",
+  "knownFalsePositives": "1. **Maintenance window on `email` (UC-11.3.61)** — Planned work for 'Proofpoint TAP Malicious URL Messages with Incomplete Link Rewriting' shifts `values` over `span=1h` while `sender`, `recipient`, `rewrite` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `proofpoint_tap_siem`** — Scheduled automation elevates `recipient` without crossing configured threshold for UC-11.3.61. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sender`, `recipient`, `rewrite`** — Health checks in `email` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `proofpoint_tap_siem`** — First 48h baseline for UC-11.3.61 on `sender` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `sender`, `exception_reason`, `valid_until`.",
   "equipment": [
     "proofpoint"
+  ],
+  "equipmentModels": [
+    "proofpoint_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -37,5 +58,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch how Proofpoint treats and rewrites mail, so threats and DLP events line up with what the security team already sees in their console."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Proofpoint TAP Modular Input for Splunk (Splunkbase 3681)). Enable the modular input or HEC token that writes sourcetype=proofpoint_tap_siem into email. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`recipient, rewrite, sender`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch how Proofpoint treats and rewrites mail, so threats and DLP events line up with what the security team already sees in their console.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

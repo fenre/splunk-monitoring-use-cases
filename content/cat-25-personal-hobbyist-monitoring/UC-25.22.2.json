@@ -8,26 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Observatory environment (`observatory:env`), sky-quality meter (`skyquality:reading`), imaging sessions (`imaging:session`), telescope mount (`mount:status`), cloud sensor (`allsky:cloud`).",
-  "app": "Backyard observatory automation — roll-off-roof/dome controller, sky-quality meter, cloud sensor, telescope mount, and astrophotography capture software (N.I.N.A./Ekos) — logging to Splunk HEC via MQTT and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Sky Quality and Light-Pollution Trend' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_sky_quality_and_light_pollution_trend` (UC-25.22.2), SOC dashboard panel \"Personal — Sky Quality and Light-Pollution Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.22.2 positive (Sky, Quality, and, Light, Pollution): ingest synthetic events into `index=personal` sourcetype='skyquality:reading' where `darkness` grouped by `entity` satisfies `mpsas` > 21.5, `mpsas` > 20.5, or `mpsas` > 19 for 'Sky Quality and Light-Pollution Trend'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.22.2 negative (Pollution Trend): ingest benign `personal` / `skyquality:reading` events where `entity` stays below `mpsas` > 21.5, `mpsas` > 20.5, or `mpsas` > 19, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 13 confirms zero alert rows for 'Sky Quality and Light-Pollution Trend'."
+  },
+  "dataSources": "Observatory environment (`observatory:env`), sky-quality meter (`skyquality:reading`), imaging sessions (`imaging:session`), telescope mount (`mount:status`), cloud sensor (`allsky:cloud`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Backyard observatory automation — roll-off-roof/dome controller, sky-quality meter, cloud sensor, telescope mount, and astrophotography capture software (N.I.N.A./Ekos) — logging to Splunk HEC via MQTT and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=skyquality:reading\n| timechart span=1h avg(mpsas) as darkness\n| eval bortle_hint=case(mpsas>21.5,\"excellent\",mpsas>20.5,\"good\",mpsas>19,\"suburban\",1=1,\"bright\")",
-  "description": "Trends how dark your sky actually is through the night, quantifying light pollution and picking the truly dark hours.",
-  "value": "Sky darkness drives what you can image; a measured trend beats guesswork for timing faint targets and comparing sites.",
+  "description": "Alerts on UC-25.22.2 — Sky, Quality, and, Light, Pollution — using `index=personal` sourcetype `skyquality:reading`, grouped by `entity`. Outputs `darkness` each `1h`; alert when `mpsas` > 21.5, `mpsas` > 20.5, or `mpsas` > 19. Primary focus: Pollution Trend. Purpose-built for 'Sky Quality and Light-Pollution Trend' in Personal workflows.",
+  "value": "UC-25.22.2 gives Personal teams earlier visibility into Pollution Trend through `skyquality:reading` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest sky-quality-meter readings into `index=personal`; review darkness through the night and across seasons.",
   "visualization": "Line chart of sky darkness with a light-pollution scale.",
   "cimModels": [],
   "references": [
     {
       "title": "Unihedron — Sky Quality Meter",
-      "url": "http://unihedron.com/projects/darksky/"
+      "url": "http://unihedron.com/projects/darksky/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.22.2)** — Connector for 'Sky Quality and Light-Pollution Trend' stops polling `skyquality:reading`; stale `darkness` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `darkness` over `1h` is expected for UC-25.22.2, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `skyquality:reading`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1h` bins on UTC vs local schedule skew `mpsas` > 21.5 for 'Sky Quality and Light-Pollution Trend'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It measures how dark your night sky is, so you know the best hours for stargazing away from light pollution."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Backyard Astronomy & Observatory — typical feeds: Observatory environment (`observatory:env`), sky-quality meter (`skyquality:reading`), imaging sessions (`imaging:session`), telescope mount (`mount:status`), cloud sensor (`allsky:cloud`)..\n• **Sourcetypes in this search**: `skyquality:reading`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=skyquality:reading`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Backyard observatory automation — roll-off-roof/dome controller, sky-quality meter, cloud sensor, telescope mount, and astrophotography software (N.I.N.A./Ekos) — via MQTT and scripted inputs..\n\n**Author notes:** Ingest sky-quality-meter readings into `index=personal`; review darkness through the night and across seasons.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"skyquality:reading\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=skyquality:reading earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Sky Quality and Light-Pollution Trend** over `personal` data (primarily `sourcetype=skyquality:reading`) across the full search range. It applies numeric thresholds on `mpsas` (> 21.5) after avg — tune these constants to your household baseline.\n\n**Fields this search depends on:** `bortle_hint`, `mpsas`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=skyquality:reading\n| timechart span=1h avg(mpsas) as darkness\n| eval bortle_hint=case(mpsas>21.5,\"excellent\",mpsas>20.5,\"good\",mpsas>19,\"suburban\",1=1,\"bright\")\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=skyquality:reading earliest=-7d\n| head 50\n| table bortle_hint, mpsas\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=skyquality:reading earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `mpsas` before alerting:\n\n```spl\nindex=personal sourcetype=skyquality:reading earliest=-30d\n| stats perc50(mpsas) AS p50 perc90(mpsas) AS p90 perc99(mpsas) AS p99 max(mpsas) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.22.2: Personal evidence` with the following panel layout:\n\n**Panel 1 — Line Chart Of Sky Darkness With A Light-Pollution Scale (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `skyquality:reading` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=skyquality:reading | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1h` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1h` buckets.",
+  "grandmaExplanation": "It measures how dark your night sky is, so you know the best hours for stargazing away from light pollution.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

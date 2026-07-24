@@ -8,11 +8,17 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Kafka Client Topic Authorization Failure Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_kafka_client_topic_authorization_failure_audit` (UC-8.7.12), SOC dashboard panel \"Operations — Kafka Client Topic Authorization Failure Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-8.7.12 positive (Kafka, Client, Topic, Authorization, Failure): ingest synthetic events into `index=kafka` sourcetype='kafka:serverLog' where `count` grouped by `entity` satisfies detection threshold for 'Kafka Client Topic Authorization Failure Audit'. Validate filter `\"TopicAuthorizationException\" OR \"Authorization failed\" OR (`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.7.12 negative (Failure Audit): ingest benign `kafka` / `kafka:serverLog` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Kafka Client Topic Authorization Failure Audit'."
+  },
   "dataSources": "Kafka broker log `sourcetype=kafka:serverLog` (authorization failures on produce/consume)",
   "app": "Splunk Add-on for Kafka (`Splunk_TA_kafka`, Splunkbase 2935); pair with `sourcetype=kafka:authorizer` where authorizer logging is enabled",
   "spl": "index=kafka sourcetype=\"kafka:serverLog\"\n| search \"TopicAuthorizationException\" OR \"Authorization failed\" OR (\"DENIED\" AND \"Principal\")\n| table _time, host, _raw",
-  "description": "Denied produce/fetch attempts document who tried to access which topic—evidence for least-privilege reviews and insider-threat investigations.",
-  "value": "Produces auditor-friendly evidence that sensitive topics reject unauthorized clients and highlights misconfigured service accounts early.",
+  "description": "Identifies UC-8.7.12 for Kafka, Client, Topic, Authorization, Failure over `index=kafka` sourcetype `kafka:serverLog` with thresholds configured threshold. Groups `count` by `entity` each `the scheduled window`. Differentiated by filter `\"TopicAuthorizationException\" OR \"Authorization failed\" OR (`. Supports repeatable operations triage for 'Kafka Client Topic Authorization Failure Audit'.",
+  "value": "For 'Kafka Client Topic Authorization Failure Audit', UC-8.7.12 converts `activity` on `kafka:serverLog` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Ensure broker logging includes principal/topic context. Retain 13 months in a restricted index for regulated workloads. Mask client secrets if present.",
   "visualization": "Table (recent denials), Timeline (authorization failures), Stats (count by principal).",
   "cimModels": [
@@ -22,16 +28,31 @@
   "references": [
     {
       "title": "Apache Kafka — Authorization and ACLs",
-      "url": "https://kafka.apache.org/documentation/#security_authz"
+      "url": "https://kafka.apache.org/documentation/#security_authz",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Source types for the Splunk Add-on for Kafka",
-      "url": "https://docs.splunk.com/Documentation/AddOns/released/Kafka/Sourcetypes"
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/Kafka/Sourcetypes",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Queues and broker metrics swing during rebalancing, replay, or maintenance. We align with change windows.",
+  "knownFalsePositives": "1. **Maintenance window on `kafka` (UC-8.7.12)** — Planned work for 'Kafka Client Topic Authorization Failure Audit' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `\"TopicAuthorizationException\" OR \"Authorization failed\" OR (`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `kafka:serverLog`** — Scheduled automation elevates `src` without crossing configured threshold for UC-8.7.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `kafka` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafka:serverLog`** — First 48h baseline for UC-8.7.12 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kafka"
+  ],
+  "equipmentModels": [
+    "kafka_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -40,6 +61,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "",
-  "grandmaExplanation": "We use this to produces auditor-friendly evidence that sensitive topics reject unauthorized clients and highlights misconfigured service accounts early."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Kafka (`Splunk_TA_kafka`, Splunkbase 2935); pair with `sourcetype=kafka:authorizer` where authorizer logging is enabled). Enable the modular input or HEC token that writes sourcetype=kafka:serverLog into kafka. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user, action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We use this to produces auditor-friendly evidence that sensitive topics reject unauthorized clients and highlights misconfigured service accounts early.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

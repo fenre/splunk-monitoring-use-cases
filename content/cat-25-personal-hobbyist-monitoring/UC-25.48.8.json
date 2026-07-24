@@ -8,23 +8,55 @@
     "Analytics"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Lessons (`lesson:complete`), vocab reviews (`vocab:review`), immersion (`immersion:log`), speaking practice (`speaking:session`).",
-  "app": "Language-learning telemetry — Duolingo / Babbel lesson exports, Anki spaced-repetition review logs, immersion trackers, and speaking-practice logs — streamed to Splunk HEC via APIs and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Best Study-Time-of-Day for Recall' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_best_study_time_of_day_for_recall` (UC-25.48.8), SOC dashboard panel \"Personal — Best Study-Time-of-Day for Recall\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.48.8 positive (Best, Study, Time, Day, for): ingest synthetic events into `index=personal` sourcetype='vocab:review' where `recall` grouped by `hour` satisfies `reviews` >= 20 for 'Best Study-Time-of-Day for Recall'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.48.8 negative (for Recall): ingest benign `personal` / `vocab:review` events where `hour` stays below `reviews` >= 20, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 2 confirms zero alert rows for 'Best Study-Time-of-Day for Recall'."
+  },
+  "dataSources": "Lessons (`lesson:complete`), vocab reviews (`vocab:review`), immersion (`immersion:log`), speaking practice (`speaking:session`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Language-learning telemetry — Duolingo / Babbel lesson exports, Anki spaced-repetition review logs, immersion trackers, and speaking-practice logs — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=vocab:review\n| eval hour=strftime(_time,\"%H\")\n| stats avg(recall_pct) as recall, count as reviews by hour\n| where reviews>=20\n| sort - recall",
-  "description": "Compares your recall accuracy by the hour you study, revealing when your brain retains vocabulary best.",
-  "value": "Studying when your recall is naturally highest makes every review more efficient, a small but real edge.",
+  "description": "Monitors UC-25.48.8 for Best, Study, Time, Day, for over `index=personal` sourcetype `vocab:review` with thresholds `reviews` >= 20. Groups `recall` by `hour` each `the scheduled window`. Centered on for Recall indicators. Supports repeatable personal triage for 'Best Study-Time-of-Day for Recall'.",
+  "value": "For 'Best Study-Time-of-Day for Recall', UC-25.48.8 converts `recall` on `vocab:review` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest reviews with timestamps into `index=personal`; compare recall by hour.",
   "visualization": "Bar chart of recall accuracy by study hour.",
   "cimModels": [],
   "references": [
     {
       "title": "Anki — spaced repetition",
-      "url": "https://apps.ankiweb.net/"
+      "url": "https://apps.ankiweb.net/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It shows what time of day you remember words best, so you can study when it works."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.48.8)** — Connector for 'Best Study-Time-of-Day for Recall' stops polling `vocab:review`; stale `recall` on `hour` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `recall` over `1w` is expected for UC-25.48.8, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vocab:review`. Dedup with `stats latest(*) by hour`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `reviews` >= 20 for 'Best Study-Time-of-Day for Recall'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Language Learning — typical feeds: Lessons (`lesson:complete`), vocab reviews (`vocab:review`), immersion (`immersion:log`), speaking practice (`speaking:session`)..\n• **Sourcetypes in this search**: `vocab:review`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=vocab:review`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Language-learning telemetry — Duolingo / Babbel lesson exports, Anki spaced-repetition review logs, immersion trackers, and speaking-practice logs — streamed to Splunk HEC via APIs and scripted inputs..\n\n**Author notes:** Ingest reviews with timestamps into `index=personal`; compare recall by hour.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"vocab:review\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=vocab:review earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Best Study-Time-of-Day for Recall** over `personal` data (primarily `sourcetype=vocab:review`) across the full search range. It applies numeric thresholds on `reviews` (>= 20) after avg — tune these constants to your household baseline.\n\n**Fields this search depends on:** `hour`, `reviews`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=vocab:review\n| eval hour=strftime(_time,\"%H\")\n| stats avg(recall_pct) as recall, count as reviews by hour\n| where reviews>=20\n| sort - recall\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=vocab:review earliest=-7d\n| head 50\n| table hour, reviews\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=vocab:review earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `reviews` before alerting:\n\n```spl\nindex=personal sourcetype=vocab:review earliest=-30d\n| stats perc50(reviews) AS p50 perc90(reviews) AS p90 perc99(reviews) AS p99 max(reviews) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.48.8: Personal evidence` with the following panel layout:\n\n**Panel 1 — Bar Chart Of Recall Accuracy By Study Hour (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `vocab:review` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=vocab:review | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It shows what time of day you remember words best, so you can study when it works.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

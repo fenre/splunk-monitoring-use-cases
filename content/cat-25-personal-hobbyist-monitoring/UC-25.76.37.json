@@ -9,23 +9,55 @@
     "Performance"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "SwingVision sessions (`swingvision:session`), UTR rating history (`utr:rating`), racket-sport sessions (`racket:session`), stringing and maintenance events (`stringing:service`).",
-  "app": "SwingVision match video analytics, UTR rating snapshots, court-session logs, and racket stringing reminders streamed to Splunk HEC via APIs, CSV exports, and mobile forms.",
+  "exclusions": "Covers personal hobby monitoring for 'Swingvision Metric0 Rolling 7-Day Value Average' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_swingvision_metric0_rolling_7_day_value_average` (UC-25.76.37), SOC dashboard panel \"Personal — Swingvision Metric0 Rolling 7-Day Value Average\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.76.37 positive (Swingvision, Metric0, Rolling, Day, Value): ingest synthetic events into `index=personal` sourcetype='swingvision:metric0' where `daily_avg`, `rolling_7d` grouped by `_time` satisfies detection threshold for 'Swingvision Metric0 Rolling 7-Day Value Average'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.76.37 negative (Value Average): ingest benign `personal` / `swingvision:metric0` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Swingvision Metric0 Rolling 7-Day Value Average'."
+  },
+  "dataSources": "SwingVision sessions (`swingvision:session`), UTR rating history (`utr:rating`), racket-sport sessions (`racket:session`), stringing and maintenance events (`stringing:service`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "SwingVision match video analytics, UTR rating snapshots, court-session logs, and racket stringing reminders streamed to Splunk HEC via APIs, CSV exports, and mobile forms. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=swingvision:metric0 value=*\n| bin _time span=1d\n| stats avg(value) as daily_avg by _time\n| streamstats window=7 avg(daily_avg) as rolling_7d\n| sort _time",
-  "description": "Tracks a seven-day rolling average of daily value for swingvision metric0 data.",
-  "value": "Rolling averages highlight gradual drift without overreacting to one-off days.",
+  "description": "Monitors Value Average anomalies for UC-25.76.37 with window `1d` on `index=personal` sourcetype `swingvision:metric0`. Combines `daily_avg`, `rolling_7d` by `_time` and compares against configured threshold. Mapped to keywords Swingvision, Metric0, Rolling, Day, Value for dashboard routing.",
+  "value": "Alerting on Swingvision, Metric0, Rolling, Day, Value through UC-25.76.37 reduces missed training goals, stale hobby data, and connector failures by surfacing `daily_avg`, `rolling_7d` early.",
   "implementation": "Compute daily average `value` then a seven-day rolling mean for swingvision metric0 events.",
   "visualization": "Line chart of daily and rolling average value.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk ES Content Management",
+      "url": "https://docs.splunk.com/Documentation/ES/latest/Admin/ContentManagement",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It treats the smoothed week-long trend in your value from swingvision metric0."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.76.37)** — Connector for 'Swingvision Metric0 Rolling 7-Day Value Average' stops polling `swingvision:metric0`; stale `daily_avg`, `rolling_7d` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `daily_avg`, `rolling_7d` over `1d` is expected for UC-25.76.37, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `swingvision:metric0`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold for 'Swingvision Metric0 Rolling 7-Day Value Average'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Tennis, Pickleball & Racket Sports — typical feeds: SwingVision sessions (`swingvision:session`), UTR rating history (`utr:rating`), racket-sport sessions (`racket:session`), stringing and maintenance events (`stringing:service`)..\n• **Sourcetypes in this search**: `swingvision:metric0`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=swingvision:metric0`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** SwingVision match video analytics, UTR rating snapshots, court-session logs, and racket stringing reminders streamed to Splunk HEC via APIs, CSV exports, and mobile forms..\n\n**Author notes:** Compute daily average `value` then a seven-day rolling mean for swingvision metric0 events.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"swingvision:metric0\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=swingvision:metric0 earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Swingvision Metric0 Rolling 7-Day Value Average** over `personal` data (primarily `sourcetype=swingvision:metric0`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `_time`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=swingvision:metric0 value=*\n| bin _time span=1d\n| stats avg(value) as daily_avg by _time\n| streamstats window=7 avg(daily_avg) as rolling_7d\n| sort _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=swingvision:metric0 earliest=-7d\n| head 50\n| table _time\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=swingvision:metric0 earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.76.37: Personal evidence` with the following panel layout:\n\n**Panel 1 — Line Chart Of Daily And Rolling Average Value (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `swingvision:metric0` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=swingvision:metric0 | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It treats the smoothed week-long trend in your value from swingvision metric0.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

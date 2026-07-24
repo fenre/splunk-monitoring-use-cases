@@ -9,24 +9,43 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Zigbee2MQTT device reports (`zigbee2mqtt:device`), Shelly/Tasmota telemetry (`shelly:status`, `tasmota:sensor`), Hue events (`hue:event`), thermostats (`ecobee:thermostat`).",
-  "app": "Philips Hue, smart plugs (Tasmota/Shelly/TP-Link Kasa), thermostats (Nest/Ecobee), locks, and Zigbee/Z-Wave sensors via MQTT / Zigbee2MQTT bridged to HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Door and Window Left-Open Reminder' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_door_and_window_left_open_reminder` (UC-25.5.7), SOC dashboard panel \"Personal — Door and Window Left-Open Reminder\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.5.7 positive (Door, and, Window, Left, Open): ingest synthetic events into `index=personal` sourcetype='zigbee2mqtt:device' where `opened` grouped by `friendly_name` satisfies `mins_open` > 30 for 'Door and Window Left-Open Reminder'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.5.7 negative (Open Reminder): ingest benign `personal` / `zigbee2mqtt:device` events where `friendly_name` stays below `mins_open` > 30, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 5 confirms zero alert rows for 'Door and Window Left-Open Reminder'."
+  },
+  "dataSources": "Zigbee2MQTT device reports (`zigbee2mqtt:device`), Shelly/Tasmota telemetry (`shelly:status`, `tasmota:sensor`), Hue events (`hue:event`), thermostats (`ecobee:thermostat`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Philips Hue, smart plugs (Tasmota/Shelly/TP-Link Kasa), thermostats (Nest/Ecobee), locks, and Zigbee/Z-Wave sensors via MQTT / Zigbee2MQTT bridged to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=zigbee2mqtt:device contact=false\n| stats max(_time) as opened by friendly_name\n| eval mins_open=round((now()-opened)/60)\n| where mins_open>30\n| sort - mins_open",
-  "description": "Flags doors and windows that have been open longer than expected, catching the garage door left up or a window forgotten before a storm.",
-  "value": "A door left open wastes heating and invites both intruders and weather; a simple duration check turns forgetfulness into a timely nudge.",
+  "description": "Alerts on 'Door and Window Left-Open Reminder' patterns (UC-25.5.7) sourced from `index=personal` sourcetype `zigbee2mqtt:device`. Threshold bundle: `mins_open` > 30; aggregation grain: `friendly_name`; metrics: `opened`. Watch terms: Door, and, Window, Left, Open.",
+  "value": "UC-25.5.7 gives Personal teams earlier visibility into Open Reminder through `zigbee2mqtt:device` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Bridge contact-sensor state; schedule every 10 minutes and alert on doors or windows open beyond your threshold.",
   "visualization": "Table of open contacts by minutes open.",
   "cimModels": [],
   "references": [
     {
       "title": "Zigbee2MQTT — Documentation",
-      "url": "https://www.zigbee2mqtt.io/"
+      "url": "https://www.zigbee2mqtt.io/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.5.7)** — Connector for 'Door and Window Left-Open Reminder' stops polling `zigbee2mqtt:device`; stale `opened` on `friendly_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `opened` over `1w` is expected for UC-25.5.7, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `zigbee2mqtt:device`. Dedup with `stats latest(*) by friendly_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `mins_open` > 30 for 'Door and Window Left-Open Reminder'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "f5",
     "mqtt"
@@ -34,5 +53,12 @@
   "equipmentModels": [
     "f5_asm"
   ],
-  "grandmaExplanation": "It reminds you when a door or window has been left open too long, like the garage before you go to bed."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Smart Home Devices & Sensors — typical feeds: Zigbee2MQTT device reports (`zigbee2mqtt:device`), Shelly/Tasmota telemetry (`shelly:status`, `tasmota:sensor`), Hue bridge events (`hue:event`), Nest/Ecobee thermostat (`ecobee:thermostat`), door/lea.\n• **Sourcetypes in this search**: `zigbee2mqtt:device`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=zigbee2mqtt:device`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Philips Hue, smart plugs (Tasmota/Shelly/TP-Link Kasa), thermostats (Nest/Ecobee), locks, and Zigbee/Z-Wave sensors via MQTT / Zigbee2MQTT and HEC..\n\n**Author notes:** Bridge contact-sensor state; schedule every 10 minutes and alert on doors or windows open beyond your threshold.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"zigbee2mqtt:device\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=zigbee2mqtt:device earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Door and Window Left-Open Reminder** over `personal` data (primarily `sourcetype=zigbee2mqtt:device`) across the full search range. It applies numeric thresholds on `mins_open` (> 30) after max — tune these constants to your household baseline.\n\n**Fields this search depends on:** `friendly_name`, `mins_open`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=zigbee2mqtt:device contact=false\n| stats max(_time) as opened by friendly_name\n| eval mins_open=round((now()-opened)/60)\n| where mins_open>30\n| sort - mins_open\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=zigbee2mqtt:device earliest=-7d\n| head 50\n| table friendly_name, mins_open\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=zigbee2mqtt:device earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `mins_open` before alerting:\n\n```spl\nindex=personal sourcetype=zigbee2mqtt:device earliest=-30d\n| stats perc50(mins_open) AS p50 perc90(mins_open) AS p90 perc99(mins_open) AS p99 max(mins_open) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.5.7: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Open Contacts By Minutes Open (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `zigbee2mqtt:device` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=zigbee2mqtt:device | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It reminds you when a door or window has been left open too long, like the garage before you go to bed.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

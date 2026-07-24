@@ -9,11 +9,17 @@
     "Operations"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=batch` `sourcetype=controlm:job` with `job_name`, `order_id`, `start_time`, `end_time`, `predecessor_jobs` or SMART Table topology lookup",
-  "app": "BMC Control-M Automation API / EM Web Services → HEC, or CTM Kafka connector",
+  "exclusions": "Covers the detection logic documented for 'Control-M Job Dependency Chain Critical Path Delay Analysis' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_control_m_job_dependency_chain_critical_path_del` (UC-12.7.10), SOC dashboard panel \"Operations — Control-M Job Dependency Chain Critical Path Delay Analysis\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-12.7.10 positive (Control, Job, Dependency, Chain, Critical): ingest synthetic events into `index=batch` sourcetype='controlm:job' where `med_rt`, `folder_p90_peer` grouped by `order_id`, `folder` satisfies `runtime_sec` >= 0, or `runs` >= 3 for 'Control-M Job Dependency Chain Critical Path Delay Analysis'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.7.10 negative (Delay Analysis): ingest benign `batch` / `controlm:job` events where `order_id`, `folder` stays below `runtime_sec` >= 0, or `runs` >= 3, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Control-M Job Dependency Chain Critical Path Delay Analysis'."
+  },
+  "dataSources": "`index=batch` `sourcetype=controlm:job` with `job_name`, `order_id`, `start_time`, `end_time`, `predecessor_jobs` or SMART Table topology lookup Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "BMC Control-M Automation API / EM Web Services → HEC, or CTM Kafka connector — Universal Forwarder (Splunkbase 617)",
   "spl": "index=batch sourcetype=\"controlm:job\"\n| eval start_epoch=coalesce(start_epoch, strptime(start_time,\"%Y-%m-%d %H:%M:%S\"))\n| eval end_epoch=coalesce(end_epoch, strptime(end_time,\"%Y-%m-%d %H:%M:%S\"))\n| eval runtime_sec=end_epoch-start_epoch\n| where isnotnull(runtime_sec) AND runtime_sec >= 0\n| stats median(runtime_sec) as med_rt, perc90(runtime_sec) as p90_rt, values(job_name) as chain, count as runs by order_id, folder\n| eventstats median(p90_rt) as folder_p90_peer by folder\n| where p90_rt > folder_p90_peer * 1.5 AND runs >= 3\n| sort -p90_rt",
-  "description": "Batch chains often have a single pacing job; when its runtime stretches, every downstream consumer misses the file or database refresh window. Aggregating runtime percentiles per order_id highlights the critical path before the last hop fails.",
-  "value": "Protects downstream SLAs for billing, supply chain, and data products fed by Control-M orchestration.",
+  "description": "Identifies Delay Analysis activity in UC-12.7.10 ('Control-M Job Dependency Chain Critical Path Delay Analysis') from `index=batch` sourcetype `controlm:job`. Rolls up `med_rt`, `folder_p90_peer` by `order_id`, `folder` across `the scheduled window` and pages when `runtime_sec` >= 0, or `runs` >= 3. Covers Control, Job, Dependency, Chain, Critical. Operations operators treat UC-12.7.10 as the canonical signal.",
+  "value": "Operators running UC-12.7.10 on `controlm:job` feeds shorten triage for Delay Analysis tied to 'Control-M Job Dependency Chain Critical Path Delay Analysis', lowering operational risk and delayed incident response.",
   "implementation": "If predecessor metadata is not in events, join to a topology CSV exported from Control-M Planning. Compare each order_id’s p90 runtime to the same folder’s peer median to catch chains that lag their own history without maintaining SLA lookup tables.",
   "visualization": "Gantt-style timeline panel, waterfall chart (job runtime by order_id), table of top p90_rt chains.",
   "cimModels": [
@@ -23,18 +29,35 @@
   "references": [
     {
       "title": "BMC Control-M documentation",
-      "url": "https://documents.bmc.com/supportu/controlm/"
+      "url": "https://documents.bmc.com/supportu/controlm/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Transient errors during platform maintenance, network blips, or certificate renewals on shared services.",
+  "knownFalsePositives": "1. **Maintenance window on `batch` (UC-12.7.10)** — Planned work for 'Control-M Job Dependency Chain Critical Path Delay Analysis' shifts `med_rt`, `folder_p90_peer` over `span=1h` while `order_id`, `folder` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `median` on `controlm:job`** — Scheduled automation elevates `folder` without crossing `runtime_sec` >= 0 for UC-12.7.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `order_id`, `folder`** — Health checks in `batch` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `controlm:job`** — First 48h baseline for UC-12.7.10 on `order_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `order_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "controlm",
     "hardware_bmc",
     "kafka"
+  ],
+  "equipmentModels": [
+    "controlm_generic",
+    "hardware_bmc_generic",
+    "kafka_generic"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-01",
@@ -44,5 +67,8 @@
     "Cloud"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We watch batch and control jobs so missed handoffs or resource limits do not break business processing."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (BMC Control-M Automation API / EM Web Services → HEC, or CTM Kafka connector — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=controlm:job into batch. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`end_time, folder, order_id, runs`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch batch and control jobs so missed handoffs or resource limits do not break business processing.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

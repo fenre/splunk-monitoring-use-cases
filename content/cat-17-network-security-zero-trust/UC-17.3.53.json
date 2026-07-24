@@ -9,11 +9,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Symantec WSS access logs (API-based collection via the Add-on)",
+  "exclusions": "Covers the detection logic documented for 'Broadcom Symantec Cloud SWG Policy Analysis (Broadcom)' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_broadcom_symantec_cloud_swg_policy_analysis_broa` (UC-17.3.53), SOC dashboard panel \"Network — Broadcom Symantec Cloud SWG Policy Analysis (Broadcom)\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.3.53 positive (Broadcom, Symantec, Cloud, SWG, Policy): ingest synthetic events into `index=proxy` sourcetype='symantec:wss:accesslog' where `count` grouped by `cs_categories`, `cs_userdn`, `sc_filter_result` satisfies -7d for 'Broadcom Symantec Cloud SWG Policy Analysis (Broadcom)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.53 negative (Analysis (Broadcom)): ingest benign `proxy` / `symantec:wss:accesslog` events where `cs_categories`, `cs_userdn`, `sc_filter_result` stays below -7d, or exclude the test entity via `network_exception_register.csv`. Variant 7 confirms zero alert rows for 'Broadcom Symantec Cloud SWG Policy Analysis (Broadcom)'."
+  },
+  "dataSources": "Symantec WSS access logs (API-based collection via the Add-on) Indexes: proxy. Sourcetypes: symantec:wss:accesslog. Key fields: cs_categories, cs_userdn, sc_filter_result. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Symantec WSS Add-on for Splunk (Splunkbase 3856)",
   "spl": "index=proxy sourcetype=\"symantec:wss:accesslog\" earliest=-7d\n| where sc_filter_result=\"DENIED\"\n| stats count by cs_categories, cs_userdn, sc_filter_result\n| sort -count",
-  "description": "Broadcom Symantec Cloud SWG (formerly WSS) provides cloud-delivered web security with URL filtering, threat protection, and SSL inspection for all users. Tracking policy violations and threat blocks validates security posture.",
-  "value": "Web security teams analyze Broadcom Symantec Cloud SWG policy enforcement by URL category and threat risk score, identifying high-risk domains accessed by users, denial trends that correlate with active campaigns, and false positive denials on uncategorized sites.",
+  "description": "Alerts on UC-17.3.53 — Broadcom, Symantec, Cloud, SWG, Policy — using `index=proxy` sourcetype `symantec:wss:accesslog`, grouped by `cs_categories`, `cs_userdn`, `sc_filter_result`. Outputs `count` each `the scheduled window`; alert when -7d. Primary focus: Analysis (Broadcom). Purpose-built for 'Broadcom Symantec Cloud SWG Policy Analysis (Broadcom)' in Network workflows.",
+  "value": "UC-17.3.53 operationalises 'Broadcom Symantec Cloud SWG Policy Analysis (Broadcom)' against `symantec:wss:accesslog` feeds so operators reduce unauthorized access, segmentation drift, and NAC policy failures without manual correlation.",
   "implementation": "Install the Symantec WSS Add-on and configure API-based data collection. Map `cs_categories` to your acceptable-use policy. Alert when denied requests spike for a user. Report on top blocked categories and threat detections.",
   "visualization": "Bar chart (blocks by category), Table (top users blocked), Line chart (daily denied trend), Pie chart (category distribution).",
   "cimModels": [
@@ -24,21 +30,42 @@
   "references": [
     {
       "title": "Symantec WSS Add-on for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3856"
+      "url": "https://splunkbase.splunk.com/app/3856",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Vulnerability scanner signature matches** — Qualys/Tenable traffic triggers IPS/threat signatures for 'Broadcom Symantec Cloud SWG Policy Analysis (Broadcom)'. Compare `src` against `scanner_ips` lookup.\n\n2. **Policy push during change window** — New deny rule generates expected blocks. Match firewall commit timestamp in change calendar.\n\n3. **Encrypted traffic inspection gap** — TLS-heavy apps bypass deep inspection; volume drop is operational, not a sensor failure.\n\n4. **Red-team C2 simulation** — Approved exercise from `pen_test_hosts.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `src`, `signature_id`, `valid_until`.",
   "mitreAttack": [
     "T1071.001"
   ],
   "equipment": [
     "broadcom_symantec"
   ],
+  "equipmentModels": [
+    "broadcom_symantec_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Broadcom Symantec Web Security Service (WSS / CloudSOC) logs in `index=symantec` with `sourcetype=symantec:wss` or `sourcetype=bluecoat:proxysg:access`. Key fields: `cs-action` (ALLOWED/DENIED/TUNNELED), `cs-categories` (URL category), `cs-threat-risk` (risk score), `cs-userdn` (user DN), `cs-host`, `cs-uri`, `cs-bytes`, `sr-bytes`, `cs-method`.\n• Symantec WSS (now Broadcom) is a cloud proxy/SWG that inspects web traffic, applies URL categorization, threat scanning, and DLP. Logs use W3C extended log format.\n\nStep 1 — Configure data collection\nConfigure WSS log export: WSS Admin > Integration > Log Export > add Splunk HEC endpoint or syslog.\n\nVerify:\n```spl\nindex=symantec sourcetype=\"symantec:wss\" earliest=-1h\n| stats count by cs-action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Policy analysis:\n```spl\nindex=symantec sourcetype=\"symantec:wss\" cs-action=DENIED earliest=-7d\n| timechart span=1d count by cs-categories limit=10\n```\n\nUnderstanding this SPL: Trends denied web categories over time. Symantec uses over 80 URL categories. Spikes in security-related categories (Malware, Phishing, Hacking) indicate active threats. Spikes in policy categories (Gambling, Adult) indicate enforcement. 'Uncategorized' denials may be false positives.\n\nThreat risk analysis:\n```spl\nindex=symantec sourcetype=\"symantec:wss\" earliest=-24h\n| where tonumber(cs-threat-risk) > 5\n| stats count dc(cs-userdn) as users by cs-host, cs-threat-risk, cs-action\n| sort - cs-threat-risk\n```\n\nStep 3 — Validate\n(a) Visit a blocked category. Verify denial event.\n(b) In WSS Portal: Reports > Web Activity.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Denial trend. Row 2 — High-risk domains. Row 3 — Top denied users.\nAlert: When threat-risk > 8 domains are accessed by internal users.\n\nRunbook:\n1. **High-risk domain accessed** — Check for endpoint compromise.\n2. **Denial spike** — Policy change or active campaign.\n3. **Uncategorized denials** — Submit for re-categorization.\n\nStep 5 — Troubleshooting\n• **No WSS data** — Log export may not be configured. Check WSS Integration settings.\n• **`cs-categories` empty** — URL may be uncategorized in Symantec's database.",
   "grandmaExplanation": "Symantec's cloud proxy filters all our web traffic. We track which categories are being blocked and pay special attention to websites rated as high-risk — when employees visit risky sites, we check whether their devices might already be compromised.",
-  "hardware": "Symantec Cloud SWG (cloud), Symantec Web Security Service Edge, Symantec Endpoint Agent"
+  "hardware": "Symantec Cloud SWG (cloud), Symantec Web Security Service Edge, Symantec Endpoint Agent",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

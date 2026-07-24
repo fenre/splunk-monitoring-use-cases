@@ -9,30 +9,55 @@
     "Anomaly"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Kafka Connect REST status (`kafkaconnect:status`), worker logs (`kafkaconnect:worker`), and JMX source/sink metrics (`kafkaconnect:jmx`).",
-  "app": "Kafka Connect REST API (`/connectors`, `/connectors/{name}/status`) via HEC scripted inputs; Connect worker logs and JMX metrics.",
+  "exclusions": "Covers the detection logic documented for 'Kafka Connect Dead-Letter Queue Growth' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_kafka_connect_dead_letter_queue_growth` (UC-24.8.15), SOC dashboard panel \"Operations — Kafka Connect Dead-Letter Queue Growth\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.8.15 positive (Kafka, Connect, Dead, Letter, Queue): ingest synthetic events into `index=bi` sourcetype='kafkaconnect:jmx' where `dlq_records` grouped by `connector` satisfies `dlq_records` > 0 for 'Kafka Connect Dead-Letter Queue Growth'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.8.15 negative (Queue Growth): ingest benign `bi` / `kafkaconnect:jmx` events where `connector` stays below `dlq_records` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Kafka Connect Dead-Letter Queue Growth'."
+  },
+  "dataSources": "Kafka Connect REST status (`kafkaconnect:status`), worker logs (`kafkaconnect:worker`), and JMX source/sink metrics (`kafkaconnect:jmx`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Kafka Connect REST API (`/connectors`, `/connectors/{name}/status`) via HEC scripted inputs; Connect worker logs and JMX metrics. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=kafkaconnect:jmx metric=\"deadletterqueue-produce-requests\" OR metric=\"total-record-errors\"\n| timechart span=10m sum(value) as dlq_records by connector\n| untable _time connector dlq_records\n| where dlq_records>0\n| sort - dlq_records",
-  "description": "Tracks records routed to the Kafka Connect dead-letter queue per connector, surfacing malformed messages that are silently dropped from the sink.",
-  "value": "DLQ growth means data is being lost from the pipeline without a job failure; monitoring it protects completeness of the landed data.",
+  "description": "Surfaces UC-24.8.15 — Kafka, Connect, Dead, Letter, Queue — using `index=bi` sourcetype `kafkaconnect:jmx`, grouped by `connector`. Outputs `dlq_records` each `10m`; alert when `dlq_records` > 0. Primary focus: Queue Growth. Purpose-built for 'Kafka Connect Dead-Letter Queue Growth' in Operations workflows.",
+  "value": "UC-24.8.15 operationalises 'Kafka Connect Dead-Letter Queue Growth' against `kafkaconnect:jmx` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Expose Connect JMX error/DLQ metrics via HEC; schedule every 15 minutes and alert on rising DLQ volume for critical connectors.",
   "visualization": "Timechart of DLQ records per connector, table.",
   "cimModels": [],
   "references": [
     {
       "title": "Kafka Connect — REST API",
-      "url": "https://kafka.apache.org/documentation/#connect_rest"
+      "url": "https://kafka.apache.org/documentation/#connect_rest",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Kafka Connect — Monitoring",
-      "url": "https://kafka.apache.org/documentation/#connect_monitoring"
+      "url": "https://kafka.apache.org/documentation/#connect_monitoring",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.8.15)** — Planned work for 'Kafka Connect Dead-Letter Queue Growth' shifts `dlq_records` over `span=10m` while `connector` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `kafkaconnect:jmx`** — Scheduled automation elevates `src` without crossing `dlq_records` > 0 for UC-24.8.15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `connector`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafkaconnect:jmx`** — First 48h baseline for UC-24.8.15 on `connector` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `connector`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kafka"
   ],
-  "grandmaExplanation": "We count the messages that a streaming connector had to set aside because they were malformed, so silent data loss is noticed."
+  "equipmentModels": [
+    "kafka_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Kafka Connect REST API (`/connectors`, `/connectors/{name}/status`) via HEC scripted inputs; Connect worker logs and JMX metrics. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=kafkaconnect:jmx into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`connector, dlq_records`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We count the messages that a streaming connector had to set aside because they were malformed, so silent data loss is noticed.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

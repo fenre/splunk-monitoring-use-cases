@@ -9,26 +9,55 @@
     "Cost"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue (`emporia:circuit`).",
-  "app": "Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, and smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Solar Production vs Home Consumption' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_solar_production_vs_home_consumption` (UC-25.6.1), SOC dashboard panel \"Personal — Solar Production vs Home Consumption\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.6.1 positive (Solar, Production, Home, Consumption): ingest synthetic events into `index=personal` sourcetype='solaredge:power' where `produced`, `consumed` grouped by `_time` satisfies detection threshold for 'Solar Production vs Home Consumption'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.6.1 negative (Home Consumption): ingest benign `personal` / `solaredge:power` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 1 confirms zero alert rows for 'Solar Production vs Home Consumption'."
+  },
+  "dataSources": "SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue (`emporia:circuit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, and smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=solaredge:power\n| bin _time span=1d\n| stats sum(production_wh) as produced, sum(consumption_wh) as consumed by _time\n| eval self_sufficiency_pct=round(100*min(produced,consumed)/consumed,1)\n| sort - _time",
-  "description": "Compares how much energy your solar panels produced with how much your home used each day and calculates your self-sufficiency percentage.",
-  "value": "Self-sufficiency is the number that makes solar feel worthwhile; tracking it daily shows the payback and reveals your best and worst days.",
+  "description": "Identifies Home Consumption activity in UC-25.6.1 ('Solar Production vs Home Consumption') from `index=personal` sourcetype `solaredge:power`. Rolls up `produced`, `consumed` by `_time` across `1d` and pages when configured threshold. Covers Solar, Production, Home, Consumption. Personal operators treat UC-25.6.1 as the canonical signal.",
+  "value": "Operators running UC-25.6.1 on `solaredge:power` feeds shorten triage for Home Consumption tied to 'Solar Production vs Home Consumption', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest inverter production and meter consumption; schedule daily and trend your self-sufficiency percentage.",
   "visualization": "Chart of daily production versus consumption with a self-sufficiency line.",
   "cimModels": [],
   "references": [
     {
       "title": "SolarEdge — Monitoring API",
-      "url": "https://knowledge-center.solaredge.com/sites/kc/files/se_monitoring_api.pdf"
+      "url": "https://knowledge-center.solaredge.com/sites/kc/files/se_monitoring_api.pdf",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.6.1)** — Connector for 'Solar Production vs Home Consumption' stops polling `solaredge:power`; stale `produced`, `consumed` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `produced`, `consumed` over `1d` is expected for UC-25.6.1, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `solaredge:power`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold for 'Solar Production vs Home Consumption'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It compares how much power your solar panels made with how much your home used, so you can see how self-sufficient you are."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: SolarEdge — SolarEdge Monitoring API → HEC.\n• **Subcategory context**: Home Energy & Solar — typical feeds: SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Tesla Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue circuits (`emporia:circuit`), Sense .\n• **Sourcetypes in this search**: `solaredge:power`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **SolarEdge** events into `index=personal` with `sourcetype=solaredge:power`.\n\n**Collection method:** SolarEdge Monitoring API → HEC.\n\n**Reference endpoint / path:** `GET /site/{siteId}/overview`.\n\n**Suggested poll interval:** 900s.\n\n**Key fields to extract:** `currentPower, energyToday, energyLifetime`.\n\n**Typical connector stack:** Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC..\n\n**Author notes:** Ingest inverter production and meter consumption; schedule daily and trend your self-sufficiency percentage.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"solaredge:power\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=solaredge:power earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Solar Production vs Home Consumption** over `personal` data (primarily `sourcetype=solaredge:power`) across the full search range. The `sum, min` aggregation groups by `_time`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `_time`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=solaredge:power\n| bin _time span=1d\n| stats sum(production_wh) as produced, sum(consumption_wh) as consumed by _time\n| eval self_sufficiency_pct=round(100*min(produced,consumed)/consumed,1)\n| sort - _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** SolarEdge app → Dashboard kWh today. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=solaredge:power earliest=-7d\n| head 50\n| table _time\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=solaredge:power earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.6.1: Personal evidence` with the following panel layout:\n\n**Panel 1 — Chart Of Daily Production Versus Consumption With A Self-Sufficiency Line (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**SolarEdge — no SolarEdge events / missing fields:** If `solaredge:power` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the SolarEdge connector script is still running (`systemctl status` or cron log).\n\n**SolarEdge — NULL values in extracted fields:** The SolarEdge JSON export shape drifted — compare a raw event (`index=personal sourcetype=solaredge:power | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**SolarEdge — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**SolarEdge — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; SolarEdge APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It compares how much power your solar panels made with how much your home used, so you can see how self-sufficient you are.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

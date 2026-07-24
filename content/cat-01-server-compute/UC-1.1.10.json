@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=cron` or `sourcetype=syslog` source=\"/var/log/cron\"",
-  "app": "`Splunk_TA_nix`, Syslog",
+  "exclusions": "Covers the detection logic documented for 'Cron Job Failure Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_cron_job_failure_monitoring` (UC-1.1.10), SOC dashboard panel \"Linux — Cron Job Failure Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.1.10 positive (Cron, Job, Failure, Monitoring): ingest synthetic events into `index=os` sourcetype='cron' where `count` grouped by `host`, `cron_cmd`, `_time` satisfies detection threshold for 'Cron Job Failure Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.10 negative (Failure Monitoring): ingest benign `os` / `cron` events where `host`, `cron_cmd`, `_time` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 2 confirms zero alert rows for 'Cron Job Failure Monitoring'."
+  },
+  "dataSources": "`sourcetype=cron` or `sourcetype=syslog` source=\"/var/log/cron\" Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_nix`, Syslog — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=os (sourcetype=cron OR source=\"/var/log/cron\") (\"error\" OR \"failed\" OR \"EXIT STATUS\" OR \"ORPHAN\")\n| rex \"CMD \\((?<cron_cmd>[^)]+)\\)\"\n| rex \"CROND\\[(?<pid>\\d+)\\]\"\n| stats count by host, cron_cmd, _time\n| sort -_time",
-  "description": "Failed cron jobs can silently break batch processing, backups, log rotation, and maintenance tasks. Catching failures early prevents cascading issues.",
-  "value": "Failed cron jobs can silently break batch processing, backups, log rotation, and maintenance tasks. Catching failures early prevents cascading issues.",
+  "description": "Identifies UC-1.1.10 for Cron, Job, Failure, Monitoring over `index=os` sourcetype `cron` with thresholds configured threshold. Groups `count` by `host`, `cron_cmd`, `_time` each `the scheduled window`. Centered on Failure Monitoring indicators. Supports repeatable linux triage for 'Cron Job Failure Monitoring'.",
+  "value": "For 'Cron Job Failure Monitoring', UC-1.1.10 converts `activity` on `cron` feeds into actionable rows and reduces capacity incidents, patch regressions, and service outages.",
   "implementation": "Forward `/var/log/cron`. For critical cron jobs, create a \"heartbeat\" approach: expect a success message within a window, alert on absence. Use `| inputlookup expected_crons | join` pattern for missing run detection.",
   "visualization": "Table of failed cron jobs, Single value panel (failures last 24h), Missing job detection table.",
   "cimModels": [
@@ -21,14 +27,40 @@
   "references": [
     {
       "title": "Splunk_TA_nix",
-      "url": "https://splunkbase.splunk.com/app/833"
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "The word 'failed' in unrelated text, non-critical crons, and noisy exit-status lines can trigger alerts. Tie critical jobs to heartbeats and allowlists for known-good noise.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Cron Job Failure Monitoring'. Correlate with apt/yum logs in the same `cron` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `cron`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "linux",
     "syslog"
   ],
+  "equipmentModels": [
+    "linux_generic",
+    "syslog_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix`, Syslog.\n• Ensure the following data sources are available: `sourcetype=cron` or `sourcetype=syslog` source=\"/var/log/cron\".\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward `/var/log/cron`. For critical cron jobs, create a \"heartbeat\" approach: expect a success message within a window, alert on absence. Use `| inputlookup expected_crons | join` pattern for missing run detection.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os (sourcetype=cron OR source=\"/var/log/cron\") (\"error\" OR \"failed\" OR \"EXIT STATUS\" OR \"ORPHAN\")\n| rex \"CMD \\((?<cron_cmd>[^)]+)\\)\"\n| rex \"CROND\\[(?<pid>\\d+)\\]\"\n| stats count by host, cron_cmd, _time\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Cron Job Failure Monitoring** — Failed cron jobs can silently break batch processing, backups, log rotation, and maintenance tasks. Catching failures early prevents cascading issues.\n\nDocumented **Data sources**: `sourcetype=cron` or `sourcetype=syslog` source=\"/var/log/cron\". **App/TA** (typical add-on context): `Splunk_TA_nix`, Syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: cron. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=cron. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts fields with `rex` (regular expression).\n• Extracts fields with `rex` (regular expression).\n• `stats` rolls up events into metrics; results are split **by host, cron_cmd, _time** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nOn the host, compare with `top`, `htop`, `vmstat`, `iostat`, or `sar` as appropriate to this use case. For log-only detections, compare with the relevant file under `/var/log` (or `journalctl`) on a test host. Confirm that indexed event counts and field values line up with what you see on the system and that your role can search the right indexes and fields.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of failed cron jobs, Single value panel (failures last 24h), Missing job detection table.",
-  "grandmaExplanation": "Failed cron jobs can silently break batch processing, backups, log rotation, and maintenance tasks — so you find out before users do when something is slowing down or breaking."
+  "grandmaExplanation": "Failed cron jobs can silently break batch processing, backups, log rotation, and maintenance tasks — so you find out before users do when something is slowing down or breaking.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

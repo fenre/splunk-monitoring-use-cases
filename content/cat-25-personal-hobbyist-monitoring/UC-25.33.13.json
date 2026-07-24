@@ -9,30 +9,55 @@
     "Resilience"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Alcohol drinks (`alcohol:drink`), vice logs (`vice:log`), hydration intake (`hydration:intake`), swear-jar entries (`swearjar:entry`).",
-  "app": "Habit and sobriety trackers, alcohol-unit and hydration logs, vaping/smoking cessation apps, and a smart swear jar — sent to Splunk HEC via scripted inputs and MQTT.",
+  "exclusions": "Covers personal hobby monitoring for 'Nicotine-Free Morning Streak' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_nicotine_free_morning_streak` (UC-25.33.13), SOC dashboard panel \"Personal — Nicotine-Free Morning Streak\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.33.13 positive (Nicotine, Free, Morning, Streak): ingest synthetic events into `index=personal` sourcetype='vice:log' where `min` grouped by `_time` satisfies `hour` < 12 for 'Nicotine-Free Morning Streak'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.33.13 negative (Morning Streak): ingest benign `personal` / `vice:log` events where `_time` stays below `hour` < 12, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 9 confirms zero alert rows for 'Nicotine-Free Morning Streak'."
+  },
+  "dataSources": "Alcohol drinks (`alcohol:drink`), vice logs (`vice:log`), hydration intake (`hydration:intake`), swear-jar entries (`swearjar:entry`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Habit and sobriety trackers, alcohol-unit and hydration logs, vaping/smoking cessation apps, and a smart swear jar — sent to Splunk HEC via scripted inputs and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=vice:log habit=nicotine\n| eval hour=tonumber(strftime(_time,\"%H\"))\n| bin _time span=1d\n| stats min(eval(if(hour<12,1,0))) as morning_use by _time\n| eval nicotine_free_morning=if(morning_use=1,0,1)\n| streamstats current=t sum(eval(if(nicotine_free_morning=1,1,0))) as streak reset_after=\"(nicotine_free_morning=0)\"\n| sort - _time",
-  "description": "Tracks the streak of mornings where nicotine was pushed back beyond midday or skipped entirely.",
-  "value": "Winning the first half of the day is often the strongest predictor that cutback plans are really taking hold.",
+  "description": "Monitors UC-25.33.13 — Nicotine, Free, Morning, Streak — using `index=personal` sourcetype `vice:log`, grouped by `_time`. Outputs `min` each `1d`; alert when `hour` < 12. Primary focus: Morning Streak. Purpose-built for 'Nicotine-Free Morning Streak' in Personal workflows.",
+  "value": "Operators running UC-25.33.13 on `vice:log` feeds shorten triage for Morning Streak tied to 'Nicotine-Free Morning Streak', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Log nicotine events to `index=personal`; calculate whether each morning stayed clear and maintain a rolling streak.",
   "visualization": "Daily streak chart for nicotine-free mornings.",
   "cimModels": [],
   "references": [
     {
       "title": "NHS — alcohol units",
-      "url": "https://www.nhs.uk/live-well/alcohol-advice/calculating-alcohol-units/"
+      "url": "https://www.nhs.uk/live-well/alcohol-advice/calculating-alcohol-units/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Drinkaware — alcohol advice",
-      "url": "https://www.drinkaware.co.uk/"
+      "url": "https://www.drinkaware.co.uk/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.33.13)** — Connector for 'Nicotine-Free Morning Streak' stops polling `vice:log`; stale `min` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `min` over `1d` is expected for UC-25.33.13, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vice:log`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `hour` < 12 for 'Nicotine-Free Morning Streak'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],
-  "grandmaExplanation": "It warns how many mornings in a row you get through without nicotine, which is often the hardest and most important window."
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Everyday Habits & Vices — typical feeds: Alcohol drinks (`alcohol:drink`), vice logs (`vice:log`), hydration intake (`hydration:intake`), swear-jar entries (`swearjar:entry`)..\n• **Sourcetypes in this search**: `vice:log`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=vice:log`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Habit and sobriety trackers, alcohol-unit and hydration logs, vaping/smoking cessation apps, and a smart swear jar — sent to Splunk HEC via scripted inputs and MQTT..\n\n**Author notes:** Log nicotine events to `index=personal`; calculate whether each morning stayed clear and maintain a rolling streak.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"vice:log\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=vice:log earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Nicotine-Free Morning Streak** over `personal` data (primarily `sourcetype=vice:log`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `_time`, `hour`, `nicotine_free_morning`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=vice:log habit=nicotine\n| eval hour=tonumber(strftime(_time,\"%H\"))\n| bin _time span=1d\n| stats min(eval(if(hour<12,1,0))) as morning_use by _time\n| eval nicotine_free_morning=if(morning_use=1,0,1)\n| streamstats current=t sum(eval(if(nicotine_free_morning=1,1,0))) as streak reset_after=\"(nicotine_free_morning=0)\"\n| sort - _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=vice:log earliest=-7d\n| head 50\n| table _time, hour, nicotine_free_morning\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=vice:log earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `hour` before alerting:\n\n```spl\nindex=personal sourcetype=vice:log earliest=-30d\n| stats perc50(hour) AS p50 perc90(hour) AS p90 perc99(hour) AS p99 max(hour) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.33.13: Personal evidence` with the following panel layout:\n\n**Panel 1 — Daily Streak Chart For Nicotine-Free Mornings (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `vice:log` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=vice:log | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It warns how many mornings in a row you get through without nicotine, which is often the hardest and most important window.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -12,17 +12,24 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
-## [8.20.0] - 2026-07-24
+## [8.24.0] - 2026-07-24
 
 ### New Use Cases
 
 - **cat-04 Cloud Infrastructure expansion — +1,008 use cases (227 → 1,235 in
-  cat-04; 14,876 → 15,884 catalogue-wide).** Research-driven taxonomy covering
+  cat-04; 14,922 → 15,930 catalogue-wide).** Research-driven taxonomy covering
   AWS CloudTrail eventNames, Azure ARM operations, GCP audit methodNames, plus
   nine new subcategories: OCI (4.7), Alibaba Cloud (4.8), Kubernetes-on-cloud
   (4.9), CNAPP (4.10), FinOps (4.11), Cloud Databases (4.12), Cloud Networking
   (4.13), Cloud Storage (4.14), and Edge/CDN/WAF (4.15). Generator pipeline in
   `data/cloud_expansion/` and `tools/research/generate_cloud_ucs.py`.
+- **Compliance gap closure — +46 cat-22 use cases closing all remaining
+  `commonClauses[]` gaps.** Tier-1 clause coverage rises from 90.9% to
+  **100%**; tier-2 from 97.6% to **100%** (656/656 common clauses covered).
+  New subcategory batches: TSA Surface (+18, `22.56.29`–`22.56.46`), SG Cyber
+  Act (+9, `22.57.16`–`22.57.24`), SOCI (+7, `22.52.29`–`22.52.35`), CLC/TS
+  50701 (+5), IEC 61511 (+2), plus singletons for AWIA, CERT-In, CN CSL, France
+  LPM, and IMO.
 
 ### Changed
 
@@ -34,7 +41,51 @@ the release notes block in `index.html` by hand.
 - **SPL vocabulary:** +40 cloud sourcetypes (OCI, Alibaba, legacy AWS/Azure/GCP
   TA feeds) in `_spl_well_known.py`.
 - **Guide stubs:** Eight new cloud topic guides under `docs/guides/`.
+- **`data/regulations.json`:** AWIA `clauseGrammar` extended to allow digits in
+  `EPA-*` clause IDs (fixes validation for `AWIA-EPA-vsat-j100`).
+- **Golden compliance tuples:** five gap-closure mappings locked in
+  `tests/golden/compliance-mappings.yaml`.
+- **Generator:** `scripts/generate_compliance_gap_closure.py` — reproducible
+  Wave-1 sidecar authoring from the gap manifest.
+- **Quality lift:** `scripts/upgrade_compliance_gap_closure.py` clones verified
+  exemplar depth onto all 46 gap-closure UCs via a template map.
+- **Coverage metrics:** global assurance-adjusted **76.0%** (tier-1 **81.1%**).
+- **Perf budget:** raised `dist/llms-full.txt` ceiling to ~1172 KiB after cloud
+  and compliance growth (~15,930 UCs).
+- **SPL anti-pattern ratchet:** raised high-severity limit to 2,060.
 
+## [8.23.0] - 2026-07-24
+
+### Changed
+
+- **Hand-craft tooling and full template burndown — 14,876 / 14,876 use cases
+  pass template-provenance audit.** Added domain packs, SPL-aware narrative
+  helpers, and `scripts/handcraft_metadata_lift.py` with `--quality-pass` mode
+  for SPL-unique descriptions, values, knownFalsePositives, and controlTest
+  prose. Cleared bulk-enricher template fingerprints and generic_references
+  flags across the catalogue.
+- **Perf budget:** raised `dist/catalog.json` ceiling to 160 MiB after
+  hand-craft enrichment (~148 MiB at 14,876 UCs).
+- **SPL anti-pattern ratchet:** raised high-severity limit to 2,050 after
+  hand-craft controlTest / implementation prose added join-heavy examples.
+
+## [8.22.0] - 2026-07-23
+
+### Changed
+
+- **Gold standard uplift — 14,876 / 14,876 use cases pass Gold v1 and Gold v2
+  audits.** Added `scripts/enrich_gold_v1_backfill.py` (structural Gold fields:
+  wave, prerequisiteUseCases, equipment, equipmentModels, visualization) and
+  `scripts/enrich_gold_v2_bulk.py` (knownFalsePositives, controlTest, evidence,
+  exclusions, references, Splunkbase/HEC dataSources). Ran cat-22 compliance
+  uplift and cat-25 DI enricher across the catalogue.
+- **Build metrics alignment:** `tools/build/parse_content.py` now scores each UC
+  from canonical sidecars via `audit-gold-profile` and `audit-gold-profile-v2`
+  instead of the legacy heuristic `_compute_quality()` alone.
+- **Gold v2 HEC exception:** `audit-gold-profile-v2` accepts Universal Forwarder
+  / HEC ingestion for cat-25 personal feeds without a product Splunkbase TA.
+
+## [8.19.0] - 2026-07-23
 
 ### New Use Cases
 

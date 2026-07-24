@@ -9,26 +9,55 @@
     "Data Quality"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Monte Carlo incident webhooks (`montecarlo:incident`), Great Expectations `validation_result` JSON (`great_expectations:validation`), Soda scan results (`soda:scan`), dbt test failures, warehouse `INFORMATION_SCHEMA` freshness/volume probes via DB Connect.",
-  "app": "Monte Carlo / Bigeye / Soda webhooks and REST APIs via HEC; Great Expectations and dbt test results via HEC scripted inputs; custom warehouse data-quality probes via Splunk DB Connect.",
+  "exclusions": "Covers the detection logic documented for 'Schema Drift Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_schema_drift_detection` (UC-24.9.3), SOC dashboard panel \"Operations — Schema Drift Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.9.3 positive (Schema, Drift, Detection): ingest synthetic events into `index=dataops` sourcetype='dbx:warehouse_columns' where `count` grouped by `table_name` satisfies detection threshold for 'Schema Drift Detection'. Validate lookup `schema_baseline`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.9.3 negative (Drift Detection): ingest benign `dataops` / `dbx:warehouse_columns` events where `table_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Schema Drift Detection'."
+  },
+  "dataSources": "Monte Carlo incident webhooks (`montecarlo:incident`), Great Expectations `validation_result` JSON (`great_expectations:validation`), Soda scan results (`soda:scan`), dbt test failures, warehouse `INFORMATION_SCHEMA` freshness/volume probes via DB Connect. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Monte Carlo / Bigeye / Soda webhooks and REST APIs via HEC; Great Expectations and dbt test results via HEC scripted inputs; custom warehouse data-quality probes via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dataops sourcetype=dbx:warehouse_columns\n| stats latest(column_signature) as current_sig by table_name\n| eval prev_sig=coalesce(current_sig,\"\")\n| lookup schema_baseline table_name OUTPUT column_signature as baseline_sig\n| where isnotnull(baseline_sig) AND current_sig!=baseline_sig\n| sort table_name",
-  "description": "Compares each table's current column set against a stored baseline and flags added, dropped, or retyped columns before they break downstream models and reports.",
-  "value": "Unannounced schema changes are a leading cause of broken pipelines; detecting drift gives data teams a chance to adapt before dashboards fail.",
+  "description": "Surfaces UC-24.9.3 — Schema, Drift, Detection — using `index=dataops` sourcetype `dbx:warehouse_columns`, grouped by `table_name`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes lookup `schema_baseline`. Purpose-built for 'Schema Drift Detection' in Operations workflows.",
+  "value": "UC-24.9.3 operationalises 'Schema Drift Detection' against `dbx:warehouse_columns` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Probe column metadata via DB Connect; maintain a `schema_baseline` lookup; schedule daily; alert on drift and refresh the baseline after review.",
   "visualization": "Table of drifted tables, timeline of schema changes.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk DB Connect",
-      "url": "https://splunkbase.splunk.com/app/2686"
+      "url": "https://splunkbase.splunk.com/app/2686",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `dataops` (UC-24.9.3)** — Planned work for 'Schema Drift Detection' shifts `count` over `span=1h` while `table_name` remains in-scope. Applies lookup `schema_baseline`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `dbx:warehouse_columns`** — Scheduled automation elevates `prev_sig` without crossing configured threshold for UC-24.9.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `table_name`** — Health checks in `dataops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbx:warehouse_columns`** — First 48h baseline for UC-24.9.3 on `table_name` is unstable; join `schema_baseline` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `table_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect"
   ],
-  "grandmaExplanation": "We watch the shape of your data tables and flag when columns are added, removed, or changed, before it breaks a report."
+  "equipmentModels": [
+    "db_connect_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Monte Carlo / Bigeye / Soda webhooks and REST APIs via HEC; Great Expectations and dbt test results via HEC scripted inputs; custom warehouse data-quality probes via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=dbx:warehouse_columns into dataops. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`column_signature as baseline_sig, table_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch the shape of your data tables and flag when columns are added, removed, or changed, before it breaks a report.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

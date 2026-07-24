@@ -9,11 +9,17 @@
     "Fault"
   ],
   "splunkPillar": "IT Operations",
-  "dataSources": "`index=ovirt` `sourcetype=\"ovirt:engine\"` — `engine.log`: `level` (ERROR|FATAL), `thread`, `correlation_id`, `message`",
-  "app": "Splunk Add-on for oVirt / Red Hat Virtualization (community patterns) or UF on Engine `/var/log/ovirt-engine/engine.log`",
+  "exclusions": "Covers the detection logic documented for 'oVirt Engine API Health and engine.log Fatal Errors' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_ovirt_engine_api_health_and_engine_log_fatal_err` (UC-2.8.1), SOC dashboard panel \"Linux — oVirt Engine API Health and engine.log Fatal Errors\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.8.1 positive (oVirt, Engine, API, Health, and): ingest synthetic events into `index=ovirt` sourcetype='ovirt:engine' where `count` grouped by `correlation_id`, `thread` satisfies `ev` >= 5 for 'oVirt Engine API Health and engine.log Fatal Errors'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.8.1 negative (Fatal Errors): ingest benign `ovirt` / `ovirt:engine` events where `correlation_id`, `thread` stays below `ev` >= 5, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 5 confirms zero alert rows for 'oVirt Engine API Health and engine.log Fatal Errors'."
+  },
+  "dataSources": "`index=ovirt` `sourcetype=\"ovirt:engine\"` — `engine.log`: `level` (ERROR|FATAL), `thread`, `correlation_id`, `message` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for oVirt / Red Hat Virtualization (community patterns) or UF on Engine `/var/log/ovirt-engine/engine.log` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ovirt sourcetype=\"ovirt:engine\" earliest=-1h\n| eval lv=upper(coalesce(log_level, level, priority))\n| where lv=\"ERROR\" OR lv=\"FATAL\" OR match(lower(_raw), \"(?i)fatal|outofmemory|jdbc|database.*unavailable\")\n| stats count as ev by correlation_id, thread\n| where ev>=5",
-  "description": "Engine is the control plane for oVirt/RHV. ERROR/FATAL bursts or database connectivity messages precede UI outages, failed scheduling, and stuck workflows.",
-  "value": "Protects orchestration uptime and prevents cascading failures across hosts and storage domains.",
+  "description": "Surfaces 'oVirt Engine API Health and engine.log Fatal Errors' patterns (UC-2.8.1) sourced from `index=ovirt` sourcetype `ovirt:engine`. Threshold bundle: `ev` >= 5; aggregation grain: `correlation_id`, `thread`; metrics: `count`. Watch terms: oVirt, Engine, API, Health, and.",
+  "value": "UC-2.8.1 gives Linux teams earlier visibility into Fatal Errors through `ovirt:engine` feeds, lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Ship engine logs with fast time sync. Deduplicate using `correlation_id`. Page on FATAL or DB errors; warn on ERROR rate vs baseline. Pair with database and JVM metrics.",
   "visualization": "Timechart ERROR rate; top correlation_id table; raw drilldown.",
   "cimModels": [
@@ -22,13 +28,33 @@
   "references": [
     {
       "title": "Red Hat Virtualization Administration Guide",
-      "url": "https://docs.redhat.com/en/documentation/red_hat_virtualization/"
+      "url": "https://docs.redhat.com/en/documentation/red_hat_virtualization/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "AOS storage metrics can look worse during background heal, curator, or disk removal work; match alerts to Nutanix task progress and maintenance windows.",
+  "knownFalsePositives": "1. **Patch Tuesday on `ovirt`** — Package managers spike `correlation_id` metrics for 'oVirt Engine API Health and engine.log Fatal Errors'. Correlate with apt/yum logs in the same `ovirt:engine` window.\n\n2. **Nightly backup I/O on `correlation_id`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `ovirt:engine`** — Nagios/Zabbix polls `correlation_id` and mimics sustained load without crossing `ev` >= 5.\n\n4. **New host onboarding** — `correlation_id` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `correlation_id`, `valid_until`.",
   "equipment": [
     "dell_emc",
     "ovirt"
+  ],
+  "equipmentModels": [
+    "dell_emc_generic",
+    "ovirt_generic"
   ],
   "status": "verified",
   "lastReviewed": "2025-06-01",
@@ -37,5 +63,8 @@
     "8.x"
   ],
   "reviewer": "catalog-team",
-  "grandmaExplanation": "We keep an eye on the control panel that runs your virtual datacenter—who changed what, whether storage and hosts are healthy, and when something is about to strand running machines."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for oVirt / Red Hat Virtualization (community patterns) or UF on Engine `/var/log/ovirt-engine/engine.log` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ovirt:engine into ovirt. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`correlation_id, ev, thread`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We keep an eye on the control panel that runs your virtual datacenter—who changed what, whether storage and hosts are healthy, and when something is about to strand running machines.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

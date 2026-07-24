@@ -8,28 +8,42 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'DNS Availability Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_dns_availability_monitoring` (UC-5.9.13), SOC dashboard panel \"Operations — DNS Availability Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.9.13 positive (DNS, Availability, Monitoring): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `avg_availability`, `min_availability` grouped by `dns.question.name`, `server.address`, `thousandeyes.source.agent.name` satisfies `avg_availability` < 100 for 'DNS Availability Monitoring'. Validate macro `stream_index`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.9.13 negative (Availability Monitoring): ingest benign `target_index` / `target_sourcetype` events where `dns.question.name`, `server.address`, `thousandeyes.source.agent.name` stays below `avg_availability` < 100, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'DNS Availability Monitoring'."
+  },
   "dataSources": "`index=thousandeyes_metrics sourcetype=cisco:thousandeyes:metric` from the Tests Stream — Metrics input in `ta_cisco_thousandeyes` (Splunkbase 7719). DNS Server tests use Cloud or Enterprise Agents to query specific DNS servers for specific domain names and report whether the resolution succeeded. The OTel v2 metric `dns.lookup.availability` reports a percentage: 100% when resolution returns a valid answer, 0% when it fails (SERVFAIL, NXDOMAIN when expected, timeout, etc.). Resource attributes: `thousandeyes.test.type` (`dns-server`), `dns.question.name` (the queried domain, e.g., `www.example.com`), `server.address` (the DNS server queried, e.g., `8.8.8.8` or `10.0.0.53`), `thousandeyes.source.agent.name`, `thousandeyes.permalink`. Volume: DNS test events are lightweight — ~1 KB per agent per server per round ≈ 1.4 MB/agent-server/day at 1-minute intervals.",
   "app": "`ta_cisco_thousandeyes` — Cisco ThousandEyes App for Splunk ([Splunkbase 7719](https://splunkbase.splunk.com/app/7719)), Cisco Supported.",
   "spl": "`stream_index` thousandeyes.test.type=\"dns-server\"\n| stats avg(dns.lookup.availability) as avg_availability min(dns.lookup.availability) as min_availability by dns.question.name, server.address, thousandeyes.source.agent.name\n| where avg_availability < 100\n| sort avg_availability",
-  "description": "Flags DNS Server tests where resolution availability dropped below 100% — meaning at least one query from an agent to a specific DNS server for a specific domain name failed. DNS is the first step in every network connection; if DNS fails, users see \"site not found\" errors even when the actual service is running perfectly.",
-  "value": "DNS is the single most critical dependency for internet-facing services — every HTTPS connection, API call, email delivery, and CDN fetch starts with a DNS lookup. A DNS outage that takes 5 minutes to detect and 10 minutes to mitigate costs orders of magnitude more than a web server restart, because the blast radius is everything: web, API, email, CDN, VPN. Monitoring DNS availability from multiple ThousandEyes agents lets the NOC detect failures from the user's perspective (not just the DNS server's health metrics), distinguish between \"the server is down\" and \"the server is up but not answering queries for this domain\" (zone loading failure, corrupted zone file, expired DNSSEC keys), and pinpoint which DNS server or domain is affected before the cascade reaches application monitoring.",
+  "description": "Alerts on Availability Monitoring activity in UC-5.9.13 ('DNS Availability Monitoring') from `index=target_index` sourcetype `configured sourcetype`. Rolls up `avg_availability`, `min_availability` by `dns.question.name`, `server.address`, `thousandeyes.source.agent.name` across `the scheduled window` and pages when `avg_availability` < 100. Uses macro `stream_index`. Operations operators treat UC-5.9.13 as the canonical signal.",
+  "value": "Operators running UC-5.9.13 on macro `stream_index` shorten triage for Availability Monitoring tied to 'DNS Availability Monitoring', lowering operational risk and delayed incident response.",
   "implementation": "Create DNS Server tests in ThousandEyes: **Cloud & Enterprise Agents → Test Settings → Add New Test → DNS → DNS Server**. Enter the domain name to query (e.g., `www.example.com`) and the DNS server address (e.g., `8.8.8.8` or your internal resolver IP). Create separate tests for each critical domain × DNS server combination. The Tests Stream — Metrics input delivers DNS metrics alongside network metrics in the same OTel stream.",
   "visualization": "(1) Single value tile: DNS availability % across all tests (red if < 100%). (2) Table: domain, DNS server, agent, availability %, min availability — sorted worst-first, colour-coded: green 100%, red < 100%. (3) Timechart: `| timechart span=5m avg(dns.lookup.availability) by dns.question.name` showing availability over time per domain. (4) Combined panel: DNS availability alongside DNS resolution time (UC-5.9.14) to distinguish between outages (availability drop) and slowdowns (duration increase). (5) The ThousandEyes Splunk app includes a built-in \"DNS Availability (%)\" line chart with drilldown to ThousandEyes.",
   "references": [
     {
       "title": "Cisco ThousandEyes App for Splunk (Splunkbase 7719)",
-      "url": "https://splunkbase.splunk.com/app/7719"
+      "url": "https://splunkbase.splunk.com/app/7719",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes DNS Server Test Configuration",
-      "url": "https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/dns-tests/"
+      "url": "https://docs.thousandeyes.com/product-documentation/internet-and-wan-monitoring/tests/dns-tests/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "ThousandEyes OTel v2 Data Model — DNS metrics",
-      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics/data-model-migration-v1-to-v2"
+      "url": "https://docs.thousandeyes.com/product-documentation/integration-guides/opentelemetry/data-model/data-model-v2/metrics/data-model-migration-v1-to-v2",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**DNS server rolling restart/maintenance.** When a DNS server reboots (e.g., BIND reload, Infoblox Grid maintenance), queries during the restart window fail. If the test interval is 1 minute and the restart takes 30 seconds, you'll see 1–2 rounds of 0% availability followed by full recovery. Distinguish by checking whether the failure is brief (< 5 minutes) and affects only one server address while other servers for the same domain remain at 100%. Suppress planned restarts with a `dns_maintenance_windows` lookup.\n\n**Transient network issues between agent and DNS server.** If the network path between a specific agent and the DNS server experiences packet loss, the DNS query may time out even though the DNS server is healthy. Distinguish by checking whether other agents querying the same DNS server show 100% availability. If only one agent shows failures, the problem is the network path, not the DNS server — correlate with UC-5.9.1/2 for that agent.\n\n**Anycast DNS server pool rotation.** DNS providers using anycast (Cloudflare 1.1.1.1, Google 8.8.8.8) route queries to different physical servers. If one anycast PoP is down, some agents may experience failures while others don't. This is a real DNS availability issue from the user's perspective (users near that PoP are affected), but it may resolve quickly as BGP routes withdraw the failing PoP.\n\n**Negative caching / NXDOMAIN for intentional test domains.** If the ThousandEyes test queries a domain that legitimately doesn't exist (misconfiguration in test setup), availability will always read 0%. Verify the `dns.question.name` is a real, resolvable domain.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index` (UC-5.9.13)** — Planned work for 'DNS Availability Monitoring' shifts `avg_availability`, `min_availability` over `span=1h` while `dns.question.name`, `server.address`, `thousandeyes.source.agent.name` remains in-scope. Applies macro `stream_index`. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `server.address` without crossing `avg_availability` < 100 for UC-5.9.13. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dns.question.name`, `server.address`, `thousandeyes.source.agent.name`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.9.13 on `dns.question.name` is unstable; join `stream_index` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dns.question.name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "Custom scripted inputs (`spctl --status`, `csrutil status`)",
-  "app": "Splunk Universal Forwarder, custom scripted input",
+  "exclusions": "Covers the detection logic documented for 'Gatekeeper and SIP Status' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_gatekeeper_and_sip_status` (UC-1.3.3), SOC dashboard panel \"Linux — Gatekeeper and SIP Status\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.3.3 positive (Gatekeeper, and, SIP, Status): ingest synthetic events into `index=os` sourcetype='macos_security' where `count` grouped by `host` satisfies detection threshold for 'Gatekeeper and SIP Status'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.3.3 negative (SIP Status): ingest benign `os` / `macos_security` events where `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 9 confirms zero alert rows for 'Gatekeeper and SIP Status'."
+  },
+  "dataSources": "Custom scripted inputs (`spctl --status`, `csrutil status`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Universal Forwarder, custom scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=macos_security host=*\n| stats latest(gatekeeper) as gk, latest(sip) as sip by host\n| where gk!=\"enabled\" OR sip!=\"enabled\"",
-  "description": "Disabled Gatekeeper or System Integrity Protection weakens macOS security posture. May indicate developer override or tampering.",
-  "value": "Catching when these protections are turned off helps you separate intentional developer or lab setups from a machine that may have been tampered with and needs a closer look.",
+  "description": "Surfaces UC-1.3.3 — Gatekeeper, and, SIP, Status — using `index=os` sourcetype `macos_security`, grouped by `host`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: SIP Status. Purpose-built for 'Gatekeeper and SIP Status' in Linux workflows.",
+  "value": "Operators running UC-1.3.3 on `macos_security` feeds shorten triage for SIP Status tied to 'Gatekeeper and SIP Status', lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Scripted inputs for `spctl --status` and `csrutil status`. Run daily. Dashboard showing fleet-wide compliance.",
   "visualization": "Pie chart (compliant vs. not), Table of non-compliant endpoints.",
   "cimModels": [],
@@ -20,13 +26,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Developers and security researchers sometimes run with protections relaxed; lab or build systems may be in policy. Field values depend on your parser (for example `enabled` vs. `disabled` strings); tune **where** to match exact output. Recovery mode and macOS major upgrades can temporarily change `csrutil` reporting until a reboot.",
+  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Gatekeeper and SIP Status'. Correlate with apt/yum logs in the same `macos_security` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `macos_security`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "macos"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Universal Forwarder, custom scripted input.\n• Ensure the following data sources are available: Custom scripted inputs (`spctl --status`, `csrutil status`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nScripted inputs for `spctl --status` and `csrutil status` on a daily schedule. Normalize output into `gatekeeper` and `sip` fields (the example search expects a value of `enabled` for healthy).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=macos_security host=*\n| stats latest(gatekeeper) as gk, latest(sip) as sip by host\n| where gk!=\"enabled\" OR sip!=\"enabled\"\n```\n\nUnderstanding this SPL\n\n**Gatekeeper and SIP Status** — Disabled Gatekeeper or System Integrity Protection weakens macOS security posture. May indicate developer override or tampering.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=os`, `sourcetype=macos_security`.\n• `stats` keeps the latest `gk` and `sip` per **host**.\n• `where` flags any host where either value is not `enabled` per your normalizer.\n\n\nStep 3 — Validate\nOn a test Mac, run the two commands and compare the parsed fields in Search. `csrutil` only reports meaningful SIP state from a normal boot, not from Recovery; document that in your runbook if you use this field.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions as required. Document visualizations: Pie chart (compliant vs. not), Table of non-compliant endpoints. See the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We make sure the Mac’s built-in protections for what software can run and what the system can change are still on, so the machine is not left wide open to tampering or sneaky installs."
+  "equipmentModels": [
+    "macos_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Universal Forwarder, custom scripted input.\n• Ensure the following data sources are available: Custom scripted inputs (`spctl --status`, `csrutil status`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nScripted inputs for `spctl --status` and `csrutil status` on a daily schedule. Normalize output into `gatekeeper` and `sip` fields (the example search expects a value of `enabled` for healthy).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=macos_security host=*\n| stats latest(gatekeeper) as gk, latest(sip) as sip by host\n| where gk!=\"enabled\" OR sip!=\"enabled\"\n```\n\nUnderstanding this SPL\n\n**Gatekeeper and SIP Status** — Disabled Gatekeeper or System Integrity Protection weakens macOS security posture. May indicate developer override or tampering.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=os`, `sourcetype=macos_security`.\n• `stats` keeps the latest `gk` and `sip` per **host**.\n• `where` flags any host where either value is not `enabled` per your normalizer.\n\n\nStep 3 — Validate\nOn a test Mac, run the two commands and compare the parsed fields in Search. `csrutil` only reports meaningful SIP state from a normal boot, not from Recovery; document that in your runbook if you use this field.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions as required. Document visualizations: Pie chart (compliant vs. not), Table of non-compliant endpoints. See the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Universal Forwarder, custom scripted input — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=macos_security into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We make sure the Mac’s built-in protections for what software can run and what the system can change are still on, so the machine is not left wide open to tampering or sneaky installs.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

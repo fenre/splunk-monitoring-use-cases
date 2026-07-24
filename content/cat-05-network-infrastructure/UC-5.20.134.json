@@ -9,20 +9,42 @@
     "Security"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` — Monitors RDNSS (Recursive DNS Server) and DNSSL (DNS Search List) options advertised via Router Advertisements (RFC 8106). These RA options provide DNS configuration to SLAAC clients without requiring DHCPv6, but can be spoofed to redirect DNS queries to attacker-controlled resolvers.",
-  "app": "Splunk Enterprise",
+  "exclusions": "Covers the detection logic documented for 'IPv6 RDNSS and DNSSL via Router Advertisement Monitoring (RFC 8106)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ipv6_rdnss_and_dnssl_via_router_advertisement_mo` (UC-5.20.134), SOC dashboard panel \"Operations — IPv6 RDNSS and DNSSL via Router Advertisement Monitoring (RFC 8106)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.134 positive (IPv6, RDNSS, and, DNSSL, via): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `values` grouped by `host`, `rdnss_event` satisfies -24h for 'IPv6 RDNSS and DNSSL via Router Advertisement Monitoring (RFC 8106)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.134 negative ((RFC 8106)): ingest benign `network` / `cisco:ios` events where `host`, `rdnss_event` stays below -24h, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'IPv6 RDNSS and DNSSL via Router Advertisement Monitoring (RFC 8106)'."
+  },
+  "dataSources": "`index=network sourcetype=cisco:ios` or `sourcetype=cisco:iosxe` — Monitors RDNSS (Recursive DNS Server) and DNSSL (DNS Search List) options advertised via Router Advertisements (RFC 8106). These RA options provide DNS configuration to SLAAC clients without requiring DHCPv6, but can be spoofed to redirect DNS queries to attacker-controlled resolvers. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\") earliest=-24h\n  (\"RDNSS\" OR \"DNSSL\" OR \"dns.*option\" OR \"RFC8106\")\n| eval rdnss_event=case(\n    match(_raw, \"(?i)RDNSS.*spoof|DNS.*rogue|unauthorized.*DNS\"), \"ROGUE_RDNSS\",\n    match(_raw, \"(?i)RDNSS.*lifetime.*0|RDNSS.*expired\"), \"RDNSS_EXPIRED\",\n    match(_raw, \"(?i)RDNSS|dns.server.*option\"), \"RDNSS_ADVERTISED\",\n    1=1, \"OTHER\")\n| rex field=_raw \"RDNSS\\s*(?<dns_server>[0-9a-fA-F:]+)\"\n| stats count as events values(dns_server) as advertised_dns by host, rdnss_event\n| eval severity=case(\n    rdnss_event=\"ROGUE_RDNSS\", \"CRITICAL — unauthorized DNS server in RA RDNSS option\",\n    rdnss_event=\"RDNSS_EXPIRED\", \"MEDIUM — RDNSS lifetime expired — clients may lose DNS\",\n    1=1, null())\n| where isnotnull(severity)\n| sort -events",
-  "description": "Monitors RDNSS and DNSSL options in IPv6 Router Advertisements (RFC 8106). These options provide DNS configuration to SLAAC clients. Detects rogue RDNSS advertisements (attacker redirecting DNS), expired RDNSS lifetimes, and inconsistent DNS server advertisements across routers.",
-  "value": "RDNSS is how SLAAC-configured hosts learn their DNS servers. If an attacker spoofs an RA with a rogue RDNSS option, they redirect all DNS queries from SLAAC clients to their resolver, enabling DNS spoofing, phishing, and traffic interception. This is more dangerous than rogue DHCP because SLAAC is preferred over DHCPv6 on many operating systems.",
+  "description": "Alerts on UC-5.20.134 — IPv6, RDNSS, and, DNSSL, via — using `index=network` sourcetype `cisco:ios`, grouped by `host`, `rdnss_event`. Outputs `values` each `the scheduled window`; alert when -24h. Primary focus: (RFC 8106). Purpose-built for 'IPv6 RDNSS and DNSSL via Router Advertisement Monitoring (RFC 8106)' in Operations workflows.",
+  "value": "UC-5.20.134 accelerates insight into (RFC 8106) ('IPv6 RDNSS and DNSSL via Router Advertisement Monitoring (RFC 8106)') by tracking `activity` on `cisco:ios` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Monitor RA RDNSS options for authorized DNS server addresses. Alert on unauthorized RDNSS advertisements.",
   "visualization": "(1) Table: RDNSS advertisements with DNS servers. (2) Single-value: rogue RDNSS count. (3) Timeline: RDNSS changes.",
   "references": [
     {
       "title": "RFC 8106 — IPv6 Router Advertisement Options for DNS Configuration",
-      "url": "https://www.rfc-editor.org/rfc/rfc8106"
+      "url": "https://www.rfc-editor.org/rfc/rfc8106",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunkbase app 1352",
+      "url": "https://splunkbase.splunk.com/app/1352",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Multiple legitimate DNS servers.** Redundant DNS servers in RDNSS options are normal. Verify all advertised servers are authorized.\n\n**DHCPv6 coexistence.** When both RDNSS and DHCPv6 provide DNS, clients may receive different servers. This should be harmonized but isn't necessarily an attack.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.134)** — Planned work for 'IPv6 RDNSS and DNSSL via Router Advertisement Monitoring (RFC 8106)' shifts `values` over `span=1h` while `host`, `rdnss_event` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `cisco:ios`** — Scheduled automation elevates `rdnss_event` without crossing configured threshold for UC-5.20.134. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `rdnss_event`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.20.134 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "juniper"
@@ -39,7 +61,7 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• RDNSS configured on routers.\n• RA Guard deployed (see UC-5.20.28) to prevent rogue RAs.\n\nStep 1 — Configure RDNSS on routers:\n```\ninterface GigabitEthernet0/0/0\n ipv6 nd ra dns server 2001:db8::53 3600\n ipv6 nd ra dns search-list example.com 3600\n```\n\nStep 2 — Monitor RDNSS advertisements in syslog.\n\nStep 3 — Validate: Verify SLAAC clients receive correct DNS from `ipconfig /all` or `resolvectl`.\n\nStep 4 — Operationalize: Dashboard and alerting for rogue RDNSS.\n\nStep 5 — Troubleshooting\n• RDNSS not received by clients: Verify router is sending RDNSS option. Check with packet capture of RA messages.",
+  "detailedImplementation": "Prerequisites\n• RDNSS configured on routers.\n• RA Guard deployed (see UC-5.20.28) to prevent rogue RAs.\n\nStep 1 — Configure RDNSS on routers:\n```\ninterface GigabitEthernet0/0/0\n ipv6 nd ra dns server 2001:db8::53 3600\n ipv6 nd ra dns search-list example.com 3600\n```\n\nStep 2 — Monitor RDNSS advertisements in syslog.\n\nStep 3 — Validate: Verify SLAAC clients receive correct DNS from `ipconfig /all` or `resolvectl`.\n\nStep 4 — Operationalize: Dashboard and alerting for rogue RDNSS.\n\nStep 5 — Troubleshooting\n• RDNSS not received by clients: Verify router is sending RDNSS option. Check with packet capture of RA messages.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ios, cisco:iosxe into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, rdnss_event, severity`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "When devices join our network and get their new address (IPv6) automatically, the router also tells them which phone book (DNS server) to use. We watch to make sure nobody is telling devices to use a fake phone book that would send them to the wrong websites.",
   "prerequisiteUseCases": [
     "UC-5.20.21",

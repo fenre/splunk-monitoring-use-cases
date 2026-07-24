@@ -8,11 +8,17 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`index=windows` (or your controller log index) `sourcetype=\"WinEventLog:Application\"` `source=\"Citrix High Availability Service\"`; optional correlation: `index=xd` `sourcetype=\"citrix:broker:events\"` for controller health and brokering errors during outages",
-  "app": "Splunk Add-on for Microsoft Windows, Template for Citrix XenDesktop 7 (TA-XD7-Broker)",
+  "exclusions": "Covers the detection logic documented for 'Local Host Cache (LHC) Sync Status and Mode Transitions' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_local_host_cache_lhc_sync_status_and_mode_transi` (UC-2.6.28), SOC dashboard panel \"Linux — Local Host Cache (LHC) Sync Status and Mode Transitions\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.6.28 positive (Local, Host, Cache, (LHC), Sync): ingest synthetic events into `index=windows` sourcetype='WinEventLog:Application' where `count` grouped by `host`, `EventCode`, `Message` satisfies -24h for 'Local Host Cache (LHC) Sync Status and Mode Transitions'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.6.28 negative (Mode Transitions): ingest benign `windows` / `WinEventLog:Application` events where `host`, `EventCode`, `Message` stays below -24h, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 14 confirms zero alert rows for 'Local Host Cache (LHC) Sync Status and Mode Transitions'."
+  },
+  "dataSources": "`index=windows` (or your controller log index) `sourcetype=\"WinEventLog:Application\"` `source=\"Citrix High Availability Service\"`; optional correlation: `index=xd` `sourcetype=\"citrix:broker:events\"` for controller health and brokering errors during outages Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Add-on for Microsoft Windows, Template for Citrix XenDesktop 7 (TA-XD7-Broker) — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=windows sourcetype=\"WinEventLog:Application\" source=\"Citrix High Availability Service\" earliest=-24h\n| rex field=Message \"(?i)mode[\\s:]*(?<lhc_mode>\\w+)|synchroni[sz]e|sync\\s+lag|Local\\s*Host\\s*Cache|HA\\s*state\"\n| eval ha_event=if(match(Message, \"(?i)entering|switched|transition|outage|split.?brain|sync\"), 1, 0)\n| where ha_event=1\n| stats count, earliest(_time) as first_seen, latest(_time) as last_seen by host, EventCode, Message\n| sort - count",
-  "description": "Local Host Cache (LHC) allows Delivery Controllers to broker sessions when the site database is unreachable. Failures in sync, unexpected mode changes (to or from LHC), or lagging replication indicate risk of logon/brokering issues and split-brain scenarios. Alerting on Citrix High Availability Service events and correlating with broker events surfaces site-database outages and recovery before users see widespread failures.",
-  "value": "Local Host Cache (LHC) allows Delivery Controllers to broker sessions when the site database is unreachable. Failures in sync, unexpected mode changes (to or from LHC), or lagging replication indicate risk of logon/brokering issues and split-brain scenarios. Alerting on Citrix High Availability Service events and correlating with broker events surfaces site-database outages and recovery before users see widespread failures.",
+  "description": "Monitors UC-2.6.28 — Local, Host, Cache, (LHC), Sync — using `index=windows` sourcetype `WinEventLog:Application`, grouped by `host`, `EventCode`, `Message`. Outputs `count` each `the scheduled window`; alert when -24h. Primary focus: Mode Transitions. Purpose-built for 'Local Host Cache (LHC) Sync Status and Mode Transitions' in Linux workflows.",
+  "value": "Alerting on Local, Host, Cache, (LHC), Sync through UC-2.6.28 reduces capacity incidents, patch regressions, and service outages by surfacing `activity` early.",
   "implementation": "Ingest Windows Application log from all Delivery Controllers; confirm `source` and `sourcetype` for Citrix High Availability Service. Add field extractions for sync state, mode transition, and error text if Message format varies by version. Correlate with `citrix:broker:events` for registration and brokering errors. Tune noise from planned failovers. Document expected behavior during site DB maintenance so alerts can be suppressed via lookup.",
   "visualization": "Timeline (HA and mode events), Table (host, event text, first/last seen), Single value (count of critical HA errors).",
   "cimModels": [
@@ -21,14 +27,26 @@
   "references": [
     {
       "title": "Local Host Cache in Citrix Virtual Apps and Desktops",
-      "url": "https://docs.citrix.com/en-us/"
+      "url": "https://docs.citrix.com/en-us/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742"
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Citrix environments often coordinate broker, VDA, gateway, and profile layers; a single noisy component may clear when maintenance or a publish job completes.",
+  "knownFalsePositives": "1. **Patch Tuesday on `windows`** — Package managers spike `host` metrics for 'Local Host Cache (LHC) Sync Status and Mode Transitions'. Correlate with apt/yum logs in the same `WinEventLog:Application` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Application`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "citrix"
   ],
@@ -36,6 +54,12 @@
     "citrix_cvad"
   ],
   "lastReviewed": "2026-04-24",
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Windows, Template for Citrix XenDesktop 7 (TA-XD7-Broker).\n• Ensure the following data sources are available: `sourcetype=\"WinEventLog:Application\"` with `source=\"Citrix High Availability Service\"` from Delivery Controllers; optional `index=xd` `sourcetype=\"citrix:broker:events\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward Application logs from all Delivery Controllers. Verify the Citrix High Availability Service writes events you can key on (mode transitions, sync errors). Normalize `host` to controller identity. Add optional scheduled search to join broker-side failures when LHC is active.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range, regex, and host filters as needed):\n\n```spl\nindex=windows sourcetype=\"WinEventLog:Application\" source=\"Citrix High Availability Service\" earliest=-24h\n| rex field=Message \"(?i)mode[\\s:]*(?<lhc_mode>\\w+)|synchroni[sz]e|sync\\s+lag|Local\\s*Host\\s*Cache|HA\\s*state\"\n| eval ha_event=if(match(Message, \"(?i)entering|switched|transition|outage|split.?brain|sync\"), 1, 0)\n| where ha_event=1\n| stats count, earliest(_time) as first_seen, latest(_time) as last_seen by host, EventCode, Message\n| sort - count\n```\n\nStep 3 — Validate\nTrigger a test in a lab (simulate database connectivity) or compare against known maintenance windows. Confirm events are parsed and that correlation searches return expected pairings with broker data.\n\nStep 4 — Operationalize\nAlert on new critical Message patterns, rising event rates per controller, or sync-related errors outside change windows. Add maintenance lookups to suppress expected transitions. Use timeline and table visualizations in the operations dashboard.",
-  "grandmaExplanation": "We keep an eye on local Host Cache (LHC) Sync Status and Mode Transitions and raise the alarm before it drags down real work or real outages start."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Windows, Template for Citrix XenDesktop 7 (TA-XD7-Broker).\n• Ensure the following data sources are available: `sourcetype=\"WinEventLog:Application\"` with `source=\"Citrix High Availability Service\"` from Delivery Controllers; optional `index=xd` `sourcetype=\"citrix:broker:events\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward Application logs from all Delivery Controllers. Verify the Citrix High Availability Service writes events you can key on (mode transitions, sync errors). Normalize `host` to controller identity. Add optional scheduled search to join broker-side failures when LHC is active.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range, regex, and host filters as needed):\n\n```spl\nindex=windows sourcetype=\"WinEventLog:Application\" source=\"Citrix High Availability Service\" earliest=-24h\n| rex field=Message \"(?i)mode[\\s:]*(?<lhc_mode>\\w+)|synchroni[sz]e|sync\\s+lag|Local\\s*Host\\s*Cache|HA\\s*state\"\n| eval ha_event=if(match(Message, \"(?i)entering|switched|transition|outage|split.?brain|sync\"), 1, 0)\n| where ha_event=1\n| stats count, earliest(_time) as first_seen, latest(_time) as last_seen by host, EventCode, Message\n| sort - count\n```\n\nStep 3 — Validate\nTrigger a test in a lab (simulate database connectivity) or compare against known maintenance windows. Confirm events are parsed and that correlation searches return expected pairings with broker data.\n\nStep 4 — Operationalize\nAlert on new critical Message patterns, rising event rates per controller, or sync-related errors outside change windows. Add maintenance lookups to suppress expected transitions. Use timeline and table visualizations in the operations dashboard.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Microsoft Windows, Template for Citrix XenDesktop 7 (TA-XD7-Broker) — Splunk Add-on for Microsoft Windows (Splunkbase 742)). Enable the modular input or HEC token that writes sourcetype=WinEventLog:Application into windows. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`EventCode, Message, ha_event, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We keep an eye on local Host Cache (LHC) Sync Status and Mode Transitions and raise the alarm before it drags down real work or real outages start.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Endpoint Security Analytics (ESA) Threat Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_endpoint_security_analytics_esa_threat_detection` (UC-2.6.27), SOC dashboard panel \"Linux — Endpoint Security Analytics (ESA) Threat Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.6.27 positive (Endpoint, Security, Analytics, (ESA), Threat): ingest synthetic events into `index=uberagent` sourcetype='uberAgentESA:ActivityMonitoring:ProcessTagging' where `count` grouped by `RuleName`, `RuleSeverity`, `User`, `Host` satisfies -24h for 'Endpoint Security Analytics (ESA) Threat Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.6.27 negative (Threat Detection): ingest benign `uberagent` / `uberAgentESA:ActivityMonitoring:ProcessTagging` events where `RuleName`, `RuleSeverity`, `User`, `Host` stays below -24h, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 13 confirms zero alert rows for 'Endpoint Security Analytics (ESA) Threat Detection'."
+  },
   "dataSources": "`sourcetype=\"uberAgentESA:ActivityMonitoring:ProcessTagging\"`, `sourcetype=\"uberAgent:Process:ProcessStartup\"`",
   "app": "uberAgent ESA (included with uberAgent UXM, Splunkbase 1448)",
   "spl": "index=uberagent sourcetype=\"uberAgentESA:ActivityMonitoring:ProcessTagging\" earliest=-24h\n| stats count by RuleName, RuleSeverity, User, Host, ProcessName\n| where RuleSeverity IN (\"critical\",\"high\")\n| sort -RuleSeverity, -count\n| table Host, User, ProcessName, RuleName, RuleSeverity, count",
-  "description": "uberAgent ESA provides endpoint-level threat detection within Citrix sessions using Sigma rules, LOLBAS detection, process tampering monitoring, and file system activity analysis. In multi-user CVAD environments, a compromised session can laterally move to shared resources. ESA detects threats inside the session that network-based security tools cannot see.",
-  "value": "uberAgent ESA provides endpoint-level threat detection within Citrix sessions using Sigma rules, LOLBAS detection, process tampering monitoring, and file system activity analysis. In multi-user CVAD environments, a compromised session can laterally move to shared resources. ESA detects threats inside the session that network-based security tools cannot see.",
+  "description": "Identifies UC-2.6.27 — Endpoint, Security, Analytics, (ESA), Threat — using `index=uberagent` sourcetype `uberAgentESA:ActivityMonitoring:ProcessTagging`, grouped by `RuleName`, `RuleSeverity`, `User`, `Host`. Outputs `count` each `the scheduled window`; alert when -24h. Primary focus: Threat Detection. Purpose-built for 'Endpoint Security Analytics (ESA) Threat Detection' in Linux workflows.",
+  "value": "UC-2.6.27 gives Linux teams earlier visibility into Threat Detection through `uberAgentESA:ActivityMonitoring:ProcessTagging` feeds, lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Enable uberAgent ESA with default Sigma rule pack. Customise rules for Citrix-specific threats (e.g., lateral movement via published apps, credential dumping in shared sessions). Forward ESA events to Splunk Enterprise Security as notable events. The MITRE ATT&CK integration maps detections to tactics and techniques for SOC workflows.",
   "visualization": "Table (threat detections), Bar chart (by MITRE tactic), Timeline (detection events), Single value (critical alerts).",
   "cimModels": [
@@ -21,18 +27,26 @@
   "references": [
     {
       "title": "Splunkbase app 1448",
-      "url": "https://splunkbase.splunk.com/app/1448"
+      "url": "https://splunkbase.splunk.com/app/1448",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263"
+      "url": "https://splunkbase.splunk.com/app/263",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Intrusion Detection",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Intrusion_Detection",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Citrix environments often coordinate broker, VDA, gateway, and profile layers; a single noisy component may clear when maintenance or a publish job completes.",
+  "knownFalsePositives": "1. **Patch Tuesday on `uberagent`** — Package managers spike `RuleName` metrics for 'Endpoint Security Analytics (ESA) Threat Detection'. Correlate with apt/yum logs in the same `uberAgentESA:ActivityMonitoring:ProcessTagging` window.\n\n2. **Nightly backup I/O on `RuleName`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `uberAgentESA:ActivityMonitoring:ProcessTagging`** — Nagios/Zabbix polls `RuleName` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `RuleName` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `RuleName`, `valid_until`.",
   "equipment": [
     "citrix"
   ],
@@ -40,7 +54,13 @@
     "citrix_cvad",
     "citrix_uberagent"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: uberAgent ESA (included with uberAgent UXM, Splunkbase 1448).\n• Ensure the following data sources are available: `sourcetype=\"uberAgentESA:ActivityMonitoring:ProcessTagging\"`, `sourcetype=\"uberAgent:Process:ProcessStartup\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable uberAgent ESA with default Sigma rule pack. Customise rules for Citrix-specific threats (e.g., lateral movement via published apps, credential dumping in shared sessions). Forward ESA events to Splunk Enterprise Security as notable events. The MITRE ATT&CK integration maps detections to tactics and techniques for SOC workflows.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=uberagent sourcetype=\"uberAgentESA:ActivityMonitoring:ProcessTagging\" earliest=-24h\n| stats count by RuleName, RuleSeverity, User, Host, ProcessName\n| where RuleSeverity IN (\"critical\",\"high\")\n| sort -RuleSeverity, -count\n| table Host, User, ProcessName, RuleName, RuleSeverity, count\n```\n\nUnderstanding this SPL\n\n**Endpoint Security Analytics (ESA) Threat Detection** — uberAgent ESA provides endpoint-level threat detection within Citrix sessions using Sigma rules, LOLBAS detection, process tampering monitoring, and file system activity analysis. In multi-user CVAD environments, a compromised session can laterally move to shared resources. ESA detects threats inside the session that network-based security tools cannot see.\n\nDocumented **Data sources**: `sourcetype=\"uberAgentESA:ActivityMonitoring:ProcessTagging\"`, `sourcetype=\"uberAgent:Process:ProcessStartup\"`. **App/TA** (typical add-on context): uberAgent ESA (included with uberAgent UXM, Splunkbase 1448). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: uberagent; **sourcetype**: uberAgentESA:ActivityMonitoring:ProcessTagging. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=uberagent, sourcetype=\"uberAgentESA:ActivityMonitoring:ProcessTagging\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by RuleName, RuleSeverity, User, Host, ProcessName** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where RuleSeverity IN (\"critical\",\"high\")` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Endpoint Security Analytics (ESA) Threat Detection**): table Host, User, ProcessName, RuleName, RuleSeverity, count\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (threat detections), Bar chart (by MITRE tactic), Timeline (detection events), Single value (critical alerts).",
   "grandmaExplanation": "We keep an eye on endpoint Security Analytics (ESA) Threat Detection and raise the alarm before it drags down real work or real outages start.",
-  "hardware": "Windows VDAs, Windows endpoints"
+  "hardware": "Windows VDAs, Windows endpoints",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,11 +9,17 @@
     "Security"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "SMB audit logs forwarded as `truenas:alert` or custom `truenas:dataset` access logs",
-  "app": "TrueNAS SMB audit + syslog to SC4S",
+  "exclusions": "Covers the detection logic documented for 'TrueNAS SMB share access audit trail for sensitive datasets' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_truenas_smb_share_access_audit_trail_for_sensiti` (UC-6.2.46), SOC dashboard panel \"Operations — TrueNAS SMB share access audit trail for sensitive datasets\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.2.46 positive (TrueNAS, SMB, share, access, audit): ingest synthetic events into `index=storage` sourcetype='truenas:alert' where `count` grouped by `share`, `user`, `client_ip` satisfies -24h for 'TrueNAS SMB share access audit trail for sensitive datasets'. Validate filter `smb OR SMB OR \"share access\" OR \"authentication failure\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.46 negative (sensitive datasets): ingest benign `storage` / `truenas:alert` events where `share`, `user`, `client_ip` stays below -24h, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'TrueNAS SMB share access audit trail for sensitive datasets'."
+  },
+  "dataSources": "SMB audit logs forwarded as `truenas:alert` or custom `truenas:dataset` access logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "TrueNAS SMB audit + syslog to SC4S — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"truenas:alert\" earliest=-24h\n| search smb OR SMB OR \"share access\" OR \"authentication failure\"\n| eval share=coalesce(share_name, smb_share)\n| eval user=coalesce(username, user, account)\n| stats count by share, user, client_ip\n| sort - count",
-  "description": "Share-level audit trails support insider-threat investigations and proves who touched regulated folders.",
-  "value": "Strengthens governance for HIPAA/PCI file shares without third-party agents.",
+  "description": "Alerts on sensitive datasets activity in UC-6.2.46 ('TrueNAS SMB share access audit trail for sensitive datasets') from `index=storage` sourcetype `truenas:alert`. Rolls up `count` by `share`, `user`, `client_ip` across `the scheduled window` and pages when -24h. Uses filter `smb OR SMB OR \"share access\" OR \"authentication failure\"`. Operations operators treat UC-6.2.46 as the canonical signal.",
+  "value": "Operators running UC-6.2.46 on `truenas:alert` feeds shorten triage for sensitive datasets tied to 'TrueNAS SMB share access audit trail for sensitive datasets', lowering operational risk and delayed incident response.",
   "implementation": "Enable granular SMB auditing in TrueNAS; set `props.conf` LINE_BREAKER for multi-line kerberos events. Restrict index ACLs to security team.",
   "visualization": "Top shares by events, table (user, client_ip).",
   "cimModels": [
@@ -22,17 +28,33 @@
   "references": [
     {
       "title": "TrueNAS SCALE API documentation",
-      "url": "https://www.truenas.com/docs/scale/scaletutorials/toptoolbar/"
+      "url": "https://www.truenas.com/docs/scale/scaletutorials/toptoolbar/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TrueNAS CORE/SCALE docs — alerts",
-      "url": "https://www.truenas.com/docs/"
+      "url": "https://www.truenas.com/docs/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Backup jobs, scanners, and legitimate mass access can resemble policy violations; narrow paths and service accounts using a lookup.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.2.46)** — Planned work for 'TrueNAS SMB share access audit trail for sensitive datasets' shifts `count` over `span=1h` while `share`, `user`, `client_ip` remains in-scope. Applies filter `smb OR SMB OR \"share access\" OR \"authentication failure\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `truenas:alert`** — Scheduled automation elevates `user` without crossing configured threshold for UC-6.2.46. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `share`, `user`, `client_ip`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `truenas:alert`** — First 48h baseline for UC-6.2.46 on `share` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `share`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog",
     "truenas"
+  ],
+  "equipmentModels": [
+    "syslog_generic",
+    "truenas_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -42,5 +64,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We help you see when who can reach a file share changes, so permission drift does not quietly open a sensitive folder to the whole company."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (TrueNAS SMB audit + syslog to SC4S — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=truenas:alert into storage. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`client_ip, share, user`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you see when who can reach a file share changes, so permission drift does not quietly open a sensitive folder to the whole company.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

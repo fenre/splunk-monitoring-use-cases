@@ -9,11 +9,17 @@
     "Physical"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "NUT/UPS telemetry indexed as `truenas:alert` or `truenas:pool` health plugins",
-  "app": "TrueNAS UPS service + scripted forwarder",
+  "exclusions": "Covers the detection logic documented for 'TrueNAS UPS battery runtime remaining and power failover readiness' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_truenas_ups_battery_runtime_remaining_and_power_` (UC-6.2.48), SOC dashboard panel \"Operations — TrueNAS UPS battery runtime remaining and power failover readiness\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-6.2.48 positive (TrueNAS, UPS, battery, runtime, remaining): ingest synthetic events into `index=storage` sourcetype='truenas:alert' where `count` grouped by `hostname`, `ups_name` satisfies `minutes` < 10 for 'TrueNAS UPS battery runtime remaining and power failover readiness'. Validate filter `UPS OR NUT OR battery OR onbatt`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.48 negative (failover readiness): ingest benign `storage` / `truenas:alert` events where `hostname`, `ups_name` stays below `minutes` < 10, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'TrueNAS UPS battery runtime remaining and power failover readiness'."
+  },
+  "dataSources": "NUT/UPS telemetry indexed as `truenas:alert` or `truenas:pool` health plugins Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "TrueNAS UPS service + scripted forwarder — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"truenas:alert\" earliest=-30m\n| search UPS OR NUT OR battery OR onbatt\n| eval minutes=coalesce(battery_runtime_minutes, runtime_min, time_left_min)\n| where minutes < 10 OR match(_raw, \"on battery|OB \")\n| stats latest(minutes) as runtime_min by hostname, ups_name",
-  "description": "Short UPS runtime risks unclean shutdown of ZFS pools during extended outages, risking import failures and long scrubs.",
-  "value": "Triggers orderly shutdown automation and vendor dispatch before batteries are exhausted.",
+  "description": "Detects failover readiness activity in UC-6.2.48 ('TrueNAS UPS battery runtime remaining and power failover readiness') from `index=storage` sourcetype `truenas:alert`. Rolls up `count` by `hostname`, `ups_name` across `the scheduled window` and pages when `minutes` < 10. Uses filter `UPS OR NUT OR battery OR onbatt`. Operations operators treat UC-6.2.48 as the canonical signal.",
+  "value": "Operators running UC-6.2.48 on `truenas:alert` feeds shorten triage for failover readiness tied to 'TrueNAS UPS battery runtime remaining and power failover readiness', lowering operational risk and delayed incident response.",
   "implementation": "Normalize UPS names across sites. Test syslog formats from `upsmon` after firmware upgrades.",
   "visualization": "Single value (min runtime), table (site, UPS).",
   "cimModels": [
@@ -22,14 +28,26 @@
   "references": [
     {
       "title": "TrueNAS SCALE API documentation",
-      "url": "https://www.truenas.com/docs/scale/scaletutorials/toptoolbar/"
+      "url": "https://www.truenas.com/docs/scale/scaletutorials/toptoolbar/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "TrueNAS CORE/SCALE docs — alerts",
-      "url": "https://www.truenas.com/docs/"
+      "url": "https://www.truenas.com/docs/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Short spikes during approved changes, maintenance windows, or known batch jobs can match the rule; confirm against the vendor console and change calendar.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.2.48)** — Planned work for 'TrueNAS UPS battery runtime remaining and power failover readiness' shifts `count` over `span=1h` while `hostname`, `ups_name` remains in-scope. Applies filter `UPS OR NUT OR battery OR onbatt`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `truenas:alert`** — Scheduled automation elevates `ups_name` without crossing `minutes` < 10 for UC-6.2.48. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `hostname`, `ups_name`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `truenas:alert`** — First 48h baseline for UC-6.2.48 on `hostname` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `hostname`, `exception_reason`, `valid_until`.",
   "equipment": [
     "snmp",
     "syslog",
@@ -46,5 +64,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We help you see how object storage is growing, who can reach it, and when something is exposed or mis-tagged, so cloud storage stays under control."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (TrueNAS UPS service + scripted forwarder — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=truenas:alert into storage. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`hostname, minutes, ups_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We help you see how object storage is growing, who can reach it, and when something is exposed or mis-tagged, so cloud storage stays under control.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

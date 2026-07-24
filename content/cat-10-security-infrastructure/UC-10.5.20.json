@@ -8,11 +8,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=zscaler:web`, `sourcetype=pan:traffic`",
-  "app": "Zscaler, Umbrella, firewall logs",
+  "exclusions": "Covers the detection logic documented for 'Shadow IT Discovery' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `security_infra_shadow_it_discovery` (UC-10.5.20), SOC dashboard panel \"Security Infra — Shadow IT Discovery\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-10.5.20 positive (Shadow, Discovery): ingest synthetic events into `index=proxy` sourcetype='zscaler:web' where `bytes` grouped by `app_name`, `user` satisfies -24h for 'Shadow IT Discovery'. Validate lookup `approved_saas_apps.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.5.20 negative (IT Discovery): ingest benign `proxy` / `zscaler:web` events where `app_name`, `user` stays below -24h, or exclude the test entity via `soc_exception_register.csv`. Variant 12 confirms zero alert rows for 'Shadow IT Discovery'."
+  },
+  "dataSources": "`sourcetype=zscaler:web`, `sourcetype=pan:traffic` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Zscaler, Umbrella, firewall logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"zscaler:web\" earliest=-24h\n| stats sum(bytes_in) as bytes by app_name, user\n| lookup approved_saas_apps.csv app_name OUTPUT approved\n| where isnull(approved)\n| sort -bytes\n| head 50",
-  "description": "Identifies SaaS and unsanctioned apps via proxy/DNS logs not mapped to approved services in CMDB or SSO.",
-  "value": "Identifies SaaS and unsanctioned apps via proxy/DNS logs not mapped to approved services in CMDB or SSO.",
+  "description": "Surfaces UC-10.5.20 — Shadow, Discovery — using `index=proxy` sourcetype `zscaler:web`, grouped by `app_name`, `user`. Outputs `bytes` each `the scheduled window`; alert when -24h. Filter chain includes lookup `approved_saas_apps.csv`. Purpose-built for 'Shadow IT Discovery' in Security Infra workflows.",
+  "value": "Tracking `bytes` via UC-10.5.20 on `zscaler:web` feeds improves response to 'Shadow IT Discovery' and reduces missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Maintain `approved_saas_apps.csv` from architecture/ITAM. Top unapproved apps by volume; correlate with CMDB business service owner for intake.",
   "visualization": "Table (shadow apps), Bar chart (bytes by app), Pie chart (approved vs unknown).",
   "cimModels": [
@@ -22,13 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "CIM: Web",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS rollouts, browser or agent updates, or vendor category changes; review against change windows and approved app lists.",
+  "knownFalsePositives": "1. **Maintenance window on `proxy` (UC-10.5.20)** — Planned work for 'Shadow IT Discovery' shifts `bytes` over `span=1h` while `app_name`, `user` remains in-scope. Applies lookup `approved_saas_apps.csv`. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `zscaler:web`** — Scheduled automation elevates `user` without crossing configured threshold for UC-10.5.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `app_name`, `user`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zscaler:web`** — First 48h baseline for UC-10.5.20 on `app_name` is unstable; join `approved_saas_apps.csv` prior to threshold.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `app_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "zscaler"
   ],
+  "equipmentModels": [
+    "zscaler_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Zscaler, Umbrella, firewall logs.\n• Ensure the following data sources are available: `sourcetype=zscaler:web`, `sourcetype=pan:traffic`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMaintain `approved_saas_apps.csv` from architecture/ITAM. Top unapproved apps by volume; correlate with CMDB business service owner for intake.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=proxy sourcetype=\"zscaler:web\" earliest=-24h\n| stats sum(bytes_in) as bytes by app_name, user\n| lookup approved_saas_apps.csv app_name OUTPUT approved\n| where isnull(approved)\n| sort -bytes\n| head 50\n```\n\nUnderstanding this SPL\n\n**Shadow IT Discovery** — Identifies SaaS and unsanctioned apps via proxy/DNS logs not mapped to approved services in CMDB or SSO.\n\nDocumented **Data sources**: `sourcetype=zscaler:web`, `sourcetype=pan:traffic`. **App/TA** (typical add-on context): Zscaler, Umbrella, firewall logs. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: proxy; **sourcetype**: zscaler:web. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=proxy, sourcetype=\"zscaler:web\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by app_name, user** so each row reflects one combination of those dimensions.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnull(approved)` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Limits the number of rows with `head`.\n\n\nStep 3 — Validate\nCompare with the Zscaler ZIA admin portal (web security, blocks, users) for the same time range; then confirm field extractions and index permissions in Splunk.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (shadow apps), Bar chart (bytes by app), Pie chart (approved vs unknown).",
-  "grandmaExplanation": "We use proxy and DNS-like logs to find shadow IT so we know which unapproved apps need review, approval, or blocking."
+  "grandmaExplanation": "We use proxy and DNS-like logs to find shadow IT so we know which unapproved apps need review, approval, or blocking.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

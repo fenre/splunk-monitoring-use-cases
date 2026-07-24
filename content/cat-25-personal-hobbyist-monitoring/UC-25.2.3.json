@@ -9,23 +9,55 @@
     "Safety"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Apple Health metrics (`apple:health`), Oura Ring readiness/sleep (`oura:daily`), Whoop recovery/strain (`whoop:cycle`), Withings measurements (`withings:measure`).",
-  "app": "Apple Health / Apple Watch exports (Health Auto Export or Shortcuts) via HEC; Oura, Whoop, Withings, and Dexcom APIs via scripted REST inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Oura Readiness Score Drop Alert' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_oura_readiness_score_drop_alert` (UC-25.2.3), SOC dashboard panel \"Personal — Oura Readiness Score Drop Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.2.3 positive (Oura, Readiness, Score, Drop, Alert): ingest synthetic events into `index=personal` sourcetype='oura:daily' where `readiness`, `week_avg` grouped by `entity` satisfies `drop` > 10 for 'Oura Readiness Score Drop Alert'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.2.3 negative (Drop Alert): ingest benign `personal` / `oura:daily` events where `entity` stays below `drop` > 10, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 3 confirms zero alert rows for 'Oura Readiness Score Drop Alert'."
+  },
+  "dataSources": "Apple Health metrics (`apple:health`), Oura Ring readiness/sleep (`oura:daily`), Whoop recovery/strain (`whoop:cycle`), Withings measurements (`withings:measure`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Apple Health / Apple Watch exports (Health Auto Export or Shortcuts) via HEC; Oura, Whoop, Withings, and Dexcom APIs via scripted REST inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=oura:daily\n| timechart span=1d avg(readiness_score) as readiness\n| streamstats window=7 current=f avg(readiness) as week_avg\n| eval drop=round(week_avg-readiness,1)\n| where drop>10",
-  "description": "Compares today's Oura readiness score to your recent seven-day average and flags a sharp drop, signalling your body needs an easier day.",
-  "value": "A readiness crash is a data-driven reason to skip a hard workout; acting on it prevents the deeper fatigue that leads to illness or injury.",
+  "description": "Identifies when Drop Alert criteria fire for 'Oura Readiness Score Drop Alert' (UC-25.2.3) in `index=personal` sourcetype `oura:daily`. Pipeline aggregates `readiness`, `week_avg` by `entity` over `1d`. Alert logic enforces `drop` > 10. Title terms: Oura, Readiness, Score, Drop, Alert. Eliminates manual hunting for UC-25.2.3 conditions.",
+  "value": "UC-25.2.3 helps teams contain Oura, Readiness, Score, Drop, Alert scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Ingest Oura daily readiness; schedule each morning and send yourself a 'take it easy' nudge when readiness drops sharply.",
   "visualization": "Line chart of readiness with drop markers.",
   "cimModels": [],
   "references": [
     {
       "title": "Oura — API v2 documentation",
-      "url": "https://cloud.ouraring.com/v2/docs"
+      "url": "https://cloud.ouraring.com/v2/docs",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It notices when your body's recovery score falls a lot overnight and suggests taking it easy that day."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.2.3)** — Connector for 'Oura Readiness Score Drop Alert' stops polling `oura:daily`; stale `readiness`, `week_avg` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `readiness`, `week_avg` over `1d` is expected for UC-25.2.3, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `oura:daily`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `drop` > 10 for 'Oura Readiness Score Drop Alert'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Oura Ring — Oura Cloud API v2 → HEC scripted input.\n• **Subcategory context**: Health, Sleep & Wearables — typical feeds: Apple Health metrics (`apple:health`), Oura Ring daily readiness/sleep (`oura:daily`), Whoop recovery/strain (`whoop:cycle`), Withings body/blood-pressure (`withings:measure`), Dexcom CGM glucose (`de.\n• **Sourcetypes in this search**: `oura:daily`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Oura Ring** events into `index=personal` with `sourcetype=oura:daily`.\n\n**Collection method:** Oura Cloud API v2 → HEC scripted input.\n\n**Reference endpoint / path:** `GET /v2/usercollection/daily_sleep`.\n\n**Suggested poll interval:** 86400s (daily sync).\n\n**Key fields to extract:** `score, contributors, heart_rate, hrv`.\n\n**Typical connector stack:** Apple Health / Apple Watch exports (Health Auto Export, Shortcuts) via HEC; Oura, Whoop, Withings, Dexcom APIs via scripted REST inputs..\n\n**Author notes:** Ingest Oura daily readiness; schedule each morning and send yourself a 'take it easy' nudge when readiness drops sharply.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"oura:daily\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=oura:daily earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Oura Readiness Score Drop Alert** over `personal` data (primarily `sourcetype=oura:daily`) across the full search range. `eventstats` / `streamstats` compute rolling baselines before filtering outliers; window size controls sensitivity (smaller window = noisier alerts).\n\n**Fields this search depends on:** `drop`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=oura:daily\n| timechart span=1d avg(readiness_score) as readiness\n| streamstats window=7 current=f avg(readiness) as week_avg\n| eval drop=round(week_avg-readiness,1)\n| where drop>10\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Oura app → Readiness / Sleep tabs. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=oura:daily earliest=-7d\n| head 50\n| table drop\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=oura:daily earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `drop` before alerting:\n\n```spl\nindex=personal sourcetype=oura:daily earliest=-30d\n| stats perc50(drop) AS p50 perc90(drop) AS p90 perc99(drop) AS p99 max(drop) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.2.3: Personal evidence` with the following panel layout:\n\n**Panel 1 — Line Chart Of Readiness With Drop Markers (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Oura Ring — no Oura Ring events / missing fields:** If `oura:daily` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Oura Ring connector script is still running (`systemctl status` or cron log).\n\n**Oura Ring — NULL values in extracted fields:** The Oura Ring JSON export shape drifted — compare a raw event (`index=personal sourcetype=oura:daily | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Oura Ring — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Oura Ring — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Oura Ring APIs often cap requests per 15 minutes on free tiers.\n\n**Everything is an outlier:** Baseline window is too short or `stdev=0` — require minimum sample count (`where count>=5`) before computing z-scores.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It notices when your body's recovery score falls a lot overnight and suggests taking it easy that day.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

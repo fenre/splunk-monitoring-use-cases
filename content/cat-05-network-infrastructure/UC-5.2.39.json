@@ -8,21 +8,43 @@
     "Security"
   ],
   "splunkPillar": "Security",
+  "exclusions": "Covers the detection logic documented for 'Data Loss Prevention (DLP) Event Analysis (Meraki MX)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_data_loss_prevention_dlp_event_analysis_meraki_m` (UC-5.2.39), SOC dashboard panel \"Operations — Data Loss Prevention (DLP) Event Analysis (Meraki MX)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.2.39 positive (Data, Loss, Prevention, (DLP), Event): ingest synthetic events into `index=meraki` sourcetype='meraki' where `values` grouped by `src_ip` satisfies -24h for 'Data Loss Prevention (DLP) Event Analysis (Meraki MX)'. Validate lookup `pii_keyword_list`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.2.39 negative ((Meraki MX)): ingest benign `meraki` / `meraki` events where `src_ip` stays below -24h, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Data Loss Prevention (DLP) Event Analysis (Meraki MX)'."
+  },
   "dataSources": "SC4S Meraki vendor pack (sourcetype=meraki, type=urls) receiving Meraki content filtering events. NOTE: Meraki MX does NOT have a built-in DLP engine. This UC uses a customer-maintained pii_keyword_list lookup against blocked URLs as a weak proxy. For real DLP coverage deploy a dedicated DLP product (Cisco Secure Email, Microsoft Purview, Forcepoint DLP, Symantec DLP) and ingest its events instead — this UC's premise is fundamentally limited on a Meraki-only stack.",
   "app": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype=\"meraki\" (does not require the API TA).",
   "spl": "index=meraki sourcetype=\"meraki\" type=urls action=\"blocked\"\n    earliest=-24h\n| rex \"src=(?<src_ip>[\\d\\.]+)\"\n| rex \"dst=(?<dst_ip>[\\d\\.]+)\"\n| rex \"request: (?:GET|POST) (?<url>https?://[^\\s]+)\"\n| lookup pii_keyword_list keyword OUTPUTNEW pii_category\n| where isnotnull(pii_category)\n| stats count as event_count,\n        values(url) as urls,\n        values(pii_category) as categories\n         by src_ip\n| sort - event_count",
-  "description": "Detects and alerts on sensitive data transmission to prevent data exfiltration.",
-  "value": "Security teams monitor Meraki MX content filtering blocks as DLP proxy indicators, detecting potential data exfiltration attempts to file sharing, cloud storage, and high-risk upload destinations.",
+  "description": "Surfaces risk tied to Data, Loss, Prevention, (DLP), Event through UC-5.2.39 on `index=meraki` sourcetype `meraki`. Summarises `values` grouped by `src_ip` across `the scheduled window` before applying -24h. Operators tune 'Data Loss Prevention (DLP) Event Analysis (Meraki MX)' using UC-5.2.39 runbook steps.",
+  "value": "Tracking `activity` via UC-5.2.39 on `meraki` feeds improves response to 'Data Loss Prevention (DLP) Event Analysis (Meraki MX)' and reduces operational risk and delayed incident response.",
   "implementation": "1. Configure SC4S for MX syslog and enable URLs syslog category in Meraki Dashboard. 2. Maintain a pii_keyword_list.csv lookup with columns (keyword, pii_category) reflecting your sensitive-data terms. 3. The URL field comes from the message body 'request: GET <url>'. 4. For comprehensive DLP coverage deploy a purpose-built DLP product — Meraki MX has no native DLP and the URL-keyword matching here will only catch HTTP requests where the keyword is in the URL path/query, missing all HTTPS body content.",
   "visualization": "DLP incident timeline; data type breakdown; source/destination detail.",
   "cimModels": [],
   "references": [
     {
       "title": "Splunkbase app 5580",
-      "url": "https://splunkbase.splunk.com/app/5580"
+      "url": "https://splunkbase.splunk.com/app/5580",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "False positives, large legitimate uploads, and user mistakes can all trip data-loss rules you still need to review.",
+  "knownFalsePositives": "1. **Maintenance window on `meraki` (UC-5.2.39)** — Planned work for 'Data Loss Prevention (DLP) Event Analysis (Meraki MX)' shifts `values` over `span=1h` while `src_ip` remains in-scope. Applies lookup `pii_keyword_list`. Cross-check CMDB CHG.\n\n2. **Batch `values` on `meraki`** — Scheduled automation elevates `src` without crossing configured threshold for UC-5.2.39. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src_ip`** — Health checks in `meraki` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `meraki`** — First 48h baseline for UC-5.2.39 on `src_ip` is unstable; join `pii_keyword_list` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src_ip`, `exception_reason`, `valid_until`.",
   "equipment": [
     "broadcom_symantec",
     "cisco",
@@ -32,6 +54,12 @@
   "equipmentModels": [
     "cisco_meraki"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype=\"meraki\" (does not require the API TA)..\n• Ensure the following data sources are available: SC4S Meraki vendor pack (sourcetype=meraki, type=urls) receiving Meraki content filtering events. NOTE: Meraki MX does NOT have a built-in DLP engine. This UC uses a customer-maintained pii_keyword_list lookup against blocked URLs as a weak proxy. For real DLP coverage deploy a dedicated DLP product (Cisco Secure Email, Microsoft Purview, Forcepoint DLP, Symantec DLP) and ingest its events instead — this UC's premise is fundamentally limited on a Meraki-only stack..\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n1. Configure SC4S for MX syslog and enable URLs syslog category in Meraki Dashboard. 2. Maintain a pii_keyword_list.csv lookup with columns (keyword, pii_category) reflecting your sensitive-data terms. 3. The URL field comes from the message body 'request: GET <url>'. 4. For comprehensive DLP coverage deploy a purpose-built DLP product — Meraki MX has no native DLP and the URL-keyword matching here will only catch HTTP requests where the keyword is in the URL path/query, missing all HTTPS body c…\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=meraki sourcetype=\"meraki\" type=urls action=\"blocked\"\n    earliest=-24h\n| rex \"src=(?<src_ip>[\\d\\.]+)\"\n| rex \"dst=(?<dst_ip>[\\d\\.]+)\"\n| rex \"request: (?:GET|POST) (?<url>https?://[^\\s]+)\"\n| lookup pii_keyword_list keyword OUTPUTNEW pii_category\n| where isnotnull(pii_category)\n| stats count as event_count,\n        values(url) as urls,\n        values(pii_category) as categories\n         by src_ip\n| sort - event_count\n```\n\nUnderstanding this SPL\n\n**Data Loss Prevention (DLP) Event Analysis (Meraki MX)** — Security teams monitor Meraki MX content filtering blocks as DLP proxy indicators, detecting potential data exfiltration attempts to file sharing, cloud storage, and high-risk upload destinations.\n\nDocumented **Data sources**: SC4S Meraki vendor pack (sourcetype=meraki, type=urls) receiving Meraki content filtering events. NOTE: Meraki MX does NOT have a built-in DLP engine. This UC uses a customer-maintained pii_keyword_list lookup against blocked URLs as a weak proxy. For real DLP coverage deploy a dedicated DLP product (Cisco Secure Email, Microsoft Purview, Forcepoint DLP, Symantec DLP) and ingest its events instead — this UC's premise is fundamentally limited on a Meraki-only stack. **App/TA** (typical add-on context): `Cisco Meraki Add-on for Splunk` (Splunkbase 5580) | Optional alternate path: Splunk Connect for Syslog (SC4S) with the Meraki vendor pack ingests Meraki MX/MS/MR appliance syslog as sourcetype=\"meraki\" (does not require the API TA). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: meraki; **sourcetype**: meraki. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=meraki, sourcetype=\"meraki\", time bounds. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts fields with `rex` (regular expression).\n• Extracts fields with `rex` (regular expression).\n• Extracts fields with `rex` (regular expression).\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• Filters the current rows with `where isnotnull(pii_category)` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by src_ip** so each row reflects one combination of those dimensions (useful for per-host, per-user, or per-entity comparisons for this use case).\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: DLP incident timeline; data type breakdown; source/destination detail.",
-  "grandmaExplanation": "We count data loss style events on the same edge so risky uploads to personal storage and odd data paths get a second look in time."
+  "grandmaExplanation": "We count data loss style events on the same edge so risky uploads to personal storage and odd data paths get a second look in time.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

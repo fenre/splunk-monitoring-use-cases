@@ -8,11 +8,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`edac-util`, `/sys/devices/system/edac/mc/`, IPMI SEL",
-  "app": "Custom scripted input (`edac-util`, IPMI SEL)",
+  "exclusions": "Covers the detection logic documented for 'Memory ECC Error Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_memory_ecc_error_trending` (UC-1.4.6), SOC dashboard panel \"Linux — Memory ECC Error Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-1.4.6 positive (Memory, ECC, Error, Trending): ingest synthetic events into `index=hardware` sourcetype='ecc_errors' where `ecc_errors`, `weekly_errors` grouped by `host` satisfies `ecc_errors` > 0, or `weekly_errors` > 10 for 'Memory ECC Error Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.4.6 negative (Error Trending): ingest benign `hardware` / `ecc_errors` events where `host` stays below `ecc_errors` > 0, or `weekly_errors` > 10, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 13 confirms zero alert rows for 'Memory ECC Error Trending'."
+  },
+  "dataSources": "`edac-util`, `/sys/devices/system/edac/mc/`, IPMI SEL Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input (`edac-util`, IPMI SEL) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=hardware sourcetype=ecc_errors\n| timechart span=1d sum(correctable_errors) as ecc_errors by host\n| where ecc_errors > 0\n| streamstats window=7 sum(ecc_errors) as weekly_errors by host\n| where weekly_errors > 10",
-  "description": "Correctable ECC errors that increase over time strongly predict impending DIMM failure. Proactive replacement avoids unrecoverable memory errors and system crashes.",
-  "value": "A rising weekly total of single-bit correctable events points to a bad stick or slot before a machine starts throwing uncorrectable errors and taking applications down with it.",
+  "description": "Detects UC-1.4.6 — Memory, ECC, Error, Trending — using `index=hardware` sourcetype `ecc_errors`, grouped by `host`. Outputs `ecc_errors`, `weekly_errors` each `1d`; alert when `ecc_errors` > 0, or `weekly_errors` > 10. Primary focus: Error Trending. Purpose-built for 'Memory ECC Error Trending' in Linux workflows.",
+  "value": "UC-1.4.6 gives Linux teams earlier visibility into Error Trending through `ecc_errors` feeds, lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Create scripted input: `edac-util -s` or parse `/sys/devices/system/edac/mc/mc*/ce_count`. Run hourly. Alert when correctable errors increase by >10/week. Track per-DIMM slot for targeted replacement.",
   "visualization": "Line chart (errors over time by host), Table (host, DIMM, error count), Trend chart.",
   "cimModels": [],
@@ -20,10 +26,26 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "A few correctable events can be a one-off; sustained growth per slot is what matters. Cosmic events, large-memory scans, and borderline contact after shipping can all noise the counter—trend and validate against vendor diagnostics before wholesale DIMM replacement.",
+  "knownFalsePositives": "1. **Patch Tuesday on `hardware`** — Package managers spike `host` metrics for 'Memory ECC Error Trending'. Correlate with apt/yum logs in the same `ecc_errors` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `sum` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `ecc_errors`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `ecc_errors` > 0.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
   "equipment": [
     "hardware_bmc"
   ],
@@ -31,6 +53,12 @@
     "hardware_bmc_edac",
     "hardware_bmc_ipmi"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (`edac-util`, IPMI SEL).\n• Ensure the following data sources are available: `edac-util`, `/sys/devices/system/edac/mc/`, IPMI SEL.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nOn Linux with EDAC, run `edac-util` or read `/sys/devices/system/edac/mc/.../ce_count` on a schedule and emit `correctable_errors` (optionally by DIMM). You can also supplement with IPMI memory-related SELs in a second sourcetype. Run hourly and align the field name with the search.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust weekly threshold as needed):\n\n```spl\nindex=hardware sourcetype=ecc_errors\n| timechart span=1d sum(correctable_errors) as ecc_errors by host\n| where ecc_errors > 0\n| streamstats window=7 sum(ecc_errors) as weekly_errors by host\n| where weekly_errors > 10\n```\n\nNote: the sample chains `timechart` with `streamstats`—tune or split into a base `stats` if your Splunk version or data shape needs a flatter pre-chart dataset.\n\nUnderstanding this SPL\n\n**Memory ECC Error Trending** — Correctable ECC errors that increase over time strongly predict impending DIMM failure. Proactive replacement avoids unrecoverable memory errors and system crashes.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=hardware`, `sourcetype=ecc_errors`.\n• `timechart` daily sums of correctable events per **host**.\n• `streamstats` over a seven-bucket window approximates a rolling week for the sample threshold.\n\n\nStep 3 — Validate\nCompare counts to `edac-util` and `dmesg` on a test host. For full details, see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We watch how many tiny memory self-corrections each machine logs over time, so you can replace a bad memory stick before the errors get serious enough to crash programs."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (`edac-util`, IPMI SEL).\n• Ensure the following data sources are available: `edac-util`, `/sys/devices/system/edac/mc/`, IPMI SEL.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nOn Linux with EDAC, run `edac-util` or read `/sys/devices/system/edac/mc/.../ce_count` on a schedule and emit `correctable_errors` (optionally by DIMM). You can also supplement with IPMI memory-related SELs in a second sourcetype. Run hourly and align the field name with the search.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust weekly threshold as needed):\n\n```spl\nindex=hardware sourcetype=ecc_errors\n| timechart span=1d sum(correctable_errors) as ecc_errors by host\n| where ecc_errors > 0\n| streamstats window=7 sum(ecc_errors) as weekly_errors by host\n| where weekly_errors > 10\n```\n\nNote: the sample chains `timechart` with `streamstats`—tune or split into a base `stats` if your Splunk version or data shape needs a flatter pre-chart dataset.\n\nUnderstanding this SPL\n\n**Memory ECC Error Trending** — Correctable ECC errors that increase over time strongly predict impending DIMM failure. Proactive replacement avoids unrecoverable memory errors and system crashes.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=hardware`, `sourcetype=ecc_errors`.\n• `timechart` daily sums of correctable events per **host**.\n• `streamstats` over a seven-bucket window approximates a rolling week for the sample threshold.\n\n\nStep 3 — Validate\nCompare counts to `edac-util` and `dmesg` on a test host. For full details, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom scripted input (`edac-util`, IPMI SEL) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ecc_errors into hardware. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`ecc_errors, host, weekly_errors`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch how many tiny memory self-corrections each machine logs over time, so you can replace a bad memory stick before the errors get serious enough to crash programs.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

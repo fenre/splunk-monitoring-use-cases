@@ -9,27 +9,48 @@
     "Governance"
   ],
   "splunkPillar": "Security",
-  "dataSources": "`sourcetype=proofpoint_tap_siem` with `threatStatus` from TAP threat metadata",
+  "exclusions": "Covers the detection logic documented for 'Proofpoint TAP Threat Status False-Positive Review Queue' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_proofpoint_tap_threat_status_false_positive_revi` (UC-11.3.63), SOC dashboard panel \"Operations — Proofpoint TAP Threat Status False-Positive Review Queue\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-11.3.63 positive (Proofpoint, TAP, Threat, Status, False): ingest synthetic events into `index=email` sourcetype='proofpoint_tap_siem' where `count` grouped by `classification`, `threatId` satisfies -30d for 'Proofpoint TAP Threat Status False-Positive Review Queue'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.3.63 negative (Review Queue): ingest benign `email` / `proofpoint_tap_siem` events where `classification`, `threatId` stays below -30d, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Proofpoint TAP Threat Status False-Positive Review Queue'."
+  },
+  "dataSources": "`sourcetype=proofpoint_tap_siem` with `threatStatus` from TAP threat metadata Indexes: email. Sourcetypes: proofpoint_tap_siem. Key fields: classification, threatId. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Proofpoint TAP Modular Input for Splunk (Splunkbase 3681)",
   "spl": "index=email sourcetype=\"proofpoint_tap_siem\" earliest=-30d\n| eval ts=coalesce(threatStatus, ThreatStatus, \"\")\n| where ts=\"falsePositive\"\n| stats count by classification, threatId\n| sort -count",
-  "description": "Threats marked `falsePositive` in TAP SIEM exports show analyst or engine corrections—tracking them in Splunk supports tuning, quality review, and audit evidence for email security operations.",
-  "value": "Quantifies how often classifications are overturned, helping managers justify rule changes and training while documenting review cadence.",
+  "description": "Identifies UC-11.3.63 — Proofpoint, TAP, Threat, Status, False — using `index=email` sourcetype `proofpoint_tap_siem`, grouped by `classification`, `threatId`. Outputs `count` each `the scheduled window`; alert when -30d. Primary focus: Review Queue. Purpose-built for 'Proofpoint TAP Threat Status False-Positive Review Queue' in Operations workflows.",
+  "value": "UC-11.3.63 accelerates insight into Review Queue ('Proofpoint TAP Threat Status False-Positive Review Queue') by tracking `activity` on `proofpoint_tap_siem` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "`threatStatus` may appear under `threatsInfoMap` arrays; expand multivalue fields if needed. Exclude cleared test campaigns via sender allow list. Export monthly summaries to GRC when required. Coordinate field names with Proofpoint support if using custom parsers.",
   "visualization": "Table (classification × threatId), timechart of false-positive volume, pie by threat family.",
   "dataModelAcceleration": "Not applicable; primary SPL uses raw or vendor-normalized event fields.",
   "references": [
     {
       "title": "Proofpoint TAP Modular Input for Splunk",
-      "url": "https://splunkbase.splunk.com/app/3681"
+      "url": "https://splunkbase.splunk.com/app/3681",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Proofpoint TAP SIEM API — threatStatus",
-      "url": "https://help.proofpoint.com/Threat_Insight_Dashboard/API_Documentation/SIEM_API"
+      "url": "https://help.proofpoint.com/Threat_Insight_Dashboard/API_Documentation/SIEM_API",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Analyst over-ride queues during tuning; a growing queue is not always a false positive.",
+  "knownFalsePositives": "1. **Maintenance window on `email` (UC-11.3.63)** — Planned work for 'Proofpoint TAP Threat Status False-Positive Review Queue' shifts `count` over `span=1h` while `classification`, `threatId` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `proofpoint_tap_siem`** — Scheduled automation elevates `threatId` without crossing configured threshold for UC-11.3.63. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `classification`, `threatId`** — Health checks in `email` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `proofpoint_tap_siem`** — First 48h baseline for UC-11.3.63 on `classification` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `classification`, `exception_reason`, `valid_until`.",
   "equipment": [
     "proofpoint"
+  ],
+  "equipmentModels": [
+    "proofpoint_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-04-24",
@@ -38,5 +59,8 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "grandmaExplanation": "We watch how Proofpoint treats and rewrites mail, so threats and DLP events line up with what the security team already sees in their console."
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Proofpoint TAP Modular Input for Splunk (Splunkbase 3681)). Enable the modular input or HEC token that writes sourcetype=proofpoint_tap_siem into email. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`classification, threatId`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We watch how Proofpoint treats and rewrites mail, so threats and DLP events line up with what the security team already sees in their console.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

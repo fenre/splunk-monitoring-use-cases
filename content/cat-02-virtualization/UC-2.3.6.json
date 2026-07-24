@@ -9,11 +9,17 @@
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Libvirt/QEMU disk info",
-  "app": "Custom scripted input (`virsh domblkinfo`, `qemu-img info`)",
+  "exclusions": "Covers the detection logic documented for 'Virtual Disk Backing Chain and Snapshot Age' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `linux_virtual_disk_backing_chain_and_snapshot_age` (UC-2.3.6), SOC dashboard panel \"Linux — Virtual Disk Backing Chain and Snapshot Age\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-2.3.6 positive (Virtual, Disk, Backing, Chain, and): ingest synthetic events into `index=virtualization` sourcetype='kvm_disk_chain' where `count` grouped by `host`, `vm_name`, `disk` satisfies `depth` > 3, or `snapshot_days` > 30 for 'Virtual Disk Backing Chain and Snapshot Age'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.3.6 negative (Snapshot Age): ingest benign `virtualization` / `kvm_disk_chain` events where `host`, `vm_name`, `disk` stays below `depth` > 3, or `snapshot_days` > 30, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 7 confirms zero alert rows for 'Virtual Disk Backing Chain and Snapshot Age'."
+  },
+  "dataSources": "Libvirt/QEMU disk info Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom scripted input (`virsh domblkinfo`, `qemu-img info`) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=virtualization sourcetype=kvm_disk_chain host=*\n| stats latest(chain_depth) as depth, latest(oldest_snapshot_days) as snapshot_days by host, vm_name, disk\n| where depth > 3 OR snapshot_days > 30\n| table host vm_name disk depth snapshot_days\n| sort -snapshot_days",
-  "description": "Long snapshot chains and old snapshots degrade I/O and complicate recovery. Monitoring supports snapshot hygiene and prevents runaway growth.",
-  "value": "Long snapshot chains and old snapshots degrade I/O and complicate recovery. Monitoring supports snapshot hygiene and prevents runaway growth.",
+  "description": "Identifies UC-2.3.6 — Virtual, Disk, Backing, Chain, and — using `index=virtualization` sourcetype `kvm_disk_chain`, grouped by `host`, `vm_name`, `disk`. Outputs `count` each `the scheduled window`; alert when `depth` > 3, or `snapshot_days` > 30. Primary focus: Snapshot Age. Purpose-built for 'Virtual Disk Backing Chain and Snapshot Age' in Linux workflows.",
+  "value": "UC-2.3.6 operationalises 'Virtual Disk Backing Chain and Snapshot Age' against `kvm_disk_chain` feeds so operators reduce capacity incidents, patch regressions, and service outages without manual correlation.",
   "implementation": "Script to list VM disks and snapshot chains (e.g. `virsh snapshot-list`, `qemu-img info`). Compute chain depth and oldest snapshot age. Alert when depth >3 or oldest snapshot >30 days.",
   "visualization": "Table (VM, disk, depth, oldest snapshot), Bar chart of snapshot age.",
   "cimModels": [
@@ -22,10 +28,38 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "KVM and scripted metrics may gap when collectors restart, SSH keys roll, or virsh is blocked by lockfiles; a single null interval is not always a full outage.",
+  "knownFalsePositives": "1. **Patch Tuesday on `virtualization`** — Package managers spike `host` metrics for 'Virtual Disk Backing Chain and Snapshot Age'. Correlate with apt/yum logs in the same `kvm_disk_chain` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `kvm_disk_chain`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `depth` > 3.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (`virsh domblkinfo`, `qemu-img info`).\n• Ensure the following data sources are available: Libvirt/QEMU disk info.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nScript to list VM disks and snapshot chains (e.g. `virsh snapshot-list`, `qemu-img info`). Compute chain depth and oldest snapshot age. Alert when depth >3 or oldest snapshot >30 days.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=virtualization sourcetype=kvm_disk_chain host=*\n| stats latest(chain_depth) as depth, latest(oldest_snapshot_days) as snapshot_days by host, vm_name, disk\n| where depth > 3 OR snapshot_days > 30\n| table host vm_name disk depth snapshot_days\n| sort -snapshot_days\n```\n\nUnderstanding this SPL\n\n**Virtual Disk Backing Chain and Snapshot Age** — Long snapshot chains and old snapshots degrade I/O and complicate recovery. Monitoring supports snapshot hygiene and prevents runaway growth.\n\nDocumented **Data sources**: Libvirt/QEMU disk info. **App/TA** (typical add-on context): Custom scripted input (`virsh domblkinfo`, `qemu-img info`). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: virtualization; **sourcetype**: kvm_disk_chain. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=virtualization, sourcetype=kvm_disk_chain. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, vm_name, disk** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where depth > 3 OR snapshot_days > 30` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Virtual Disk Backing Chain and Snapshot Age**): table host vm_name disk depth snapshot_days\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (VM, disk, depth, oldest snapshot), Bar chart of snapshot age.",
-  "grandmaExplanation": "We keep an eye on virtual Disk Backing Chain and Snapshot Age and raise the alarm before it drags down real work or real outages start."
+  "grandmaExplanation": "We keep an eye on virtual Disk Backing Chain and Snapshot Age and raise the alarm before it drags down real work or real outages start.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,24 +9,42 @@
     "Compliance"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "`index=network sourcetype=cisco:ios` — Monitors SEND (RFC 3971) deployment status and CGA (Cryptographically Generated Addresses, RFC 3972) usage. SEND provides cryptographic protection for NDP messages, preventing RA spoofing and NA/NS forgery. While rarely deployed, SEND is the only complete cryptographic solution for NDP security and is required by some compliance frameworks.",
-  "app": "Splunk Enterprise",
+  "exclusions": "Covers the detection logic documented for 'IPv6 SEND (Secure Neighbor Discovery) Deployment Status Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_ipv6_send_secure_neighbor_discovery_deployment_s` (UC-5.20.125), SOC dashboard panel \"Operations — IPv6 SEND (Secure Neighbor Discovery) Deployment Status Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.20.125 positive (IPv6, SEND, (Secure, Neighbor, Discovery)): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `count` grouped by `host`, `send_event` satisfies -7d for 'IPv6 SEND (Secure Neighbor Discovery) Deployment Status Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.20.125 negative (Status Monitoring): ingest benign `network` / `cisco:ios` events where `host`, `send_event` stays below -7d, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'IPv6 SEND (Secure Neighbor Discovery) Deployment Status Monitoring'."
+  },
+  "dataSources": "`index=network sourcetype=cisco:ios` — Monitors SEND (RFC 3971) deployment status and CGA (Cryptographically Generated Addresses, RFC 3972) usage. SEND provides cryptographic protection for NDP messages, preventing RA spoofing and NA/NS forgery. While rarely deployed, SEND is the only complete cryptographic solution for NDP security and is required by some compliance frameworks. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "Splunk Enterprise — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network (sourcetype=\"cisco:ios\" OR sourcetype=\"cisco:iosxe\") earliest=-7d\n  (\"SEND\" OR \"CGA\" OR \"RSA.*signature\" OR \"certification.*path\")\n| eval send_event=case(\n    match(_raw, \"(?i)SEND.*verify.*fail|CGA.*invalid|signature.*fail\"), \"SEND_VERIFICATION_FAILURE\",\n    match(_raw, \"(?i)SEND.*enabled|CGA.*configured\"), \"SEND_CONFIGURED\",\n    match(_raw, \"(?i)SEND.*disabled|no.*SEND\"), \"SEND_NOT_CONFIGURED\",\n    1=1, \"OTHER\")\n| stats count as events by host, send_event\n| eval status=case(\n    send_event=\"SEND_VERIFICATION_FAILURE\", \"HIGH — SEND signature verification failed — possible NDP attack\",\n    send_event=\"SEND_NOT_CONFIGURED\", \"INFO — SEND not configured (RA Guard recommended as alternative)\",\n    send_event=\"SEND_CONFIGURED\", \"OK — SEND enabled and operational\",\n    1=1, null())\n| where isnotnull(status)\n| sort -events",
-  "description": "Monitors Secure Neighbor Discovery (SEND, RFC 3971) deployment and Cryptographically Generated Addresses (CGA, RFC 3972) usage. SEND cryptographically signs NDP messages, providing definitive protection against RA spoofing and NDP poisoning. Tracks deployment status, verification failures, and CGA usage.",
-  "value": "SEND is the strongest NDP security mechanism — it provides cryptographic proof that NDP messages are authentic. While RA Guard and DHCP Guard provide practical first-hop security, SEND is the only mechanism that works in all topologies (including where L2 security features aren't available). Monitoring SEND deployment and verification failures ensures the cryptographic NDP protection layer is functioning.",
+  "description": "Alerts on UC-5.20.125 — IPv6, SEND, (Secure, Neighbor, Discovery) — using `index=network` sourcetype `cisco:ios`, grouped by `host`, `send_event`. Outputs `count` each `the scheduled window`; alert when -7d. Primary focus: Status Monitoring. Purpose-built for 'IPv6 SEND (Secure Neighbor Discovery) Deployment Status Monitoring' in Operations workflows.",
+  "value": "UC-5.20.125 accelerates insight into Status Monitoring ('IPv6 SEND (Secure Neighbor Discovery) Deployment Status Monitoring') by tracking `activity` on `cisco:ios` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Monitor SEND configuration status and verification events. Track CGA usage. Alert on verification failures.",
   "visualization": "(1) Table: SEND deployment status by device. (2) Single-value: SEND verification failures. (3) Pie chart: SEND-enabled vs not-enabled.",
   "references": [
     {
       "title": "RFC 3971 — SEcure Neighbor Discovery (SEND)",
-      "url": "https://www.rfc-editor.org/rfc/rfc3971"
+      "url": "https://www.rfc-editor.org/rfc/rfc3971",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "RFC 3972 — Cryptographically Generated Addresses (CGA)",
-      "url": "https://www.rfc-editor.org/rfc/rfc3972"
+      "url": "https://www.rfc-editor.org/rfc/rfc3972",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**SEND not widely deployed.** Most networks use RA Guard instead of SEND. The absence of SEND is informational, not a vulnerability, when RA Guard is deployed.\n\n**CGA computation overhead.** CGA generation requires RSA key pair generation, which can take several seconds on low-powered devices.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.20.125)** — Planned work for 'IPv6 SEND (Secure Neighbor Discovery) Deployment Status Monitoring' shifts `count` over `span=1h` while `host`, `send_event` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ios`** — Scheduled automation elevates `send_event` without crossing configured threshold for UC-5.20.125. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `send_event`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.20.125 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
@@ -41,7 +59,7 @@
     "Cloud"
   ],
   "reviewer": "@splunk-monitoring-use-cases",
-  "detailedImplementation": "Prerequisites\n• SEND-capable routers and switches.\n• RSA key pairs for SEND signing.\n\nStep 1 — SEND is complex to deploy and rarely used in practice. RA Guard (UC-5.20.28) provides equivalent protection at L2. Monitor SEND status where deployed.\n\nStep 2 — Create monitoring searches\n```spl\nindex=network \"SEND\" earliest=-7d | stats count by host, send_event\n```\n\nStep 3 — Validate SEND verification on a test device.\n\nStep 4 — Operationalize\n**Dashboard:** SEND status. **Alert:** SEND verification failure — high.\n\nStep 5 — Troubleshooting\n• SEND verification failures: Check RSA key validity and CGA parameters.",
+  "detailedImplementation": "Prerequisites\n• SEND-capable routers and switches.\n• RSA key pairs for SEND signing.\n\nStep 1 — SEND is complex to deploy and rarely used in practice. RA Guard (UC-5.20.28) provides equivalent protection at L2. Monitor SEND status where deployed.\n\nStep 2 — Create monitoring searches\n```spl\nindex=network \"SEND\" earliest=-7d | stats count by host, send_event\n```\n\nStep 3 — Validate SEND verification on a test device.\n\nStep 4 — Operationalize\n**Dashboard:** SEND status. **Alert:** SEND verification failure — high.\n\nStep 5 — Troubleshooting\n• SEND verification failures: Check RSA key validity and CGA parameters.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise — Splunk Add-on for Cisco Security (Splunkbase 1352)). Enable the modular input or HEC token that writes sourcetype=cisco:ios, cisco:iosxe into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, send_event, status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "SEND is like putting a wax seal on important network messages so the recipient can verify they really came from the right sender. Most networks use simpler methods (like checking an ID badge at the door instead), but SEND is the gold standard for proving a message is genuine.",
   "prerequisiteUseCases": [
     "UC-5.20.21",

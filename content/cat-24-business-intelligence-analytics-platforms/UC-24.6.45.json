@@ -8,27 +8,55 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "SAP Analytics Cloud audit (`sac:audit`).",
-  "app": "SAP Analytics Cloud audit and activity exports via the SAC API to HEC.",
+  "exclusions": "Covers the detection logic documented for 'SAP Analytics Cloud Failures by Story' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_sap_analytics_cloud_failures_by_story` (UC-24.6.45), SOC dashboard panel \"Operations — SAP Analytics Cloud Failures by Story\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.6.45 positive (SAP, Analytics, Cloud, Failures, Story): ingest synthetic events into `index=bi` sourcetype='sac:audit' where `count` grouped by `story_name` satisfies `failures` > 0 for 'SAP Analytics Cloud Failures by Story'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.6.45 negative (by Story): ingest benign `bi` / `sac:audit` events where `story_name` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'SAP Analytics Cloud Failures by Story'."
+  },
+  "dataSources": "SAP Analytics Cloud audit (`sac:audit`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "SAP Analytics Cloud audit and activity exports via the SAC API to HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=sac:audit status=\"Failed\"\n| stats count as failures, latest(_time) as last_failure by story_name\n| where failures>0\n| sort - failures",
-  "description": "Counts SAP Analytics Cloud failures grouped by story so operators immediately see which specific storys are broken rather than a single global failure number.",
-  "value": "Object-level failure attribution turns a vague 'SAP Analytics Cloud is failing' alert into an actionable list of exactly what to fix first.",
+  "description": "Alerts on 'SAP Analytics Cloud Failures by Story' patterns (UC-24.6.45) sourced from `index=bi` sourcetype `sac:audit`. Threshold bundle: `failures` > 0; aggregation grain: `story_name`; metrics: `count`. Watch terms: SAP, Analytics, Cloud, Failures, Story.",
+  "value": "UC-24.6.45 gives Operations teams earlier visibility into by Story through `sac:audit` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Ingest SAP Analytics Cloud failure events; schedule every 15 minutes and alert on failures for business-critical storys.",
   "visualization": "Table of story by failure count and last failure time.",
   "cimModels": [],
   "references": [
     {
       "title": "SAP Analytics Cloud — Help",
-      "url": "https://help.sap.com/docs/SAP_ANALYTICS_CLOUD"
+      "url": "https://help.sap.com/docs/SAP_ANALYTICS_CLOUD",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "SAP Analytics Cloud — Data audit",
-      "url": "https://help.sap.com/docs/SAP_ANALYTICS_CLOUD/00f68c2e08b941f081002fd3691d86a7/dataaudit.html"
+      "url": "https://help.sap.com/docs/SAP_ANALYTICS_CLOUD/00f68c2e08b941f081002fd3691d86a7/dataaudit.html",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "We tell you exactly which parts of SAP Analytics Cloud are failing, not just that something is wrong, so the right thing gets fixed first."
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.6.45)** — Planned work for 'SAP Analytics Cloud Failures by Story' shifts `count` over `span=1h` while `story_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `sac:audit`** — Scheduled automation elevates `src` without crossing `failures` > 0 for UC-24.6.45. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `story_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `sac:audit`** — First 48h baseline for UC-24.6.45 on `story_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `story_name`, `exception_reason`, `valid_until`.",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (SAP Analytics Cloud audit and activity exports via the SAC API to HEC. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=sac:audit into bi. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`failures, story_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We tell you exactly which parts of SAP Analytics Cloud are failing, not just that something is wrong, so the right thing gets fixed first.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

@@ -9,11 +9,17 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "dataSources": "VPN session logs (tunnel_type, assigned_policy, routing_mode)",
-  "app": "`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate`",
+  "exclusions": "Covers the detection logic documented for 'VPN Split-Tunnel Policy Compliance' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `network_vpn_split_tunnel_policy_compliance` (UC-17.2.9), SOC dashboard panel \"Network — VPN Split-Tunnel Policy Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-17.2.9 positive (VPN, Split, Tunnel, Policy, Compliance): ingest synthetic events into `index=vpn` sourcetype='cisco:asa' where `count` grouped by `entity` satisfies detection threshold for 'VPN Split-Tunnel Policy Compliance'. Validate lookup `vpn_policy_requirements.csv`, filter `action=\"session_connect\" OR \"tunnel established\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.2.9 negative (Policy Compliance): ingest benign `vpn` / `cisco:asa` events where `entity` stays below detection threshold, or exclude the test entity via `network_exception_register.csv`. Variant 7 confirms zero alert rows for 'VPN Split-Tunnel Policy Compliance'."
+  },
+  "dataSources": "VPN session logs (tunnel_type, assigned_policy, routing_mode) Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_cisco-asa`, `Splunk_TA_paloalto` (GlobalProtect), `TA-fortinet_fortigate` — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=vpn (sourcetype=\"cisco:asa\" OR sourcetype=\"pan:globalprotect\")\n| search action=\"session_connect\" OR \"tunnel established\"\n| rex field=_raw \"Group Policy=(?<group_policy>[^\\s]+)\"\n| rex field=_raw \"tunnel_type=(?<tunnel_type>[^\\s]+)\"\n| rex field=_raw \"routing_mode=(?<routing_mode>[^\\s]+)\"\n| lookup vpn_policy_requirements.csv group_policy OUTPUT required_tunnel\n| eval actual_tunnel=coalesce(tunnel_type, routing_mode, group_policy)\n| where required_tunnel!=actual_tunnel OR isnull(required_tunnel)\n| table _time, user, group_policy, actual_tunnel, required_tunnel, src",
-  "description": "Verifying split-tunnel vs. full-tunnel adherence per user/group policy. Full-tunnel ensures all traffic is inspected; split-tunnel may bypass security controls for internet-bound traffic.",
-  "value": "Network security teams validate that VPN split-tunnel routing and ACL assignments match policy requirements per group, catching misconfigured group policies that could expose internal subnets to unauthorized users.",
+  "description": "Detects UC-17.2.9 — VPN, Split, Tunnel, Policy, Compliance — using `index=vpn` sourcetype `cisco:asa`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes lookup `vpn_policy_requirements.csv`, filter `action=\"session_connect\" OR \"tunnel established\"`. Purpose-built for 'VPN Split-Tunnel Policy Compliance' in Network workflows.",
+  "value": "UC-17.2.9 operationalises 'VPN Split-Tunnel Policy Compliance' against `cisco:asa` feeds so operators reduce unauthorized access, segmentation drift, and NAC policy failures without manual correlation.",
   "implementation": "Ingest VPN session logs with tunnel configuration. Maintain lookup table mapping group policy to required tunnel type (full/split). For Cisco ASA, use Group-Policy; for GlobalProtect, use gateway-assigned policy. Alert when users connect with split-tunnel when policy requires full-tunnel (e.g., high-risk groups). Report on policy compliance rate by department and gateway.",
   "visualization": "Pie chart (full vs split by policy), Table (policy violations), Bar chart (compliance by group policy), Single value (% compliant).",
   "cimModels": [
@@ -25,14 +31,26 @@
   "references": [
     {
       "title": "Splunk_TA_paloalto",
-      "url": "https://splunkbase.splunk.com/app/2757"
+      "url": "https://splunkbase.splunk.com/app/2757",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Anomalies from new SaaS app rollouts, browser updates, or vendor URL category changes.",
+  "knownFalsePositives": "1. **Vulnerability scanner signature matches** — Qualys/Tenable traffic triggers IPS/threat signatures for 'VPN Split-Tunnel Policy Compliance'. Compare `src` against `scanner_ips` lookup.\n\n2. **Policy push during change window** — New deny rule generates expected blocks. Match firewall commit timestamp in change calendar.\n\n3. **Encrypted traffic inspection gap** — TLS-heavy apps bypass deep inspection; volume drop is operational, not a sensor failure.\n\n4. **Red-team C2 simulation** — Approved exercise from `pen_test_hosts.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `src`, `signature_id`, `valid_until`.",
   "mitreAttack": [
     "T1572",
     "T1048"
@@ -48,7 +66,13 @@
     "paloalto_globalprotect",
     "paloalto_pan_firewall"
   ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Splunk Add-on for Cisco ASA (`sourcetype=cisco:asa`) and/or Palo Alto Networks Add-on (`sourcetype=pan:globalprotect`). Data in `index=vpn`.\n• Key fields: `user`, `group_policy`, `tunnel_type`, `assigned_ip`, `split_include` (split-tunnel ACL), `routing_mode`.\n• On Cisco ASA: split-tunnel configuration is per group policy. `split-tunnel-policy tunnelspecified` = split tunnel with ACL. `split-tunnel-policy tunnelall` = full tunnel.\n• On Palo Alto GlobalProtect: split tunnel is defined in the gateway agent configuration under Access Routes (Include/Exclude).\n• Create a `vpn_policy_compliance.csv` lookup: `group_policy,expected_routing,expected_split_acl,required_dns_policy,owner`.\n\nStep 1 — Configure data collection\nVerify policy and routing fields:\n```spl\nindex=vpn (sourcetype=\"cisco:asa\" OR sourcetype=\"pan:globalprotect\") action=\"session_connect\" earliest=-24h\n| stats count by group_policy, tunnel_type\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Policy compliance with routing validation:\n```spl\nindex=vpn (sourcetype=\"cisco:asa\" OR sourcetype=\"pan:globalprotect\") action=\"session_connect\" earliest=-24h\n| rex field=_raw \"Group Policy=(?<assigned_policy>[^,;]+)\"\n| rex field=_raw \"split.?tunnel.?(?:acl|network)=(?<split_acl>[^,;]+)\"\n| stats count values(tunnel_type) as tunnel_types values(split_acl) as acls by user, assigned_policy\n| lookup vpn_policy_compliance.csv group_policy as assigned_policy OUTPUT expected_routing expected_split_acl\n| eval routing_ok=if(mvfind(tunnel_types, expected_routing)>=0, \"YES\", \"NO\")\n| eval acl_ok=if(isnull(expected_split_acl) OR mvfind(acls, expected_split_acl)>=0, \"YES\", \"NO\")\n| eval compliant=if(routing_ok=\"YES\" AND acl_ok=\"YES\", \"COMPLIANT\", \"NON-COMPLIANT\")\n| where compliant=\"NON-COMPLIANT\"\n| sort - count\n```\n\nUnderstanding this SPL: Validates both the tunnel type (full vs split) and the specific split-tunnel ACL assignment. A user on the correct tunnel type but wrong ACL may have access to routes they should not (e.g., a contractor seeing production subnets). This goes deeper than basic tunnel-type compliance.\n\nStep 3 — Validate\n(a) On ASA: `show running-config group-policy <name>` to compare the expected configuration with Splunk results.\n(b) On GlobalProtect: Check the gateway agent config for Access Routes.\n\nStep 4 — Operationalize\nDashboard: Compliance rate per group policy, non-compliant users table.\nAlert: Immediate for privileged group policies with non-compliant routing.\n\nRunbook:\n1. **Wrong ACL** — Group policy may have been modified. Check ASA change log.\n2. **User assigned to wrong group** — RADIUS/LDAP attribute mapping may be incorrect.\n\nStep 5 — Troubleshooting\n• **Split-tunnel ACL not in logs** — ASA may not log the ACL name. Infer from the group policy name using the compliance lookup.\n• **Multiple group policies for same user** — User may be in multiple AD groups. Check RADIUS policy order.",
   "grandmaExplanation": "We double-check that the traffic routing rules for each person's VPN connection are set correctly, making sure nobody accidentally gets access to parts of the network they should not see.",
-  "hardware": "Cisco ASA/AnyConnect, Palo Alto GlobalProtect, FortiGate SSL-VPN"
+  "hardware": "Cisco ASA/AnyConnect, Palo Alto GlobalProtect, FortiGate SSL-VPN",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

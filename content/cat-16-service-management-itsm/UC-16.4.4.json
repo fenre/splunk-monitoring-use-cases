@@ -9,11 +9,17 @@
     "Change"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "`sourcetype=snow:change_request`, `sourcetype=snow:release`",
-  "app": "`Splunk_TA_snow`, CI/CD release tags (optional)",
+  "exclusions": "Covers the detection logic documented for 'Release Deployment Success Rate Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_release_deployment_success_rate_tracking` (UC-16.4.4), SOC dashboard panel \"Operations — Release Deployment Success Rate Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-16.4.4 positive (Release, Deployment, Success, Rate, Tracking): ingest synthetic events into `index=itsm` sourcetype='snow:change_request' where `successes`, `failures` grouped by `entity` satisfies detection threshold for 'Release Deployment Success Rate Tracking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.4.4 negative (Rate Tracking): ingest benign `itsm` / `snow:change_request` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Release Deployment Success Rate Tracking'."
+  },
+  "dataSources": "`sourcetype=snow:change_request`, `sourcetype=snow:release` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "`Splunk_TA_snow`, CI/CD release tags (optional) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"snow:change_request\" (category=\"Release\" OR type=\"Release\")\n| eval success=if(lower(close_code)=\"successful\" OR (state=\"Closed\" AND lower(u_outcome)=\"success\"),1,0)\n| eval failed=if(lower(close_code)=\"unsuccessful\" OR lower(u_outcome)=\"failed\",1,0)\n| timechart span=1w sum(success) as successes sum(failed) as failures\n| eval success_rate=round(100*successes/(successes+failures),1)",
-  "description": "Release success rate summarizes delivery health; sustained drops signal quality gaps in testing, automation, or release windows.",
-  "value": "Release success rate summarizes delivery health; sustained drops signal quality gaps in testing, automation, or release windows.",
+  "description": "Alerts on UC-16.4.4 — Release, Deployment, Success, Rate, Tracking — using `index=itsm` sourcetype `snow:change_request`, grouped by `entity`. Outputs `successes`, `failures` each `1w`; alert when configured threshold. Primary focus: Rate Tracking. Purpose-built for 'Release Deployment Success Rate Tracking' in Operations workflows.",
+  "value": "Alerting on Release, Deployment, Success, Rate, Tracking through UC-16.4.4 reduces operational risk and delayed incident response by surfacing `successes`, `failures` early.",
   "implementation": "Classify changes or release records that represent deployments (release catalog, RFC templates). Normalize `close_code`/`u_outcome`. Optionally join Jenkins/GitHub deployment events by `correlation_id`. Report weekly success rate by application and environment. Alert below target (e.g., 95%).",
   "visualization": "Line chart (success rate trend), Single value (rolling success %), Bar chart (by application).",
   "cimModels": [
@@ -23,15 +29,42 @@
   "references": [
     {
       "title": "Splunk_TA_snow",
-      "url": "https://splunkbase.splunk.com/app/1928"
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Release metrics during cutover programs, canary or blue-green double counting, and environment renames in the data.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm` (UC-16.4.4)** — Planned work for 'Release Deployment Success Rate Tracking' shifts `successes`, `failures` over `span=1w` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `snow:change_request`** — Scheduled automation elevates `success` without crossing configured threshold for UC-16.4.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:change_request`** — First 48h baseline for UC-16.4.4 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "github",
     "jenkins",
     "servicenow"
   ],
+  "equipmentModels": [
+    "github_generic",
+    "jenkins_generic",
+    "servicenow_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_snow`, CI/CD release tags (optional).\n• Ensure the following data sources are available: `sourcetype=snow:change_request`, `sourcetype=snow:release`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nClassify changes or release records that represent deployments (release catalog, RFC templates). Normalize `close_code`/`u_outcome`. Optionally join Jenkins/GitHub deployment events by `correlation_id`. Report weekly success rate by application and environment. Alert below target (e.g., 95%).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=itsm sourcetype=\"snow:change_request\" (category=\"Release\" OR type=\"Release\")\n| eval success=if(lower(close_code)=\"successful\" OR (state=\"Closed\" AND lower(u_outcome)=\"success\"),1,0)\n| eval failed=if(lower(close_code)=\"unsuccessful\" OR lower(u_outcome)=\"failed\",1,0)\n| timechart span=1w sum(success) as successes sum(failed) as failures\n| eval success_rate=round(100*successes/(successes+failures),1)\n```\n\nUnderstanding this SPL\n\n**Release Deployment Success Rate Tracking** — Release success rate summarizes delivery health; sustained drops signal quality gaps in testing, automation, or release windows.\n\nDocumented **Data sources**: `sourcetype=snow:change_request`, `sourcetype=snow:release`. **App/TA** (typical add-on context): `Splunk_TA_snow`, CI/CD release tags (optional). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: itsm; **sourcetype**: snow:change_request. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=itsm, sourcetype=\"snow:change_request\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **success** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **failed** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `timechart` plots the metric over time using **span=1w** buckets — ideal for trending and alerting on this use case.\n• `eval` defines or adjusts **success_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\nCompare with the ServiceNow change request list or form for the same records. Verify change numbers, states, and timing against our search. Use the same filters you expect operations to use in the list view.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (success rate trend), Single value (rolling success %), Bar chart (by application).",
-  "grandmaExplanation": "We follow what share of release steps finish clean, so release habits stay honest and we catch brittle paths early."
+  "grandmaExplanation": "We follow what share of release steps finish clean, so release habits stay honest and we catch brittle paths early.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

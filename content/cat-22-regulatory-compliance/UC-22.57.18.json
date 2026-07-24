@@ -1,0 +1,110 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.57.18",
+  "title": "SG Cyber Act Commissioner investigation cooperation — evidence-pack assembly and response SLA",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Audit",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "industry": "CII",
+  "owner": "CISO",
+  "controlFamily": "regulation-specific",
+  "exclusions": "Excludes informal vendor assessments. Excludes findings categorised as observation-only.",
+  "evidence": "Saved search `UC-22.57.18` archived every 15 minutes to `audit_evidence` with `csa_clause=\"SG-CA-s19\"`.",
+  "compliance": [
+    {
+      "regulation": "sg-cyber-act",
+      "version": "2018-amended-2024",
+      "clause": "SG-CA-s19",
+      "mode": "satisfies",
+      "assurance": "full",
+      "assurance_rationale": "Cybersecurity Act §19 requires full cooperation with Commissioner investigations. This UC operationalises the investigation register: notice receipt, evidence-pack completeness, response SLA, and archival to audit_evidence.",
+      "controlObjective": "Proves every open Commissioner investigation has an assigned owner, a complete evidence pack, and a response within the agreed SLA.",
+      "evidenceArtifact": "Saved search UC-22.57.18, `CSA Investigation Cooperation` dashboard, signed investigation notices, and evidence-pack export receipts.",
+      "obligationRef": "sg-cyber-act@2018-amended-2024#SG-CA-s19",
+      "requires_sme_review": true,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Set `pack_completeness_pct=40` with `notice_received_at=now()-80h` and null `evidence_pack_submitted_at`. UC-22.57.18 MUST flag `cooperation_status=assembly_behind` within one schedule interval.",
+    "negativeScenario": "Submit evidence pack within SLA with `pack_completeness_pct=100`. UC-22.57.18 MUST NOT produce actionable rows."
+  },
+  "dataSources": "KV Store `csa_investigation_register_lookup` (investigation_id, cii_id, notice_received_at, evidence_pack_due_at, evidence_pack_submitted_at, pack_completeness_pct, assigned_owner, csa_case_id). ServiceNow GRC tasks (`index=grc sourcetype=snow:task`). SharePoint evidence vault audit (`o365:management`).",
+  "app": "Splunk Enterprise Security (Splunkbase 263).",
+  "spl": "| inputlookup csa_investigation_register_lookup\n| eval now_ts = now()\n| eval hours_since_notice = round((now_ts - notice_received_at) / 3600, 1)\n| eval hours_to_submit = case(\n    isnotnull(evidence_pack_submitted_at), round((evidence_pack_submitted_at - notice_received_at) / 3600, 1),\n    1=1, round((now_ts - notice_received_at) / 3600, 1))\n| eval response_sla_hours = coalesce(response_sla_hours, 72)\n| eval cooperation_status = case(\n    isnotnull(evidence_pack_submitted_at) AND hours_to_submit <= response_sla_hours, \"submitted_on_time\",\n    isnotnull(evidence_pack_submitted_at) AND hours_to_submit > response_sla_hours, \"submitted_late\",\n    pack_completeness_pct >= 100 AND isnull(evidence_pack_submitted_at), \"ready_to_submit\",\n    hours_since_notice > response_sla_hours, \"overdue\",\n    pack_completeness_pct < 50 AND hours_since_notice > response_sla_hours * 0.5, \"assembly_behind\",\n    1=1, \"in_progress\")\n| where cooperation_status IN (\"overdue\",\"submitted_late\",\"assembly_behind\")\n| table investigation_id cii_id notice_received_at evidence_pack_due_at evidence_pack_submitted_at pack_completeness_pct hours_since_notice hours_to_submit cooperation_status assigned_owner csa_case_id",
+  "description": "Tracks Commissioner investigation requests under Cybersecurity Act §19 — evidence-pack assembly status, assigned owner, and response SLA from formal notice to complete submission.",
+  "value": "§19 grants the Commissioner broad investigation powers; slow or incomplete cooperation is a standalone offence independent of the underlying incident severity.",
+  "implementation": "(1) Populate `csa_investigation_register_lookup` on every Commissioner notice. (2) Schedule UC-22.57.18 every 15 minutes. (3) Build the `CSA Investigation Cooperation` dashboard.",
+  "visualization": "(Panel 1) Open investigations by cooperation_status. (Panel 2) Pack completeness trend. (Panel 3) Hours-to-submit SLA burn-down. (Panel 4) Owner workload heatmap.",
+  "cimModels": [
+    "Inventory"
+  ],
+  "references": [
+    {
+      "title": "Cybersecurity Act 2018 §19",
+      "url": "https://sso.agc.gov.sg/Act/CA2018?ProvIds=pr19-"
+    },
+    {
+      "title": "CSA — Cybersecurity legislation",
+      "url": "https://www.csa.gov.sg/legislation"
+    },
+    {
+      "title": "Splunk Add-on for ServiceNow (Splunkbase 1928)",
+      "url": "https://splunkbase.splunk.com/app/1928"
+    },
+    {
+      "title": "Splunk Enterprise Security (Splunkbase 263)",
+      "url": "https://splunkbase.splunk.com/app/263"
+    }
+  ],
+  "knownFalsePositives": "1. **Planned maintenance window** — documented change windows in lookup `csa_22_57_18_exceptions` suppress benign activity during approved work.\n\n2. **Pen-test / red-team activity** — engagements with agreed rules-of-engagement marker excluded via lookup `csa_22_57_18_exceptions`.\n\n3. **Vendor remote-access sessions** — authorised vendor PAM sessions cross-reference lookup `csa_22_57_18_exceptions` before alerting.\n\n4. **Regulatory transition / grace period** — time-bound exception register entry in lookup `csa_22_57_18_exceptions` with documented approver and expiry.\n\n**Suppression mechanism**: filter results with lookup `csa_22_57_18_exceptions` (time-bound exception register); rows must carry `approved_by` and `valid_until` epoch fields.",
+  "mitreAttack": [
+    "N/A (governance)"
+  ],
+  "requiredFields": [
+    "investigation_id",
+    "notice_received_at",
+    "pack_completeness_pct",
+    "cooperation_status"
+  ],
+  "equipment": [
+    "hashicorp",
+    "servicenow",
+    "sharepoint",
+    "splunk-es"
+  ],
+  "equipmentModels": [
+    "Splunk ES 7.x",
+    "hashicorp_vault"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-07-24",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Compliance SME Panel (finalized; pending verification)",
+  "premiumApps": [
+    "Splunk Enterprise Security"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud with Enterprise Security (Splunkbase 263).\n- Splunk Add-on for ServiceNow (Splunkbase 1928) for GRC task linkage.\n- KV Store `csa_investigation_register_lookup` with RBAC restricted to Legal + CISO roles.\n- Dedicated `index=audit_evidence` with 7-year retention.\n\n## Step 1 — Configure data collection\n\nPopulate the investigation register from CSA notice intake (ServiceNow GRC or legal case management). Required fields: `investigation_id`, `notice_received_at` (epoch), `evidence_pack_due_at`, `response_sla_hours` (default 72), `assigned_owner`, `pack_completeness_pct` (0–100), `evidence_pack_submitted_at`, `csa_case_id`.\n\nValidate ingest: `| inputlookup csa_investigation_register_lookup | stats count by cooperation_status` after each notice.\n\n## Step 2 — Create the search and alert\n\nSchedule every 15 minutes; route `cooperation_status=overdue` to severity=critical ES notable. Archive to `audit_evidence` with `uc=22.57.18` and `clause=SG-CA-s19`.\n\n## Step 3 — Validate deployment\n\n**(a)** Inject a synthetic overdue investigation row and confirm alert within 15 minutes.\n\n**(b)** Mark submitted on time and confirm zero actionable rows.\n\n**(c)** Export dashboard CSV and verify columns match the `evidence` field contract.\n\n## Step 4 — Operationalize\n\nBuild the `CSA Investigation Cooperation` dashboard: open investigations, pack completeness, hours-to-submit trend, owner workload.\n\n## Step 5 — Troubleshooting\n\n**Product-specific failure modes**:\n- **ServiceNow GRC task desync** — if `pack_completeness_pct` stalls, compare GRC attachment count against SharePoint vault API listing.\n- **SharePoint permission errors** — Legal vault exports may fail with HTTP 403; verify Microsoft Graph app role `Sites.Read.All`.\n- **Clock skew on notice_received_at** — normalise all timestamps to UTC before SLA math.\n- **MSSP upload lag** — confirm MSSP HEC token is scoped to `index=grc` only.",
+  "grandmaExplanation": "When Singapore's cyber regulator opens a formal investigation, we must gather the requested evidence quickly and completely. This tracks every open investigation so nothing misses the deadline.",
+  "prerequisiteUseCases": [
+    "UC-22.57.1"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 263,
+      "name": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263",
+      "role": "premium",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "crawl"
+}

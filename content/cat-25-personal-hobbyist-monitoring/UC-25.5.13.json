@@ -9,24 +9,43 @@
     "Anomaly"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Zigbee2MQTT device reports (`zigbee2mqtt:device`), Shelly/Tasmota telemetry (`shelly:status`, `tasmota:sensor`), Hue bridge events (`hue:event`), Nest/Ecobee thermostat (`ecobee:thermostat`), door/leak/motion sensors.",
-  "app": "Philips Hue, smart plugs (Tasmota/Shelly/TP-Link Kasa), thermostats (Nest/Ecobee), locks, and Zigbee/Z-Wave sensors via MQTT / Zigbee2MQTT and HEC.",
+  "exclusions": "Covers personal hobby monitoring for 'Unexpected Overnight Smart Plug Load' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_unexpected_overnight_smart_plug_load` (UC-25.5.13), SOC dashboard panel \"Personal — Unexpected Overnight Smart Plug Load\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.5.13 positive (Unexpected, Overnight, Smart, Plug, Load): ingest synthetic events into `index=personal` sourcetype='shelly:status' where `avg_power` grouped by `device` satisfies `hour` >= 0, `hour` < 5, or `avg_power` > 50 for 'Unexpected Overnight Smart Plug Load'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.5.13 negative (Plug Load): ingest benign `personal` / `shelly:status` events where `device` stays below `hour` >= 0, `hour` < 5, or `avg_power` > 50, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 3 confirms zero alert rows for 'Unexpected Overnight Smart Plug Load'."
+  },
+  "dataSources": "Zigbee2MQTT device reports (`zigbee2mqtt:device`), Shelly/Tasmota telemetry (`shelly:status`, `tasmota:sensor`), Hue bridge events (`hue:event`), Nest/Ecobee thermostat (`ecobee:thermostat`), door/leak/motion sensors. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Philips Hue, smart plugs (Tasmota/Shelly/TP-Link Kasa), thermostats (Nest/Ecobee), locks, and Zigbee/Z-Wave sensors via MQTT / Zigbee2MQTT and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=shelly:status\n| eval hour=strftime(_time,\"%H\")\n| where hour>=0 AND hour<5\n| stats avg(power_w) as avg_power by device\n| where avg_power>50\n| sort - avg_power",
-  "description": "Flags plugs that are drawing meaningful power while the house should be asleep, catching the forgotten heater, game console, or dehumidifier left running overnight.",
-  "value": "Nighttime baseload is where sneaky energy waste hides; this query turns it into a simple ranked list you can actually act on.",
+  "description": "Monitors when Plug Load criteria fire for 'Unexpected Overnight Smart Plug Load' (UC-25.5.13) in `index=personal` sourcetype `shelly:status`. Pipeline aggregates `avg_power` by `device` over `the scheduled window`. Alert logic enforces `hour` >= 0, `hour` < 5, or `avg_power` > 50. Title terms: Unexpected, Overnight, Smart, Plug, Load. Eliminates manual hunting for UC-25.5.13 conditions.",
+  "value": "UC-25.5.13 helps teams contain Unexpected, Overnight, Smart, Plug, Load scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Send Shelly power telemetry to Splunk; review overnight averages weekly and inspect the surprise devices at the top.",
   "visualization": "Leaderboard of overnight average power by smart plug.",
   "cimModels": [],
   "references": [
     {
       "title": "Shelly API documentation",
-      "url": "https://shelly-api-docs.shelly.cloud/"
+      "url": "https://shelly-api-docs.shelly.cloud/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.5.13)** — Connector for 'Unexpected Overnight Smart Plug Load' stops polling `shelly:status`; stale `avg_power` on `device` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_power` over `1w` is expected for UC-25.5.13, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `shelly:status`. Dedup with `stats latest(*) by device`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hour` >= 0 for 'Unexpected Overnight Smart Plug Load'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "f5",
     "mqtt"
@@ -34,5 +53,12 @@
   "equipmentModels": [
     "f5_asm"
   ],
-  "grandmaExplanation": "It counts which plugged-in things are quietly burning power in the middle of the night when they probably should not be."
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Smart Home Devices & Sensors — typical feeds: Zigbee2MQTT device reports (`zigbee2mqtt:device`), Shelly/Tasmota telemetry (`shelly:status`, `tasmota:sensor`), Hue bridge events (`hue:event`), Nest/Ecobee thermostat (`ecobee:thermostat`), door/lea.\n• **Sourcetypes in this search**: `shelly:status`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=shelly:status`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Philips Hue, smart plugs (Tasmota/Shelly/TP-Link Kasa), thermostats (Nest/Ecobee), locks, and Zigbee/Z-Wave sensors via MQTT / Zigbee2MQTT and HEC..\n\n**Author notes:** Send Shelly power telemetry to Splunk; review overnight averages weekly and inspect the surprise devices at the top.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"shelly:status\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=shelly:status earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Unexpected Overnight Smart Plug Load** over `personal` data (primarily `sourcetype=shelly:status`) across the full search range. It applies numeric thresholds on `hour` (>= 0) after avg — tune these constants to your household baseline.\n\n**Fields this search depends on:** `avg_power`, `device`, `hour`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=shelly:status\n| eval hour=strftime(_time,\"%H\")\n| where hour>=0 AND hour<5\n| stats avg(power_w) as avg_power by device\n| where avg_power>50\n| sort - avg_power\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=shelly:status earliest=-7d\n| head 50\n| table avg_power, device, hour\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=shelly:status earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `hour` before alerting:\n\n```spl\nindex=personal sourcetype=shelly:status earliest=-30d\n| stats perc50(hour) AS p50 perc90(hour) AS p90 perc99(hour) AS p99 max(hour) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.5.13: Personal evidence` with the following panel layout:\n\n**Panel 1 — Leaderboard Of Overnight Average Power By Smart Plug (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `shelly:status` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=shelly:status | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It counts which plugged-in things are quietly burning power in the middle of the night when they probably should not be.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

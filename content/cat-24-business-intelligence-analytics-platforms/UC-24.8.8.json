@@ -9,33 +9,60 @@
     "Data Quality"
   ],
   "splunkPillar": "Observability",
-  "dataSources": "Fivetran log-service events and REST API (`connectors`, sync status), Airbyte job logs (`airbyte:job`), Matillion task history, Kafka Connect connector/task status, AWS Glue job runs (CloudWatch), ADF pipeline runs (Azure Monitor).",
-  "app": "Fivetran / Airbyte / Stitch / Matillion logs and REST APIs via HEC scripted inputs; Kafka Connect JMX/REST; cloud ELT via `Splunk_TA_aws` (Glue) and `Splunk_TA_microsoft-cloudservices` (ADF).",
+  "exclusions": "Covers the detection logic documented for 'ELT Connector Schema Drift' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_elt_connector_schema_drift` (UC-24.8.8), SOC dashboard panel \"Operations — ELT Connector Schema Drift\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-24.8.8 positive (ELT, Connector, Schema, Drift): ingest synthetic events into `index=dataops` sourcetype='fivetran:log' where `values` grouped by `connector_name`, `table_name` satisfies `changes` > 0 for 'ELT Connector Schema Drift'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.8.8 negative (Schema Drift): ingest benign `dataops` / `fivetran:log` events where `connector_name`, `table_name` stays below `changes` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'ELT Connector Schema Drift'."
+  },
+  "dataSources": "Fivetran log-service events and REST API (`connectors`, sync status), Airbyte job logs (`airbyte:job`), Matillion task history, Kafka Connect connector/task status, AWS Glue job runs (CloudWatch), ADF pipeline runs (Azure Monitor). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Fivetran / Airbyte / Stitch / Matillion logs and REST APIs via HEC scripted inputs; Kafka Connect JMX/REST; cloud ELT via `Splunk_TA_aws` (Glue) and `Splunk_TA_microsoft-cloudservices` (ADF). — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dataops (sourcetype=fivetran:log OR sourcetype=airbyte:job) (event=schema_change OR event=schema_migration)\n| stats count as changes, values(change_type) as change_types by connector_name, table_name\n| where changes>0\n| sort - changes",
-  "description": "Captures schema-change events emitted by ELT connectors so new, dropped, or retyped source columns are reviewed before they break downstream models.",
-  "value": "An upstream schema change can silently break transformations or drop data; capturing drift events gives data teams a chance to react first.",
+  "description": "Monitors UC-24.8.8 — ELT, Connector, Schema, Drift — using `index=dataops` sourcetype `fivetran:log`, grouped by `connector_name`, `table_name`. Outputs `values` each `the scheduled window`; alert when `changes` > 0. Primary focus: Schema Drift. Purpose-built for 'ELT Connector Schema Drift' in Operations workflows.",
+  "value": "UC-24.8.8 operationalises 'ELT Connector Schema Drift' against `fivetran:log` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ingest connector schema-change events; schedule hourly; alert on changes to tables feeding critical models.",
   "visualization": "Table of schema changes by connector/table, timeline of drift.",
   "cimModels": [],
   "references": [
     {
       "title": "Fivetran — Logs",
-      "url": "https://fivetran.com/docs/logs"
+      "url": "https://fivetran.com/docs/logs",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Fivetran REST API",
-      "url": "https://fivetran.com/docs/rest-api"
+      "url": "https://fivetran.com/docs/rest-api",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **Maintenance window on `dataops` (UC-24.8.8)** — Planned work for 'ELT Connector Schema Drift' shifts `values` over `span=1h` while `connector_name`, `table_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `fivetran:log`** — Scheduled automation elevates `table_name` without crossing `changes` > 0 for UC-24.8.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `connector_name`, `table_name`** — Health checks in `dataops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `fivetran:log`** — First 48h baseline for UC-24.8.8 on `connector_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `connector_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "azure",
     "kafka",
     "m365"
   ],
-  "grandmaExplanation": "We flag when the shape of an incoming data feed changes, so it can be reviewed before it breaks the reports built on it."
+  "equipmentModels": [
+    "aws_generic",
+    "azure_generic",
+    "kafka_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Fivetran / Airbyte / Stitch / Matillion logs and REST APIs via HEC scripted inputs; Kafka Connect JMX/REST; cloud ELT via `Splunk_TA_aws` (Glue) and `Splunk_TA_microsoft-cloudservices` (ADF). — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=fivetran:log, airbyte:job into dataops. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`changes, connector_name, table_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "grandmaExplanation": "We flag when the shape of an incoming data feed changes, so it can be reviewed before it breaks the reports built on it.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

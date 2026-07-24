@@ -9,11 +9,17 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "dataSources": "IdP status API, synthetic monitoring, Okta system health",
-  "app": "Scripted input (HTTP check), `Splunk_TA_okta`",
+  "exclusions": "Covers the detection logic documented for 'IdP Availability Monitoring' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
+  "evidence": "Saved search `iam_idp_availability_monitoring` (UC-9.3.5), SOC dashboard panel \"IAM — IdP Availability Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-9.3.5 positive (IdP, Availability, Monitoring): ingest synthetic events into `index=synthetic` sourcetype='http_check' where `rt` grouped by `entity` satisfies `status_code` >= 500, `rt` > 5000, or `errors` > 0 for 'IdP Availability Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.3.5 negative (Availability Monitoring): ingest benign `synthetic` / `http_check` events where `entity` stays below `status_code` >= 500, `rt` > 5000, or `errors` > 0, or exclude the test entity via `iam_exception_register.csv`. Variant 12 confirms zero alert rows for 'IdP Availability Monitoring'."
+  },
+  "dataSources": "IdP status API, synthetic monitoring, Okta system health Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Scripted input (HTTP check), `Splunk_TA_okta` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=synthetic sourcetype=\"http_check\" target=\"*.okta.com\"\n| timechart span=1m avg(response_time_ms) as rt, count(eval(status_code>=500)) as errors\n| where rt > 5000 OR errors > 0",
-  "description": "IdP outage blocks all SSO authentication across the organization. Rapid detection enables failover and communication.",
-  "value": "IdP outage blocks all SSO authentication across the organization. Rapid detection enables failover and communication.",
+  "description": "Detects UC-9.3.5 — IdP, Availability, Monitoring — using `index=synthetic` sourcetype `http_check`, grouped by `entity`. Outputs `rt` each `1m`; alert when `status_code` >= 500, `rt` > 5000, or `errors` > 0. Primary focus: Availability Monitoring. Purpose-built for 'IdP Availability Monitoring' in IAM workflows.",
+  "value": "Tracking `rt` via UC-9.3.5 on `http_check` feeds improves response to 'IdP Availability Monitoring' and reduces account takeover risk, help-desk load, and audit findings.",
   "implementation": "Set up synthetic HTTP checks against IdP login endpoints every minute. Track response time and availability. Alert on response time >5 seconds or any 5xx errors. Subscribe to vendor status page updates as secondary source.",
   "visualization": "Single value (IdP uptime %), Line chart (response time), Status indicator (available/degraded/down).",
   "cimModels": [
@@ -23,16 +29,41 @@
   "references": [
     {
       "title": "Splunk_TA_okta",
-      "url": "https://splunkbase.splunk.com/app/6553"
+      "url": "https://splunkbase.splunk.com/app/6553",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk savedsearches.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Vendor-planned maintenance, regional DNS or CDN blips, and health-probe false drops; confirm on the vendor status page.",
+  "knownFalsePositives": "1. **Maintenance window on `synthetic` (UC-9.3.5)** — Planned work for 'IdP Availability Monitoring' shifts `rt` over `span=1m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `http_check`** — Scheduled automation elevates `src` without crossing `status_code` >= 500 for UC-9.3.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `synthetic` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `http_check`** — First 48h baseline for UC-9.3.5 on `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1133"
   ],
   "equipment": [
     "okta"
   ],
+  "equipmentModels": [
+    "okta_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Scripted input (HTTP check), `Splunk_TA_okta`.\n• Ensure the following data sources are available: IdP status API, synthetic monitoring, Okta system health.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nSet up synthetic HTTP checks against IdP login endpoints every minute. Track response time and availability. Alert on response time >5 seconds or any 5xx errors. Subscribe to vendor status page updates as secondary source.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=synthetic sourcetype=\"http_check\" target=\"*.okta.com\"\n| timechart span=1m avg(response_time_ms) as rt, count(eval(status_code>=500)) as errors\n| where rt > 5000 OR errors > 0\n```\n\nUnderstanding this SPL\n\n**IdP Availability Monitoring** — IdP outage blocks all SSO authentication across the organization. Rapid detection enables failover and communication.\n\nDocumented **Data sources**: IdP status API, synthetic monitoring, Okta system health. **App/TA** (typical add-on context): Scripted input (HTTP check), `Splunk_TA_okta`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: synthetic; **sourcetype**: http_check. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=synthetic, sourcetype=\"http_check\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=1m** buckets — ideal for trending and alerting on this use case.\n• Filters the current rows with `where rt > 5000 OR errors > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nCompare Splunk results with the Okta admin console and System Log for the same users, outcomes, and time window, then adjust thresholds to normal org traffic.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Single value (IdP uptime %), Line chart (response time), Status indicator (available/degraded/down).",
-  "grandmaExplanation": "We use identity and sign-in data in Splunk so we can notice unusual logins, access changes, and privileged use while it still matters — IdP Availability Monitoring"
+  "grandmaExplanation": "We use identity and sign-in data in Splunk so we can notice unusual logins, access changes, and privileged use while it still matters — IdP Availability Monitoring",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

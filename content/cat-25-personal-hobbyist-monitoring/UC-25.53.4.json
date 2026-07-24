@@ -9,23 +9,55 @@
     "Business"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Planning tasks (`event:task`), budget lines (`event:budget`), RSVPs (`event:rsvp`), vendor bookings (`event:vendor`), countdown milestones (`event:countdown`).",
-  "app": "Wedding and event planning — task and budget spreadsheets, RSVP platforms (Zola, The Knot), vendor contracts, and seating tools — streamed to Splunk HEC via CSV exports and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Vendor Payment Schedule' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_vendor_payment_schedule` (UC-25.53.4), SOC dashboard panel \"Personal — Vendor Payment Schedule\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.53.4 positive (Vendor, Payment, Schedule): ingest synthetic events into `index=personal` sourcetype='event:vendor' where `count` grouped by `entity` satisfies `days_to_payment` < 30 for 'Vendor Payment Schedule'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.53.4 negative (Payment Schedule): ingest benign `personal` / `event:vendor` events where `entity` stays below `days_to_payment` < 30, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 10 confirms zero alert rows for 'Vendor Payment Schedule'."
+  },
+  "dataSources": "Planning tasks (`event:task`), budget lines (`event:budget`), RSVPs (`event:rsvp`), vendor bookings (`event:vendor`), countdown milestones (`event:countdown`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Wedding and event planning — task and budget spreadsheets, RSVP platforms (Zola, The Knot), vendor contracts, and seating tools — streamed to Splunk HEC via CSV exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=event:vendor\n| eval days_to_payment=round((next_payment_due-now())/86400,1)\n| where days_to_payment<30\n| table vendor next_payment_due amount_due days_to_payment\n| sort days_to_payment",
-  "description": "Lists upcoming vendor deposits and final payments so no supplier bill catches you by surprise.",
-  "value": "Missing a vendor deadline can cost a booking; an early payment calendar protects your key suppliers.",
+  "description": "Monitors UC-25.53.4 — Vendor, Payment, Schedule — using `index=personal` sourcetype `event:vendor`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `days_to_payment` < 30. Primary focus: Payment Schedule. Purpose-built for 'Vendor Payment Schedule' in Personal workflows.",
+  "value": "For 'Vendor Payment Schedule', UC-25.53.4 converts `activity` on `event:vendor` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest vendor contracts and due dates into `index=personal`; surface payments due soon.",
   "visualization": "Table of vendor payments due in the next 30 days.",
   "cimModels": [],
   "references": [
     {
       "title": "Project Management Institute — planning basics",
-      "url": "https://www.pmi.org/about/what-is-project-management"
+      "url": "https://www.pmi.org/about/what-is-project-management",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "grandmaExplanation": "It lists which suppliers need paying soon and how much, so no deposit or final bill sneaks up on you."
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.53.4)** — Connector for 'Vendor Payment Schedule' stops polling `event:vendor`; stale `count` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.53.4, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `event:vendor`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_to_payment` < 30 for 'Vendor Payment Schedule'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Wedding & Event Planning — typical feeds: Planning tasks (`event:task`), budget lines (`event:budget`), RSVPs (`event:rsvp`), vendor bookings (`event:vendor`), countdown milestones (`event:countdown`)..\n• **Sourcetypes in this search**: `event:vendor`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=event:vendor`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Wedding and event planning — task and budget spreadsheets, RSVP platforms (Zola, The Knot), vendor contracts, and seating tools — streamed to Splunk HEC via CSV exports and scripted inputs..\n\n**Author notes:** Ingest vendor contracts and due dates into `index=personal`; surface payments due soon.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"event:vendor\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=event:vendor earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Vendor Payment Schedule** over `personal` data (primarily `sourcetype=event:vendor`) across the full search range. It applies numeric thresholds on `days_to_payment` (< 30) after aggregation — tune these constants to your household baseline.\n\n**Fields this search depends on:** `days_to_payment`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=event:vendor\n| eval days_to_payment=round((next_payment_due-now())/86400,1)\n| where days_to_payment<30\n| table vendor next_payment_due amount_due days_to_payment\n| sort days_to_payment\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=event:vendor earliest=-7d\n| head 50\n| table days_to_payment\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=event:vendor earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `days_to_payment` before alerting:\n\n```spl\nindex=personal sourcetype=event:vendor earliest=-30d\n| stats perc50(days_to_payment) AS p50 perc90(days_to_payment) AS p90 perc99(days_to_payment) AS p99 max(days_to_payment) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.53.4: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Vendor Payments Due In The Next 30 Days (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `event:vendor` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=event:vendor | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It lists which suppliers need paying soon and how much, so no deposit or final bill sneaks up on you.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

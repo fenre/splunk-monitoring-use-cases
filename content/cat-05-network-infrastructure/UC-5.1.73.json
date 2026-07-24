@@ -9,25 +9,43 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'IGMP Snooping and Multicast Group Membership' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_igmp_snooping_and_multicast_group_membership` (UC-5.1.73), SOC dashboard panel \"Operations — IGMP Snooping and Multicast Group Membership\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
+  "controlTest": {
+    "positiveScenario": "UC-5.1.73 positive (IGMP, Snooping, and, Multicast, Group): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `count` grouped by `host`, `vlan`, `mcast_group`, `action` satisfies detection threshold for 'IGMP Snooping and Multicast Group Membership'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.1.73 negative (Group Membership): ingest benign `network` / `cisco:ios` events where `host`, `vlan`, `mcast_group`, `action` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'IGMP Snooping and Multicast Group Membership'."
+  },
   "dataSources": "Cisco IOS / IOS-XE syslog (`%IGMP-5-GROUPCHANGE`) and Junos syslog (`IGMPSNOOP`) ingested via `TA-cisco_ios` / `Splunk_TA_juniper`, optionally enriched by SNMP polling of IGMP-STD-MIB for group-membership counts. Per-event identity carries the multicast group address, the VLAN, and the join / leave action.",
   "app": "Cisco Networks Add-on for Splunk (`TA-cisco_ios`, Splunkbase 1352), Splunk Add-on for Juniper (`Splunk_TA_juniper`, Splunkbase 2847), SNMP Modular Input or SC4SNMP for IGMP-STD-MIB polling.",
   "spl": "index=network sourcetype=\"cisco:ios\" \"%IGMP-5-GROUPCHANGE\"\n| rex \"Group (?<mcast_group>\\S+).*VLAN (?<vlan>\\d+).*(?<action>JOIN|LEAVE)\"\n| stats count by host, vlan, mcast_group, action\n| sort - count",
-  "description": "Tracks IGMP membership reports and leave events at the access / distribution layer. Aggregates per-VLAN multicast group activity so the network team can see at a glance which VLANs have active multicast receivers — and equally important, when a previously-active group has gone empty.",
-  "value": "IGMP snooping is the Layer-2 mechanism that prevents multicast traffic from broadcasting to every port on a VLAN. Without it, a single multicast feed at modest bitrate floods every host on the VLAN at line rate — a classic attack pattern, but more often a misconfiguration. With IGMP snooping correctly working, multicast goes only to ports whose hosts have actually joined the group. Monitoring membership reports gives the operator a real-time inventory of which VLANs have IPTV viewers, which have surveillance-camera receivers, and which have financial-market-data clients — useful both for capacity planning and for catching unexpected joins (a host that should not be receiving a group has joined it; that is either a misconfiguration or a pre-attack reconnaissance pattern).",
+  "description": "Monitors Group Membership activity in UC-5.1.73 ('IGMP Snooping and Multicast Group Membership') from `index=network` sourcetype `cisco:ios`. Rolls up `count` by `host`, `vlan`, `mcast_group`, `action` across `the scheduled window` and pages when configured threshold. Covers IGMP, Snooping, and, Multicast, Group. Operations operators treat UC-5.1.73 as the canonical signal.",
+  "value": "Operators running UC-5.1.73 on `cisco:ios` feeds shorten triage for Group Membership tied to 'IGMP Snooping and Multicast Group Membership', lowering operational risk and delayed incident response.",
   "implementation": "Enable IGMP snooping on every access and distribution switch. Forward IGMP syslog at severity 5 or lower to Splunk. Monitor group-membership counts per VLAN; alert on unexpected group joins (potential multicast amplification or mis-routed feed) and on the complete leaving of a group on a VLAN that should always have receivers (service interruption).",
   "visualization": "Table (active groups per VLAN, sortable by count), Bar chart (join / leave ratio per VLAN, useful for spotting unstable groups), Timeline (group changes over time).",
   "cimModels": [],
   "references": [
     {
       "title": "RFC 4541 — Considerations for Internet Group Management Protocol (IGMP) and Multicast Listener Discovery (MLD) Snooping Switches",
-      "url": "https://www.rfc-editor.org/rfc/rfc4541"
+      "url": "https://www.rfc-editor.org/rfc/rfc4541",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Cisco IGMP Snooping Configuration Guide",
-      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipmulti_igmp/configuration/15-mt/imc-igmp-15-mt-book.html"
+      "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/ipmulti_igmp/configuration/15-mt/imc-igmp-15-mt-book.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "**Querier-election membership flushes.** When the IGMP querier role moves between switches (after a topology change), every group reports membership as part of a flush-and-rejoin sequence. This generates a brief storm of GROUPCHANGE events. Tolerate a 5-minute settle window after `%IGMP-5-QUERIER_NEW`.\n\n**Multicast receiver host reboots.** Set-top boxes, IP cameras, and trading-floor receivers reboot at scheduled times and will leave / rejoin their groups. Suppress the alert for known-rebooting MAC ranges.\n\n**Multicast flood-mode VLANs.** Some surveillance and broadcast VLANs intentionally run with IGMP snooping disabled because every host is a receiver. Filter the alert by VLAN-id range.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.1.73)** — Planned work for 'IGMP Snooping and Multicast Group Membership' shifts `count` over `span=1h` while `host`, `vlan`, `mcast_group`, `action` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ios`** — Scheduled automation elevates `vlan` without crossing configured threshold for UC-5.1.73. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `vlan`, `mcast_group`, `action`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.1.73 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "juniper",
@@ -45,6 +63,12 @@
     "snmp_generic"
   ],
   "status": "community",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Cisco Networks Add-on for Splunk (`TA-cisco_ios`, Splunkbase 1352), Splunk Add-on for Juniper (`Splunk_TA_juniper`, Splunkbase 2847), SNMP Modular Input or SC4SNMP for IGMP-STD-MIB polling.). Enable the modular input or HEC token that writes sourcetype=cisco:ios into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`action, host, mcast_group, vlan`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We track which devices on each office network are listening to live video or data feeds. When a device joins or leaves a feed unexpectedly, that usually points to a misconfiguration — or in rare cases, someone snooping on a feed they should not. We alert the team to investigate.",
+  "prerequisiteUseCases": [],
   "wave": "walk"
 }

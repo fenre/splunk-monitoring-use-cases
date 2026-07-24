@@ -9,6 +9,8 @@
     "Compliance"
   ],
   "splunkPillar": "Observability",
+  "exclusions": "Covers the detection logic documented for 'Network Device Configuration Backup Freshness' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+  "evidence": "Saved search `operations_network_device_configuration_backup_freshness` (UC-5.1.24), SOC dashboard panel \"Operations — Network Device Configuration Backup Freshness\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "compliance": [
     {
       "regulation": "asd-e8",
@@ -66,27 +68,51 @@
       "evidenceArtifact": "Saved search 'UC-5.1.24' running on Backup system logs (timestamps of last successful backup per device), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
     }
   ],
-  "dataSources": "Backup system logs (timestamps of last successful backup per device)",
-  "app": "Custom (Oxidized/RANCID output, SolarWinds NCM equivalent), `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog",
+  "controlTest": {
+    "positiveScenario": "UC-5.1.24 positive (Network, Device, Configuration, Backup, Freshness): ingest synthetic events into `index=network` sourcetype='config_backup' where `count` grouped by `host`, `device_hostname` satisfies `age_hours` > 24 for 'Network Device Configuration Backup Freshness'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.1.24 negative (Backup Freshness): ingest benign `network` / `config_backup` events where `host`, `device_hostname` stays below `age_hours` > 24, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Network Device Configuration Backup Freshness'."
+  },
+  "dataSources": "Backup system logs (timestamps of last successful backup per device) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+  "app": "Custom (Oxidized/RANCID output, SolarWinds NCM equivalent), `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=config_backup OR sourcetype=oxidized OR sourcetype=rancid\n| stats latest(_time) as last_backup by host, device_hostname\n| eval age_hours=round((now()-last_backup)/3600,1)\n| where age_hours > 24 OR isnull(last_backup)\n| table device_hostname host last_backup age_hours",
-  "description": "Last backup age tracking; stale backups risk config loss during failures.",
-  "value": "Operations teams monitor network device configuration backup freshness, identifying stale backups that risk data loss during device failure or RMA replacement.",
+  "description": "Monitors UC-5.1.24 — Network, Device, Configuration, Backup, Freshness — using `index=network` sourcetype `config_backup`, grouped by `host`, `device_hostname`. Outputs `count` each `the scheduled window`; alert when `age_hours` > 24. Primary focus: Backup Freshness. Purpose-built for 'Network Device Configuration Backup Freshness' in Operations workflows.",
+  "value": "UC-5.1.24 operationalises 'Network Device Configuration Backup Freshness' against `config_backup` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ingest backup job output from Oxidized, RANCID, or NCM. Parse success/failure and timestamp. Create lookup or index with device→last_backup mapping. Alert when last successful backup exceeds 24 hours. Schedule backup jobs daily; verify Splunk receives logs via scripted input or syslog.",
   "visualization": "Table (device, last backup, age), Single value (devices with stale backup), Gauge (hours since last backup).",
   "cimModels": [],
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/"
+      "url": "https://lantern.splunk.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Cisco Security documentation",
+      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk inputs.conf reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "Backup jobs can slip during holidays, RADIUS lockouts to the repo, or when a device is in RMA—compare to the backup product job history.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.1.24)** — Planned work for 'Network Device Configuration Backup Freshness' shifts `count` over `span=1h` while `host`, `device_hostname` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `config_backup`** — Scheduled automation elevates `device_hostname` without crossing `age_hours` > 24 for UC-5.1.24. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `device_hostname`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `config_backup`** — First 48h baseline for UC-5.1.24 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"
   ],
   "equipmentModels": [
     "cisco_ios"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
   ],
   "premiumApps": [
     {
@@ -97,5 +123,7 @@
   ],
   "detailedImplementation": "Prerequisites\n* Configuration backup freshness data. Data from network management tools (RANCID, Oxidized, Cisco DNA Center, SolarWinds NCM) or custom scripted inputs. Data in `index=network` or `index=cmdb`.\n* Configuration backup freshness: tracks when the last known-good backup was taken for each device. Stale backups mean that in case of device failure, the restored configuration may not match current production state.\n\nStep 1 -- Configure data collection\n```\n# Scripted input to check backup timestamps\n# inputs.conf\n[script:///opt/splunk/etc/apps/network_mon/bin/backup_freshness.sh]\ninterval = 86400\nsourcetype = network:backup:freshness\nindex = network\n\n# backup_freshness.sh\n#!/bin/bash\nBACKUP_DIR=\"/var/backups/network\"\nfor f in \"$BACKUP_DIR\"/*.cfg; do\n    device=$(basename \"$f\" .cfg)\n    mod_epoch=$(stat -c %Y \"$f\" 2>/dev/null || stat -f %m \"$f\" 2>/dev/null)\n    echo \"device=$device backup_file=$f last_backup_epoch=$mod_epoch\"\ndone\n```\nVerify:\n```spl\nindex=network sourcetype=\"network:backup:freshness\" earliest=-2d\n| stats count by device\n```\n\nStep 2 -- Create the search and alert\n\n**Primary search -- Backup freshness monitoring:**\n```spl\nindex=network sourcetype=\"network:backup:freshness\" earliest=-2d\n| eval device=coalesce(device, hostname, host)\n| eval last_backup=tonumber(last_backup_epoch)\n| eval days_since=round((now() - last_backup)/86400, 1)\n| eval last_backup_time=strftime(last_backup, \"%Y-%m-%d %H:%M:%S\")\n| lookup network_devices.csv hostname AS device OUTPUT device_type, site, criticality\n| eval severity=case(\n    days_since > 30, \"CRITICAL -- backup older than 30 days\",\n    days_since > 14, \"WARNING -- backup older than 14 days\",\n    days_since > 7, \"INFO -- backup older than 7 days\",\n    1==1, \"OK\")\n| where severity != \"OK\"\n| table device, device_type, site, criticality, last_backup_time, days_since, severity\n| sort severity, -days_since\n```\n\nStep 3 -- Validate\n(a) Verify backup tool (RANCID/Oxidized) is running: check process/cron.\n(b) Attempt manual backup of a stale device: `copy running-config tftp://...`.\n(c) Verify backed-up config matches running-config.\n\nStep 4 -- Operationalize\nDashboard (\"Network -- Backup Freshness\"):\n* Row 1 -- Single-value: \"Stale backups (>14d)\", \"Fresh backups (<7d)\", \"Never backed up\".\n* Row 2 -- Backup freshness table sorted by staleness.\n\nAlert: Warning (critical device backup >14 days stale): take immediate backup.\n\nStep 5 -- Troubleshooting\n\n* **Backup tool failing** -- Check RANCID/Oxidized logs. Common causes: SSH credential rotation, device unreachable, disk space full.\n\n* **New device not in backup schedule** -- Add to backup tool configuration. Ensure SSH/SNMP credentials are provisioned.\n\n* **Running-config differs from backup** -- Device was changed without triggering a backup. Enable RANCID/Oxidized to poll more frequently or trigger backup on config change (EEM script).",
   "grandmaExplanation": "We help you know early when something looks wrong with network device configuration backup freshness so the team can act before it grows into a bigger outage.",
-  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360"
+  "hardware": "Cisco Catalyst 9200/9300/9400/9500/9600, ISR 1100/4000, ASR 1000; Juniper EX2300, EX3400, EX4300, EX4400, EX4600, QFX5100/5120/5200/5220, MX204/304/480, SRX300/SRX1500/SRX4100/SRX4200; Arista 7050X3, 7060X, 7260X3, 7280R3, 7500R3; HPE Aruba CX 6100/6200/6300/6400, CX 8320/8325/8360",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }

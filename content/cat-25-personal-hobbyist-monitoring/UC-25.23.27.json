@@ -9,42 +9,65 @@
     "Risk"
   ],
   "splunkPillar": "Platform",
-  "dataSources": "Nanit sleep sessions (`nanit:sleep`), Hatch routines (`hatch:routine`), school calendar events (`schoolcalendar:event`), allowance transactions (`allowance:txn`), and kid screen usage (`screentime:usage`).",
-  "app": "Family-routine telemetry from Nanit sleep exports, Hatch routine data, school calendars, allowance and chore apps, and Apple Screen Time sent to Splunk HEC via APIs and scripted inputs.",
+  "exclusions": "Covers personal hobby monitoring for 'Screen Time Overage by App Category' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_screen_time_overage_by_app_category` (UC-25.23.27), SOC dashboard panel \"Personal — Screen Time Overage by App Category\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.23.27 positive (Screen, Time, Overage, App, Category): ingest synthetic events into `index=personal` sourcetype='screentime:usage' where `over_limit_min` grouped by `_time`, `app_category` satisfies `over_limit_min` > 0 for 'Screen Time Overage by App Category'. Validate filter `over_limit_min>0`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.23.27 negative (App Category): ingest benign `personal` / `screentime:usage` events where `_time`, `app_category` stays below `over_limit_min` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 2 confirms zero alert rows for 'Screen Time Overage by App Category'."
+  },
+  "dataSources": "Nanit sleep sessions (`nanit:sleep`), Hatch routines (`hatch:routine`), school calendar events (`schoolcalendar:event`), allowance transactions (`allowance:txn`), and kid screen usage (`screentime:usage`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Family-routine telemetry from Nanit sleep exports, Hatch routine data, school calendars, allowance and chore apps, and Apple Screen Time sent to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=screentime:usage\n| search over_limit_min>0\n| bin _time span=1d\n| stats sum(over_limit_min) as over_limit_min by _time app_category\n| sort - _time",
-  "description": "Tracks screen-time overages over time and breaks it out by app category.",
-  "value": "Category-level overages show whether the problem is games, video, or everything equally.",
+  "description": "Alerts on UC-25.23.27 for Screen, Time, Overage, App, Category over `index=personal` sourcetype `screentime:usage` with thresholds `over_limit_min` > 0. Groups `over_limit_min` by `_time`, `app_category` each `1d`. Differentiated by filter `over_limit_min>0`. Supports repeatable personal triage for 'Screen Time Overage by App Category'.",
+  "value": "For 'Screen Time Overage by App Category', UC-25.23.27 converts `over_limit_min` on `screentime:usage` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Send screen-time overages events to `index=personal` with the fields used in the breakdown and review the resulting trend at 1d granularity.",
   "visualization": "Stacked time chart of screen-time overages by app category.",
   "cimModels": [],
   "references": [
     {
       "title": "Nanit",
-      "url": "https://www.nanit.com/"
+      "url": "https://www.nanit.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Hatch Rest",
-      "url": "https://www.hatch.co/rest-plus/"
+      "url": "https://www.hatch.co/rest-plus/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Google Calendar API",
-      "url": "https://developers.google.com/workspace/calendar/api/guides/overview"
+      "url": "https://developers.google.com/workspace/calendar/api/guides/overview",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Greenlight",
-      "url": "https://greenlight.com/"
+      "url": "https://greenlight.com/",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Apple Screen Time",
-      "url": "https://support.apple.com/guide/iphone/get-started-with-screen-time-iphbfa595995/ios"
+      "url": "https://support.apple.com/guide/iphone/get-started-with-screen-time-iphbfa595995/ios",
+      "retrieved": "2026-04-25"
     },
     {
       "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector"
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
     }
   ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.23.27)** — Connector for 'Screen Time Overage by App Category' stops polling `screentime:usage`; stale `over_limit_min` on `_time`, `app_category` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `over_limit_min` over `1d` is expected for UC-25.23.27, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `screentime:usage`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `over_limit_min` > 0 for 'Screen Time Overage by App Category'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],
-  "grandmaExplanation": "It reveals how screen-time overages changes over time so the busy spells and quiet spells stand out."
+  "equipmentModels": [
+    "asterisk_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Family, Baby & Household Chaos — typical feeds: Baby feeds (`baby:feed`), baby sleep (`baby:sleep`), diaper changes (`diaper:change`), chore completions (`chore:completion`), allowance ledger (`allowance:ledger`), family calendar (`family:calendar`.\n• **Sourcetypes in this search**: `screentime:usage`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=screentime:usage`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Baby-tracking app exports (Huckleberry/Baby Daybook), chore and allowance boards, shared family calendars, screen-time reports, and growth logs via Splunk HEC scripted inputs..\n\n**Author notes:** Send screen-time overages events to `index=personal` with the fields used in the breakdown and review the resulting trend at 1d granularity.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"screentime:usage\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=screentime:usage earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Screen Time Overage by App Category** over `personal` data (primarily `sourcetype=screentime:usage`) across the full search range. It applies numeric thresholds on `over_limit_min` (> 0) after sum — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `app_category`, `over_limit_min`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=screentime:usage\n| search over_limit_min>0\n| bin _time span=1d\n| stats sum(over_limit_min) as over_limit_min by _time app_category\n| sort - _time\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=screentime:usage earliest=-7d\n| head 50\n| table _time, app_category, over_limit_min\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=screentime:usage earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `over_limit_min` before alerting:\n\n```spl\nindex=personal sourcetype=screentime:usage earliest=-30d\n| stats perc50(over_limit_min) AS p50 perc90(over_limit_min) AS p90 perc99(over_limit_min) AS p99 max(over_limit_min) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.23.27: Personal evidence` with the following panel layout:\n\n**Panel 1 — Stacked Time Chart Of Screen-Time Overages By App Category (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `screentime:usage` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=screentime:usage | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1d` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1d` buckets.",
+  "grandmaExplanation": "It reveals how screen-time overages changes over time so the busy spells and quiet spells stand out.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
 }
