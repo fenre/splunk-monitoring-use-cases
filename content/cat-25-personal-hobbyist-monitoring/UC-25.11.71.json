@@ -1,0 +1,63 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.11.71",
+  "title": "Wellness Visit Overdue by Pet",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Patient Safety",
+    "Operations"
+  ],
+  "splunkPillar": "Platform",
+  "exclusions": "Covers personal hobby monitoring for 'Wellness Visit Overdue by Pet' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_wellness_visit_overdue_by_pet` (UC-25.11.71), SOC dashboard panel \"Personal — Wellness Visit Overdue by Pet\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.11.71 positive (Wellness, Visit, Overdue, Pet): ingest synthetic events into `index=personal` sourcetype='vet:visit' where `last_wellness` grouped by `pet_name` satisfies `days_since` > 365 for 'Wellness Visit Overdue by Pet'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.11.71 negative (by Pet): ingest benign `personal` / `vet:visit` events where `pet_name` stays below `days_since` > 365, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Wellness Visit Overdue by Pet'."
+  },
+  "dataSources": "Trupanion claims (`trupanion:claim`), vet invoices (`vet:invoice`), pet insurance premiums (`petinsurance:premium`), and vet visits (`vet:visit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Trupanion claim exports, veterinary invoice logs, pet insurance premium bills, and vet visit records streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=vet:visit pet_name=* visit_type=\"wellness\" visit_date=*\n| stats max(visit_date) as last_wellness by pet_name\n| eval days_since=round((now()-strptime(last_wellness,\"%Y-%m-%d\"))/86400,0)\n| where days_since>365\n| sort - days_since\n| table pet_name days_since last_wellness",
+  "description": "Alerts on by Pet anomalies for UC-25.11.71 with window `the scheduled window` on `index=personal` sourcetype `vet:visit`. Combines `last_wellness` by `pet_name` and compares against `days_since` > 365. Mapped to keywords Wellness, Visit, Overdue, Pet for dashboard routing.",
+  "value": "Alerting on Wellness, Visit, Overdue, Pet through UC-25.11.71 reduces missed training goals, stale hobby data, and connector failures by surfacing `last_wellness` early.",
+  "implementation": "Log wellness visits with ISO `visit_date` and `pet_name`, then alert when the interval exceeds one year.",
+  "visualization": "Table of pets by days since last wellness visit.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Trupanion",
+      "url": "https://trupanion.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.11.71)** — Connector for 'Wellness Visit Overdue by Pet' stops polling `vet:visit`; stale `last_wellness` on `pet_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_wellness` over `1w` is expected for UC-25.11.71, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vet:visit`. Dedup with `stats latest(*) by pet_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_since` > 365 for 'Wellness Visit Overdue by Pet'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Pet Insurance & Vet Care — typical feeds: Trupanion claims (`trupanion:claim`), vet invoices (`vet:invoice`), pet insurance premiums (`petinsurance:premium`), and vet visits (`vet:visit`)..\n• **Sourcetypes in this search**: `vet:visit`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=vet:visit`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Trupanion claim exports, veterinary invoice logs, pet insurance premium bills, and vet visit records streamed into Splunk HEC..\n\n**Author notes:** Log wellness visits with ISO `visit_date` and `pet_name`, then alert when the interval exceeds one year.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"vet:visit\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=vet:visit earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Wellness Visit Overdue by Pet** over `personal` data (primarily `sourcetype=vet:visit`) across the full search range. The `max` aggregation groups by `pet_name`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `days_since`, `last_wellness`, `pet_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=vet:visit pet_name=* visit_type=\"wellness\" visit_date=*\n| stats max(visit_date) as last_wellness by pet_name\n| eval days_since=round((now()-strptime(last_wellness,\"%Y-%m-%d\"))/86400,0)\n| where days_since>365\n| sort - days_since\n| table pet_name days_since last_wellness\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=vet:visit earliest=-7d\n| head 50\n| table days_since, last_wellness, pet_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=vet:visit earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `days_since` before alerting:\n\n```spl\nindex=personal sourcetype=vet:visit earliest=-30d\n| stats perc50(days_since) AS p50 perc90(days_since) AS p90 perc99(days_since) AS p99 max(days_since) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.11.71: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Pets By Days Since Last Wellness Visit (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `vet:visit` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=vet:visit | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It counts pets that are overdue for their yearly checkup at the vet.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

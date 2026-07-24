@@ -1,0 +1,73 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.45.64",
+  "title": "Yousician Lesson Session Score Leaderboard",
+  "criticality": "low",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Analytics",
+    "Business"
+  ],
+  "splunkPillar": "Platform",
+  "exclusions": "Covers personal hobby monitoring for 'Yousician Lesson Session Score Leaderboard' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_yousician_lesson_session_score_leaderboard` (UC-25.45.64), SOC dashboard panel \"Personal — Yousician Lesson Session Score Leaderboard\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.45.64 positive (Yousician, Lesson, Session, Score, Leaderboard): ingest synthetic events into `index=personal` sourcetype='yousician:lesson' where `total_value`, `avg_value` grouped by `instrument_name` satisfies detection threshold for 'Yousician Lesson Session Score Leaderboard'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.45.64 negative (Score Leaderboard): ingest benign `personal` / `yousician:lesson` events where `instrument_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 5 confirms zero alert rows for 'Yousician Lesson Session Score Leaderboard'."
+  },
+  "dataSources": "Yousician lessons (`yousician:lesson`), Simply Piano practice (`simplypiano:session`), TonalEnergy tuning (`tonalenergy:tuning`), Pro Metronome sessions (`prometronome:session`), and forScore practice (`forscore:practice`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Yousician lessons, Simply Piano practice, TonalEnergy tuning logs, Pro Metronome sessions, and forScore sheet-music practice exports ingested into Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=yousician:lesson score_pct=*\n| stats sum(score_pct) as total_value, avg(score_pct) as avg_value by instrument_name\n| sort - total_value",
+  "description": "Surfaces 'Yousician Lesson Session Score Leaderboard' patterns (UC-25.45.64) sourced from `index=personal` sourcetype `yousician:lesson`. Threshold bundle: configured threshold; aggregation grain: `instrument_name`; metrics: `total_value`, `avg_value`. Watch terms: Yousician, Lesson, Session, Score, Leaderboard.",
+  "value": "UC-25.45.64 gives Personal teams earlier visibility into Score Leaderboard through `yousician:lesson` feeds, lowering missed training goals, stale hobby data, and connector failures.",
+  "implementation": "Ingest numeric `score_pct` values for each Yousician lesson session event and review total and average score by instrument name.",
+  "visualization": "Table of entities ranked by total score.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Yousician",
+      "url": "https://yousician.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Simply Piano",
+      "url": "https://www.joytunes.com/apps/simply-piano",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "TonalEnergy",
+      "url": "https://www.tonalenergy.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Pro Metronome",
+      "url": "https://eumlab.com/pro-metronome/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "forScore",
+      "url": "https://forscore.co/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.45.64)** — Connector for 'Yousician Lesson Session Score Leaderboard' stops polling `yousician:lesson`; stale `total_value`, `avg_value` on `instrument_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `total_value`, `avg_value` over `1w` is expected for UC-25.45.64, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `yousician:lesson`. Dedup with `stats latest(*) by instrument_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Yousician Lesson Session Score Leaderboard'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Musical Instruments — typical feeds: Yousician lessons (`yousician:lesson`), Simply Piano practice (`simplypiano:session`), TonalEnergy tuning (`tonalenergy:tuning`), Pro Metronome sessions (`prometronome:session`), and forScore practice.\n• **Sourcetypes in this search**: `yousician:lesson`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=yousician:lesson`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Yousician lessons, Simply Piano practice, TonalEnergy tuning logs, Pro Metronome sessions, and forScore sheet-music practice exports ingested into Splunk..\n\n**Author notes:** Ingest numeric `score_pct` values for each Yousician lesson session event and review total and average score by instrument name.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"yousician:lesson\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=yousician:lesson earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Yousician Lesson Session Score Leaderboard** over `personal` data (primarily `sourcetype=yousician:lesson`) across the full search range. The `sum, avg` aggregation groups by `instrument_name`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `instrument_name`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=yousician:lesson score_pct=*\n| stats sum(score_pct) as total_value, avg(score_pct) as avg_value by instrument_name\n| sort - total_value\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=yousician:lesson earliest=-7d\n| head 50\n| table instrument_name\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=yousician:lesson earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.45.64: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Entities Ranked By Total Score (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `yousician:lesson` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=yousician:lesson | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It compares which instrument name shows the biggest score numbers in your Yousician lesson session data.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

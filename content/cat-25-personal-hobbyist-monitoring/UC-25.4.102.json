@@ -1,0 +1,64 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.4.102",
+  "title": "Standby Power (Vampire Load) Detection",
+  "criticality": "low",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Cost",
+    "Anomaly"
+  ],
+  "splunkPillar": "Observability",
+  "exclusions": "Covers personal hobby monitoring for 'Standby Power (Vampire Load) Detection' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_standby_power_vampire_load_detection` (UC-25.4.102), SOC dashboard panel \"Personal — Standby Power (Vampire Load) Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.4.102 positive (Standby, Power, (Vampire, Load), Detection): ingest synthetic events into `index=personal` sourcetype='shelly:status' where `standby_w`, `peak_w` grouped by `device_name` satisfies `power_w` > 0, or `standby_w` > 2 for 'Standby Power (Vampire Load) Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.4.102 negative (Load) Detection): ingest benign `personal` / `shelly:status` events where `device_name` stays below `power_w` > 0, or `standby_w` > 2, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 11 confirms zero alert rows for 'Standby Power (Vampire Load) Detection'."
+  },
+  "dataSources": "Zigbee2MQTT device reports (`zigbee2mqtt:device`), Shelly/Tasmota telemetry (`shelly:status`, `tasmota:sensor`), Hue events (`hue:event`), thermostats (`ecobee:thermostat`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Philips Hue, smart plugs (Tasmota/Shelly/TP-Link Kasa), thermostats (Nest/Ecobee), locks, and Zigbee/Z-Wave sensors via MQTT / Zigbee2MQTT bridged to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=shelly:status power_w>0\n| stats min(power_w) as standby_w, max(power_w) as peak_w by device_name\n| where standby_w>2 AND standby_w<peak_w*0.1\n| eval annual_kwh=round(standby_w*24*365/1000,1)\n| sort - annual_kwh",
+  "description": "Monitors UC-25.4.102 — Standby, Power, (Vampire, Load), Detection — using `index=personal` sourcetype `shelly:status`, grouped by `device_name`. Outputs `standby_w`, `peak_w` each `the scheduled window`; alert when `power_w` > 0, or `standby_w` > 2. Primary focus: Load) Detection. Purpose-built for 'Standby Power (Vampire Load) Detection' in Personal workflows.",
+  "value": "UC-25.4.102 helps teams contain Standby, Power, (Vampire, Load), Detection scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
+  "implementation": "Bridge per-device power readings; schedule weekly and target the biggest standby loads for switching off.",
+  "visualization": "Table of devices by estimated annual standby energy.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Shelly — API documentation",
+      "url": "https://shelly-api-docs.shelly.cloud/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.4.102)** — Connector for 'Standby Power (Vampire Load) Detection' stops polling `shelly:status`; stale `standby_w`, `peak_w` on `device_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `standby_w`, `peak_w` over `1w` is expected for UC-25.4.102, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `shelly:status`. Dedup with `stats latest(*) by device_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `power_w` > 0 for 'Standby Power (Vampire Load) Detection'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "f5",
+    "mqtt"
+  ],
+  "equipmentModels": [
+    "f5_asm"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Smart Home Devices & Sensors — typical feeds: Zigbee2MQTT device reports (`zigbee2mqtt:device`), Shelly/Tasmota telemetry (`shelly:status`, `tasmota:sensor`), Hue bridge events (`hue:event`), Nest/Ecobee thermostat (`ecobee:thermostat`), door/lea.\n• **Sourcetypes in this search**: `shelly:status`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=shelly:status`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Philips Hue, smart plugs (Tasmota/Shelly/TP-Link Kasa), thermostats (Nest/Ecobee), locks, and Zigbee/Z-Wave sensors via MQTT / Zigbee2MQTT and HEC..\n\n**Author notes:** Bridge per-device power readings; schedule weekly and target the biggest standby loads for switching off.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"shelly:status\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=shelly:status earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Standby Power (Vampire Load) Detection** over `personal` data (primarily `sourcetype=shelly:status`) across the full search range. It applies numeric thresholds on `power_w` (> 0) after min, max — tune these constants to your household baseline.\n\n**Fields this search depends on:** `device_name`, `power_w`, `standby_w`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=shelly:status power_w>0\n| stats min(power_w) as standby_w, max(power_w) as peak_w by device_name\n| where standby_w>2 AND standby_w<peak_w*0.1\n| eval annual_kwh=round(standby_w*24*365/1000,1)\n| sort - annual_kwh\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=shelly:status earliest=-7d\n| head 50\n| table device_name, power_w, standby_w\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=shelly:status earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `power_w` before alerting:\n\n```spl\nindex=personal sourcetype=shelly:status earliest=-30d\n| stats perc50(power_w) AS p50 perc90(power_w) AS p90 perc99(power_w) AS p99 max(power_w) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.4.102: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Devices By Estimated Annual Standby Energy (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `shelly:status` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=shelly:status | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It finds gadgets that keep sipping electricity even when switched off, and shows how much that wastes each year.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

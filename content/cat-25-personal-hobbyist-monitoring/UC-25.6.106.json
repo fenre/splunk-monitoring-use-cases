@@ -1,0 +1,73 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.6.106",
+  "title": "Rachio Rain-Skip Accuracy Review",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Physical",
+    "Risk"
+  ],
+  "splunkPillar": "Platform",
+  "exclusions": "Covers personal hobby monitoring for 'Rachio Rain-Skip Accuracy Review' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_rachio_rain_skip_accuracy_review` (UC-25.6.106), SOC dashboard panel \"Personal — Rachio Rain-Skip Accuracy Review\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.6.106 positive (Rachio, Rain, Skip, Accuracy, Review): ingest synthetic events into `index=personal` sourcetype='rachio:zone' where `rain_mm` grouped by `zone`, `_time` satisfies `rain_skips` > 0 for 'Rachio Rain-Skip Accuracy Review'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.6.106 negative (Accuracy Review): ingest benign `personal` / `rachio:zone` events where `zone`, `_time` stays below `rain_skips` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 10 confirms zero alert rows for 'Rachio Rain-Skip Accuracy Review'."
+  },
+  "dataSources": "Water telemetry (`watermeter:flow`, `flo:event`, `rachio:zone`, `maytronics:robot`, `watersoftener:status`, `pool:chemistry`, `irrigation:zone`, `waterpressure:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Flo by Moen, Rachio, Flume, Maytronics Dolphin, pool sensors, water softener sensors, and irrigation controllers via vendor APIs, MQTT, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=rachio:zone\n| bin _time span=1w\n| stats count(eval(result=\"skipped\" AND reason=\"rain\")) as rain_skips, sum(rain_mm) as rain_mm by zone _time\n| where rain_skips>0\n| sort - rain_skips",
+  "description": "Alerts on UC-25.6.106 — Rachio, Rain, Skip, Accuracy, Review — using `index=personal` sourcetype `rachio:zone`, grouped by `zone`, `_time`. Outputs `rain_mm` each `1w`; alert when `rain_skips` > 0. Primary focus: Accuracy Review. Purpose-built for 'Rachio Rain-Skip Accuracy Review' in Personal workflows.",
+  "value": "For 'Rachio Rain-Skip Accuracy Review', UC-25.6.106 converts `rain_mm` on `rachio:zone` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
+  "implementation": "Ingest Rachio rain-skip logs data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
+  "visualization": "Weekly zone chart of rain skips and rainfall.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Flo by Moen",
+      "url": "https://shop.moen.com/pages/flo-smart-water-monitor-and-shutoff",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Rachio API",
+      "url": "https://rachio.readme.io/docs",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Flume personal API",
+      "url": "https://help.flumewater.com/en/articles/3457857-flume-personal-api",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Maytronics",
+      "url": "https://www.maytronics.com/en-us/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "OpenSprinkler API",
+      "url": "https://openthings.freshdesk.com/support/solutions/articles/5000821298-opensprinkler-api",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.6.106)** — Connector for 'Rachio Rain-Skip Accuracy Review' stops polling `rachio:zone`; stale `rain_mm` on `zone`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `rain_mm` over `1w` is expected for UC-25.6.106, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `rachio:zone`. Dedup with `stats latest(*) by zone`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `rain_skips` > 0 for 'Rachio Rain-Skip Accuracy Review'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "mqtt"
+  ],
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Water, Plumbing & Utilities — typical feeds: Whole-home water flow (`watermeter:flow`), sump pump (`sumppump:event`), well pump (`wellpump:event`), pool/spa chemistry (`pool:chemistry`), water softener (`watersoftener:status`), irrigation zones .\n• **Sourcetypes in this search**: `rachio:zone`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=rachio:zone`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Smart water meters (Flume/Flo/HomeWizard), sump- and well-pump sensors, pool/spa controllers, water-softener and irrigation controllers via vendor APIs, MQTT, and HEC..\n\n**Author notes:** Ingest Rachio rain-skip logs data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"rachio:zone\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=rachio:zone earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Rachio Rain-Skip Accuracy Review** over `personal` data (primarily `sourcetype=rachio:zone`) across the full search range. It applies numeric thresholds on `rain_skips` (> 0) after count, sum — tune these constants to your household baseline.\n\n**Fields this search depends on:** `_time`, `rain_skips`, `zone`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=rachio:zone\n| bin _time span=1w\n| stats count(eval(result=\"skipped\" AND reason=\"rain\")) as rain_skips, sum(rain_mm) as rain_mm by zone _time\n| where rain_skips>0\n| sort - rain_skips\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=rachio:zone earliest=-7d\n| head 50\n| table _time, rain_skips, zone\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=rachio:zone earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `rain_skips` before alerting:\n\n```spl\nindex=personal sourcetype=rachio:zone earliest=-30d\n| stats perc50(rain_skips) AS p50 perc90(rain_skips) AS p90 perc99(rain_skips) AS p99 max(rain_skips) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.6.106: Personal evidence` with the following panel layout:\n\n**Panel 1 — Weekly Zone Chart Of Rain Skips And Rainfall (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `rachio:zone` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=rachio:zone | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Bucket misalignment:** `span=1w` buckets on UTC by default — if your routine is local-time based, add `| eval _time=_time + (local_offset)` or use `@d` / `@w` snap.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `1w` buckets.",
+  "grandmaExplanation": "It monitors how often zones skipped because forecast or observed rain was present so you can spot whether weather-based watering rules are engaging often enough before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

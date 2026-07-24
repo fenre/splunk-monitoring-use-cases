@@ -1,0 +1,68 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.15.103",
+  "title": "Cellar Humidity Cork Risk by Rack",
+  "criticality": "low",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Quality",
+    "Performance"
+  ],
+  "splunkPillar": "Platform",
+  "exclusions": "Covers personal hobby monitoring for 'Cellar Humidity Cork Risk by Rack' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_cellar_humidity_cork_risk_by_rack` (UC-25.15.103), SOC dashboard panel \"Personal — Cellar Humidity Cork Risk by Rack\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.15.103 positive (Cellar, Humidity, Cork, Risk, Rack): ingest synthetic events into `index=personal` sourcetype='winecellar:reading' where `humidity_pct`, `temp_c` grouped by `rack` satisfies `humidity_pct` < 55, or `humidity_pct` > 75 for 'Cellar Humidity Cork Risk by Rack'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.15.103 negative (by Rack): ingest benign `personal` / `winecellar:reading` events where `rack` stays below `humidity_pct` < 55, or `humidity_pct` > 75, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 14 confirms zero alert rows for 'Cellar Humidity Cork Risk by Rack'."
+  },
+  "dataSources": "Brewing telemetry (`brew:batch`, `brew:fermentation`, `brew:mash`, `tilt:hydrometer`, `ispindel:reading`, `kegerator:pressure`, `kegerator:pour`, `brewfridge:compressor`, `winecellar:reading`, `tapline:clean`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Brewfather batch exports, iSpindel and Tilt hydrometers, ESPHome mash probes, keg pressure sensors, brew-fridge telemetry, and cellar climate data via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=winecellar:reading\n| stats avg(humidity_pct) as humidity_pct, avg(temp_c) as temp_c by rack\n| where humidity_pct<55 OR humidity_pct>75\n| sort humidity_pct",
+  "description": "Identifies UC-25.15.103 — Cellar, Humidity, Cork, Risk, Rack — using `index=personal` sourcetype `winecellar:reading`, grouped by `rack`. Outputs `humidity_pct`, `temp_c` each `the scheduled window`; alert when `humidity_pct` < 55, or `humidity_pct` > 75. Primary focus: by Rack. Purpose-built for 'Cellar Humidity Cork Risk by Rack' in Personal workflows.",
+  "value": "Alerting on Cellar, Humidity, Cork, Risk, Rack through UC-25.15.103 reduces missed training goals, stale hobby data, and connector failures by surfacing `humidity_pct`, `temp_c` early.",
+  "implementation": "Ingest Wine-cellar environment readings data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
+  "visualization": "Rack table of cellar humidity and temperature.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Brewfather API",
+      "url": "https://api.brewfather.app/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "iSpindel docs",
+      "url": "https://www.ispindel.de/docs/README_en.html",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Tilt Hydrometer",
+      "url": "https://tilthydrometer.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "ESPHome",
+      "url": "https://esphome.io/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.15.103)** — Connector for 'Cellar Humidity Cork Risk by Rack' stops polling `winecellar:reading`; stale `humidity_pct`, `temp_c` on `rack` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `humidity_pct`, `temp_c` over `1w` is expected for UC-25.15.103, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `winecellar:reading`. Dedup with `stats latest(*) by rack`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `humidity_pct` < 55 for 'Cellar Humidity Cork Risk by Rack'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "mqtt"
+  ],
+  "equipmentModels": [
+    "mqtt_generic"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Homebrewing, Beer & Wine — typical feeds: Fermentation gravity/temperature (`brew:fermentation`), kegerator pours (`kegerator:pour`), wine-cellar climate (`winecellar:reading`)..\n• **Sourcetypes in this search**: `winecellar:reading`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=winecellar:reading`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Fermentation sensors (Tilt/iSpindel hydrometer, temperature), kegerator flow meters and scales, and wine-cellar climate sensors via MQTT and Splunk HEC..\n\n**Author notes:** Ingest Wine-cellar environment readings data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"winecellar:reading\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=winecellar:reading earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Cellar Humidity Cork Risk by Rack** over `personal` data (primarily `sourcetype=winecellar:reading`) across the full search range. It applies numeric thresholds on `humidity_pct` (< 55) after avg — tune these constants to your household baseline.\n\n**Fields this search depends on:** `humidity_pct`, `rack`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=winecellar:reading\n| stats avg(humidity_pct) as humidity_pct, avg(temp_c) as temp_c by rack\n| where humidity_pct<55 OR humidity_pct>75\n| sort humidity_pct\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=winecellar:reading earliest=-7d\n| head 50\n| table humidity_pct, rack\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=winecellar:reading earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `humidity_pct` before alerting:\n\n```spl\nindex=personal sourcetype=winecellar:reading earliest=-30d\n| stats perc50(humidity_pct) AS p50 perc90(humidity_pct) AS p90 perc99(humidity_pct) AS p99 max(humidity_pct) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.15.103: Personal evidence` with the following panel layout:\n\n**Panel 1 — Rack Table Of Cellar Humidity And Temperature (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `winecellar:reading` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=winecellar:reading | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It produces rack humidity versus the zone that keeps corks healthy so you can spot storage zones that need climate adjustment before it becomes annoying.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

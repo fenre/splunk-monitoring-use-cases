@@ -1,0 +1,64 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.4.103",
+  "title": "Indoor Temperature and Humidity Comfort Band",
+  "criticality": "low",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Analytics",
+    "Quality"
+  ],
+  "splunkPillar": "Observability",
+  "exclusions": "Covers personal hobby monitoring for 'Indoor Temperature and Humidity Comfort Band' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_indoor_temperature_and_humidity_comfort_band` (UC-25.4.103), SOC dashboard panel \"Personal — Indoor Temperature and Humidity Comfort Band\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.4.103 positive (Indoor, Temperature, and, Humidity, Comfort): ingest synthetic events into `index=personal` sourcetype='zigbee2mqtt:device' where `temp_c`, `humidity_pct` grouped by `friendly_name` satisfies `temp_c` < 18, `temp_c` > 25, `humidity_pct` > 60, or `humidity_pct` < 30 for 'Indoor Temperature and Humidity Comfort Band'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.4.103 negative (Comfort Band): ingest benign `personal` / `zigbee2mqtt:device` events where `friendly_name` stays below `temp_c` < 18, `temp_c` > 25, `humidity_pct` > 60, or `humidity_pct` < 30, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 11 confirms zero alert rows for 'Indoor Temperature and Humidity Comfort Band'."
+  },
+  "dataSources": "Zigbee2MQTT device reports (`zigbee2mqtt:device`), Shelly/Tasmota telemetry (`shelly:status`, `tasmota:sensor`), Hue events (`hue:event`), thermostats (`ecobee:thermostat`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Philips Hue, smart plugs (Tasmota/Shelly/TP-Link Kasa), thermostats (Nest/Ecobee), locks, and Zigbee/Z-Wave sensors via MQTT / Zigbee2MQTT bridged to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=zigbee2mqtt:device\n| stats avg(temperature) as temp_c, avg(humidity) as humidity_pct by friendly_name\n| eval comfort=case(temp_c<18,\"cold\",temp_c>25,\"warm\",humidity_pct>60,\"humid\",humidity_pct<30,\"dry\",1=1,\"comfortable\")\n| where comfort!=\"comfortable\"",
+  "description": "Surfaces UC-25.4.103 — Indoor, Temperature, and, Humidity, Comfort — using `index=personal` sourcetype `zigbee2mqtt:device`, grouped by `friendly_name`. Outputs `temp_c`, `humidity_pct` each `the scheduled window`; alert when `temp_c` < 18, `temp_c` > 25, `humidity_pct` > 60, or `humidity_pct` < 30. Primary focus: Comfort Band. Purpose-built for 'Indoor Temperature and Humidity Comfort Band' in Personal workflows.",
+  "value": "UC-25.4.103 helps teams contain Indoor, Temperature, and, Humidity, Comfort scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
+  "implementation": "Bridge climate-sensor readings; schedule hourly and alert on rooms outside the comfort band.",
+  "visualization": "Table of rooms by temperature, humidity, and comfort flag.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Zigbee2MQTT — Documentation",
+      "url": "https://www.zigbee2mqtt.io/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.4.103)** — Connector for 'Indoor Temperature and Humidity Comfort Band' stops polling `zigbee2mqtt:device`; stale `temp_c`, `humidity_pct` on `friendly_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `temp_c`, `humidity_pct` over `1w` is expected for UC-25.4.103, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `zigbee2mqtt:device`. Dedup with `stats latest(*) by friendly_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `temp_c` < 18 for 'Indoor Temperature and Humidity Comfort Band'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "f5",
+    "mqtt"
+  ],
+  "equipmentModels": [
+    "f5_asm"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Smart Home Devices & Sensors — typical feeds: Zigbee2MQTT device reports (`zigbee2mqtt:device`), Shelly/Tasmota telemetry (`shelly:status`, `tasmota:sensor`), Hue bridge events (`hue:event`), Nest/Ecobee thermostat (`ecobee:thermostat`), door/lea.\n• **Sourcetypes in this search**: `zigbee2mqtt:device`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=zigbee2mqtt:device`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Philips Hue, smart plugs (Tasmota/Shelly/TP-Link Kasa), thermostats (Nest/Ecobee), locks, and Zigbee/Z-Wave sensors via MQTT / Zigbee2MQTT and HEC..\n\n**Author notes:** Bridge climate-sensor readings; schedule hourly and alert on rooms outside the comfort band.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"zigbee2mqtt:device\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=zigbee2mqtt:device earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Indoor Temperature and Humidity Comfort Band** over `personal` data (primarily `sourcetype=zigbee2mqtt:device`) across the full search range. It applies numeric thresholds on `temp_c` (< 18) after avg — tune these constants to your household baseline.\n\n**Fields this search depends on:** `comfort`, `friendly_name`, `humidity_pct`, `temp_c`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=zigbee2mqtt:device\n| stats avg(temperature) as temp_c, avg(humidity) as humidity_pct by friendly_name\n| eval comfort=case(temp_c<18,\"cold\",temp_c>25,\"warm\",humidity_pct>60,\"humid\",humidity_pct<30,\"dry\",1=1,\"comfortable\")\n| where comfort!=\"comfortable\"\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=zigbee2mqtt:device earliest=-7d\n| head 50\n| table comfort, friendly_name, humidity_pct, temp_c\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=zigbee2mqtt:device earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n**(d) Threshold calibration:** Profile `temp_c` before alerting:\n\n```spl\nindex=personal sourcetype=zigbee2mqtt:device earliest=-30d\n| stats perc50(temp_c) AS p50 perc90(temp_c) AS p90 perc99(temp_c) AS p99 max(temp_c) AS hi\n```\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.4.103: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Rooms By Temperature (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n**Panel 2 — Humidity (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n**Panel 3 — And Comfort Flag (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `zigbee2mqtt:device` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=zigbee2mqtt:device | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It checks each room is a comfortable temperature and not too damp or dry, which also helps prevent mould.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

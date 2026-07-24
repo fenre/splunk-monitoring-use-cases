@@ -1,0 +1,62 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "25.59.164",
+  "title": "Forecast Journal Update Latency",
+  "criticality": "low",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Availability"
+  ],
+  "splunkPillar": "Platform",
+  "exclusions": "Covers personal hobby monitoring for 'Forecast Journal Update Latency' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
+  "evidence": "Saved search `personal_forecast_journal_update_latency` (UC-25.59.164), SOC dashboard panel \"Personal — Forecast Journal Update Latency\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
+  "controlTest": {
+    "positiveScenario": "UC-25.59.164 positive (Forecast, Journal, Update, Latency): ingest synthetic events into `index=personal` sourcetype='prediction:forecast' where `avg_update_lag`, `worst_update_lag` grouped by `topic` satisfies detection threshold for 'Forecast Journal Update Latency'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.59.164 negative (Update Latency): ingest benign `personal` / `prediction:forecast` events where `topic` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 13 confirms zero alert rows for 'Forecast Journal Update Latency'."
+  },
+  "dataSources": "Forecasts (`prediction:forecast`), resolved outcomes (`prediction:outcome`), personal bets (`bet:personal`), calibration scores (`calibration:score`), Brier scores (`brier:score`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
+  "app": "Personal forecasting and calibration — a private prediction journal of dated forecasts about your own life, resolved outcomes, and calibration / Brier scoring — streamed to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
+  "spl": "index=personal sourcetype=prediction:forecast update_epoch=*\n| eval update_lag_hours=round((update_epoch-_time)/3600,1)\n| stats avg(update_lag_hours) as avg_update_lag, max(update_lag_hours) as worst_update_lag by topic\n| sort - avg_update_lag",
+  "description": "Identifies UC-25.59.164 — Forecast, Journal, Update, Latency — using `index=personal` sourcetype `prediction:forecast`, grouped by `topic`. Outputs `avg_update_lag`, `worst_update_lag` each `the scheduled window`; alert when configured threshold. Primary focus: Update Latency. Purpose-built for 'Forecast Journal Update Latency' in Personal workflows.",
+  "value": "UC-25.59.164 gives Personal teams earlier visibility into Update Latency through `prediction:forecast` feeds, lowering missed training goals, stale hobby data, and connector failures.",
+  "implementation": "Store an update timestamp for revised forecasts and compare average update lag by topic.",
+  "visualization": "Table of topics with average forecast update lag in hours.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Good Judgment — forecasting principles",
+      "url": "https://goodjudgment.com/",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk HTTP Event Collector",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Enterprise Documentation",
+      "url": "https://docs.splunk.com/Documentation/Splunk",
+      "retrieved": "2026-04-25"
+    },
+    {
+      "title": "Splunk Search Reference",
+      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "retrieved": "2026-04-25"
+    }
+  ],
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.59.164)** — Connector for 'Forecast Journal Update Latency' stops polling `prediction:forecast`; stale `avg_update_lag`, `worst_update_lag` on `topic` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_update_lag`, `worst_update_lag` over `1w` is expected for UC-25.59.164, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `prediction:forecast`. Dedup with `stats latest(*) by topic`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Forecast Journal Update Latency'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "equipment": [
+    "splunk"
+  ],
+  "equipmentModels": [
+    "splunk_platform"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Splunk Enterprise ≥9.0 or Splunk Cloud — a single-instance home lab is fine. Create `index=personal` with 90–365 day retention (`indexes.conf`).\n• **HEC token**: Settings → Data Inputs → HTTP Event Collector → New Token → index `personal`. Store the token in your connector's environment (never commit it to git).\n• **Upstream product**: Personal HEC index — HTTP Event Collector token on index=personal.\n• **Subcategory context**: Self-Forecasting & Prediction Markets on Yourself — typical feeds: Forecasts (`prediction:forecast`), resolved outcomes (`prediction:outcome`), personal bets (`bet:personal`), calibration scores (`calibration:score`), Brier scores (`brier:score`)..\n• **Sourcetypes in this search**: `prediction:forecast`.\n• **Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).\n\n## Step 1 — Configure data collection\n\nRoute **Personal HEC index** events into `index=personal` with `sourcetype=prediction:forecast`.\n\n**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.\n\n**Suggested poll interval:** depends on upstream connector.\n\n**Key fields to extract:** `sourcetype-specific — see search filters`.\n\n**Typical connector stack:** Personal forecasting and calibration — a private prediction journal of dated forecasts about your own life, resolved outcomes, and calibration / Brier scoring — streamed to Splunk HEC via scripted inputs..\n\n**Author notes:** Store an update timestamp for revised forecasts and compare average update lag by topic.\n\n\nExample HEC payload shape:\n\n```json\n{\"index\": \"personal\", \"sourcetype\": \"prediction:forecast\", \"event\": { ... vendor fields ... }}\n```\n\nVerify ingestion with:\n\n```spl\nindex=personal sourcetype=prediction:forecast earliest=-24h | head 20\n```\n\n## Step 2 — Create the search and alert\n\nThis search implements **Forecast Journal Update Latency** over `personal` data (primarily `sourcetype=prediction:forecast`) across the full search range. The `avg, max` aggregation groups by `topic`; change the `by` clause if you want per-device, per-room, or per-user breakdowns instead.\n\n**Fields this search depends on:** `topic`. Confirm each is populated before scheduling alerts.\n\n```spl\nindex=personal sourcetype=prediction:forecast update_epoch=*\n| eval update_lag_hours=round((update_epoch-_time)/3600,1)\n| stats avg(update_lag_hours) as avg_update_lag, max(update_lag_hours) as worst_update_lag by topic\n| sort - avg_update_lag\n```\n\n## Step 3 — Validate\n\n**(a) Compare to vendor UI:** Splunk Search → index=personal | stats count by sourcetype. Totals for the same day/week should match within connector lag (usually one poll interval).\n\n**(b) Field presence:**\n\n```spl\nindex=personal sourcetype=prediction:forecast earliest=-7d\n| head 50\n| table topic\n```\n\nEvery column the detection uses should be non-null on recent rows.\n\n**(c) Volume sanity:**\n\n```spl\nindex=personal sourcetype=prediction:forecast earliest=-30d\n| timechart span=1d count\n```\n\nFlatlines usually mean a broken token, expired OAuth refresh, or HEC URL change.\n\n## Step 4 — Operationalize\n\nCreate a companion dashboard titled `UC-25.59.164: Personal evidence` with the following panel layout:\n\n**Panel 1 — Table Of Topics With Average Forecast Update Lag In Hours (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.\n\n\nTime picker defaults: set to last 30 days with named presets for 24h, 7d, 30d, 90d, and 1y — the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.\n\n## Step 5 — Troubleshooting\n\n**Personal HEC index — no Personal HEC index events / missing fields:** If `prediction:forecast` stops updating, re-check HEC token, index `personal`, and firewall to port 8088. Search `index=_internal sourcetype=splunkd group=http_event_collector` for rejection reasons. Confirm the Personal HEC index connector script is still running (`systemctl status` or cron log).\n\n**Personal HEC index — NULL values in extracted fields:** The Personal HEC index JSON export shape drifted — compare a raw event (`index=personal sourcetype=prediction:forecast | head 1 | spath`) against the field names in Step 2. Re-map in the connector before changing the SPL.\n\n**Personal HEC index — API error / auth denied (401/403):** Refresh tokens expire on most consumer APIs — re-authorize the scripted input, update `passwords.conf` / env vars, and verify the vendor developer app is not in sandbox mode.\n\n**Personal HEC index — endpoint timeout / HTTP 429 throttling:** Back off the poll interval in the connector; Personal HEC index APIs often cap requests per 15 minutes on free tiers.\n\n**Stale dashboard:** Confirm the saved search `dispatch.earliest_time` covers enough history for your `aggregation` buckets.",
+  "grandmaExplanation": "It compares how long you wait before updating a prediction when new evidence shows up.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}
